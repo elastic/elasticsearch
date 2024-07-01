@@ -1,12 +1,10 @@
 [[esql]]
 = {esql}
 
-:esql-tests: {xes-repo-dir}/../../plugin/esql/qa
+:esql-tests: {elasticsearch-root}/x-pack/docs/{lang}/../../plugin/esql/qa
 :esql-specs: {esql-tests}/testFixtures/src/main/resources
 
 [partintro]
-
-preview::[]
 
 The {es} Query Language ({esql}) provides a powerful way to filter, transform,
 and analyze data stored in {es}, and in the future in other runtimes. It is
@@ -56,7 +54,7 @@ GROK>> and <<esql-enrich-data,data enrichment with ENRICH>>.
 
 <<esql-using>>::
 An overview of using the <<esql-rest>>, <<esql-kibana>>,
-<<esql-elastic-security>>, and <<esql-task-management>>.
+<<esql-elastic-security>>, <<esql-cross-clusters>>, and <<esql-task-management>>.
 
 <<esql-limitations>>::
 The current limitations of {esql}.

@@ -30,7 +30,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -42,7 +41,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -57,7 +55,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UpdateRequest.class);
 
-    private static ObjectParser<UpdateRequest, Void> PARSER;
+    private static final ObjectParser<UpdateRequest, Void> PARSER;
 
     private static final ParseField SCRIPT_FIELD = new ParseField("script");
     private static final ParseField SCRIPTED_UPSERT_FIELD = new ParseField("scripted_upsert");
@@ -183,6 +181,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
+        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
+
         if (ifSeqNo != UNASSIGNED_SEQ_NO) {
             if (retryOnConflict > 0) {
                 validationException = addValidationError("compare and write operations can not be retried", validationException);
@@ -264,165 +264,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest script(Script script) {
         this.script = script;
-        return this;
-    }
-
-    /**
-     * @deprecated Use {@link #script()} instead
-     */
-    @Deprecated
-    public String scriptString() {
-        return this.script == null ? null : this.script.getIdOrCode();
-    }
-
-    /**
-     * @deprecated Use {@link #script()} instead
-     */
-    @Deprecated
-    public ScriptType scriptType() {
-        return this.script == null ? null : this.script.getType();
-    }
-
-    /**
-     * @deprecated Use {@link #script()} instead
-     */
-    @Deprecated
-    public Map<String, Object> scriptParams() {
-        return this.script == null ? null : this.script.getParams();
-    }
-
-    /**
-     * The script to execute. Note, make sure not to send different script each
-     * times and instead use script params if possible with the same
-     * (automatically compiled) script.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest script(String script, ScriptType scriptType) {
-        updateOrCreateScript(script, scriptType, null, null);
-        return this;
-    }
-
-    /**
-     * The script to execute. Note, make sure not to send different script each
-     * times and instead use script params if possible with the same
-     * (automatically compiled) script.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest script(String script) {
-        updateOrCreateScript(script, ScriptType.INLINE, null, null);
-        return this;
-    }
-
-    /**
-     * The language of the script to execute.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest scriptLang(String scriptLang) {
-        updateOrCreateScript(null, null, scriptLang, null);
-        return this;
-    }
-
-    /**
-     * @deprecated Use {@link #script()} instead
-     */
-    @Deprecated
-    public String scriptLang() {
-        return script == null ? null : script.getLang();
-    }
-
-    /**
-     * Add a script parameter.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest addScriptParam(String name, Object value) {
-        Script script = script();
-        if (script == null) {
-            HashMap<String, Object> scriptParams = new HashMap<>();
-            scriptParams.put(name, value);
-            updateOrCreateScript(null, null, null, scriptParams);
-        } else {
-            Map<String, Object> scriptParams = script.getParams();
-            if (scriptParams == null) {
-                scriptParams = new HashMap<>();
-                scriptParams.put(name, value);
-                updateOrCreateScript(null, null, null, scriptParams);
-            } else {
-                scriptParams.put(name, value);
-            }
-        }
-        return this;
-    }
-
-    /**
-     * Sets the script parameters to use with the script.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest scriptParams(Map<String, Object> scriptParams) {
-        updateOrCreateScript(null, null, null, scriptParams);
-        return this;
-    }
-
-    private void updateOrCreateScript(String scriptContent, ScriptType type, String lang, Map<String, Object> params) {
-        Script script = script();
-        if (script == null) {
-            script = new Script(type == null ? ScriptType.INLINE : type, lang, scriptContent == null ? "" : scriptContent, params);
-        } else {
-            String newScriptContent = scriptContent == null ? script.getIdOrCode() : scriptContent;
-            ScriptType newScriptType = type == null ? script.getType() : type;
-            String newScriptLang = lang == null ? script.getLang() : lang;
-            Map<String, Object> newScriptParams = params == null ? script.getParams() : params;
-            script = new Script(newScriptType, newScriptLang, newScriptContent, newScriptParams);
-        }
-        script(script);
-    }
-
-    /**
-     * The script to execute. Note, make sure not to send different script each
-     * times and instead use script params if possible with the same
-     * (automatically compiled) script.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest script(String script, ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
-        this.script = new Script(scriptType, Script.DEFAULT_SCRIPT_LANG, script, scriptParams);
-        return this;
-    }
-
-    /**
-     * The script to execute. Note, make sure not to send different script each
-     * times and instead use script params if possible with the same
-     * (automatically compiled) script.
-     *
-     * @param script
-     *            The script to execute
-     * @param scriptLang
-     *            The script language
-     * @param scriptType
-     *            The script type
-     * @param scriptParams
-     *            The script parameters
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest script(
-        String script,
-        @Nullable String scriptLang,
-        ScriptType scriptType,
-        @Nullable Map<String, Object> scriptParams
-    ) {
-        this.script = new Script(scriptType, scriptLang, script, scriptParams);
         return this;
     }
 
@@ -703,6 +544,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(BytesReference source, XContentType contentType) {
+        safeUpsertRequest().source(source, contentType);
+        return this;
+    }
+
+    /**
      * Sets the index request to be used if the document does not exists. Otherwise, a
      * {@link org.elasticsearch.index.engine.DocumentMissingException} is thrown.
      */
@@ -829,6 +678,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public boolean isRequireAlias() {
         return requireAlias;
+    }
+
+    @Override
+    public boolean isRequireDataStream() {
+        // Always false because data streams cannot accept update operations
+        return false;
     }
 
     @Override

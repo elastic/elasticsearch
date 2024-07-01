@@ -97,13 +97,6 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
         return scroll(new Scroll(keepAlive));
     }
 
-    /**
-     * If set, will enable scrolling of the search request for the specified timeout.
-     */
-    public SearchScrollRequest scroll(String keepAlive) {
-        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null, getClass().getSimpleName() + ".keepAlive")));
-    }
-
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::getDescription, parentTaskId, headers);

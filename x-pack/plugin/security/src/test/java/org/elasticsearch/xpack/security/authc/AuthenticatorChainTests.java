@@ -20,7 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -480,13 +480,10 @@ public class AuthenticatorChainTests extends ESTestCase {
 
         final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
         Loggers.setLevel(logger, Level.INFO);
-        final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
-        appender.start();
 
-        try {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(AuthenticatorChain.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "run-as",
                     AuthenticatorChain.class.getName(),
                     Level.INFO,
@@ -496,11 +493,9 @@ public class AuthenticatorChainTests extends ESTestCase {
             final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
             authenticatorChain.maybeLookupRunAsUser(context, authentication, future);
             assertThat(future.actionGet(), equalTo(authentication));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
         }
     }
 

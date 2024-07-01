@@ -182,7 +182,6 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         .numberOfSignificantValueDigits(sigDigits)
                         .field("value")
                 )
-                .get()
         );
         assertThat(e.getMessage(), equalTo("[values] must not be null: [percentile_ranks]"));
     }
@@ -198,7 +197,6 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         .numberOfSignificantValueDigits(sigDigits)
                         .field("value")
                 )
-                .get()
         );
         assertThat(e.getMessage(), equalTo("[values] must not be an empty array: [percentile_ranks]"));
     }
@@ -224,7 +222,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo(10L));
                 assertThat(global.getAggregations(), notNullValue());
-                assertThat(global.getAggregations().asMap().size(), equalTo(1));
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 PercentileRanks values = global.getAggregations().get("percentile_ranks");
                 assertThat(values, notNullValue());

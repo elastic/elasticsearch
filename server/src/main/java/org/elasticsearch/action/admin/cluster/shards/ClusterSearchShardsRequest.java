@@ -31,9 +31,12 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     private String preference;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    public ClusterSearchShardsRequest() {}
+    public ClusterSearchShardsRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public ClusterSearchShardsRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         indices(indices);
     }
 

@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 import org.hamcrest.StringDescription;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -47,8 +46,8 @@ public class MetricsApmIT extends ESRestTestCase {
         .module("test-apm-integration")
         .module("apm")
         .setting("telemetry.metrics.enabled", "true")
-        .setting("tracing.apm.agent.metrics_interval", "1s")
-        .setting("tracing.apm.agent.server_url", "http://127.0.0.1:" + mockApmServer.getPort())
+        .setting("telemetry.agent.metrics_interval", "1s")
+        .setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockApmServer.getPort())
         .build();
 
     @Override
@@ -56,24 +55,23 @@ public class MetricsApmIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103286")
     @SuppressWarnings("unchecked")
     public void testApmIntegration() throws Exception {
         Map<String, Predicate<Map<String, Object>>> sampleAssertions = new HashMap<>(
             Map.ofEntries(
-                assertion(TestMeterUsages.VERY_LONG_NAME, m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("testLongCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("testAsyncDoubleCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("testAsyncLongCounter", m -> (Integer) m.get("value"), equalTo(1)),
-                assertion("testDoubleGauge", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("testLongGauge", m -> (Integer) m.get("value"), equalTo(1)),
+                assertion("es.test.long_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.double_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.async_double_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.async_long_counter.total", m -> (Integer) m.get("value"), equalTo(1)),
+                assertion("es.test.double_gauge.current", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.long_gauge.current", m -> (Integer) m.get("value"), equalTo(1)),
                 assertion(
-                    "testDoubleHistogram",
+                    "es.test.double_histogram.histogram",
                     m -> ((Collection<Integer>) m.get("counts")).stream().mapToInt(Integer::intValue).sum(),
                     equalTo(2)
                 ),
                 assertion(
-                    "testLongHistogram",
+                    "es.test.long_histogram.histogram",
                     m -> ((Collection<Integer>) m.get("counts")).stream().mapToInt(Integer::intValue).sum(),
                     equalTo(2)
                 )
@@ -108,8 +106,10 @@ public class MetricsApmIT extends ESRestTestCase {
 
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
 
-        finished.await(30, TimeUnit.SECONDS);
-        assertThat(sampleAssertions, Matchers.anEmptyMap());
+        assertTrue(
+            "Timeout when waiting for assertions to complete. Remaining assertions to match: " + sampleAssertions,
+            finished.await(30, TimeUnit.SECONDS)
+        );
     }
 
     private <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(

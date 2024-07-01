@@ -201,8 +201,8 @@ setup:
 
 ---
 "Counter field":
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "counter field support added in 8.7"
 
   - do:

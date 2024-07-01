@@ -20,16 +20,16 @@ public class Json {
      * Load a string as the Java version of a JSON type, either List (JSON array), Map (JSON object), Number, Boolean or String
      */
     public static Object load(String json) throws IOException {
-        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json);
-
-        return switch (parser.nextToken()) {
-            case START_ARRAY -> parser.list();
-            case START_OBJECT -> parser.map();
-            case VALUE_NUMBER -> parser.numberValue();
-            case VALUE_BOOLEAN -> parser.booleanValue();
-            case VALUE_STRING -> parser.text();
-            default -> null;
-        };
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            return switch (parser.nextToken()) {
+                case START_ARRAY -> parser.list();
+                case START_OBJECT -> parser.map();
+                case VALUE_NUMBER -> parser.numberValue();
+                case VALUE_BOOLEAN -> parser.booleanValue();
+                case VALUE_STRING -> parser.text();
+                default -> null;
+            };
+        }
     }
 
     /**

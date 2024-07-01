@@ -14,9 +14,9 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
@@ -30,7 +30,7 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -2073,11 +2073,11 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         ActionType<?> randomActionType = randomFrom(
             EnrichReindexAction.INSTANCE,
             GetIndexAction.INSTANCE,
-            CreateIndexAction.INSTANCE,
+            TransportCreateIndexAction.TYPE,
             ForceMergeAction.INSTANCE,
             RefreshAction.INSTANCE,
             IndicesSegmentsAction.INSTANCE,
-            UpdateSettingsAction.INSTANCE,
+            TransportUpdateSettingsAction.TYPE,
             TransportClusterHealthAction.TYPE
         );
         logger.info("Selected [{}] to perform cancel", randomActionType.name());

@@ -37,7 +37,7 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
     private static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
 
     private GetRollupIndexCapsAction() {
-        super(NAME, GetRollupIndexCapsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable, ToXContentFragment {
@@ -133,10 +133,6 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
 
         public Response(Map<String, RollableIndexCaps> jobs) {
             this.jobs = Objects.requireNonNull(jobs);
-        }
-
-        Response(StreamInput in) throws IOException {
-            jobs = in.readMap(RollableIndexCaps::new);
         }
 
         public Map<String, RollableIndexCaps> getJobs() {

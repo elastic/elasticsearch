@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 public class RecordingMeterRegistry implements MeterRegistry {
     protected final MetricRecorder<Instrument> recorder = new MetricRecorder<>();
 
-    MetricRecorder<Instrument> getRecorder() {
+    public MetricRecorder<Instrument> getRecorder() {
         return recorder;
     }
 

@@ -23,13 +23,14 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeModel;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceTests;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalModel;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceTests;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettingsTests;
 import org.junit.Before;
 
@@ -69,8 +70,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     public void testStoreModel() throws Exception {
-        String modelId = "test-store-model";
-        Model model = buildElserModelConfig(modelId, TaskType.SPARSE_EMBEDDING);
+        String inferenceEntityId = "test-store-model";
+        Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -81,8 +82,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     public void testStoreModelWithUnknownFields() throws Exception {
-        String modelId = "test-store-model-unknown-field";
-        Model model = buildModelWithUnknownField(modelId);
+        String inferenceEntityId = "test-store-model-unknown-field";
+        Model model = buildModelWithUnknownField(inferenceEntityId);
         AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -96,12 +97,12 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             statusException.getRootCause().getMessage(),
             containsString("mapping set to strict, dynamic introduction of [unknown_field] within [_doc] is not allowed")
         );
-        assertThat(exceptionHolder.get().getMessage(), containsString("Failed to store inference model [" + modelId + "]"));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Failed to store inference endpoint [" + inferenceEntityId + "]"));
     }
 
     public void testGetModel() throws Exception {
-        String modelId = "test-get-model";
-        Model model = buildElserModelConfig(modelId, TaskType.SPARSE_EMBEDDING);
+        String inferenceEntityId = "test-get-model";
+        Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -110,15 +111,15 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         // now get the model
         AtomicReference<ModelRegistry.UnparsedModel> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> modelRegistry.getModelWithSecrets(modelId, listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getModelWithSecrets(inferenceEntityId, listener), modelHolder, exceptionHolder);
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertThat(modelHolder.get(), not(nullValue()));
 
         assertEquals(model.getConfigurations().getService(), modelHolder.get().service());
 
-        var elserService = new ElserMlNodeService(new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class)));
-        ElserMlNodeModel roundTripModel = elserService.parsePersistedConfigWithSecrets(
-            modelHolder.get().modelId(),
+        var elserService = new ElserInternalService(new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class)));
+        ElserInternalModel roundTripModel = elserService.parsePersistedConfigWithSecrets(
+            modelHolder.get().inferenceEntityId(),
             modelHolder.get().taskType(),
             modelHolder.get().settings(),
             modelHolder.get().secrets()
@@ -127,8 +128,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     public void testStoreModelFailsWhenModelExists() throws Exception {
-        String modelId = "test-put-trained-model-config-exists";
-        Model model = buildElserModelConfig(modelId, TaskType.SPARSE_EMBEDDING);
+        String inferenceEntityId = "test-put-trained-model-config-exists";
+        Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -143,7 +144,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertThat(
             exceptionHolder.get().getMessage(),
-            containsString("Inference model [test-put-trained-model-config-exists] already exists")
+            containsString("Inference endpoint [test-put-trained-model-config-exists] already exists")
         );
     }
 
@@ -170,7 +171,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertFalse(deleteResponseHolder.get());
-        assertThat(exceptionHolder.get().getMessage(), containsString("Model not found [model1]"));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Inference endpoint not found [model1]"));
     }
 
     public void testGetModelsByTaskType() throws InterruptedException {
@@ -196,10 +197,10 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(modelHolder.get(), hasSize(3));
         var sparseIds = sparseAndTextEmbeddingModels.stream()
             .filter(m -> m.getConfigurations().getTaskType() == TaskType.SPARSE_EMBEDDING)
-            .map(Model::getModelId)
+            .map(Model::getInferenceEntityId)
             .collect(Collectors.toSet());
         modelHolder.get().forEach(m -> {
-            assertTrue(sparseIds.contains(m.modelId()));
+            assertTrue(sparseIds.contains(m.inferenceEntityId()));
             assertThat(m.secrets().keySet(), empty());
         });
 
@@ -207,10 +208,10 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(modelHolder.get(), hasSize(2));
         var denseIds = sparseAndTextEmbeddingModels.stream()
             .filter(m -> m.getConfigurations().getTaskType() == TaskType.TEXT_EMBEDDING)
-            .map(Model::getModelId)
+            .map(Model::getInferenceEntityId)
             .collect(Collectors.toSet());
         modelHolder.get().forEach(m -> {
-            assertTrue(denseIds.contains(m.modelId()));
+            assertTrue(denseIds.contains(m.inferenceEntityId()));
             assertThat(m.secrets().keySet(), empty());
         });
     }
@@ -238,9 +239,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var getAllModels = modelHolder.get();
 
         // sort in the same order as the returned models
-        createdModels.sort(Comparator.comparing(Model::getModelId));
+        createdModels.sort(Comparator.comparing(Model::getInferenceEntityId));
         for (int i = 0; i < modelCount; i++) {
-            assertEquals(createdModels.get(i).getModelId(), getAllModels.get(i).modelId());
+            assertEquals(createdModels.get(i).getInferenceEntityId(), getAllModels.get(i).inferenceEntityId());
             assertEquals(createdModels.get(i).getTaskType(), getAllModels.get(i).taskType());
             assertEquals(createdModels.get(i).getConfigurations().getService(), getAllModels.get(i).service());
             assertThat(getAllModels.get(i).secrets().keySet(), empty());
@@ -250,30 +251,30 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     public void testGetModelWithSecrets() throws InterruptedException {
         var service = "foo";
-        var modelId = "model-with-secrets";
+        var inferenceEntityId = "model-with-secrets";
         var secret = "abc";
 
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        var modelWithSecrets = createModelWithSecrets(modelId, randomFrom(TaskType.values()), service, secret);
+        var modelWithSecrets = createModelWithSecrets(inferenceEntityId, randomFrom(TaskType.values()), service, secret);
         blockingCall(listener -> modelRegistry.storeModel(modelWithSecrets, listener), putModelHolder, exceptionHolder);
         assertThat(putModelHolder.get(), is(true));
         assertNull(exceptionHolder.get());
 
         AtomicReference<ModelRegistry.UnparsedModel> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> modelRegistry.getModelWithSecrets(modelId, listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getModelWithSecrets(inferenceEntityId, listener), modelHolder, exceptionHolder);
         assertThat(modelHolder.get().secrets().keySet(), hasSize(1));
         var secretSettings = (Map<String, Object>) modelHolder.get().secrets().get("secret_settings");
         assertThat(secretSettings.get("secret"), equalTo(secret));
 
         // get model without secrets
-        blockingCall(listener -> modelRegistry.getModel(modelId, listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getModel(inferenceEntityId, listener), modelHolder, exceptionHolder);
         assertThat(modelHolder.get().secrets().keySet(), empty());
     }
 
-    private Model buildElserModelConfig(String modelId, TaskType taskType) {
-        return ElserMlNodeServiceTests.randomModelConfig(modelId, taskType);
+    private Model buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
+        return ElserInternalServiceTests.randomModelConfig(inferenceEntityId, taskType);
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
@@ -291,25 +292,25 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         latch.await();
     }
 
-    private static Model buildModelWithUnknownField(String modelId) {
+    private static Model buildModelWithUnknownField(String inferenceEntityId) {
         return new Model(
             new ModelWithUnknownField(
-                modelId,
+                inferenceEntityId,
                 TaskType.SPARSE_EMBEDDING,
-                ElserMlNodeService.NAME,
-                ElserMlNodeServiceSettingsTests.createRandom(),
+                ElserInternalService.NAME,
+                ElserInternalServiceSettingsTests.createRandom(),
                 ElserMlNodeTaskSettingsTests.createRandom()
             )
         );
     }
 
-    public static Model createModel(String modelId, TaskType taskType, String service) {
-        return new Model(new ModelConfigurations(modelId, taskType, service, new TestModelOfAnyKind.TestModelServiceSettings()));
+    public static Model createModel(String inferenceEntityId, TaskType taskType, String service) {
+        return new Model(new ModelConfigurations(inferenceEntityId, taskType, service, new TestModelOfAnyKind.TestModelServiceSettings()));
     }
 
-    public static Model createModelWithSecrets(String modelId, TaskType taskType, String service, String secret) {
+    public static Model createModelWithSecrets(String inferenceEntityId, TaskType taskType, String service, String secret) {
         return new Model(
-            new ModelConfigurations(modelId, taskType, service, new TestModelOfAnyKind.TestModelServiceSettings()),
+            new ModelConfigurations(inferenceEntityId, taskType, service, new TestModelOfAnyKind.TestModelServiceSettings()),
             new ModelSecrets(new TestModelOfAnyKind.TestSecretSettings(secret))
         );
     }
@@ -338,6 +339,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             @Override
             public void writeTo(StreamOutput out) throws IOException {
 
+            }
+
+            @Override
+            public ToXContentObject getFilteredXContentObject() {
+                return this;
             }
         }
 
@@ -391,15 +397,15 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             }
         }
 
-        TestModelOfAnyKind(String modelId, TaskType taskType, String service) {
-            super(modelId, taskType, service, new TestModelServiceSettings(), new TestTaskSettings());
+        TestModelOfAnyKind(String inferenceEntityId, TaskType taskType, String service) {
+            super(inferenceEntityId, taskType, service, new TestModelServiceSettings(), new TestTaskSettings());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("unknown_field", "foo");
-            builder.field(MODEL_ID, getModelId());
+            builder.field(MODEL_ID, getInferenceEntityId());
             builder.field(TaskType.NAME, getTaskType().toString());
             builder.field(SERVICE, getService());
             builder.field(SERVICE_SETTINGS, getServiceSettings());
@@ -412,20 +418,20 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     private static class ModelWithUnknownField extends ModelConfigurations {
 
         ModelWithUnknownField(
-            String modelId,
+            String inferenceEntityId,
             TaskType taskType,
             String service,
             ServiceSettings serviceSettings,
             TaskSettings taskSettings
         ) {
-            super(modelId, taskType, service, serviceSettings, taskSettings);
+            super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("unknown_field", "foo");
-            builder.field(MODEL_ID, getModelId());
+            builder.field(MODEL_ID, getInferenceEntityId());
             builder.field(TaskType.NAME, getTaskType().toString());
             builder.field(SERVICE, getService());
             builder.field(SERVICE_SETTINGS, getServiceSettings());

@@ -55,6 +55,11 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     }
 
     @Override
+    public int getNumNodes() {
+        return handle.getNumNodes();
+    }
+
+    @Override
     public void start() {
         checkHandle();
         handle.start();

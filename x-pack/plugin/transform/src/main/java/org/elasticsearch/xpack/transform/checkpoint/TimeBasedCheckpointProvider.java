@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -109,7 +110,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
      * @return function aligning the given timestamp with date histogram interval
      */
     private static Function<Long, Long> createAlignTimestampFunction(TransformConfig transformConfig) {
-        if (Boolean.FALSE.equals(transformConfig.getSettings().getAlignCheckpoints())) {
+        if (TransformEffectiveSettings.isAlignCheckpointsDisabled(transformConfig.getSettings())) {
             return identity();
         }
         // In case of transforms created before aligning timestamp optimization was introduced we assume the default was "false".

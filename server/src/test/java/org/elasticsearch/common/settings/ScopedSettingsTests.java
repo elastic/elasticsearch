@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportSettings;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,6 +42,10 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.hasToString;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class ScopedSettingsTests extends ESTestCase {
 
@@ -536,6 +541,29 @@ public class ScopedSettingsTests extends ESTestCase {
         results.clear();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106283")
+    public void testAffixUpdateConsumerWithAlias() {
+        Setting.AffixSetting<String> prefixSetting = Setting.prefixKeySetting(
+            "prefix.",
+            "fallback.",
+            (ns, k) -> Setting.simpleString(k, "default", Property.Dynamic, Property.NodeScope)
+        );
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(prefixSetting)));
+        BiConsumer<String, String> affixUpdateConsumer = Mockito.mock("affixUpdateConsumer");
+        service.addAffixUpdateConsumer(prefixSetting, affixUpdateConsumer, (s, v) -> {});
+
+        service.applySettings(Settings.builder().put("prefix.key", "value").build());
+        verify(affixUpdateConsumer).accept("key", "value");
+        verifyNoMoreInteractions(affixUpdateConsumer);
+        clearInvocations((Object) affixUpdateConsumer);
+
+        service.applySettings(Settings.builder().put("fallback.key", "othervalue").build());
+        verify(affixUpdateConsumer, never()).accept("key", "default"); // unexpected invocation using the default value
+        verify(affixUpdateConsumer).accept("key", "othervalue");
+        verifyNoMoreInteractions(affixUpdateConsumer);
+        clearInvocations((Object) affixUpdateConsumer);
+    }
+
     public void testAddConsumerAffix() {
         Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting(
             "foo.",
@@ -547,34 +575,52 @@ public class ScopedSettingsTests extends ESTestCase {
             "list",
             (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope)
         );
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, listSetting)));
+        Setting.AffixSetting<Boolean> fallbackSetting = Setting.prefixKeySetting(
+            "baz.",
+            "bar.",
+            (ns, k) -> Setting.boolSetting(k, false, Property.Dynamic, Property.NodeScope)
+        );
+        AbstractScopedSettings service = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(Arrays.asList(intSetting, listSetting, fallbackSetting))
+        );
         Map<String, List<Integer>> listResults = new HashMap<>();
         Map<String, Integer> intResults = new HashMap<>();
+        Map<String, Boolean> fallbackResults = new HashMap<>();
 
         BiConsumer<String, Integer> intConsumer = intResults::put;
         BiConsumer<String, List<Integer>> listConsumer = listResults::put;
+        BiConsumer<String, Boolean> fallbackConsumer = fallbackResults::put;
 
         service.addAffixUpdateConsumer(listSetting, listConsumer, (s, k) -> {});
         service.addAffixUpdateConsumer(intSetting, intConsumer, (s, k) -> {});
+        service.addAffixUpdateConsumer(fallbackSetting, fallbackConsumer, (s, k) -> {});
         assertEquals(0, listResults.size());
         assertEquals(0, intResults.size());
+        assertEquals(0, fallbackResults.size());
         service.applySettings(
             Settings.builder()
                 .put("foo.test.bar", 2)
                 .put("foo.test_1.bar", 7)
                 .putList("foo.test_list.list", "16", "17")
                 .putList("foo.test_list_1.list", "18", "19", "20")
+                .put("bar.abc", true)
+                .put("baz.def", true)
                 .build()
         );
         assertEquals(2, intResults.get("test").intValue());
         assertEquals(7, intResults.get("test_1").intValue());
         assertEquals(Arrays.asList(16, 17), listResults.get("test_list"));
         assertEquals(Arrays.asList(18, 19, 20), listResults.get("test_list_1"));
+        assertEquals(true, fallbackResults.get("abc"));
+        assertEquals(true, fallbackResults.get("def"));
         assertEquals(2, listResults.size());
         assertEquals(2, intResults.size());
+        assertEquals(2, fallbackResults.size());
 
         listResults.clear();
         intResults.clear();
+        fallbackResults.clear();
 
         service.applySettings(
             Settings.builder()
@@ -582,12 +628,16 @@ public class ScopedSettingsTests extends ESTestCase {
                 .put("foo.test_1.bar", 8)
                 .putList("foo.test_list.list", "16", "17")
                 .putNull("foo.test_list_1.list")
+                .put("bar.abc", true)
+                .put("baz.xyz", true)
                 .build()
         );
         assertNull("test wasn't changed", intResults.get("test"));
         assertEquals(8, intResults.get("test_1").intValue());
         assertNull("test_list wasn't changed", listResults.get("test_list"));
         assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
+        assertNull("abc wasn't changed", fallbackResults.get("abc"));
+        assertEquals(true, fallbackResults.get("xyz"));
         assertEquals(1, listResults.size());
         assertEquals(1, intResults.size());
     }

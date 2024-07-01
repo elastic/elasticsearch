@@ -11,6 +11,7 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -32,6 +34,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     public static final String TYPED_KEYS_PARAM = "typed_keys";
 
     private static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
+
+    private final Predicate<NodeFeature> clusterSupportsFeature;
+
+    public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature) {
+        this.clusterSupportsFeature = clusterSupportsFeature;
+    }
 
     @Override
     public List<Route> routes() {
@@ -62,7 +70,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             searchRequest,
             request,
             null,
-            client.getNamedWriteableRegistry(),
+            clusterSupportsFeature,
             size -> searchRequest.source().size(size)
         );
 

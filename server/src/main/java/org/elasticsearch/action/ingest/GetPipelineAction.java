@@ -16,6 +16,6 @@ public class GetPipelineAction extends ActionType<GetPipelineResponse> {
     public static final String NAME = "cluster:admin/ingest/pipeline/get";
 
     public GetPipelineAction() {
-        super(NAME, GetPipelineResponse::new);
+        super(NAME);
     }
 }

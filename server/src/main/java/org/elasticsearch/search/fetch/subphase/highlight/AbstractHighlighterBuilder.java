@@ -54,6 +54,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField FRAGMENT_OFFSET_FIELD = new ParseField("fragment_offset");
     public static final ParseField NUMBER_OF_FRAGMENTS_FIELD = new ParseField("number_of_fragments");
     public static final ParseField ENCODER_FIELD = new ParseField("encoder");
+    public static final ParseField TAGS_SCHEMA_FIELD = new ParseField("tags_schema");
     public static final ParseField REQUIRE_FIELD_MATCH_FIELD = new ParseField("require_field_match");
     public static final ParseField BOUNDARY_SCANNER_FIELD = new ParseField("boundary_scanner");
     public static final ParseField BOUNDARY_MAX_SCAN_FIELD = new ParseField("boundary_max_scan");
@@ -68,6 +69,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField HIGHLIGHT_QUERY_FIELD = new ParseField("highlight_query");
     public static final ParseField MATCHED_FIELDS_FIELD = new ParseField("matched_fields");
     public static final ParseField MAX_ANALYZED_OFFSET_FIELD = new ParseField("max_analyzed_offset");
+
+    protected String encoder;
 
     protected String[] preTags;
 
@@ -112,6 +115,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         postTags = template.postTags;
         fragmentSize = template.fragmentSize;
         numOfFragments = template.numOfFragments;
+        encoder = template.encoder;
         highlighterType = template.highlighterType;
         fragmenter = template.fragmenter;
         highlightQuery = queryBuilder;
@@ -137,6 +141,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         postTags(in.readOptionalStringArray());
         fragmentSize(in.readOptionalVInt());
         numOfFragments(in.readOptionalVInt());
+        if (in.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+            encoder(in.readOptionalString());
+        }
         highlighterType(in.readOptionalString());
         fragmenter(in.readOptionalString());
         if (in.readBoolean()) {
@@ -158,7 +165,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         noMatchSize(in.readOptionalVInt());
         phraseLimit(in.readOptionalVInt());
         if (in.readBoolean()) {
-            options(in.readMap());
+            options(in.readGenericMap());
         }
         requireFieldMatch(in.readOptionalBoolean());
         maxAnalyzedOffset(in.readOptionalInt());
@@ -173,6 +180,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalStringArray(postTags);
         out.writeOptionalVInt(fragmentSize);
         out.writeOptionalVInt(numOfFragments);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+            out.writeOptionalString(encoder);
+        }
         out.writeOptionalString(highlighterType);
         out.writeOptionalString(fragmenter);
         boolean hasQuery = highlightQuery != null;
@@ -273,6 +283,44 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      */
     public Integer numOfFragments() {
         return this.numOfFragments;
+    }
+
+    /**
+     * Set the encoder, defaults to {@link HighlightBuilder#DEFAULT_ENCODER}
+     */
+    @SuppressWarnings("unchecked")
+    public HB encoder(String encoder) {
+        this.encoder = encoder;
+        return (HB) this;
+    }
+
+    /**
+     * @return the value set by {@link #encoder(String)}
+     */
+    public String encoder() {
+        return this.encoder;
+    }
+
+    /**
+     * Set a tag scheme that encapsulates a built in pre and post tags. The allowed schemes
+     * are {@code styled} and {@code default}.
+     *
+     * @param schemaName The tag scheme name
+     */
+    @SuppressWarnings("unchecked")
+    public HB tagsSchema(String schemaName) {
+        switch (schemaName) {
+            case "default" -> {
+                preTags(HighlightBuilder.DEFAULT_PRE_TAGS);
+                postTags(HighlightBuilder.DEFAULT_POST_TAGS);
+            }
+            case "styled" -> {
+                preTags(HighlightBuilder.DEFAULT_STYLED_PRE_TAG);
+                postTags(HighlightBuilder.DEFAULT_STYLED_POST_TAGS);
+            }
+            default -> throw new IllegalArgumentException("Unknown tag schema [" + schemaName + "]");
+        }
+        return (HB) this;
     }
 
     /**
@@ -561,6 +609,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (numOfFragments != null) {
             builder.field(NUMBER_OF_FRAGMENTS_FIELD.getPreferredName(), numOfFragments);
         }
+        if (encoder != null) {
+            builder.field(ENCODER_FIELD.getPreferredName(), encoder);
+        }
         if (highlighterType != null) {
             builder.field(TYPE_FIELD.getPreferredName(), highlighterType);
         }
@@ -612,6 +663,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareBoolean(HB::highlightFilter, HIGHLIGHT_FILTER_FIELD);
         parser.declareInt(HB::fragmentSize, FRAGMENT_SIZE_FIELD);
         parser.declareInt(HB::numOfFragments, NUMBER_OF_FRAGMENTS_FIELD);
+        parser.declareString(HB::encoder, ENCODER_FIELD);
+        parser.declareString(HB::tagsSchema, TAGS_SCHEMA_FIELD);
         parser.declareBoolean(HB::requireFieldMatch, REQUIRE_FIELD_MATCH_FIELD);
         parser.declareString(HB::boundaryScannerType, BOUNDARY_SCANNER_FIELD);
         parser.declareInt(HB::boundaryMaxScan, BOUNDARY_MAX_SCAN_FIELD);
@@ -643,6 +696,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
                 if (hb.preTags() != null && hb.postTags() == null) {
                     throw new ParsingException(p.getTokenLocation(), "pre_tags are set but post_tags are not set");
                 }
+                if (hb.preTags() != null && hb.postTags() != null && (hb.preTags().length == 0 || hb.postTags().length == 0)) {
+                    throw new ParsingException(p.getTokenLocation(), "pre_tags or post_tags must not be empty");
+                }
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -658,6 +714,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             Arrays.hashCode(postTags),
             fragmentSize,
             numOfFragments,
+            encoder,
             highlighterType,
             fragmenter,
             highlightQuery,
@@ -695,6 +752,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             && Arrays.equals(postTags, other.postTags)
             && Objects.equals(fragmentSize, other.fragmentSize)
             && Objects.equals(numOfFragments, other.numOfFragments)
+            && Objects.equals(encoder, other.encoder)
             && Objects.equals(highlighterType, other.highlighterType)
             && Objects.equals(fragmenter, other.fragmenter)
             && Objects.equals(highlightQuery, other.highlightQuery)

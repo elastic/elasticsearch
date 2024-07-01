@@ -13,12 +13,11 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
@@ -97,8 +96,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
         );
         doAnswer(withResponse(new CreateIndexResponse(true, true, FIRST_CONCRETE_INDEX))).when(indicesAdminClient).create(any(), any());
         when(indicesAdminClient.prepareAliases()).thenReturn(new IndicesAliasesRequestBuilder(client));
-        doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).aliases(any(), any());
-        doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).putTemplate(any(), any());
+        doAnswer(withResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS)).when(indicesAdminClient).aliases(any(), any());
+        doAnswer(withResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS)).when(indicesAdminClient).putTemplate(any(), any());
 
         clusterAdminClient = mock(ClusterAdminClient.class);
         doAnswer(invocationOnMock -> {
@@ -116,13 +115,14 @@ public class MlIndexAndAliasTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.admin()).thenReturn(adminClient);
         doAnswer(invocationOnMock -> {
-            ActionListener<AcknowledgedResponse> actionListener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
-            actionListener.onResponse(AcknowledgedResponse.TRUE);
+            ActionListener<IndicesAliasesResponse> actionListener = (ActionListener<IndicesAliasesResponse>) invocationOnMock
+                .getArguments()[2];
+            actionListener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
             return null;
         }).when(client)
             .execute(
-                any(PutComposableIndexTemplateAction.class),
-                any(PutComposableIndexTemplateAction.Request.class),
+                same(TransportPutComposableIndexTemplateAction.TYPE),
+                any(TransportPutComposableIndexTemplateAction.Request.class),
                 any(ActionListener.class)
             );
 
@@ -173,7 +173,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         );
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(listener).delegateFailureAndWrap(any());
-        inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
+        inOrder.verify(client).execute(same(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
         inOrder.verify(listener).onResponse(true);
     }
 
@@ -239,7 +239,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         );
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(listener).delegateFailureAndWrap(any());
-        inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
+        inOrder.verify(client).execute(same(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
         inOrder.verify(listener).onResponse(true);
     }
 
@@ -370,7 +370,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             TEST_INDEX_PREFIX,
             TEST_INDEX_ALIAS,
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             listener
         );
     }

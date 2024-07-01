@@ -24,8 +24,7 @@ not be included yet.
 * <<docs, Document APIs>>
 * <<enrich-apis,Enrich APIs>>
 * <<eql-apis,EQL search APIs>>
-* <<esql-query-api,{esql} query API>>
-* <<find-structure,Find structure API>>
+* <<esql-apis,{esql} query APIs>>
 * <<fleet-apis,Fleet APIs>>
 * <<graph-explore-api,Graph explore API>>
 * <<indices, Index APIs>>
@@ -45,6 +44,7 @@ not be included yet.
 * <<indices-reload-analyzers,Reload search analyzers API>>
 * <<repositories-metering-apis,Repositories metering APIs>>
 * <<rollup-apis,Rollup APIs>>
+* <<rest-api-root,Root API>>
 * <<script-apis,Script APIs>>
 * <<search, Search APIs>>
 * <<search-application-apis, Search Application APIs>>
@@ -54,56 +54,58 @@ not be included yet.
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
 * <<sql-apis,SQL APIs>>
 * <<synonyms-apis,Synonyms APIs>>
+* <<text-structure-apis,Text structure APIs>>
 * <<transform-apis,{transform-cap} APIs>>
 * <<usage-api,Usage API>>
 * <<watcher-api,Watcher APIs>>
 --
 
-include::{es-repo-dir}/api-conventions.asciidoc[]
-include::{es-repo-dir}/rest-api/common-options.asciidoc[]
-include::{es-repo-dir}/rest-api/rest-api-compatibility.asciidoc[]
-include::{es-repo-dir}/autoscaling/apis/autoscaling-apis.asciidoc[]
-include::{es-repo-dir}/behavioral-analytics/apis/index.asciidoc[]
-include::{es-repo-dir}/cat.asciidoc[]
-include::{es-repo-dir}/cluster.asciidoc[]
-include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
-include::{es-repo-dir}/connector/apis/connector-apis.asciidoc[]
-include::{es-repo-dir}/data-streams/data-stream-apis.asciidoc[]
-include::{es-repo-dir}/docs.asciidoc[]
-include::{es-repo-dir}/ingest/apis/enrich/index.asciidoc[]
-include::{es-repo-dir}/eql/eql-apis.asciidoc[]
-include::{es-repo-dir}/esql/esql-query-api.asciidoc[]
-include::{es-repo-dir}/features/apis/features-apis.asciidoc[]
-include::{es-repo-dir}/fleet/index.asciidoc[]
-include::{es-repo-dir}/text-structure/apis/find-structure.asciidoc[leveloffset=+1]
-include::{es-repo-dir}/graph/explore.asciidoc[]
-include::{es-repo-dir}/indices.asciidoc[]
-include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
-include::{es-repo-dir}/inference/inference-apis.asciidoc[]
+include::{es-ref-dir}/api-conventions.asciidoc[]
+include::{es-ref-dir}/rest-api/common-options.asciidoc[]
+include::{es-ref-dir}/rest-api/rest-api-compatibility.asciidoc[]
+include::{es-ref-dir}/autoscaling/apis/autoscaling-apis.asciidoc[]
+include::{es-ref-dir}/behavioral-analytics/apis/index.asciidoc[]
+include::{es-ref-dir}/cat.asciidoc[]
+include::{es-ref-dir}/cluster.asciidoc[]
+include::{es-ref-dir}/ccr/apis/ccr-apis.asciidoc[]
+include::{es-ref-dir}/connector/apis/connector-apis.asciidoc[]
+include::{es-ref-dir}/data-streams/data-stream-apis.asciidoc[]
+include::{es-ref-dir}/docs.asciidoc[]
+include::{es-ref-dir}/ingest/apis/enrich/index.asciidoc[]
+include::{es-ref-dir}/eql/eql-apis.asciidoc[]
+include::{es-ref-dir}/esql/esql-apis.asciidoc[]
+include::{es-ref-dir}/features/apis/features-apis.asciidoc[]
+include::{es-ref-dir}/fleet/index.asciidoc[]
+include::{es-ref-dir}/graph/explore.asciidoc[]
+include::{es-ref-dir}/indices.asciidoc[]
+include::{es-ref-dir}/ilm/apis/ilm-api.asciidoc[]
+include::{es-ref-dir}/inference/inference-apis.asciidoc[]
 include::info.asciidoc[]
-include::{es-repo-dir}/ingest/apis/index.asciidoc[]
-include::{es-repo-dir}/licensing/index.asciidoc[]
-include::{es-repo-dir}/rest-api/logstash/index.asciidoc[]
-include::{es-repo-dir}/ml/common/apis/index.asciidoc[]
-include::{es-repo-dir}/ml/anomaly-detection/apis/index.asciidoc[]
-include::{es-repo-dir}/ml/df-analytics/apis/index.asciidoc[]
-include::{es-repo-dir}/ml/trained-models/apis/index.asciidoc[]
-include::{es-repo-dir}/migration/migration.asciidoc[]
-include::{es-repo-dir}/shutdown/apis/shutdown-api.asciidoc[]
-include::{es-repo-dir}/query-rules/apis/index.asciidoc[]
-include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
-include::{es-repo-dir}/repositories-metering-api/repositories-metering-apis.asciidoc[]
-include::{es-repo-dir}/rollup/rollup-apis.asciidoc[]
-include::{es-repo-dir}/scripting/apis/script-apis.asciidoc[]
-include::{es-repo-dir}/search.asciidoc[]
-include::{es-repo-dir}/search-application/apis/index.asciidoc[]
-include::{es-repo-dir}/searchable-snapshots/apis/searchable-snapshots-apis.asciidoc[]
-include::{es-repo-dir}/rest-api/security.asciidoc[]
-include::{es-repo-dir}/snapshot-restore/apis/snapshot-restore-apis.asciidoc[]
-include::{es-repo-dir}/slm/apis/slm-api.asciidoc[]
-include::{es-repo-dir}/sql/apis/sql-apis.asciidoc[]
-include::{es-repo-dir}/synonyms/apis/synonyms-apis.asciidoc[]
-include::{es-repo-dir}/transform/apis/index.asciidoc[]
+include::{es-ref-dir}/ingest/apis/index.asciidoc[]
+include::{es-ref-dir}/licensing/index.asciidoc[]
+include::{es-ref-dir}/rest-api/logstash/index.asciidoc[]
+include::{es-ref-dir}/ml/common/apis/index.asciidoc[]
+include::{es-ref-dir}/ml/anomaly-detection/apis/index.asciidoc[]
+include::{es-ref-dir}/ml/df-analytics/apis/index.asciidoc[]
+include::{es-ref-dir}/ml/trained-models/apis/index.asciidoc[]
+include::{es-ref-dir}/migration/migration.asciidoc[]
+include::{es-ref-dir}/shutdown/apis/shutdown-api.asciidoc[]
+include::{es-ref-dir}/query-rules/apis/index.asciidoc[]
+include::{es-ref-dir}/indices/apis/reload-analyzers.asciidoc[]
+include::{es-ref-dir}/repositories-metering-api/repositories-metering-apis.asciidoc[]
+include::{es-ref-dir}/rollup/rollup-apis.asciidoc[]
+include::{es-ref-dir}/rest-api/root.asciidoc[]
+include::{es-ref-dir}/scripting/apis/script-apis.asciidoc[]
+include::{es-ref-dir}/search.asciidoc[]
+include::{es-ref-dir}/search-application/apis/index.asciidoc[]
+include::{es-ref-dir}/searchable-snapshots/apis/searchable-snapshots-apis.asciidoc[]
+include::{es-ref-dir}/rest-api/security.asciidoc[]
+include::{es-ref-dir}/snapshot-restore/apis/snapshot-restore-apis.asciidoc[]
+include::{es-ref-dir}/slm/apis/slm-api.asciidoc[]
+include::{es-ref-dir}/sql/apis/sql-apis.asciidoc[]
+include::{es-ref-dir}/synonyms/apis/synonyms-apis.asciidoc[]
+include::{es-ref-dir}/text-structure/apis/index.asciidoc[]
+include::{es-ref-dir}/transform/apis/index.asciidoc[]
 include::usage.asciidoc[]
-include::{es-repo-dir}/rest-api/watcher.asciidoc[]
+include::{es-ref-dir}/rest-api/watcher.asciidoc[]
 include::defs.asciidoc[]

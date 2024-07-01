@@ -72,10 +72,9 @@ public class SnapshotBrokenSettingsIT extends AbstractSnapshotIntegTestCase {
             IllegalArgumentException.class,
             client.admin()
                 .cluster()
-                .prepareRestoreSnapshot("test-repo", "test-snap")
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
                 .setRestoreGlobalState(true)
                 .setWaitForCompletion(true)
-                .execute()::actionGet
         );
         assertEquals(BrokenSettingPlugin.EXCEPTION.getMessage(), ex.getMessage());
 

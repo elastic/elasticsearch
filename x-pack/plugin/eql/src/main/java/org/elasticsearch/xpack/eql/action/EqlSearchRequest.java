@@ -128,7 +128,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             if (in.readBoolean()) {
                 fetchFields = in.readCollectionAsList(FieldAndFormat::new);
             }
-            runtimeMappings = in.readMap();
+            runtimeMappings = in.readGenericMap();
         } else {
             runtimeMappings = emptyMap();
         }

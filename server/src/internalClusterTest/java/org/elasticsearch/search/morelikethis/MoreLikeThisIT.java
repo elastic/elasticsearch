@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.morelikethis;
 
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -42,7 +43,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -362,20 +362,18 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         );
 
         // Explicit list of fields including numeric fields -> fail
-        assertRequestBuilderThrows(
-            prepareSearch().setQuery(
-                new MoreLikeThisQueryBuilder(new String[] { "string_value", "int_value" }, null, new Item[] { new Item("test", "1") })
-                    .minTermFreq(1)
-                    .minDocFreq(1)
-            ),
-            SearchPhaseExecutionException.class
+        ActionRequestBuilder<?, ?> builder5 = prepareSearch().setQuery(
+            new MoreLikeThisQueryBuilder(new String[] { "string_value", "int_value" }, null, new Item[] { new Item("test", "1") })
+                .minTermFreq(1)
+                .minDocFreq(1)
         );
+        expectThrows(SearchPhaseExecutionException.class, builder5);
 
         // mlt query with no field -> exception because _all is not enabled)
-        assertRequestBuilderThrows(
-            prepareSearch().setQuery(moreLikeThisQuery(new String[] { "index" }).minTermFreq(1).minDocFreq(1)),
-            SearchPhaseExecutionException.class
+        ActionRequestBuilder<?, ?> builder4 = prepareSearch().setQuery(
+            moreLikeThisQuery(new String[] { "index" }).minTermFreq(1).minDocFreq(1)
         );
+        expectThrows(SearchPhaseExecutionException.class, builder4);
 
         // mlt query with string fields
         assertHitCount(
@@ -386,18 +384,16 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         );
 
         // mlt query with at least a numeric field -> fail by default
-        assertRequestBuilderThrows(
-            prepareSearch().setQuery(moreLikeThisQuery(new String[] { "string_value", "int_value" }, new String[] { "index" }, null)),
-            SearchPhaseExecutionException.class
+        ActionRequestBuilder<?, ?> builder3 = prepareSearch().setQuery(
+            moreLikeThisQuery(new String[] { "string_value", "int_value" }, new String[] { "index" }, null)
         );
+        expectThrows(SearchPhaseExecutionException.class, builder3);
 
         // mlt query with at least a numeric field -> fail by command
-        assertRequestBuilderThrows(
-            prepareSearch().setQuery(
-                moreLikeThisQuery(new String[] { "string_value", "int_value" }, new String[] { "index" }, null).failOnUnsupportedField(true)
-            ),
-            SearchPhaseExecutionException.class
+        ActionRequestBuilder<?, ?> builder2 = prepareSearch().setQuery(
+            moreLikeThisQuery(new String[] { "string_value", "int_value" }, new String[] { "index" }, null).failOnUnsupportedField(true)
         );
+        expectThrows(SearchPhaseExecutionException.class, builder2);
 
         // mlt query with at least a numeric field but fail_on_unsupported_field set to false
         assertHitCount(
@@ -410,22 +406,18 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         );
 
         // mlt field query on a numeric field -> failure by default
-        assertRequestBuilderThrows(
-            prepareSearch().setQuery(
-                moreLikeThisQuery(new String[] { "int_value" }, new String[] { "42" }, null).minTermFreq(1).minDocFreq(1)
-            ),
-            SearchPhaseExecutionException.class
+        ActionRequestBuilder<?, ?> builder1 = prepareSearch().setQuery(
+            moreLikeThisQuery(new String[] { "int_value" }, new String[] { "42" }, null).minTermFreq(1).minDocFreq(1)
         );
+        expectThrows(SearchPhaseExecutionException.class, builder1);
 
         // mlt field query on a numeric field -> failure by command
-        assertRequestBuilderThrows(
-            prepareSearch().setQuery(
-                moreLikeThisQuery(new String[] { "int_value" }, new String[] { "42" }, null).minTermFreq(1)
-                    .minDocFreq(1)
-                    .failOnUnsupportedField(true)
-            ),
-            SearchPhaseExecutionException.class
+        ActionRequestBuilder<?, ?> builder = prepareSearch().setQuery(
+            moreLikeThisQuery(new String[] { "int_value" }, new String[] { "42" }, null).minTermFreq(1)
+                .minDocFreq(1)
+                .failOnUnsupportedField(true)
         );
+        expectThrows(SearchPhaseExecutionException.class, builder);
 
         // mlt field query on a numeric field but fail_on_unsupported_field set to false
         assertHitCount(
@@ -811,9 +803,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             logger.info("Running moreLikeThis with one item without routing attribute");
             SearchPhaseExecutionException exception = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> prepareSearch().setQuery(
+                prepareSearch().setQuery(
                     new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)
-                ).get()
+                )
             );
 
             Throwable cause = exception.getCause();
@@ -825,12 +817,12 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             logger.info("Running moreLikeThis with one item with routing attribute and two items without routing attribute");
             SearchPhaseExecutionException exception = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> prepareSearch().setQuery(
+                prepareSearch().setQuery(
                     new MoreLikeThisQueryBuilder(
                         null,
                         new Item[] { new Item("test", "1").routing("1"), new Item("test", "2"), new Item("test", "3") }
                     ).minTermFreq(1).minDocFreq(1)
-                ).get()
+                )
             );
 
             Throwable cause = exception.getCause();

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -43,6 +44,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.test.ESTestCase.indexSettings;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -140,13 +142,17 @@ public class ClusterStateCreationUtils {
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local master to test shard failures
         final int primaryTerm = 1 + randomInt(200);
+        IndexLongFieldRange timeFieldRange = primaryState == ShardRoutingState.STARTED || primaryState == ShardRoutingState.RELOCATING
+            ? IndexLongFieldRange.UNKNOWN
+            : IndexLongFieldRange.NO_SHARDS;
+
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
             .settings(indexSettings(IndexVersion.current(), 1, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .primaryTerm(0, primaryTerm)
-            .timestampRange(
-                primaryState == ShardRoutingState.STARTED || primaryState == ShardRoutingState.RELOCATING
-                    ? IndexLongFieldRange.UNKNOWN
-                    : IndexLongFieldRange.NO_SHARDS
+            .timestampRange(timeFieldRange)
+            .eventIngestedRange(
+                timeFieldRange,
+                timeFieldRange == IndexLongFieldRange.UNKNOWN ? null : TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE
             )
             .build();
 
@@ -174,7 +180,10 @@ public class ClusterStateCreationUtils {
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
         }
         indexShardRoutingBuilder.addShard(
-            TestShardRouting.newShardRouting(index, 0, primaryNode, relocatingNode, true, primaryState, unassignedInfo, primaryRole)
+            shardRoutingBuilder(index, 0, primaryNode, true, primaryState).withRelocatingNodeId(relocatingNode)
+                .withUnassignedInfo(unassignedInfo)
+                .withRole(primaryRole)
+                .build()
         );
 
         for (var replicaState : replicaStates) {
@@ -191,16 +200,10 @@ public class ClusterStateCreationUtils {
                 unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
             }
             indexShardRoutingBuilder.addShard(
-                TestShardRouting.newShardRouting(
-                    index,
-                    shardId.id(),
-                    replicaNode,
-                    relocatingNode,
-                    false,
-                    replicaState.v1(),
-                    unassignedInfo,
-                    replicaState.v2()
-                )
+                shardRoutingBuilder(index, shardId.id(), replicaNode, false, replicaState.v1()).withRelocatingNodeId(relocatingNode)
+                    .withUnassignedInfo(unassignedInfo)
+                    .withRole(replicaState.v2())
+                    .build()
             );
         }
         final IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingBuilder.build();
@@ -282,6 +285,10 @@ public class ClusterStateCreationUtils {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
                     indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                )
+                .eventIngestedRange(
+                    IndexLongFieldRange.UNKNOWN,
+                    randomFrom(TransportVersions.V_8_0_0, TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
                 )
                 .build();
 
@@ -388,6 +395,7 @@ public class ClusterStateCreationUtils {
                     )
                 )
                 .timestampRange(IndexLongFieldRange.UNKNOWN)
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN, null)
                 .build();
             metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -399,15 +407,9 @@ public class ClusterStateCreationUtils {
                 );
                 for (int replica = 0; replica < replicaRoles.size(); replica++) {
                     indexShardRoutingBuilder.addShard(
-                        TestShardRouting.newShardRouting(
-                            index,
-                            i,
-                            newNode(replica + 1).getId(),
-                            null,
-                            false,
-                            ShardRoutingState.STARTED,
+                        shardRoutingBuilder(index, i, newNode(replica + 1).getId(), false, ShardRoutingState.STARTED).withRole(
                             replicaRoles.get(replica)
-                        )
+                        ).build()
                     );
                 }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);

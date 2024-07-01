@@ -10,9 +10,11 @@ package org.elasticsearch.search.basic;
 
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -117,7 +119,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 threads[j].start();
             }
             allowNodes("test", between(1, 3));
-            clusterAdmin().prepareReroute().get();
+            ClusterRerouteUtils.reroute(client());
             stop.set(true);
             for (int j = 0; j < threads.length; j++) {
                 threads[j].join();
@@ -127,7 +129,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 .setWaitForYellowStatus()
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForEvents(Priority.LANGUID)
-                .setTimeout("5m")
+                .setTimeout(TimeValue.timeValueMinutes(5))
                 .get();
             assertNoTimeout(resp);
             // if we hit only non-critical exceptions we make sure that the post search works

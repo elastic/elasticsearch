@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -49,7 +49,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private final String nodeName;
     private final String auditIndex;
     private final String templateName;
-    private final Supplier<PutComposableIndexTemplateAction.Request> templateSupplier;
+    private final Supplier<TransportPutComposableIndexTemplateAction.Request> templateSupplier;
     private final AbstractAuditMessageFactory<T> messageFactory;
     private final AtomicBoolean hasLatestTemplate;
 
@@ -67,11 +67,9 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     ) {
 
         this(client, auditIndex, templateConfig.getTemplateName(), () -> {
-            try {
-                return new PutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
-                    ComposableIndexTemplate.parse(
-                        JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())
-                    )
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
+                return new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
+                    ComposableIndexTemplate.parse(parser)
                 ).masterNodeTimeout(MASTER_TIMEOUT);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
@@ -83,7 +81,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         OriginSettingClient client,
         String auditIndex,
         String templateName,
-        Supplier<PutComposableIndexTemplateAction.Request> templateSupplier,
+        Supplier<TransportPutComposableIndexTemplateAction.Request> templateSupplier,
         String nodeName,
         AbstractAuditMessageFactory<T> messageFactory,
         ClusterService clusterService
@@ -105,15 +103,15 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     public void info(String resourceId, String message) {
-        indexDoc(messageFactory.newMessage(resourceId, message, Level.INFO, new Date(), nodeName));
+        audit(Level.INFO, resourceId, message);
     }
 
     public void warning(String resourceId, String message) {
-        indexDoc(messageFactory.newMessage(resourceId, message, Level.WARNING, new Date(), nodeName));
+        audit(Level.WARNING, resourceId, message);
     }
 
     public void error(String resourceId, String message) {
-        indexDoc(messageFactory.newMessage(resourceId, message, Level.ERROR, new Date(), nodeName));
+        audit(Level.ERROR, resourceId, message);
     }
 
     private static void onIndexResponse(DocWriteResponse response) {

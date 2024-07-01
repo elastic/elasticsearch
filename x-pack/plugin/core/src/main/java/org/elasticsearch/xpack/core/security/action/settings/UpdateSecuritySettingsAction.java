@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.settings;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
@@ -16,6 +17,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,9 +31,9 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedResponse> {
-    public static final UpdateSecuritySettingsAction INSTANCE = new UpdateSecuritySettingsAction();
-    public static final String NAME = "cluster:admin/xpack/security/settings/update";
+public class UpdateSecuritySettingsAction {
+
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("cluster:admin/xpack/security/settings/update");
 
     // The names here are separate constants for 2 reasons:
     // 1. Keeping the names defined here helps ensure REST compatibility, even if the internal aliases of these indices change,
@@ -44,9 +47,7 @@ public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedRespons
         IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS
     );
 
-    public UpdateSecuritySettingsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
-    }
+    private UpdateSecuritySettingsAction() {/* no instances */}
 
     public static class Request extends AcknowledgedRequest<Request> {
 
@@ -54,11 +55,19 @@ public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedRespons
         private final Map<String, Object> tokensIndexSettings;
         private final Map<String, Object> profilesIndexSettings;
 
+        public interface Factory {
+            Request create(
+                Map<String, Object> mainIndexSettings,
+                Map<String, Object> tokensIndexSettings,
+                Map<String, Object> profilesIndexSettings
+            );
+        }
+
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
             "update_security_settings_request",
             false,
-            a -> new Request((Map<String, Object>) a[0], (Map<String, Object>) a[1], (Map<String, Object>) a[2])
+            (a, factory) -> factory.create((Map<String, Object>) a[0], (Map<String, Object>) a[1], (Map<String, Object>) a[2])
         );
 
         static {
@@ -68,30 +77,53 @@ public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedRespons
         }
 
         public Request(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
             Map<String, Object> mainIndexSettings,
             Map<String, Object> tokensIndexSettings,
             Map<String, Object> profilesIndexSettings
         ) {
+            super(masterNodeTimeout, ackTimeout);
             this.mainIndexSettings = Objects.requireNonNullElse(mainIndexSettings, Collections.emptyMap());
             this.tokensIndexSettings = Objects.requireNonNullElse(tokensIndexSettings, Collections.emptyMap());
             this.profilesIndexSettings = Objects.requireNonNullElse(profilesIndexSettings, Collections.emptyMap());
         }
 
-        public Request(StreamInput in) throws IOException {
-            this.mainIndexSettings = in.readMap();
-            this.tokensIndexSettings = in.readMap();
-            this.profilesIndexSettings = in.readMap();
+        @UpdateForV9 // no need for bwc any more, this can be inlined
+        public static Request readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SECURITY_SETTINGS_REQUEST_TIMEOUTS)) {
+                return new Request(in);
+            } else {
+                return new Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, in);
+            }
+        }
+
+        private Request(StreamInput in) throws IOException {
+            super(in);
+            this.mainIndexSettings = in.readGenericMap();
+            this.tokensIndexSettings = in.readGenericMap();
+            this.profilesIndexSettings = in.readGenericMap();
+        }
+
+        private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, StreamInput in) throws IOException {
+            super(masterNodeTimeout, ackTimeout);
+            this.mainIndexSettings = in.readGenericMap();
+            this.tokensIndexSettings = in.readGenericMap();
+            this.profilesIndexSettings = in.readGenericMap();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SECURITY_SETTINGS_REQUEST_TIMEOUTS)) {
+                super.writeTo(out);
+            }
             out.writeGenericMap(this.mainIndexSettings);
             out.writeGenericMap(this.tokensIndexSettings);
             out.writeGenericMap(this.profilesIndexSettings);
         }
 
-        public static Request parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
+        public static Request parse(XContentParser parser, Factory factory) {
+            return PARSER.apply(parser, factory);
         }
 
         public Map<String, Object> mainIndexSettings() {

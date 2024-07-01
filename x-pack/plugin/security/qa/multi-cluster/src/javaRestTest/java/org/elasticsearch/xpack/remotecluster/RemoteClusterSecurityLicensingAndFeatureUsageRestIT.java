@@ -18,6 +18,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
@@ -104,9 +105,11 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
         final Settings.Builder builder = Settings.builder();
         if (isProxyMode) {
             builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
+                .put("cluster.remote.my_remote_cluster.skip_unavailable", "false")
                 .put("cluster.remote.my_remote_cluster.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));
         } else {
             builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
+                .put("cluster.remote.my_remote_cluster.skip_unavailable", "false")
                 .putList("cluster.remote.my_remote_cluster.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0));
         }
         updateClusterSettings(builder.build());
@@ -175,7 +178,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             // Check that we can search the fulfilling cluster from the querying cluster after license upgrade to trial.
             final Response response = performRequestWithRemoteSearchUser(searchRequest);
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
             try {
                 assertSearchResultContainsIndices(searchResponse, REMOTE_INDEX_NAME);
             } finally {

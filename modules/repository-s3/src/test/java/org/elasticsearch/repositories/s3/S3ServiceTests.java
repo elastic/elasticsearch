@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -22,6 +23,7 @@ public class S3ServiceTests extends ESTestCase {
         final S3Service s3Service = new S3Service(
             Mockito.mock(Environment.class),
             Settings.EMPTY,
+            Mockito.mock(ResourceWatcherService.class),
             SimpleS3StorageClassStrategyProvider.INSTANCE
         );
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();

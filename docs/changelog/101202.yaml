@@ -1,5 +1,0 @@
-pr: 101202
-summary: Optimize `MurmurHash3`
-area: "Ingest Node"
-type: enhancement
-issues: []

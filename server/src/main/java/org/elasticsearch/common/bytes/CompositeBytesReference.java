@@ -9,7 +9,6 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 
@@ -117,17 +116,20 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         }
 
         final int firstReferenceIndex = getOffsetIndex(from);
-        for (int i = firstReferenceIndex; i < references.length; ++i) {
-            final BytesReference reference = references[i];
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final BytesReference[] referencesAsLocal = references;
+        final int[] offsetsAsLocal = offsets;
+        for (int i = firstReferenceIndex; i < referencesAsLocal.length; ++i) {
+            final BytesReference reference = referencesAsLocal[i];
             final int internalFrom;
             if (i == firstReferenceIndex) {
-                internalFrom = from - offsets[firstReferenceIndex];
+                internalFrom = from - offsetsAsLocal[firstReferenceIndex];
             } else {
                 internalFrom = 0;
             }
             result = reference.indexOf(marker, internalFrom);
             if (result != -1) {
-                result += offsets[i];
+                result += offsetsAsLocal[i];
                 break;
             }
         }
@@ -148,16 +150,17 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         // for slices we only need to find the start and the end reference
         // adjust them and pass on the references in between as they are fully contained
         final int to = from + length;
-        final int limit = getOffsetIndex(to - 1);
         final int start = getOffsetIndex(from);
-        final BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
-        for (int i = 0, j = start; i < inSlice.length; i++) {
-            inSlice[i] = references[j++];
+        int limit = start;
+        for (int i = start + 1; i < offsets.length && offsets[i] < to; i++) {
+            limit = i;
         }
         int inSliceOffset = from - offsets[start];
-        if (inSlice.length == 1) {
-            return inSlice[0].slice(inSliceOffset, length);
+        if (start == limit) {
+            return references[start].slice(inSliceOffset, length);
         }
+        final BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
+        System.arraycopy(references, start, inSlice, 0, inSlice.length);
         // now adjust slices in front and at the end
         inSlice[0] = inSlice[0].slice(inSliceOffset, inSlice[0].length() - inSliceOffset);
         inSlice[inSlice.length - 1] = inSlice[inSlice.length - 1].slice(0, to - offsets[limit]);
@@ -171,18 +174,33 @@ public final class CompositeBytesReference extends AbstractBytesReference {
 
     @Override
     public BytesRef toBytesRef() {
-        BytesRefBuilder builder = new BytesRefBuilder();
-        builder.grow(length());
+        final byte[] result = new byte[length];
+        int offset = 0;
+        for (BytesReference reference : references) {
+            if (reference.hasArray()) {
+                int len = reference.length();
+                System.arraycopy(reference.array(), reference.arrayOffset(), result, offset, len);
+                offset += len;
+            } else {
+                offset = copyViaIterator(reference, result, offset);
+            }
+        }
+        assert offset == result.length;
+        return new BytesRef(result);
+    }
+
+    private static int copyViaIterator(BytesReference reference, byte[] result, int offset) {
         BytesRef spare;
-        BytesRefIterator iterator = iterator();
+        BytesRefIterator iterator = reference.iterator();
         try {
             while ((spare = iterator.next()) != null) {
-                builder.append(spare);
+                System.arraycopy(spare.bytes, spare.offset, result, offset, spare.length);
+                offset += spare.length;
             }
         } catch (IOException ex) {
             throw new AssertionError("won't happen", ex); // this is really an error since we don't do IO in our bytesreferences
         }
-        return builder.toBytesRef();
+        return offset;
     }
 
     @Override

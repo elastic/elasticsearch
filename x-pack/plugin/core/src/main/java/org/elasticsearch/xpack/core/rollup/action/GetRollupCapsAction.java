@@ -34,7 +34,7 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
     public static final ParseField STATUS = new ParseField("status");
 
     private GetRollupCapsAction() {
-        super(NAME, GetRollupCapsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentFragment {
@@ -104,10 +104,6 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
 
         public Response(Map<String, RollableIndexCaps> jobs) {
             this.jobs = Collections.unmodifiableMap(Objects.requireNonNull(jobs));
-        }
-
-        Response(StreamInput in) throws IOException {
-            jobs = in.readImmutableMap(RollableIndexCaps::new);
         }
 
         public Map<String, RollableIndexCaps> getJobs() {

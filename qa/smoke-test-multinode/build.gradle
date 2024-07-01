@@ -19,6 +19,7 @@ dependencies {
   clusterModules project(":modules:reindex")
   clusterModules project(":modules:analysis-common")
   clusterModules project(":modules:health-shards-availability")
+  clusterModules project(":modules:data-streams")
 }
 
 tasks.named("yamlRestTest").configure {

@@ -160,10 +160,14 @@ public final class CompilerSettings {
     }
 
     /**
-     * What is the limit factor for regexes?
+     * What is the effective limit factor for regexes?
      */
-    public int getRegexLimitFactor() {
-        return regexLimitFactor;
+    public int getAppliedRegexLimitFactor() {
+        return switch (regexesEnabled) {
+            case TRUE -> Augmentation.UNLIMITED_PATTERN_FACTOR;
+            case FALSE -> Augmentation.DISABLED_PATTERN_FACTOR;
+            case LIMITED -> regexLimitFactor;
+        };
     }
 
     /**
@@ -171,14 +175,8 @@ public final class CompilerSettings {
      * annotation.
      */
     public Map<String, Object> asMap() {
-        int regexLimitFactorToApply = this.regexLimitFactor;
-        if (regexesEnabled == RegexEnabled.TRUE) {
-            regexLimitFactorToApply = Augmentation.UNLIMITED_PATTERN_FACTOR;
-        } else if (regexesEnabled == RegexEnabled.FALSE) {
-            regexLimitFactorToApply = Augmentation.DISABLED_PATTERN_FACTOR;
-        }
         Map<String, Object> map = new HashMap<>();
-        map.put("regex_limit_factor", regexLimitFactorToApply);
+        map.put("regex_limit_factor", getAppliedRegexLimitFactor());
 
         // for testing only
         map.put("testInject0", testInject0);

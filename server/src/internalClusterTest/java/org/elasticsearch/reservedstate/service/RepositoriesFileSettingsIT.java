@@ -137,7 +137,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
 
         final var reposResponse = client().execute(
             GetRepositoriesAction.INSTANCE,
-            new GetRepositoriesRequest(new String[] { "repo", "repo1" })
+            new GetRepositoriesRequest(TEST_REQUEST_TIMEOUT, new String[] { "repo", "repo1" })
         ).get();
 
         assertThat(
@@ -149,10 +149,8 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
             "Failed to process request "
                 + "[org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest/unset] "
                 + "with errors: [[repo] set as read-only by [file_settings]]",
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> client().execute(TransportPutRepositoryAction.TYPE, sampleRestRequest("repo")).actionGet()
-            ).getMessage()
+            expectThrows(IllegalArgumentException.class, client().execute(TransportPutRepositoryAction.TYPE, sampleRestRequest("repo")))
+                .getMessage()
         );
     }
 
@@ -206,7 +204,10 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
             "[err-repo] missing",
             expectThrows(
                 RepositoryMissingException.class,
-                () -> client().execute(GetRepositoriesAction.INSTANCE, new GetRepositoriesRequest(new String[] { "err-repo" })).actionGet()
+                client().execute(
+                    GetRepositoriesAction.INSTANCE,
+                    new GetRepositoriesRequest(TEST_REQUEST_TIMEOUT, new String[] { "err-repo" })
+                )
             ).getMessage()
         );
 
@@ -241,7 +242,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            return new PutRepositoryRequest(name).source(parser.map());
+            return new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name).source(parser.map());
         }
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -25,9 +26,13 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
+import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener;
+import org.elasticsearch.xpack.security.metric.SecurityMetricType;
+import org.elasticsearch.xpack.security.metric.SecurityMetrics;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,19 +40,40 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 
 public class RealmsAuthenticator implements Authenticator {
 
+    public static final String ATTRIBUTE_REALM_NAME = "es.security.realm_name";
+    public static final String ATTRIBUTE_REALM_TYPE = "es.security.realm_type";
+    public static final String ATTRIBUTE_REALM_AUTHC_FAILURE_REASON = "es.security.realm_authc_failure_reason";
+
     private static final Logger logger = LogManager.getLogger(RealmsAuthenticator.class);
 
     private final AtomicLong numInvalidation;
     private final Cache<String, Realm> lastSuccessfulAuthCache;
+    private final SecurityMetrics<Realm> authenticationMetrics;
 
-    public RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
+    public RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache, MeterRegistry meterRegistry) {
+        this(numInvalidation, lastSuccessfulAuthCache, meterRegistry, System::nanoTime);
+    }
+
+    RealmsAuthenticator(
+        AtomicLong numInvalidation,
+        Cache<String, Realm> lastSuccessfulAuthCache,
+        MeterRegistry meterRegistry,
+        LongSupplier nanoTimeSupplier
+    ) {
         this.numInvalidation = numInvalidation;
         this.lastSuccessfulAuthCache = lastSuccessfulAuthCache;
+        this.authenticationMetrics = new SecurityMetrics<>(
+            SecurityMetricType.AUTHC_REALMS,
+            meterRegistry,
+            this::buildMetricAttributes,
+            nanoTimeSupplier
+        );
     }
 
     @Override
@@ -141,66 +167,69 @@ public class RealmsAuthenticator implements Authenticator {
                     realm,
                     authenticationToken.getClass().getName()
                 );
-                realm.authenticate(authenticationToken, ActionListener.wrap(result -> {
-                    assert result != null : "Realm " + realm + " produced a null authentication result";
-                    logger.debug(
-                        "Authentication of [{}] using realm [{}] with token [{}] was [{}]",
-                        authenticationToken.principal(),
-                        realm,
-                        authenticationToken.getClass().getSimpleName(),
-                        result
-                    );
-                    if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
-                        // user was authenticated, populate the authenticated by information
-                        authenticatedByRef.set(realm);
-                        authenticationResultRef.set(result);
-                        if (lastSuccessfulAuthCache != null && startInvalidation == numInvalidation.get()) {
-                            lastSuccessfulAuthCache.put(authenticationToken.principal(), realm);
-                        }
-                        userListener.onResponse(result.getValue());
-                    } else {
-                        // the user was not authenticated, call this so we can audit the correct event
-                        context.getRequest().realmAuthenticationFailed(authenticationToken, realm.name());
-                        if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                            final var resultException = result.getException();
-                            if (resultException != null) {
-                                logger.info(
-                                    () -> format(
-                                        "Authentication of [%s] was terminated by realm [%s] - %s",
+                realm.authenticate(
+                    authenticationToken,
+                    InstrumentedSecurityActionListener.wrapForAuthc(authenticationMetrics, realm, ActionListener.wrap(result -> {
+                        assert result != null : "Realm " + realm + " produced a null authentication result";
+                        logger.debug(
+                            "Authentication of [{}] using realm [{}] with token [{}] was [{}]",
+                            authenticationToken.principal(),
+                            realm,
+                            authenticationToken.getClass().getSimpleName(),
+                            result
+                        );
+                        if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
+                            // user was authenticated, populate the authenticated by information
+                            authenticatedByRef.set(realm);
+                            authenticationResultRef.set(result);
+                            if (lastSuccessfulAuthCache != null && startInvalidation == numInvalidation.get()) {
+                                lastSuccessfulAuthCache.put(authenticationToken.principal(), realm);
+                            }
+                            userListener.onResponse(result.getValue());
+                        } else {
+                            // the user was not authenticated, call this so we can audit the correct event
+                            context.getRequest().realmAuthenticationFailed(authenticationToken, realm.name());
+                            if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                                final var resultException = result.getException();
+                                if (resultException != null) {
+                                    logger.info(
+                                        () -> format(
+                                            "Authentication of [%s] was terminated by realm [%s] - %s",
+                                            authenticationToken.principal(),
+                                            realm.name(),
+                                            result.getMessage()
+                                        ),
+                                        resultException
+                                    );
+                                    userListener.onFailure(resultException);
+                                } else {
+                                    logger.info(
+                                        "Authentication of [{}] was terminated by realm [{}] - {}",
                                         authenticationToken.principal(),
                                         realm.name(),
                                         result.getMessage()
-                                    ),
-                                    resultException
-                                );
-                                userListener.onFailure(resultException);
+                                    );
+                                    userListener.onFailure(AuthenticationTerminatedSuccessfullyException.INSTANCE);
+                                }
                             } else {
-                                logger.info(
-                                    "Authentication of [{}] was terminated by realm [{}] - {}",
-                                    authenticationToken.principal(),
-                                    realm.name(),
-                                    result.getMessage()
-                                );
-                                userListener.onFailure(AuthenticationTerminatedSuccessfullyException.INSTANCE);
+                                if (result.getMessage() != null) {
+                                    messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
+                                }
+                                userListener.onResponse(null);
                             }
-                        } else {
-                            if (result.getMessage() != null) {
-                                messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
-                            }
-                            userListener.onResponse(null);
                         }
-                    }
-                }, (ex) -> {
-                    logger.warn(
-                        () -> format(
-                            "An error occurred while attempting to authenticate [%s] against realm [%s]",
-                            authenticationToken.principal(),
-                            realm.name()
-                        ),
-                        ex
-                    );
-                    userListener.onFailure(ex);
-                }));
+                    }, (ex) -> {
+                        logger.warn(
+                            () -> format(
+                                "An error occurred while attempting to authenticate [%s] against realm [%s]",
+                                authenticationToken.principal(),
+                                realm.name()
+                            ),
+                            ex
+                        );
+                        userListener.onFailure(ex);
+                    }))
+                );
             } else {
                 userListener.onResponse(null);
             }
@@ -361,5 +390,15 @@ public class RealmsAuthenticator implements Authenticator {
             // singleton instance used solely for control flow, so a stack trace is meaningless
             return this;
         }
+    }
+
+    private Map<String, Object> buildMetricAttributes(Realm realm, String failureReason) {
+        final Map<String, Object> attributes = new HashMap<>(failureReason != null ? 3 : 2);
+        attributes.put(ATTRIBUTE_REALM_NAME, realm.name());
+        attributes.put(ATTRIBUTE_REALM_TYPE, realm.type());
+        if (failureReason != null) {
+            attributes.put(ATTRIBUTE_REALM_AUTHC_FAILURE_REASON, failureReason);
+        }
+        return attributes;
     }
 }

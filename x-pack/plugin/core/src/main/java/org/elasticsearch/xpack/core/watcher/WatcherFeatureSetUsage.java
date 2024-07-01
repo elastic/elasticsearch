@@ -23,7 +23,7 @@ public class WatcherFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public WatcherFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        stats = in.readMap();
+        stats = in.readGenericMap();
     }
 
     public WatcherFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> stats) {

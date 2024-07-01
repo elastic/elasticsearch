@@ -214,6 +214,12 @@ public class RestCatJobsAction extends AbstractCatAction {
                 .build()
         );
         table.addCell(
+            "model.output_memory_allocator_bytes",
+            TableColumnAttributeBuilder.builder("how many bytes have been used to output the model documents", false)
+                .setAliases("momab", "modelOutputMemoryAllocatorBytes")
+                .build()
+        );
+        table.addCell(
             "model.categorization_status",
             TableColumnAttributeBuilder.builder("current categorization status", false)
                 .setAliases("mcs", "modelCategorizationStatus")
@@ -416,6 +422,11 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalPartitionFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getBucketAllocationFailuresCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizationStatus().toString());
+            table.addCell(
+                modelSizeStats == null || modelSizeStats.getOutputMemmoryAllocatorBytes() == null
+                    ? null
+                    : ByteSizeValue.ofBytes(modelSizeStats.getOutputMemmoryAllocatorBytes())
+            );
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizedDocCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getFrequentCategoryCount());

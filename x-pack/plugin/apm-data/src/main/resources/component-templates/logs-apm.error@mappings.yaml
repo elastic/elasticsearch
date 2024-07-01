@@ -6,21 +6,41 @@ _meta:
 template:
   mappings:
     properties:
+      # error.*
       error.custom:
-        type: flattened
+        type: object
+        dynamic: false
       error.exception.attributes:
-        type: flattened
+        type: object
+        dynamic: false
       error.exception.stacktrace:
-        type: flattened
+        type: object
+        dynamic: false
+      error.log.stacktrace:
+        type: object
+        dynamic: false
       error.grouping_name:
         type: keyword
         script: |
           def logMessage = params['_source'].error?.log?.message;
-          if (logMessage != null) {
+          if (logMessage != null && logMessage != "") {
             emit(logMessage);
             return;
           }
           def exception = params['_source'].error?.exception;
-          if (exception != null && exception.length > 0) {
+          def exceptionMessage = exception != null && exception.length > 0 ? exception[0]?.message : null;
+          if (exceptionMessage != null && exceptionMessage != "") {
             emit(exception[0].message);
           }
+
+      # http.*
+      http.request.headers:
+        type: flattened
+      http.response.headers:
+        type: flattened
+      http.request.cookies:
+        type: object
+        dynamic: false
+      http.request.body:
+        type: object
+        dynamic: false

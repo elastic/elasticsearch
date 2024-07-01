@@ -16,6 +16,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.AfterClass;
@@ -214,7 +215,10 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
     static void searchAndAssertIndicesFound(String searchPath, String... expectedIndices) throws IOException {
         final Response response = performRequestWithRemoteSearchUser(new Request("GET", searchPath));
         assertOK(response);
-        final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+        final SearchResponse searchResponse;
+        try (var parser = responseAsParser(response)) {
+            searchResponse = SearchResponseUtils.parseSearchResponse(parser);
+        }
         try {
             final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
                 .map(SearchHit::getIndex)

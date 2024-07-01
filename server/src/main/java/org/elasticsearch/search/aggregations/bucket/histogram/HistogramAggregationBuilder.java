@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -45,15 +44,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         NAME,
         HistogramAggregatorSupplier.class
     );
-
-    private static final ObjectParser<double[], Void> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
-        Histogram.EXTENDED_BOUNDS_FIELD.getPreferredName(),
-        () -> new double[] { Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY }
-    );
-    static {
-        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[0] = d, new ParseField("min"));
-        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
-    }
 
     public static final ObjectParser<HistogramAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,

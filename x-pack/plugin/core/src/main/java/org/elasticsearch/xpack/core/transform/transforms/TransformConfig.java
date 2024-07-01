@@ -234,7 +234,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         this.pivotConfig = pivotConfig;
         this.latestConfig = latestConfig;
         this.description = description;
-        this.settings = settings == null ? new SettingsConfig() : settings;
+        this.settings = settings == null ? SettingsConfig.EMPTY : settings;
         this.metadata = metadata;
         this.retentionPolicyConfig = retentionPolicyConfig;
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
@@ -257,7 +257,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         createTime = in.readOptionalInstant();
         transformVersion = in.readBoolean() ? TransformConfigVersion.readVersion(in) : null;
         settings = new SettingsConfig(in);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
         retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 

@@ -28,7 +28,12 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
     UnpromotableShardRefreshRequest,
     ActionResponse.Empty> {
 
-    public static final String NAME = RefreshAction.NAME + "/unpromotable";
+    public static final String NAME = "indices:admin/refresh/unpromotable";
+
+    static {
+        // noinspection ConstantValue just for documentation
+        assert NAME.equals(RefreshAction.NAME + "/unpromotable");
+    }
 
     private final IndicesService indicesService;
 

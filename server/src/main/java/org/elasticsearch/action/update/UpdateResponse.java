@@ -15,15 +15,12 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-
 public class UpdateResponse extends DocWriteResponse {
 
-    private static final String GET = "get";
+    static final String GET = "get";
 
     private GetResult getResult;
 
@@ -46,7 +43,7 @@ public class UpdateResponse extends DocWriteResponse {
      * For example: update script with operation set to none
      */
     public UpdateResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
-        this(new ShardInfo(0, 0), shardId, id, seqNo, primaryTerm, version, result);
+        this(ShardInfo.EMPTY, shardId, id, seqNo, primaryTerm, version, result);
     }
 
     @SuppressWarnings("this-escape")
@@ -112,32 +109,6 @@ public class UpdateResponse extends DocWriteResponse {
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
-    }
-
-    public static UpdateResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-
-        Builder context = new Builder();
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            parseXContentFields(parser, context);
-        }
-        return context.build();
-    }
-
-    /**
-     * Parse the current token and update the parsing context appropriately.
-     */
-    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        String currentFieldName = parser.currentName();
-
-        if (GET.equals(currentFieldName)) {
-            if (token == XContentParser.Token.START_OBJECT) {
-                context.setGetResult(GetResult.fromXContentEmbedded(parser));
-            }
-        } else {
-            DocWriteResponse.parseInnerToXContent(parser, context);
-        }
     }
 
     /**

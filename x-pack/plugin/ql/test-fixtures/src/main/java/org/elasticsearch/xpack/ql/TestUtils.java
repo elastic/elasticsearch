@@ -74,6 +74,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -81,6 +82,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.ql.TestUtils.StringContainsRegex.containsRegex;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
 
@@ -285,7 +287,7 @@ public final class TestUtils {
     public static Tuple<String, String> pathAndName(String string) {
         String folder = StringUtils.EMPTY;
         String file = string;
-        int lastIndexOf = string.lastIndexOf("/");
+        int lastIndexOf = string.lastIndexOf('/');
         if (lastIndexOf > 0) {
             folder = string.substring(0, lastIndexOf - 1);
             if (lastIndexOf + 1 < string.length()) {
@@ -313,7 +315,7 @@ public final class TestUtils {
                 // this json might be from a node <8.8.0, but about a node >=8.8.0
                 // In that case the transport_version field won't exist. Just ignore it for now.
                 Version version = Version.fromString(nodeVersion);
-                if (version.before(Version.V_8_8_0)) {
+                if (version.before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
                     transportVersion = TransportVersion.fromId(version.id);
                 }
             }
@@ -442,6 +444,14 @@ public final class TestUtils {
             }
         }
         return arr;
+    }
+
+    public static FieldAttribute getFieldAttribute(String name) {
+        return getFieldAttribute(name, INTEGER);
+    }
+
+    public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
     // Matcher which extends the functionality of org.hamcrest.Matchers.matchesPattern(String)}

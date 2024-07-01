@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
+import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -99,9 +100,13 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
             ksw.save(configPath, "".toCharArray(), false);
         }
         // Reload the keystore to load the new settings
-        NodesReloadSecureSettingsRequest reloadReq = new NodesReloadSecureSettingsRequest();
-        reloadReq.setSecureStorePassword(new SecureString("".toCharArray()));
-        client().execute(NodesReloadSecureSettingsAction.INSTANCE, reloadReq).get();
+        NodesReloadSecureSettingsRequest reloadReq = new NodesReloadSecureSettingsRequest(Strings.EMPTY_ARRAY);
+        try {
+            reloadReq.setSecureStorePassword(new SecureString("".toCharArray()));
+            client().execute(TransportNodesReloadSecureSettingsAction.TYPE, reloadReq).get();
+        } finally {
+            reloadReq.decRef();
+        }
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())

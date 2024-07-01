@@ -1,6 +1,0 @@
-pr: 102317
-summary: "ESQL: Fix single value query"
-area: ES|QL
-type: bug
-issues:
- - 102298

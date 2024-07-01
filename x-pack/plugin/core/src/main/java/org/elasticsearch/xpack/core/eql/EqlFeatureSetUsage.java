@@ -24,7 +24,7 @@ public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public EqlFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        stats = in.readMap();
+        stats = in.readGenericMap();
     }
 
     public EqlFeatureSetUsage(Map<String, Object> stats) {

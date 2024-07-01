@@ -71,6 +71,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.xpack.core.ilm.AbstractStepTestCase.randomStepKey;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
@@ -233,7 +234,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testRequestedStopInShrinkActionButNotShrinkStep() {
         // test all the shrink action steps that ILM can be stopped during (basically all of them minus the actual shrink)
-        ShrinkAction action = new ShrinkAction(1, null);
+        ShrinkAction action = new ShrinkAction(1, null, false);
         action.toSteps(mock(Client.class), "warm", randomStepKey())
             .stream()
             .map(sk -> sk.getKey().name())
@@ -282,13 +283,12 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
         SetOnce<Boolean> changedOperationMode = new SetOnce<>();
         doAnswer(invocationOnMock -> {
+            OperationModeUpdateTask task = (OperationModeUpdateTask) invocationOnMock.getArguments()[1];
+            assertEquals(task.getILMOperationMode(), OperationMode.STOPPED);
             changedOperationMode.set(true);
             return null;
         }).when(clusterService)
-            .submitUnbatchedStateUpdateTask(
-                eq("ilm_operation_mode_update[stopped]"),
-                eq(OperationModeUpdateTask.ilmMode(OperationMode.STOPPED))
-            );
+            .submitUnbatchedStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), any(OperationModeUpdateTask.class));
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertTrue(changedOperationMode.get());
@@ -651,9 +651,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             );
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
-                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                : null;
+            final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
             state = ClusterState.builder(state)
                 .metadata(
                     Metadata.builder(state.metadata())

@@ -195,7 +195,7 @@ public class NodeJoinTests extends ESTestCase {
                     );
                 } else if (action.equals(JoinValidationService.JOIN_VALIDATE_ACTION_NAME)
                     || action.equals(JoinHelper.JOIN_PING_ACTION_NAME)) {
-                        handleResponse(requestId, new TransportResponse.Empty());
+                        handleResponse(requestId, TransportResponse.Empty.INSTANCE);
                     } else {
                         super.onSendRequest(requestId, action, request, destination);
                     }
@@ -774,14 +774,14 @@ public class NodeJoinTests extends ESTestCase {
         final List<Thread> joinThreads = Stream.concat(correctJoinRequests.stream().map(joinRequest -> new Thread(() -> {
             safeAwait(barrier);
             joinNode(joinRequest);
-        }, "process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
+        }, "TEST-process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
             safeAwait(barrier);
             try {
                 joinNode(joinRequest);
             } catch (CoordinationStateRejectedException e) {
                 // ignore - these requests are expected to fail
             }
-        }, "process " + joinRequest))).toList();
+        }, "TEST-process " + joinRequest))).toList();
 
         assertionThread.start();
         joinThreads.forEach(Thread::start);

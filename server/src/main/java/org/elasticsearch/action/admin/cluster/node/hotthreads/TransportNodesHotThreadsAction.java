@@ -9,23 +9,29 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.StringWriter;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class TransportNodesHotThreadsAction extends TransportNodesAction<
@@ -34,7 +40,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
     TransportNodesHotThreadsAction.NodeRequest,
     NodeHotThreads> {
 
-    public static final ActionType<NodesHotThreadsResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/hot_threads");
+    public static final ActionType<NodesHotThreadsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/hot_threads");
 
     @Inject
     public TransportNodesHotThreadsAction(
@@ -74,38 +80,50 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
 
     @Override
     protected NodeHotThreads nodeOperation(NodeRequest request, Task task) {
-        HotThreads hotThreads = new HotThreads().busiestThreads(request.request.threads)
-            .type(request.request.type)
-            .sortOrder(request.request.sortOrder)
-            .interval(request.request.interval)
-            .threadElementsSnapshotCount(request.request.snapshots)
-            .ignoreIdleThreads(request.request.ignoreIdleThreads);
-        try (var writer = new StringWriter()) {
-            hotThreads.detect(writer);
-            return new NodeHotThreads(clusterService.localNode(), writer.toString());
+        final var hotThreads = new HotThreads().busiestThreads(request.requestOptions.threads())
+            .type(request.requestOptions.reportType())
+            .sortOrder(request.requestOptions.sortOrder())
+            .interval(request.requestOptions.interval())
+            .threadElementsSnapshotCount(request.requestOptions.snapshots())
+            .ignoreIdleThreads(request.requestOptions.ignoreIdleThreads());
+        final var out = transportService.newNetworkBytesStream();
+        final var trackedResource = LeakTracker.wrap(out);
+        var success = false;
+        try {
+            try (var writer = new OutputStreamWriter(Streams.flushOnCloseStream(out), StandardCharsets.UTF_8)) {
+                hotThreads.detect(writer);
+            }
+            final var result = new NodeHotThreads(clusterService.localNode(), new ReleasableBytesReference(out.bytes(), trackedResource));
+            success = true;
+            return result;
         } catch (Exception e) {
             throw new ElasticsearchException("failed to detect hot threads", e);
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(trackedResource);
+            }
         }
     }
 
     public static class NodeRequest extends TransportRequest {
 
-        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
-        NodesHotThreadsRequest request;
-
-        public NodeRequest(StreamInput in) throws IOException {
-            super(in);
-            request = new NodesHotThreadsRequest(in);
-        }
+        final HotThreads.RequestOptions requestOptions;
 
         NodeRequest(NodesHotThreadsRequest request) {
-            this.request = request;
+            this.requestOptions = request.requestOptions;
+        }
+
+        NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            skipLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, in);
+            requestOptions = HotThreads.RequestOptions.readFrom(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            request.writeTo(out);
+            sendLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, out);
+            requestOptions.writeTo(out);
         }
     }
 }

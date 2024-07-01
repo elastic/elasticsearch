@@ -13,13 +13,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -39,6 +40,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.ilm.IndexLifecycleFeatures;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -53,6 +55,9 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_DATA_STREAM;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.ILM_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.INDEX_TEMPLATE_VERSION;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -75,6 +80,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
         ILMHistoryTemplateRegistry registry = new ILMHistoryTemplateRegistry(
             clusterService.getSettings(),
             clusterService,
+            new FeatureService(List.of(new IndexLifecycleFeatures())),
             threadPool,
             client,
             NamedXContentRegistry.EMPTY
@@ -131,7 +137,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(BulkAction.class));
+                assertSame(TransportBulkAction.TYPE, action);
                 assertThat(request, instanceOf(BulkRequest.class));
                 BulkRequest bulkRequest = (BulkRequest) request;
                 bulkRequest.requests().forEach(dwr -> assertEquals(ILM_HISTORY_DATA_STREAM, dwr.index()));
@@ -171,11 +177,11 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
-                if (action instanceof CreateIndexAction && request instanceof CreateIndexRequest) {
+                if (action == TransportCreateIndexAction.TYPE && request instanceof CreateIndexRequest) {
                     return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
                 }
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(BulkAction.class));
+                assertSame(TransportBulkAction.TYPE, action);
                 assertThat(request, instanceOf(BulkRequest.class));
                 BulkRequest bulkRequest = (BulkRequest) request;
                 bulkRequest.requests().forEach(dwr -> {
@@ -224,7 +230,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
         long numberOfDocs = 400_000;
         CountDownLatch latch = new CountDownLatch((int) numberOfDocs);
         client.setVerifier((action, request, listener) -> {
-            assertThat(action, instanceOf(BulkAction.class));
+            assertSame(TransportBulkAction.TYPE, action);
             assertThat(request, instanceOf(BulkRequest.class));
             BulkRequest bulkRequest = (BulkRequest) request;
             List<DocWriteRequest<?>> realRequests = bulkRequest.requests();
@@ -282,6 +288,10 @@ public class ILMHistoryStoreTests extends ESTestCase {
             latch.await(5, TimeUnit.SECONDS);
             assertThat(actions.get(), equalTo(numberOfDocs));
         }
+    }
+
+    public void testTemplateNameIsVersioned() {
+        assertThat(ILM_TEMPLATE_NAME, endsWith("-" + INDEX_TEMPLATE_VERSION));
     }
 
     /**

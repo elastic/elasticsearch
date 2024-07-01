@@ -9,12 +9,11 @@
 package org.elasticsearch.recovery;
 
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -43,12 +42,12 @@ public class SimpleRecoveryIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         client().index(new IndexRequest("test").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
-        FlushResponse flushResponse = indicesAdmin().flush(new FlushRequest("test")).actionGet();
+        BroadcastResponse flushResponse = indicesAdmin().flush(new FlushRequest("test")).actionGet();
         assertThat(flushResponse.getTotalShards(), equalTo(numShards.totalNumShards));
         assertThat(flushResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
         assertThat(flushResponse.getFailedShards(), equalTo(0));
         client().index(new IndexRequest("test").id("2").source(source("2", "test"), XContentType.JSON)).actionGet();
-        RefreshResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest("test")).actionGet();
+        BroadcastResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest("test")).actionGet();
         assertThat(refreshResponse.getTotalShards(), equalTo(numShards.totalNumShards));
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
         assertThat(refreshResponse.getFailedShards(), equalTo(0));

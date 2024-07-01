@@ -505,7 +505,7 @@ public class TaskManager implements ClusterStateApplier {
             if (channel instanceof TcpTransportChannel) {
                 startTrackingChannel(((TcpTransportChannel) channel).getChannel(), ban::registerChannel);
             } else {
-                assert channel.getChannelType().equals("direct") : "expect direct channel; got [" + channel + "]";
+                assert TransportService.isDirectResponseChannel(channel) : "expect direct channel; got [" + channel + "]";
                 ban.registerChannel(DIRECT_CHANNEL_TRACKER);
             }
         }

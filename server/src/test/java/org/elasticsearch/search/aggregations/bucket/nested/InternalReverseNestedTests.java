@@ -10,10 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -31,16 +28,5 @@ public class InternalReverseNestedTests extends InternalSingleBucketAggregationT
     @Override
     protected void extraAssertReduced(InternalReverseNested reduced, List<InternalReverseNested> inputs) {
         // Nothing extra to assert
-    }
-
-    @Override
-    protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
-        return ParsedReverseNested.class;
-    }
-
-    @Override
-    protected void assertFromXContent(InternalReverseNested aggregation, ParsedAggregation parsedAggregation) throws IOException {
-        super.assertFromXContent(aggregation, parsedAggregation);
-        assertTrue(parsedAggregation instanceof ReverseNested);
     }
 }

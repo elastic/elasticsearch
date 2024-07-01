@@ -14,16 +14,20 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.aggregations.bucket.AggregationTestCase;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
@@ -74,8 +78,12 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
             assertThat(((Sum) ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("sum")).value(), equalTo(22.0));
 
         },
-            new KeywordFieldMapper.KeywordFieldType("dim1"),
-            new KeywordFieldMapper.KeywordFieldType("dim2"),
+            new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+                .build(MapperBuilderContext.root(true, true))
+                .fieldType(),
+            new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
+                .build(MapperBuilderContext.root(true, true))
+                .fieldType(),
             new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
         );
     }
@@ -88,8 +96,16 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         for (int i = 0; i < dimensions.length; i += 2) {
             if (dimensions[i + 1] instanceof Number n) {
                 builder.addLong(dimensions[i].toString(), n.longValue());
+                if (dimensions[i + 1] instanceof Integer || dimensions[i + 1] instanceof Long) {
+                    fields.add(new NumericDocValuesField(dimensions[i].toString(), ((Number) dimensions[i + 1]).longValue()));
+                } else if (dimensions[i + 1] instanceof Float) {
+                    fields.add(new FloatDocValuesField(dimensions[i].toString(), (float) dimensions[i + 1]));
+                } else if (dimensions[i + 1] instanceof Double) {
+                    fields.add(new DoubleDocValuesField(dimensions[i].toString(), (double) dimensions[i + 1]));
+                }
             } else {
                 builder.addString(dimensions[i].toString(), dimensions[i + 1].toString());
+                fields.add(new SortedSetDocValuesField(dimensions[i].toString(), new BytesRef(dimensions[i + 1].toString())));
             }
         }
         for (int i = 0; i < metrics.length; i += 2) {
@@ -101,8 +117,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 fields.add(new DoubleDocValuesField(metrics[i].toString(), (double) metrics[i + 1]));
             }
         }
-        fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.build().toBytesRef()));
-        // TODO: Handle metrics
+        fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.buildLegacyTsid().toBytesRef()));
         iw.addDocument(fields);
     }
 
@@ -131,7 +146,9 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 aggregationBuilder,
                 TimeSeriesIdFieldMapper.FIELD_TYPE,
                 new DateFieldMapper.DateFieldType("@timestamp"),
-                new KeywordFieldMapper.KeywordFieldType("dim1"),
+                new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+                    .build(MapperBuilderContext.root(true, true))
+                    .fieldType(),
                 new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
             ).withQuery(new MatchAllDocsQuery())
         );
@@ -177,7 +194,18 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         dateBuilder.fixedInterval(DateHistogramInterval.seconds(1));
         TimeSeriesAggregationBuilder tsBuilder = new TimeSeriesAggregationBuilder("by_tsid");
         tsBuilder.subAggregation(dateBuilder);
-        timeSeriesTestCase(tsBuilder, new MatchAllDocsQuery(), buildIndex, verifier);
+        timeSeriesTestCase(
+            tsBuilder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            verifier,
+            new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+                .build(MapperBuilderContext.root(true, true))
+                .fieldType(),
+            new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
+                .build(MapperBuilderContext.root(true, true))
+                .fieldType()
+        );
     }
 
     public void testAggregationSize() throws IOException {
@@ -201,7 +229,18 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
 
             TimeSeriesAggregationBuilder limitedTsBuilder = new TimeSeriesAggregationBuilder("by_tsid");
             limitedTsBuilder.setSize(i);
-            timeSeriesTestCase(limitedTsBuilder, new MatchAllDocsQuery(), buildIndex, limitedVerifier);
+            timeSeriesTestCase(
+                limitedTsBuilder,
+                new MatchAllDocsQuery(),
+                buildIndex,
+                limitedVerifier,
+                new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+                    .build(MapperBuilderContext.root(true, true))
+                    .fieldType(),
+                new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
+                    .build(MapperBuilderContext.root(true, true))
+                    .fieldType()
+            );
         }
     }
 

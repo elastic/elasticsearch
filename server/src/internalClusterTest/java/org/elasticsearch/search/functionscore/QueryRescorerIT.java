@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -30,8 +31,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.lucene.search.function.CombineFunction.REPLACE;
@@ -815,21 +818,19 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         Exception exc = expectThrows(
             Exception.class,
-            () -> prepareSearch().addSort(SortBuilders.fieldSort("number"))
+            prepareSearch().addSort(SortBuilders.fieldSort("number"))
                 .setTrackScores(true)
                 .addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50)
-                .get()
         );
         assertNotNull(exc.getCause());
         assertThat(exc.getCause().getMessage(), containsString("Cannot use [sort] option in conjunction with [rescore]."));
 
         exc = expectThrows(
             Exception.class,
-            () -> prepareSearch().addSort(SortBuilders.fieldSort("number"))
+            prepareSearch().addSort(SortBuilders.fieldSort("number"))
                 .addSort(SortBuilders.scoreSort())
                 .setTrackScores(true)
                 .addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50)
-                .get()
         );
         assertNotNull(exc.getCause());
         assertThat(exc.getCause().getMessage(), containsString("Cannot use [sort] option in conjunction with [rescore]."));
@@ -845,6 +846,141 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     assertThat(hit.getScore(), equalTo(101f));
                 }
             }
+        );
+    }
+
+    record GroupDoc(String id, String group, float firstPassScore, float secondPassScore, boolean shouldFilter) {}
+
+    public void testRescoreAfterCollapse() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("group", "type=keyword", "shouldFilter", "type=boolean"));
+        ensureGreen("test");
+        GroupDoc[] groupDocs = new GroupDoc[] {
+            new GroupDoc("1", "c", 200, 1, false),
+            new GroupDoc("2", "a", 1, 10, true),
+            new GroupDoc("3", "b", 2, 30, false),
+            new GroupDoc("4", "c", 1, 1000, false),
+            // should be highest on rescore, but filtered out during collapse
+            new GroupDoc("5", "b", 1, 40, false),
+            new GroupDoc("6", "a", 2, 20, false) };
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        for (var groupDoc : groupDocs) {
+            requests.add(
+                client().prepareIndex("test")
+                    .setId(groupDoc.id())
+                    .setRouting(groupDoc.group())
+                    .setSource(
+                        "group",
+                        groupDoc.group(),
+                        "firstPassScore",
+                        groupDoc.firstPassScore(),
+                        "secondPassScore",
+                        groupDoc.secondPassScore(),
+                        "shouldFilter",
+                        groupDoc.shouldFilter()
+                    )
+            );
+        }
+        indexRandom(true, requests);
+
+        var request = client().prepareSearch("test")
+            .setQuery(fieldValueScoreQuery("firstPassScore"))
+            .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")))
+            .setCollapse(new CollapseBuilder("group"));
+        assertResponse(request, resp -> {
+            assertThat(resp.getHits().getTotalHits().value, equalTo(5L));
+            assertThat(resp.getHits().getHits().length, equalTo(3));
+
+            SearchHit hit1 = resp.getHits().getAt(0);
+            assertThat(hit1.getId(), equalTo("1"));
+            assertThat(hit1.getScore(), equalTo(201F));
+            assertThat(hit1.field("group").getValues().size(), equalTo(1));
+            assertThat(hit1.field("group").getValues().get(0), equalTo("c"));
+
+            SearchHit hit2 = resp.getHits().getAt(1);
+            assertThat(hit2.getId(), equalTo("3"));
+            assertThat(hit2.getScore(), equalTo(32F));
+            assertThat(hit2.field("group").getValues().size(), equalTo(1));
+            assertThat(hit2.field("group").getValues().get(0), equalTo("b"));
+
+            SearchHit hit3 = resp.getHits().getAt(2);
+            assertThat(hit3.getId(), equalTo("6"));
+            assertThat(hit3.getScore(), equalTo(22F));
+            assertThat(hit3.field("group").getValues().size(), equalTo(1));
+            assertThat(hit3.field("group").getValues().get(0), equalTo("a"));
+        });
+    }
+
+    public void testRescoreAfterCollapseRandom() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("group", "type=keyword", "shouldFilter", "type=boolean"));
+        ensureGreen("test");
+        int numGroups = randomIntBetween(1, 100);
+        int numDocs = atLeast(100);
+        GroupDoc[] groups = new GroupDoc[numGroups];
+        int numHits = 0;
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            int group = randomIntBetween(0, numGroups - 1);
+            boolean shouldFilter = rarely();
+            String id = randomUUID();
+            float firstPassScore = randomFloat();
+            float secondPassScore = randomFloat();
+            float bestScore = groups[group] == null ? -1 : groups[group].firstPassScore;
+            var groupDoc = new GroupDoc(id, Integer.toString(group), firstPassScore, secondPassScore, shouldFilter);
+            if (shouldFilter == false) {
+                if (firstPassScore == bestScore) {
+                    // avoid tiebreaker
+                    continue;
+                }
+
+                numHits++;
+                if (firstPassScore > bestScore) {
+                    groups[group] = groupDoc;
+                }
+            }
+            requests.add(
+                client().prepareIndex("test")
+                    .setId(groupDoc.id())
+                    .setRouting(groupDoc.group())
+                    .setSource(
+                        "group",
+                        groupDoc.group(),
+                        "firstPassScore",
+                        groupDoc.firstPassScore(),
+                        "secondPassScore",
+                        groupDoc.secondPassScore(),
+                        "shouldFilter",
+                        groupDoc.shouldFilter()
+                    )
+            );
+        }
+        indexRandom(true, requests);
+
+        GroupDoc[] sortedGroups = Arrays.stream(groups)
+            .filter(g -> g != null)
+            .sorted(Comparator.comparingDouble(GroupDoc::secondPassScore).reversed())
+            .toArray(GroupDoc[]::new);
+
+        var request = client().prepareSearch("test")
+            .setQuery(fieldValueScoreQuery("firstPassScore"))
+            .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")).setQueryWeight(0f).windowSize(numGroups))
+            .setCollapse(new CollapseBuilder("group"))
+            .setSize(Math.min(numGroups, 10));
+        long expectedNumHits = numHits;
+        assertResponse(request, resp -> {
+            assertThat(resp.getHits().getTotalHits().value, equalTo(expectedNumHits));
+            for (int pos = 0; pos < resp.getHits().getHits().length; pos++) {
+                SearchHit hit = resp.getHits().getAt(pos);
+                assertThat(hit.getId(), equalTo(sortedGroups[pos].id()));
+                String group = hit.field("group").getValue();
+                assertThat(group, equalTo(sortedGroups[pos].group()));
+                assertThat(hit.getScore(), equalTo(sortedGroups[pos].secondPassScore));
+            }
+        });
+    }
+
+    private QueryBuilder fieldValueScoreQuery(String scoreField) {
+        return functionScoreQuery(termQuery("shouldFilter", false), ScoreFunctionBuilders.fieldValueFactorFunction(scoreField)).boostMode(
+            CombineFunction.REPLACE
         );
     }
 }

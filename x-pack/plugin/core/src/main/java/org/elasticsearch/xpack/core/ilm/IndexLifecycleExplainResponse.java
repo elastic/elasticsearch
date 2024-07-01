@@ -227,24 +227,28 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (policyName == null) {
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
             }
-            // check to make sure that step details are either all null or all set.
-            long numNull = Stream.of(phase, action, step).filter(Objects::isNull).count();
-            if (numNull > 0 && numNull < 3) {
-                throw new IllegalArgumentException(
-                    "managed index response must have complete step details ["
-                        + PHASE_FIELD.getPreferredName()
-                        + "="
-                        + phase
-                        + ", "
-                        + ACTION_FIELD.getPreferredName()
-                        + "="
-                        + action
-                        + ", "
-                        + STEP_FIELD.getPreferredName()
-                        + "="
-                        + step
-                        + "]"
-                );
+
+            // If at least one detail is null, but not *all* are null
+            if (Stream.of(phase, action, step).anyMatch(Objects::isNull)
+                && Stream.of(phase, action, step).allMatch(Objects::isNull) == false) {
+                // …and it's not in the error step
+                if (ErrorStep.NAME.equals(step) == false) {
+                    throw new IllegalArgumentException(
+                        "managed index response must have complete step details ["
+                            + PHASE_FIELD.getPreferredName()
+                            + "="
+                            + phase
+                            + ", "
+                            + ACTION_FIELD.getPreferredName()
+                            + "="
+                            + action
+                            + ", "
+                            + STEP_FIELD.getPreferredName()
+                            + "="
+                            + step
+                            + "]"
+                    );
+                }
             }
         } else {
             if (policyName != null

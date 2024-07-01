@@ -61,7 +61,7 @@ public class NodeInfo extends BaseNodeResponse {
 
     public NodeInfo(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_VERSION_AS_STRING)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             version = in.readString();
             transportVersion = TransportVersion.readVersion(in);
             indexVersion = IndexVersion.readVersion(in);
@@ -73,13 +73,13 @@ public class NodeInfo extends BaseNodeResponse {
             } else {
                 transportVersion = TransportVersion.fromId(legacyVersion.id);
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_INDEX_VERSION_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 indexVersion = IndexVersion.readVersion(in);
             } else {
                 indexVersion = IndexVersion.fromId(legacyVersion.id);
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_COMPONENT_VERSIONS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             componentVersions = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
         } else {
             componentVersions = Map.of();
@@ -234,7 +234,7 @@ public class NodeInfo extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_VERSION_AS_STRING)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeString(version);
         } else {
             Version.writeVersion(Version.fromString(version), out);
@@ -242,10 +242,8 @@ public class NodeInfo extends BaseNodeResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             TransportVersion.writeVersion(transportVersion, out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_INDEX_VERSION_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             IndexVersion.writeVersion(indexVersion, out);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_COMPONENT_VERSIONS_ADDED)) {
             out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);
         }
         Build.writeBuild(build, out);

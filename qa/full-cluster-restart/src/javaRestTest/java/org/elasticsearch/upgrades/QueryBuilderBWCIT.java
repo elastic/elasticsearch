@@ -39,8 +39,10 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.ClassRule;
 
@@ -75,6 +77,7 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
         .version(getOldClusterTestVersion())
         .nodes(2)
         .setting("xpack.security.enabled", "false")
+        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .apply(() -> clusterConfig)
         .build();
 
@@ -251,11 +254,8 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                     StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)
                 ) {
 
-                    @UpdateForV9 // always true
-                    var originalClusterHasTransportVersion = parseLegacyVersion(getOldClusterVersion()).map(
-                        v -> v.onOrAfter(Version.V_8_8_0)
-                    ).orElse(true);
-
+                    @UpdateForV9 // condition will always be true
+                    var originalClusterHasTransportVersion = oldClusterHasFeature(RestTestLegacyFeatures.TRANSPORT_VERSION_SUPPORTED);
                     final TransportVersion transportVersion;
                     if (originalClusterHasTransportVersion == false) {
                         transportVersion = TransportVersion.fromId(

@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
@@ -42,9 +43,16 @@ import java.util.function.Supplier;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * Handles periodic debug logging of information regarding why the cluster has failed to form.
+ * Periodic logging begins once {@link #start()} is called, and ceases on {@link #stop()}.
+ */
 public class ClusterFormationFailureHelper {
     private static final Logger logger = LogManager.getLogger(ClusterFormationFailureHelper.class);
 
+    /**
+     * This time period controls how often warning log messages will be written if this node fails to join or form a cluster.
+     */
     public static final Setting<TimeValue> DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.cluster_formation_warning_timeout",
         TimeValue.timeValueMillis(10000),
@@ -60,6 +68,16 @@ public class ClusterFormationFailureHelper {
     @Nullable // if no warning is scheduled
     private volatile WarningScheduler warningScheduler;
 
+    /**
+     * Works with the {@link JoinHelper} to log the latest node-join attempt failure and cluster state debug information. Must call
+     * {@link ClusterFormationState#start()} to begin.
+     *
+     * @param settings provides the period in which to log cluster formation errors.
+     * @param clusterFormationStateSupplier information about the current believed cluster state (See {@link ClusterFormationState})
+     * @param threadPool the thread pool on which to run debug logging
+     * @param logLastFailedJoinAttempt invokes an instance of the JoinHelper to log the last encountered join failure
+     *                                 (See {@link JoinHelper#logLastFailedJoinAttempt()})
+     */
     public ClusterFormationFailureHelper(
         Settings settings,
         Supplier<ClusterFormationState> clusterFormationStateSupplier,
@@ -77,6 +95,10 @@ public class ClusterFormationFailureHelper {
         return warningScheduler != null;
     }
 
+    /**
+     * Schedules a warning debug message to be logged in 'clusterFormationWarningTimeout' time, and periodically thereafter, until
+     * {@link ClusterFormationState#stop()} has been called.
+     */
     public void start() {
         assert warningScheduler == null;
         warningScheduler = new WarningScheduler();
@@ -128,7 +150,7 @@ public class ClusterFormationFailureHelper {
     }
 
     /**
-     * If this node believes that cluster formation has failed, this record provides information that can be used to determine why that is.
+     * This record provides node state information that can be used to determine why cluster formation has failed.
      */
     public record ClusterFormationState(
         List<String> initialMasterNodesSetting,
@@ -140,6 +162,7 @@ public class ClusterFormationFailureHelper {
         VotingConfiguration lastCommittedConfiguration,
         List<TransportAddress> resolvedAddresses,
         List<DiscoveryNode> foundPeers,
+        Set<DiscoveryNode> mastersOfPeers,
         long currentTerm,
         boolean hasDiscoveredQuorum,
         StatusInfo statusInfo,
@@ -151,6 +174,7 @@ public class ClusterFormationFailureHelper {
             ClusterState clusterState,
             List<TransportAddress> resolvedAddresses,
             List<DiscoveryNode> foundPeers,
+            Set<DiscoveryNode> mastersOfPeers,
             long currentTerm,
             ElectionStrategy electionStrategy,
             StatusInfo statusInfo,
@@ -166,6 +190,7 @@ public class ClusterFormationFailureHelper {
                 clusterState.getLastCommittedConfiguration(),
                 resolvedAddresses,
                 foundPeers,
+                mastersOfPeers,
                 currentTerm,
                 calculateHasDiscoveredQuorum(
                     foundPeers,
@@ -216,6 +241,9 @@ public class ClusterFormationFailureHelper {
                 new VotingConfiguration(in),
                 in.readCollectionAsImmutableList(TransportAddress::new),
                 in.readCollectionAsImmutableList(DiscoveryNode::new),
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
+                    ? in.readCollectionAsImmutableSet(DiscoveryNode::new)
+                    : Set.of(),
                 in.readLong(),
                 in.readBoolean(),
                 new StatusInfo(in),
@@ -250,12 +278,19 @@ public class ClusterFormationFailureHelper {
                 acceptedTerm
             );
 
-            final StringBuilder foundPeersDescription = new StringBuilder();
+            final StringBuilder foundPeersDescription = new StringBuilder("[");
             DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(foundPeers.iterator(), foundPeersDescription);
+            if (mastersOfPeers.isEmpty()) {
+                foundPeersDescription.append(']');
+            } else {
+                foundPeersDescription.append("] who claim current master to be [");
+                DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(mastersOfPeers.iterator(), foundPeersDescription);
+                foundPeersDescription.append(']');
+            }
 
             final String discoveryStateIgnoringQuorum = String.format(
                 Locale.ROOT,
-                "have discovered [%s]; %s",
+                "have discovered %s; %s",
                 foundPeersDescription,
                 discoveryWillContinueDescription
             );
@@ -291,7 +326,7 @@ public class ClusterFormationFailureHelper {
             if (lastCommittedConfiguration.equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
                 return String.format(
                     Locale.ROOT,
-                    "master not discovered yet and this node was detached from its previous cluster, have discovered [%s]; %s",
+                    "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
                     foundPeersDescription,
                     discoveryWillContinueDescription
                 );
@@ -310,7 +345,7 @@ public class ClusterFormationFailureHelper {
 
             return String.format(
                 Locale.ROOT,
-                "master not discovered or elected yet, an election requires %s, %s [%s]; %s",
+                "master not discovered or elected yet, an election requires %s, %s %s; %s",
                 quorumDescription,
                 haveDiscoveredQuorum,
                 foundPeersDescription,
@@ -388,6 +423,9 @@ public class ClusterFormationFailureHelper {
             lastCommittedConfiguration.writeTo(out);
             out.writeCollection(resolvedAddresses);
             out.writeCollection(foundPeers);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                out.writeCollection(mastersOfPeers);
+            }
             out.writeLong(currentTerm);
             out.writeBoolean(hasDiscoveredQuorum);
             statusInfo.writeTo(out);

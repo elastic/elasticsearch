@@ -11,11 +11,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlMetadataAction;
 import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderFactory;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndexTemplateRegistry;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderCacheSettings;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
@@ -56,6 +59,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -76,6 +80,15 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         if (enabled == false) {
             return List.of();
         }
+
+        var indexTemplateRegistry = new SamlServiceProviderIndexTemplateRegistry(
+            services.environment().settings(),
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry()
+        );
+        indexTemplateRegistry.initialize();
 
         SamlInit.initialize();
         final SamlServiceProviderIndex index = new SamlServiceProviderIndex(services.client(), services.clusterService());
@@ -108,7 +121,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
         final SamlFactory factory = new SamlFactory();
 
-        return List.of(index, idp, factory, userPrivilegeResolver);
+        return List.of(index, idp, factory, userPrivilegeResolver, indexTemplateRegistry);
     }
 
     @Override
@@ -128,12 +141,14 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (enabled == false) {
             return List.of();

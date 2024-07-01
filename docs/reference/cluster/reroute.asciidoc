@@ -112,7 +112,7 @@ query parameter, which will attempt a single retry round for these shards.
     (Optional, Boolean) If `true`, then retries allocation of shards that are
     blocked due to too many subsequent allocation failures.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[cluster-reroute-api-request-body]]

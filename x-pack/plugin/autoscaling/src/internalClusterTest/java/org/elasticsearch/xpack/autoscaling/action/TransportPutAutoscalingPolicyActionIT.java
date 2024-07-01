@@ -98,6 +98,8 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
 
     private void putAutoscalingPolicy(final AutoscalingPolicy policy) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policy.name(),
             policy.roles(),
             policy.deciders()

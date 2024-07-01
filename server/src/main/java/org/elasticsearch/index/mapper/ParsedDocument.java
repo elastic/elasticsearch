@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -33,9 +34,10 @@ public class ParsedDocument {
 
     private final List<LuceneDocument> documents;
 
+    private final DocumentSizeObserver documentSizeObserver;
+
     private BytesReference source;
     private XContentType xContentType;
-
     private Mapping dynamicMappingsUpdate;
 
     /**
@@ -59,7 +61,8 @@ public class ParsedDocument {
             Collections.singletonList(document),
             new BytesArray("{}"),
             XContentType.JSON,
-            null
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
         );
     }
 
@@ -83,7 +86,8 @@ public class ParsedDocument {
             Collections.singletonList(document),
             new BytesArray("{}"),
             XContentType.JSON,
-            null
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
         );
     }
 
@@ -95,7 +99,8 @@ public class ParsedDocument {
         List<LuceneDocument> documents,
         BytesReference source,
         XContentType xContentType,
-        Mapping dynamicMappingsUpdate
+        Mapping dynamicMappingsUpdate,
+        DocumentSizeObserver documentSizeObserver
     ) {
         this.version = version;
         this.seqID = seqID;
@@ -105,6 +110,7 @@ public class ParsedDocument {
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
         this.xContentType = xContentType;
+        this.documentSizeObserver = documentSizeObserver;
     }
 
     public String id() {
@@ -160,7 +166,7 @@ public class ParsedDocument {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
         } else {
-            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_UPDATE);
+            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_AUTO_UPDATE, Long.MAX_VALUE);
         }
     }
 
@@ -172,4 +178,9 @@ public class ParsedDocument {
     public String documentDescription() {
         return "id";
     }
+
+    public DocumentSizeObserver getDocumentSizeObserver() {
+        return documentSizeObserver;
+    }
+
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
@@ -204,7 +203,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         if (shardFailures.isEmpty()) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
-        return shardFailures.toArray(new ShardSearchFailure[shardFailures.size()]);
+        return shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
     }
 
     // we do our best to return the shard failures, but its ok if its not fully concurrently safe
@@ -240,27 +239,31 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
         try {
-            final InternalSearchResponse internalResponse = SearchPhaseController.merge(true, queryPhase, fetchResults);
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();
             }
-            ActionListener.respondAndRelease(
-                listener,
-                new SearchResponse(
-                    internalResponse,
-                    scrollId,
-                    this.scrollId.getContext().length,
-                    successfulOps.get(),
-                    0,
-                    buildTookInMillis(),
-                    buildShardFailures(),
-                    SearchResponse.Clusters.EMPTY,
-                    null
-                )
-            );
+            var sections = SearchPhaseController.merge(true, queryPhase, fetchResults);
+            try {
+                ActionListener.respondAndRelease(
+                    listener,
+                    new SearchResponse(
+                        sections,
+                        scrollId,
+                        this.scrollId.getContext().length,
+                        successfulOps.get(),
+                        0,
+                        buildTookInMillis(),
+                        buildShardFailures(),
+                        SearchResponse.Clusters.EMPTY,
+                        null
+                    )
+                );
+            } finally {
+                sections.decRef();
+            }
         } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));
         }

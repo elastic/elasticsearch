@@ -8,22 +8,24 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class IndexPrimaryRelocationIT extends ESIntegTestCase {
@@ -62,29 +64,21 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
                 relocationTarget = randomFrom(dataNodes);
             }
             logger.info("--> [iteration {}] relocating from {} to {} ", i, relocationSource.getName(), relocationTarget.getName());
-            clusterAdmin().prepareReroute()
-                .add(new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()))
-                .get();
+            ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()));
             ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
                 .setTimeout(TimeValue.timeValueSeconds(60))
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
                 .get();
             if (clusterHealthResponse.isTimedOut()) {
-                final String hotThreads = clusterAdmin().prepareNodesHotThreads()
-                    .setIgnoreIdleThreads(false)
-                    .get()
-                    .getNodes()
-                    .stream()
-                    .map(NodeHotThreads::getHotThreads)
-                    .collect(Collectors.joining("\n"));
-                final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
-                logger.info(
-                    "timed out for waiting for relocation iteration [{}] \ncluster state {} \nhot threads {}",
-                    i,
-                    clusterState,
-                    hotThreads
+                HotThreads.logLocalHotThreads(
+                    logger,
+                    Level.INFO,
+                    "timed out waiting for relocation iteration [" + i + "]",
+                    ReferenceDocs.LOGGING
                 );
+                final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+                logger.info("timed out for waiting for relocation iteration [{}] \ncluster state {}", i, clusterState);
                 finished.set(true);
                 indexingThread.join();
                 throw new AssertionError("timed out waiting for relocation iteration [" + i + "] ");

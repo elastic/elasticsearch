@@ -41,13 +41,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -280,7 +280,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 : SearchRequest.subSearchRequest(taskId, originalRequest, Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
             assertResponse(client().search(searchRequest), searchResponse -> {
                 assertEquals(2, searchResponse.getHits().getTotalHits().value);
-                Aggregations aggregations = searchResponse.getAggregations();
+                InternalAggregations aggregations = searchResponse.getAggregations();
                 LongTerms longTerms = aggregations.get("terms");
                 assertEquals(1, longTerms.getBuckets().size());
             });
@@ -296,7 +296,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             );
             assertResponse(client().search(searchRequest), searchResponse -> {
                 assertEquals(2, searchResponse.getHits().getTotalHits().value);
-                Aggregations aggregations = searchResponse.getAggregations();
+                InternalAggregations aggregations = searchResponse.getAggregations();
                 LongTerms longTerms = aggregations.get("terms");
                 assertEquals(2, longTerms.getBuckets().size());
             });
@@ -319,8 +319,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareSearch("testFailedAlias").setWaitForCheckpoints(Collections.singletonMap("testFailedAlias", validCheckpoints))
-                .get()
+            prepareSearch("testFailedAlias").setWaitForCheckpoints(Collections.singletonMap("testFailedAlias", validCheckpoints))
         );
         assertThat(
             e.getMessage(),
@@ -332,7 +331,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         IllegalArgumentException e2 = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareSearch("test1").setWaitForCheckpoints(Collections.singletonMap("test1", new long[2])).get()
+            prepareSearch("test1").setWaitForCheckpoints(Collections.singletonMap("test1", new long[2]))
         );
         assertThat(
             e2.getMessage(),
@@ -346,7 +345,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         IllegalArgumentException e3 = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("testAlias", new long[2])).get()
+            prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("testAlias", new long[2]))
         );
         assertThat(
             e3.getMessage(),
@@ -360,7 +359,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         IllegalArgumentException e4 = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("test2", validCheckpoints)).get()
+            prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("test2", validCheckpoints))
         );
         assertThat(
             e4.getMessage(),
@@ -383,7 +382,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
             updateClusterSettings(Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1));
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> prepareSearch("test1").get());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, prepareSearch("test1"));
             assertThat(
                 e.getMessage(),
                 containsString("Trying to query " + numPrimaries1 + " shards, which is over the limit of " + (numPrimaries1 - 1))
@@ -394,7 +393,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             // no exception
             prepareSearch("test1").get().decRef();
 
-            e = expectThrows(IllegalArgumentException.class, () -> prepareSearch("test1", "test2").get());
+            e = expectThrows(IllegalArgumentException.class, prepareSearch("test1", "test2"));
             assertThat(
                 e.getMessage(),
                 containsString(
@@ -478,7 +477,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertBusy(() -> {
                 Exception exc = expectThrows(
                     Exception.class,
-                    () -> client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test")).get().decRef()
+                    client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
                 );
                 assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
             });

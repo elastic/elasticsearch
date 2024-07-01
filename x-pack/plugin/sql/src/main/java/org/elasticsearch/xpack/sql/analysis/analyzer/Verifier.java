@@ -918,7 +918,7 @@ public final class Verifier {
             DataType colType = pv.column().dataType();
             for (NamedExpression v : pv.values()) {
                 // check all values are foldable
-                Expression ex = v instanceof Alias ? ((Alias) v).child() : v;
+                Expression ex = Alias.unwrap(v);
                 if (ex instanceof Literal == false) {
                     localFailures.add(fail(v, "Non-literal [{}] found inside PIVOT values", v.name()));
                 } else if (ex.foldable() && ex.fold() == null) {

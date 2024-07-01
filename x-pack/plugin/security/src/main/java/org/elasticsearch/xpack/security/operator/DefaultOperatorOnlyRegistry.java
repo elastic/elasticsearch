@@ -20,9 +20,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.PutLicenseAction;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -37,12 +35,10 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
         TransportAddVotingConfigExclusionsAction.TYPE.name(),
         TransportClearVotingConfigExclusionsAction.TYPE.name(),
         PutLicenseAction.NAME,
-        DeleteLicenseAction.NAME,
+        "cluster:admin/xpack/license/delete",
         // Autoscaling does not publish its actions to core, literal strings are needed.
         "cluster:admin/autoscaling/put_autoscaling_policy",
         "cluster:admin/autoscaling/delete_autoscaling_policy",
-        // Repository analysis is not mentioned in core, a literal string is needed.
-        "cluster:admin/repository/analyze",
         // Node shutdown APIs are operator only
         "cluster:admin/shutdown/create",
         "cluster:admin/shutdown/get",
@@ -80,8 +76,8 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
     }
 
     @Override
-    public OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel) {
-        return null; // no restrictions
+    public void checkRest(RestHandler restHandler, RestRequest restRequest) {
+        // no restrictions
     }
 
     private OperatorPrivilegesViolation checkClusterUpdateSettings(ClusterUpdateSettingsRequest request) {

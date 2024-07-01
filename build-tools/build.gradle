@@ -6,6 +6,15 @@
  * Side Public License, v 1.
  */
 
+buildscript {
+  repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
+    mavenCentral()
+  }
+}
+
 plugins {
     id 'java-gradle-plugin'
     id 'groovy'
@@ -107,6 +116,9 @@ configurations {
 }
 
 repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
     mavenCentral()
     gradlePluginPortal()
 }
@@ -156,6 +168,10 @@ dependencies {
         because 'allows tests to run from IDEs that bundle older version of launcher'
     }
 
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }
 
 tasks.named('test').configure {

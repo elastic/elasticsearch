@@ -10,13 +10,14 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Type$Array;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 $if(long)$
 import org.elasticsearch.compute.data.IntVector;
 $endif$
 import org.elasticsearch.compute.data.$Type$Block;
+$if(int)$
 import org.elasticsearch.compute.data.$Type$Vector;
-$if(double)$
+$endif$
+$if(double||float)$
 import org.elasticsearch.compute.data.IntVector;
 $endif$
 import org.elasticsearch.compute.operator.DriverContext;
@@ -73,14 +74,14 @@ $endif$
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            try ($Type$Vector.Builder builder = $Type$Vector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            try (var builder = driverContext.blockFactory().new$Type$VectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.append$Type$(values.get(selected.getInt(i)));
+                    builder.append$Type$(i, values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
         }
-        try ($Type$Block.Builder builder = $Type$Block.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+        try ($Type$Block.Builder builder = driverContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (hasValue(group)) {
@@ -111,8 +112,8 @@ $endif$
     ) {
         assert blocks.length >= offset + 2;
         try (
-            var valuesBuilder = $Type$Block.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())
+            var valuesBuilder = driverContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount());
+            var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
@@ -121,10 +122,10 @@ $endif$
                 } else {
                     valuesBuilder.append$Type$(0); // TODO can we just use null?
                 }
-                hasValueBuilder.appendBoolean(hasValue(group));
+                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build();
-            blocks[offset + 1] = hasValueBuilder.build();
+            blocks[offset + 1] = hasValueBuilder.build().asBlock();
         }
     }
 

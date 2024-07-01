@@ -82,8 +82,8 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
                 ctx -> assertThat(
                     ctx.getValidationException().validationErrors(),
                     contains(
-                        "remote clusters are expected to run at least transport version [7110099] (reason: [some reason]), "
-                            + "but the following clusters were too old: [cluster-A (7100099)]"
+                        "remote clusters are expected to run at least version [7.11.0] (reason: [some reason]), "
+                            + "but the following clusters were too old: [cluster-A (7.10.0)]"
                     )
                 )
             )
@@ -100,8 +100,8 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
                 ctx -> assertThat(
                     ctx.getValidationException().validationErrors(),
                     contains(
-                        "remote clusters are expected to run at least transport version [7120099] (reason: [some reason]), "
-                            + "but the following clusters were too old: [cluster-A (7100099), cluster-B (7110099)]"
+                        "remote clusters are expected to run at least version [7.12.0] (reason: [some reason]), "
+                            + "but the following clusters were too old: [cluster-A (7.10.0), cluster-B (7.11.0)]"
                     )
                 )
             )

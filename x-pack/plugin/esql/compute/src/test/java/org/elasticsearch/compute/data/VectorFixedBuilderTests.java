@@ -29,6 +29,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
         List<Object[]> params = new ArrayList<>();
         for (ElementType elementType : ElementType.values()) {
             if (elementType == ElementType.UNKNOWN
+                || elementType == ElementType.COMPOSITE
                 || elementType == ElementType.NULL
                 || elementType == ElementType.DOC
                 || elementType == ElementType.BYTES_REF) {
@@ -115,20 +116,26 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     private Vector.Builder vectorBuilder(int size, BlockFactory blockFactory) {
         return switch (elementType) {
-            case NULL, BYTES_REF, DOC, UNKNOWN -> throw new UnsupportedOperationException();
-            case BOOLEAN -> BooleanVector.newVectorFixedBuilder(size, blockFactory);
-            case DOUBLE -> DoubleVector.newVectorFixedBuilder(size, blockFactory);
-            case INT -> IntVector.newVectorFixedBuilder(size, blockFactory);
-            case LONG -> LongVector.newVectorFixedBuilder(size, blockFactory);
+            case NULL, BYTES_REF, DOC, COMPOSITE, UNKNOWN -> throw new UnsupportedOperationException();
+            case BOOLEAN -> blockFactory.newBooleanVectorFixedBuilder(size);
+            case DOUBLE -> blockFactory.newDoubleVectorFixedBuilder(size);
+            case FLOAT -> blockFactory.newFloatVectorFixedBuilder(size);
+            case INT -> blockFactory.newIntVectorFixedBuilder(size);
+            case LONG -> blockFactory.newLongVectorFixedBuilder(size);
         };
     }
 
     private void fill(Vector.Builder builder, Vector from) {
         switch (elementType) {
-            case NULL, DOC, UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, DOC, COMPOSITE, UNKNOWN -> throw new UnsupportedOperationException();
             case BOOLEAN -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
                     ((BooleanVector.FixedBuilder) builder).appendBoolean(((BooleanVector) from).getBoolean(p));
+                }
+            }
+            case FLOAT -> {
+                for (int p = 0; p < from.getPositionCount(); p++) {
+                    ((FloatVector.Builder) builder).appendFloat(((FloatVector) from).getFloat(p));
                 }
             }
             case DOUBLE -> {

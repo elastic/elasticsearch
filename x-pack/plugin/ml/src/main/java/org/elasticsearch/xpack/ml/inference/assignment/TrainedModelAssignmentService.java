@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAssignmentAction
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 
 import java.util.Objects;
 import java.util.function.Predicate;

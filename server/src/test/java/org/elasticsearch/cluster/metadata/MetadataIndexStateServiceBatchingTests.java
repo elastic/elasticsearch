@@ -20,6 +20,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -98,8 +101,11 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         createIndex("test-3", indicesAdmin().prepareCreate("test-3"));
         ensureGreen("test-1", "test-2", "test-3");
 
-        final var assertingListener = closedIndexCountListener(3);
-        clusterService.addListener(assertingListener);
+        final List<String[]> observedClosedIndices = Collections.synchronizedList(new ArrayList<>());
+        final ClusterStateListener closedIndicesStateListener = event -> observedClosedIndices.add(
+            event.state().metadata().getConcreteAllClosedIndices()
+        );
+        clusterService.addListener(closedIndicesStateListener);
 
         final var block1 = blockMasterService(masterService);
         block1.run(); // wait for block
@@ -123,12 +129,12 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block2.run(); // release block
 
         // assert that the requests were acknowledged
-        final var resp1 = future1.get();
+        final var resp1 = safeGet(future1);
         assertAcked(resp1);
         assertThat(resp1.getIndices(), hasSize(1));
         assertThat(resp1.getIndices().get(0).getIndex().getName(), is("test-1"));
 
-        final var resp2 = future2.get();
+        final var resp2 = safeGet(future2);
         assertAcked(resp2);
         assertThat(resp2.getIndices(), hasSize(2));
         assertThat(resp2.getIndices().stream().map(r -> r.getIndex().getName()).toList(), containsInAnyOrder("test-2", "test-3"));
@@ -139,7 +145,10 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
             assertThat(indexMetadata.getState(), is(State.CLOSE));
         }
 
-        clusterService.removeListener(assertingListener);
+        clusterService.removeListener(closedIndicesStateListener);
+        observedClosedIndices.forEach(
+            indices -> assertThat("unexpected closed indices: " + Arrays.toString(indices), indices.length, oneOf(0, 3))
+        );
     }
 
     public void testBatchBlockIndices() throws Exception {

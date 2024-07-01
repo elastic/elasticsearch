@@ -28,7 +28,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
         }
         assert fetchSourceContext.fetchSource();
         SourceFilter sourceFilter = fetchSourceContext.filter();
-
+        final boolean filterExcludesAll = sourceFilter.excludesAll();
         return new FetchSubPhaseProcessor() {
             private int fastPath;
 
@@ -67,8 +67,13 @@ public final class FetchSourcePhase implements FetchSubPhase {
                     return;
                 }
 
-                // Otherwise, filter the source and add it to the hit.
-                source = source.filter(sourceFilter);
+                if (filterExcludesAll) {
+                    // we can just add an empty map
+                    source = Source.empty(source.sourceContentType());
+                } else {
+                    // Otherwise, filter the source and add it to the hit.
+                    source = source.filter(sourceFilter);
+                }
                 if (nestedHit) {
                     source = extractNested(source, hitContext.hit().getNestedIdentity());
                 }

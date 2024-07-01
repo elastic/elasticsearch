@@ -21,6 +21,7 @@ import java.nio.ByteOrder;
 final class DefaultUnsortableTopNEncoder implements TopNEncoder {
     public static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
     public static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
+    public static final VarHandle FLOAT = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
     public static final VarHandle DOUBLE = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
 
     @Override
@@ -121,6 +122,24 @@ final class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
+    public void encodeFloat(float value, BreakingBytesRefBuilder bytesRefBuilder) {
+        bytesRefBuilder.grow(bytesRefBuilder.length() + Float.BYTES);
+        FLOAT.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), value);
+        bytesRefBuilder.setLength(bytesRefBuilder.length() + Float.BYTES);
+    }
+
+    @Override
+    public float decodeFloat(BytesRef bytes) {
+        if (bytes.length < Float.BYTES) {
+            throw new IllegalArgumentException("not enough bytes");
+        }
+        float v = (float) FLOAT.get(bytes.bytes, bytes.offset);
+        bytes.offset += Float.BYTES;
+        bytes.length -= Float.BYTES;
+        return v;
+    }
+
+    @Override
     public void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Double.BYTES);
         DOUBLE.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), value);
@@ -156,12 +175,21 @@ final class DefaultUnsortableTopNEncoder implements TopNEncoder {
 
     @Override
     public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
-        throw new UnsupportedOperationException();
+        final int offset = bytesRefBuilder.length();
+        encodeVInt(value.length, bytesRefBuilder);
+        bytesRefBuilder.append(value);
+        return bytesRefBuilder.length() - offset;
     }
 
     @Override
     public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        throw new UnsupportedOperationException();
+        final int len = decodeVInt(bytes);
+        scratch.bytes = bytes.bytes;
+        scratch.offset = bytes.offset;
+        scratch.length = len;
+        bytes.offset += len;
+        bytes.length -= len;
+        return scratch;
     }
 
     @Override

@@ -373,7 +373,8 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         try {
             client().prepareSearch(defaultIndexName)
                 .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiline).relation(ShapeRelation.WITHIN))
-                .get();
+                .get()
+                .decRef();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getCause().getMessage(), containsString("Field [" + defaultFieldName + "] found an unsupported shape Line"));
         }

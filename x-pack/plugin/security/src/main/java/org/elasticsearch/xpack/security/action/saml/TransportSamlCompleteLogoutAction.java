@@ -30,9 +30,7 @@ import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlReal
  */
 public final class TransportSamlCompleteLogoutAction extends HandledTransportAction<SamlCompleteLogoutRequest, ActionResponse.Empty> {
 
-    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse(
-        "cluster:admin/xpack/security/saml/complete_logout"
-    );
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/xpack/security/saml/complete_logout");
     private final Realms realms;
 
     @Inject

@@ -7,44 +7,32 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class UpdateConnectorNameAction extends ActionType<UpdateConnectorNameAction.Response> {
+public class UpdateConnectorNameAction {
 
-    public static final UpdateConnectorNameAction INSTANCE = new UpdateConnectorNameAction();
-    public static final String NAME = "cluster:admin/xpack/connector/update_name";
+    public static final String NAME = "indices:data/write/xpack/connector/update_name";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorNameAction() {
-        super(NAME, UpdateConnectorNameAction.Response::new);
-    }
+    private UpdateConnectorNameAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
 
@@ -85,10 +73,13 @@ public class UpdateConnectorNameAction extends ActionType<UpdateConnectorNameAct
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorId)) {
-                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
-            if (Strings.isNullOrEmpty(name)) {
-                validationException = addValidationError("[name] cannot be null or empty.", validationException);
+            if (name == null && description == null) {
+                validationException = addValidationError(
+                    "[name] and [description] cannot both be [null]. Please provide a value for at least one of them.",
+                    validationException
+                );
             }
 
             return validationException;
@@ -101,20 +92,8 @@ public class UpdateConnectorNameAction extends ActionType<UpdateConnectorNameAct
         );
 
         static {
-            PARSER.declareStringOrNull(constructorArg(), Connector.NAME_FIELD);
+            PARSER.declareStringOrNull(optionalConstructorArg(), Connector.NAME_FIELD);
             PARSER.declareStringOrNull(optionalConstructorArg(), Connector.DESCRIPTION_FIELD);
-        }
-
-        public static UpdateConnectorNameAction.Request fromXContentBytes(
-            String connectorId,
-            BytesReference source,
-            XContentType xContentType
-        ) {
-            try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
-                return UpdateConnectorNameAction.Request.fromXContent(parser, connectorId);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
-            }
         }
 
         public static UpdateConnectorNameAction.Request fromXContent(XContentParser parser, String connectorId) throws IOException {
@@ -157,53 +136,6 @@ public class UpdateConnectorNameAction extends ActionType<UpdateConnectorNameAct
         @Override
         public int hashCode() {
             return Objects.hash(connectorId, name, description);
-        }
-    }
-
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        final DocWriteResponse.Result result;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            result = DocWriteResponse.Result.readFrom(in);
-        }
-
-        public Response(DocWriteResponse.Result result) {
-            this.result = result;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            this.result.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("result", this.result.getLowercase());
-            builder.endObject();
-            return builder;
-        }
-
-        public RestStatus status() {
-            return switch (result) {
-                case NOT_FOUND -> RestStatus.NOT_FOUND;
-                default -> RestStatus.OK;
-            };
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response that = (Response) o;
-            return Objects.equals(result, that.result);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(result);
         }
     }
 }

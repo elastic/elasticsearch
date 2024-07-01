@@ -262,12 +262,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     public void testSizeIsZero() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareSearch("high_card_idx").addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .minDocCount(randomInt(1))
-                    .size(0)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-            ).get()
+            () -> new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).minDocCount(randomInt(1)).size(0)
         );
         assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [terms]"));
     }

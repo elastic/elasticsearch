@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transports;
@@ -52,7 +53,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
     public static final String NAME = "cluster:admin/xpack/deprecation/info";
 
     private DeprecationInfoAction() {
-        super(NAME, DeprecationInfoAction.Response::new);
+        super(NAME);
     }
 
     /**
@@ -330,7 +331,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, true, true, true);
         private String[] indices;
 
-        public Request(String... indices) {
+        public Request(TimeValue masterNodeTimeout, String... indices) {
+            super(masterNodeTimeout);
             this.indices = indices;
         }
 

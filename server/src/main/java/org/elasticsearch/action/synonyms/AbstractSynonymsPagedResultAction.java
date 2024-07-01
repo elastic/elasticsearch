@@ -35,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public abstract class AbstractSynonymsPagedResultAction<T extends ActionResponse> extends ActionType<T> {
 
     public AbstractSynonymsPagedResultAction(String name, Writeable.Reader<T> reader) {
-        super(name, reader);
+        super(name);
     }
 
     /**
@@ -81,6 +81,11 @@ public abstract class AbstractSynonymsPagedResultAction<T extends ActionResponse
         ) {
             if (value < 0) {
                 validationException = addValidationError("[" + paramName + "] must be a positive integer", validationException);
+            } else if (value > MAX_SYNONYMS_RESULTS) {
+                validationException = addValidationError(
+                    "[" + paramName + "] must be less than or equal to " + MAX_SYNONYMS_RESULTS,
+                    validationException
+                );
             }
 
             return validationException;

@@ -1,11 +1,15 @@
 [[esql-getting-started]]
 == Getting started with {esql} queries
-
 ++++
 <titleabbrev>Getting started</titleabbrev>
 ++++
 
 This guide shows how you can use {esql} to query and aggregate your data.
+
+[TIP]
+====
+This getting started is also available as an https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/esql/esql-getting-started.ipynb[interactive Python notebook] in the `elasticsearch-labs` GitHub repository.
+====
 
 [discrete]
 [[esql-getting-started-prerequisites]]
@@ -14,7 +18,7 @@ This guide shows how you can use {esql} to query and aggregate your data.
 To follow along with the queries in this guide, you can either set up your own
 deployment, or use Elastic's public {esql} demo environment.
 
-include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-sample-data.asciidoc[]
+include::{es-ref-dir}/tab-widgets/esql/esql-getting-started-widget-sample-data.asciidoc[]
 
 [discrete]
 [[esql-getting-started-running-queries]]
@@ -22,7 +26,7 @@ include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-sample-data.
 
 In {kib}, you can use Console or Discover to run {esql} queries:
 
-include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-discover-console.asciidoc[]
+include::{es-ref-dir}/tab-widgets/esql/esql-getting-started-widget-discover-console.asciidoc[]
 
 [discrete]
 [[esql-getting-started-first-query]]
@@ -35,7 +39,7 @@ image::images/esql/source-command.svg[A source command producing a table from {e
 
 The <<esql-from>> source command returns a table with documents from a data
 stream, index, or alias. Each row in the resulting table represents a document.
-This query returns up to 500 documents from the `sample_data` index:
+This query returns up to 1000 documents from the `sample_data` index:
 
 [source,esql]
 ----
@@ -204,34 +208,52 @@ include::{esql-specs}/stats.csv-spec[tag=gs-stats-by]
 ----
 
 [discrete]
+[[esql-getting-started-access-columns]]
+=== Access columns
+
+You can access columns by their name. If a name contains special characters,
+<<esql-identifiers,it needs to be quoted>> with backticks (+{backtick}+).
+
+Assigning an explicit name to a column created by `EVAL` or `STATS` is optional.
+If you don't provide a name, the new column name is equal to the function
+expression. For example:
+
+[source,esql]
+----
+include::{esql-specs}/eval.csv-spec[tag=gs-eval-no-column-name]
+----
+
+In this query, `EVAL` adds a new column named `event_duration/1000000.0`.
+Because its name contains special characters, to access this column, quote it
+with backticks:
+
+[source,esql]
+----
+include::{esql-specs}/eval.csv-spec[tag=gs-eval-stats-backticks]
+----
+
+[discrete]
 [[esql-getting-started-histogram]]
 === Create a histogram
 
 To track statistics over time, {esql} enables you to create histograms using the
-<<esql-auto_bucket>> function. `AUTO_BUCKET` creates human-friendly bucket sizes
+<<esql-bucket>> function. `BUCKET` creates human-friendly bucket sizes
 and returns a value for each row that corresponds to the resulting bucket the
-row falls into. 
+row falls into.
 
-For example, to create hourly buckets for the data on October 23rd:
-
-[source,esql]
-----
-include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket]
-----
-
-Combine `AUTO_BUCKET` with <<esql-stats-by>> to create a histogram. For example,
+Combine `BUCKET` with <<esql-stats-by>> to create a histogram. For example,
 to count the number of events per hour:
 
 [source,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket-stats-by]
+include::{esql-specs}/bucket.csv-spec[tag=gs-bucket-stats-by]
 ----
 
 Or the median duration per hour:
 
 [source,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket-stats-by-median]
+include::{esql-specs}/bucket.csv-spec[tag=gs-bucket-stats-by-median]
 ----
 
 [discrete]
@@ -245,9 +267,9 @@ image::images/esql/esql-enrich.png[align="center"]
 
 Before you can use `ENRICH`, you first need to
 <<esql-create-enrich-policy,create>> and <<esql-execute-enrich-policy,execute>>
-an <<esql-enrich-policy,enrich policy>>. 
+an <<esql-enrich-policy,enrich policy>>.
 
-include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-enrich-policy.asciidoc[]
+include::{es-ref-dir}/tab-widgets/esql/esql-getting-started-widget-enrich-policy.asciidoc[]
 
 After creating and executing a policy, you can use it with the `ENRICH`
 command:

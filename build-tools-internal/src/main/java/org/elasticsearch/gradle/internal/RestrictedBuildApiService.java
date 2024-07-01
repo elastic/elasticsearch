@@ -71,7 +71,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-die-with-dignity");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-error-query");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-latency-simulating-directory");
-        map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-seek-tracking-directory");
         map.put(LegacyRestTestBasePlugin.class, ":test:yaml-rest-runner");
         map.put(LegacyRestTestBasePlugin.class, ":distribution:archives:integ-test-zip");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:core");
@@ -123,10 +122,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:correctness");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:mixed-node");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:security");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:heap-attack");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:multi-node");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:single-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:fleet:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:identity-provider:qa:idp-rest-tests");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ilm:qa:multi-cluster");
@@ -166,7 +161,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:vector-tile:qa:multi-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:watcher:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:watcher:qa:with-security");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:mixed-cluster");
         return map;
     }
 

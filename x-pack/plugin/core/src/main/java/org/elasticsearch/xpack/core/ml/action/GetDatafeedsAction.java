@@ -34,7 +34,7 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
     public static final String ALL = "_all";
 
     private GetDatafeedsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static final class Request extends MasterNodeReadRequest<Request> {
@@ -50,6 +50,7 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
         }
 
         public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             local(true);
         }
 

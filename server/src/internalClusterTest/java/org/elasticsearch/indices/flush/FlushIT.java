@@ -9,8 +9,8 @@ package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -54,9 +54,9 @@ public class FlushIT extends ESIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
             for (int j = 0; j < 10; j++) {
-                indicesAdmin().prepareFlush("test").execute(new ActionListener<FlushResponse>() {
+                indicesAdmin().prepareFlush("test").execute(new ActionListener<>() {
                     @Override
-                    public void onResponse(FlushResponse flushResponse) {
+                    public void onResponse(BroadcastResponse flushResponse) {
                         try {
                             // don't use assertAllSuccessful it uses a randomized context that belongs to a different thread
                             assertThat(
@@ -90,10 +90,7 @@ public class FlushIT extends ESIntegTestCase {
             prepareIndex("test").setSource("{}", XContentType.JSON).get();
         }
         assertThat(
-            expectThrows(
-                ValidationException.class,
-                () -> indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()
-            ).getMessage(),
+            expectThrows(ValidationException.class, indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(false))).getMessage(),
             containsString("wait_if_ongoing must be true for a force flush")
         );
         assertThat(indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet().getShardFailures(), emptyArray());
@@ -108,15 +105,18 @@ public class FlushIT extends ESIntegTestCase {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(
             2,
             Settings.builder()
-                .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), randomTimeValue(10, 1000, "ms"))
-                .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), randomTimeValue(10, 1000, "ms"))
+                .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), randomTimeValue(10, 1000, TimeUnit.MILLISECONDS))
+                .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), randomTimeValue(10, 1000, TimeUnit.MILLISECONDS))
                 .build()
         );
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
                 .setSettings(
-                    indexSettings(1, 1).put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(200, 500, "ms"))
-                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(50, 200, "ms"))
+                    indexSettings(1, 1).put(
+                        IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(),
+                        randomTimeValue(200, 500, TimeUnit.MILLISECONDS)
+                    )
+                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(50, 200, TimeUnit.MILLISECONDS))
                         .put("index.routing.allocation.include._name", String.join(",", dataNodes))
                         .build()
                 )

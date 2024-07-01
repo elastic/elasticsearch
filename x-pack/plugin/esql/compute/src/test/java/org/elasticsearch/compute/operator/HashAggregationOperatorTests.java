@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
@@ -16,12 +14,14 @@ import org.elasticsearch.compute.aggregation.MaxLongGroupingAggregatorFunctionTe
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -41,7 +41,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+    protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
         List<Integer> sumChannels, maxChannels;
         if (mode.isInputPartial()) {
             int sumChannelCount = SumLongAggregatorFunction.intermediateStateDesc().size();
@@ -53,26 +53,27 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         }
 
         return new HashAggregationOperator.HashAggregationOperatorFactory(
-            List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
             List.of(
-                new SumLongAggregatorFunctionSupplier(bigArrays, sumChannels).groupingAggregatorFactory(mode),
-                new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannels).groupingAggregatorFactory(mode)
+                new SumLongAggregatorFunctionSupplier(sumChannels).groupingAggregatorFactory(mode),
+                new MaxLongAggregatorFunctionSupplier(maxChannels).groupingAggregatorFactory(mode)
             ),
-            randomPageSize(),
-            bigArrays
+            randomPageSize()
         );
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "HashAggregationOperator[mode = <not-needed>, aggs = sum of longs, max of longs]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("HashAggregationOperator[mode = <not-needed>, aggs = sum of longs, max of longs]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        return "HashAggregationOperator[blockHash=LongBlockHash{channel=0, entries=0, seenNull=false}, aggregators=["
-            + "GroupingAggregator[aggregatorFunction=SumLongGroupingAggregatorFunction[channels=[1]], mode=SINGLE], "
-            + "GroupingAggregator[aggregatorFunction=MaxLongGroupingAggregatorFunction[channels=[1]], mode=SINGLE]]]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return equalTo(
+            "HashAggregationOperator[blockHash=LongBlockHash{channel=0, entries=0, seenNull=false}, aggregators=["
+                + "GroupingAggregator[aggregatorFunction=SumLongGroupingAggregatorFunction[channels=[1]], mode=SINGLE], "
+                + "GroupingAggregator[aggregatorFunction=MaxLongGroupingAggregatorFunction[channels=[1]], mode=SINGLE]]]"
+        );
     }
 
     @Override
@@ -93,10 +94,4 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             max.assertSimpleGroup(input, maxs, i, group);
         }
     }
-
-    @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(between(1, 32));
-    }
-
 }

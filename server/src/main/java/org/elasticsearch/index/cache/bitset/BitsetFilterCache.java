@@ -24,6 +24,8 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
@@ -54,6 +56,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+
+import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
 /**
  * This is a cache for {@link BitDocIdSet} based filters and is unbounded by size or time.
@@ -92,8 +96,20 @@ public final class BitsetFilterCache
             throw new IllegalArgumentException("listener must not be null");
         }
         this.index = indexSettings.getIndex();
-        this.loadRandomAccessFiltersEagerly = indexSettings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
+        this.loadRandomAccessFiltersEagerly = shouldLoadRandomAccessFiltersEagerly(indexSettings);
         this.listener = listener;
+    }
+
+    static boolean shouldLoadRandomAccessFiltersEagerly(IndexSettings settings) {
+        boolean loadFiltersEagerlySetting = settings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
+        boolean isStateless = DiscoveryNode.isStateless(settings.getNodeSettings());
+        if (isStateless) {
+            return DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.INDEX_ROLE)
+                && loadFiltersEagerlySetting
+                && INDEX_FAST_REFRESH_SETTING.get(settings.getSettings());
+        } else {
+            return loadFiltersEagerlySetting;
+        }
     }
 
     public static BitSet bitsetFromQuery(Query query, LeafReaderContext context) throws IOException {

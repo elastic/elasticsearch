@@ -9,14 +9,10 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdateTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdateTests;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,10 +20,6 @@ import java.util.List;
 import java.util.Map;
 
 public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerializingTestCase<InferTrainedModelDeploymentAction.Request> {
-
-    private static InferenceConfigUpdate randomInferenceConfigUpdate() {
-        return randomFrom(ZeroShotClassificationConfigUpdateTests.createRandom(), EmptyConfigUpdateTests.testInstance());
-    }
 
     @Override
     protected Writeable.Reader<InferTrainedModelDeploymentAction.Request> instanceReader() {
@@ -42,9 +34,9 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
         if (createQueryStringRequest) {
             request = InferTrainedModelDeploymentAction.Request.forTextInput(
                 randomAlphaOfLength(4),
-                randomBoolean() ? null : randomInferenceConfigUpdate(),
+                randomBoolean() ? null : InferModelActionRequestTests.randomInferenceConfigUpdate(),
                 Arrays.asList(generateRandomStringArray(4, 7, false)),
-                randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+                randomBoolean() ? null : randomTimeValue()
             );
         } else {
             List<Map<String, Object>> docs = randomList(
@@ -54,13 +46,14 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
 
             request = InferTrainedModelDeploymentAction.Request.forDocs(
                 randomAlphaOfLength(4),
-                randomBoolean() ? null : randomInferenceConfigUpdate(),
+                randomBoolean() ? null : InferModelActionRequestTests.randomInferenceConfigUpdate(),
                 docs,
-                randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+                randomBoolean() ? null : randomTimeValue()
             );
         }
         request.setHighPriority(randomBoolean());
         request.setPrefixType(randomFrom(TrainedModelPrefixStrings.PrefixType.values()));
+        request.setChunkResults(randomBoolean());
         return request;
     }
 

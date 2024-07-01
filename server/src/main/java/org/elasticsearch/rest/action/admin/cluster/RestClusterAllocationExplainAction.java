@@ -9,12 +9,14 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -46,18 +48,23 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClusterAllocationExplainRequest req;
-        if (request.hasContentOrSourceParam() == false) {
-            // Empty request signals "explain the first unassigned shard you find"
-            req = new ClusterAllocationExplainRequest();
-        } else {
+        final var req = new ClusterAllocationExplainRequest(RestUtils.getMasterNodeTimeout(request));
+        if (request.hasContentOrSourceParam()) {
             try (XContentParser parser = request.contentOrSourceParamParser()) {
-                req = ClusterAllocationExplainRequest.parse(parser);
+                ClusterAllocationExplainRequest.parse(req, parser);
             }
-        }
-
+        } // else ok, an empty body means "explain the first unassigned shard you find"
         req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
         req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
-        return channel -> client.admin().cluster().allocationExplain(req, new RestChunkedToXContentListener<>(channel));
+        return channel -> client.execute(
+            TransportClusterAllocationExplainAction.TYPE,
+            req,
+            new RestRefCountedChunkedToXContentListener<>(channel)
+        );
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

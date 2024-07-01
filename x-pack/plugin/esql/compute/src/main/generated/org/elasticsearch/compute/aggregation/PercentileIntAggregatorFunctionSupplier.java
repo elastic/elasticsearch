@@ -8,7 +8,6 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -16,15 +15,11 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Do not edit it.
  */
 public final class PercentileIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
-
   private final List<Integer> channels;
 
   private final double percentile;
 
-  public PercentileIntAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels,
-      double percentile) {
-    this.bigArrays = bigArrays;
+  public PercentileIntAggregatorFunctionSupplier(List<Integer> channels, double percentile) {
     this.channels = channels;
     this.percentile = percentile;
   }
@@ -36,7 +31,7 @@ public final class PercentileIntAggregatorFunctionSupplier implements Aggregator
 
   @Override
   public PercentileIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return PercentileIntGroupingAggregatorFunction.create(channels, driverContext, bigArrays, percentile);
+    return PercentileIntGroupingAggregatorFunction.create(channels, driverContext, percentile);
   }
 
   @Override

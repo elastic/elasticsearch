@@ -42,7 +42,7 @@ node, both within the JVM heap, and natively, outside of the JVM.
     Specify this query parameter to include the fields with units in the response.
     Otherwise only the `_in_bytes` sizes are returned in the response.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[get-ml-memory-response-body]]
@@ -89,11 +89,11 @@ Contains statistics for the node.
 =====
 `attributes`::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
 
 `ephemeral_id`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
 `jvm`::
 (object)
@@ -216,7 +216,7 @@ Roles assigned to the node. See <<modules-node>>.
 
 `transport_address`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 
 =====
 ====

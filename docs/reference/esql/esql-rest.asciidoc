@@ -205,6 +205,33 @@ Which returns:
 ----
 
 [discrete]
+[[esql-locale-param]]
+==== Returning localized results
+
+Use the `locale` parameter in the request body to return results (especially dates) formatted per the conventions of the locale.
+If `locale` is not specified, defaults to `en-US` (English).
+Refer to https://www.oracle.com/java/technologies/javase/jdk17-suported-locales.html[JDK Supported Locales].
+
+Syntax: the `locale` parameter accepts language tags in the (case-insensitive) format `xy` and `xy-XY`.
+
+For example, to return a month name in French:
+
+[source,console]
+----
+POST /_query
+{
+  "locale": "fr-FR",
+  "query": """
+          ROW birth_date_string = "2023-01-15T00:00:00.000Z"
+          | EVAL birth_date = date_parse(birth_date_string)
+          | EVAL month_of_birth = DATE_FORMAT("MMMM",birth_date)
+          | LIMIT 5
+   """
+}
+----
+// TEST[setup:library]
+
+[discrete]
 [[esql-rest-params]]
 ==== Passing parameters to a query
 
@@ -247,3 +274,90 @@ POST /_query
 }
 ----
 // TEST[setup:library]
+
+[discrete]
+[[esql-rest-async-query]]
+==== Running an async {esql} query
+
+The <<esql-async-query-api,{esql} async query API>> lets you asynchronously
+execute a query request, monitor its progress, and retrieve results when
+they become available.
+
+Executing an {esql} query is commonly quite fast, however queries across
+large data sets or frozen data can take some time. To avoid long waits,
+run an async {esql} query.
+
+Queries initiated by the async query API may return results or not. The
+`wait_for_completion_timeout` property determines how long to wait for
+the results. If the results are not available by this time, a
+<<esql-async-query-api-response-body-query-id,query id>> is returned which
+can be later used to retrieve the results. For example:
+
+[source,console]
+----
+POST /_query/async
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_TRUNC(1 YEARS, release_date)
+    | STATS MAX(page_count) BY year
+    | SORT year
+    | LIMIT 5
+  """,
+  "wait_for_completion_timeout": "2s"
+}
+----
+// TEST[setup:library]
+// TEST[skip:awaitsfix https://github.com/elastic/elasticsearch/issues/104013]
+
+If the results are not available within the given timeout period, 2
+seconds in this case, no results are returned but rather a response that
+includes:
+
+* A query ID
+* An `is_running` value of _true_, indicating the query is ongoing
+
+The query continues to run in the background without blocking other
+requests.
+
+[source,console-result]
+----
+{
+  "id": "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
+  "is_running": true
+}
+----
+// TEST[skip: no access to query ID - may return response values]
+
+To check the progress of an async query, use the <<esql-async-query-get-api,
+{esql} async query get API>> with the query ID. Specify how long you'd like
+to wait for complete results in the `wait_for_completion_timeout` parameter.
+
+[source,console]
+----
+GET /_query/async/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?wait_for_completion_timeout=30s
+----
+// TEST[skip: no access to query ID - may return response values]
+
+If the response's `is_running` value is `false`, the query has finished
+and the results are returned.
+
+[source,console-result]
+----
+{
+  "is_running": false,
+  "columns": ...
+}
+----
+// TEST[skip: no access to query ID - may return response values]
+
+Use the <<esql-async-query-delete-api, {esql} async query delete API>> to
+delete an async query before the `keep_alive` period ends. If the query
+is still running, {es} cancels it.
+
+[source,console]
+----
+DELETE /_query/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=
+----
+// TEST[skip: no access to query ID]
+

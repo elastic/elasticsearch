@@ -25,9 +25,11 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
      */
     private int nextIndex;
 
+    private boolean closed;
+
     $Type$VectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
-        blockFactory.adjustBreaker(preAdjustedBytes, false);
+        blockFactory.adjustBreaker(preAdjustedBytes);
         this.blockFactory = blockFactory;
         this.values = new $type$[size];
     }
@@ -35,6 +37,12 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
     @Override
     public $Type$VectorFixedBuilder append$Type$($type$ value) {
         values[nextIndex++] = value;
+        return this;
+    }
+
+    @Override
+    public $Type$VectorFixedBuilder append$Type$(int idx, $type$ value) {
+        values[idx] = value;
         return this;
     }
 
@@ -47,14 +55,16 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return ramBytesUsed(values.length);
+    }
+
+    @Override
     public $Type$Vector build() {
-        if (nextIndex < 0) {
+        if (closed) {
             throw new IllegalStateException("already closed");
         }
-        if (nextIndex != values.length) {
-            throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
-        }
-        nextIndex = -1;
+        closed = true;
         $Type$Vector vector;
         if (values.length == 1) {
             vector = blockFactory.newConstant$Type$BlockWith(values[0], 1, preAdjustedBytes).asVector();
@@ -67,14 +77,14 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
 
     @Override
     public void close() {
-        if (nextIndex >= 0) {
+        if (closed == false) {
             // If nextIndex < 0 we've already built the vector
-            nextIndex = -1;
-            blockFactory.adjustBreaker(-preAdjustedBytes, false);
+            closed = true;
+            blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }
 
     boolean isReleased() {
-        return nextIndex < 0;
+        return closed;
     }
 }

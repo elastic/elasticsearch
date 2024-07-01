@@ -9,6 +9,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -28,6 +29,7 @@ import java.util.Set;
 
 public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNodeAction<DeletePipelineRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/ingest/pipeline/delete");
     private final IngestService ingestService;
 
     @Inject
@@ -39,7 +41,7 @@ public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNo
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DeletePipelineAction.NAME,
+            TYPE.name(),
             transportService,
             ingestService.getClusterService(),
             threadPool,

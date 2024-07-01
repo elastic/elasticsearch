@@ -34,7 +34,7 @@ public class GetDataStreamLifecycleStatsAction extends ActionType<GetDataStreamL
     public static final String NAME = "cluster:monitor/data_stream/lifecycle/stats";
 
     private GetDataStreamLifecycleStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -43,7 +43,9 @@ public class GetDataStreamLifecycleStatsAction extends ActionType<GetDataStreamL
             super(in);
         }
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
         @Override
         public ActionRequestValidationException validate() {

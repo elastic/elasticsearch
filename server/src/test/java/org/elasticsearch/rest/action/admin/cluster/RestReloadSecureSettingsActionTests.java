@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -22,16 +21,16 @@ public class RestReloadSecureSettingsActionTests extends ESTestCase {
         final String request = """
             {"secure_settings_password": "secure_settings_password_string"}""";
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, request)) {
-            NodesReloadSecureSettingsRequest reloadSecureSettingsRequest = RestReloadSecureSettingsAction.PARSER.parse(parser, null);
-            assertEquals("secure_settings_password_string", reloadSecureSettingsRequest.getSecureSettingsPassword().toString());
+            RestReloadSecureSettingsAction.ParsedRequestBody parsedRequestBody = RestReloadSecureSettingsAction.PARSER.parse(parser, null);
+            assertEquals("secure_settings_password_string", parsedRequestBody.secureSettingsPassword.toString());
         }
     }
 
     public void testParserWithoutPassword() throws Exception {
         final String request = "{}";
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, request)) {
-            NodesReloadSecureSettingsRequest reloadSecureSettingsRequest = RestReloadSecureSettingsAction.PARSER.parse(parser, null);
-            assertThat(reloadSecureSettingsRequest.getSecureSettingsPassword(), nullValue());
+            RestReloadSecureSettingsAction.ParsedRequestBody parsedRequestBody = RestReloadSecureSettingsAction.PARSER.parse(parser, null);
+            assertThat(parsedRequestBody.secureSettingsPassword, nullValue());
         }
     }
 }

@@ -121,7 +121,7 @@ public class ContextApiSpecGenerator {
         public InputStream openClassFile(String className) throws IOException {
             // TODO(stu): handle primitives & not stdlib
             if (className.contains(".")) {
-                int dollarPosition = className.indexOf("$");
+                int dollarPosition = className.indexOf('$');
                 if (dollarPosition >= 0) {
                     className = className.substring(0, dollarPosition);
                 }
@@ -131,10 +131,10 @@ public class ContextApiSpecGenerator {
                     Path classPath = root.resolve(path + ".java");
                     return new FileInputStream(classPath.toFile());
                 } else {
-                    String packageName = className.substring(0, className.lastIndexOf("."));
+                    String packageName = className.substring(0, className.lastIndexOf('.'));
                     Path packageRoot = pkgRoots.get(packageName);
                     if (packageRoot != null) {
-                        Path classPath = packageRoot.resolve(className.substring(className.lastIndexOf(".") + 1) + ".java");
+                        Path classPath = packageRoot.resolve(className.substring(className.lastIndexOf('.') + 1) + ".java");
                         return new FileInputStream(classPath.toFile());
                     }
                 }

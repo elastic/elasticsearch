@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.util.List;
 import java.util.Map;
@@ -29,10 +28,5 @@ public class InternalMissingTests extends InternalSingleBucketAggregationTestCas
     @Override
     protected void extraAssertReduced(InternalMissing reduced, List<InternalMissing> inputs) {
         // Nothing extra to assert
-    }
-
-    @Override
-    protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
-        return ParsedMissing.class;
     }
 }

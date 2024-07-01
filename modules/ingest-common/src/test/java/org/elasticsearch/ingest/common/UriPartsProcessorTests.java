@@ -181,6 +181,31 @@ public class UriPartsProcessorTests extends ESTestCase {
         );
     }
 
+    public void testDotPathWithoutExtension() throws Exception {
+        testUriParsing(
+            "https://www.google.com/path.withdot/filenamewithoutextension",
+            Map.of("scheme", "https", "domain", "www.google.com", "path", "/path.withdot/filenamewithoutextension")
+        );
+    }
+
+    public void testDotPathWithExtension() throws Exception {
+        testUriParsing(
+            "https://www.google.com/path.withdot/filenamewithextension.txt",
+            Map.of("scheme", "https", "domain", "www.google.com", "path", "/path.withdot/filenamewithextension.txt", "extension", "txt")
+        );
+    }
+
+    /**
+     * This test verifies that we return an empty extension instead of <code>null</code> if the URI ends with a period. This is probably
+     * not behaviour we necessarily want to keep forever, but this test ensures that we're conscious about changing that behaviour.
+     */
+    public void testEmptyExtension() throws Exception {
+        testUriParsing(
+            "https://www.google.com/foo/bar.",
+            Map.of("scheme", "https", "domain", "www.google.com", "path", "/foo/bar.", "extension", "")
+        );
+    }
+
     public void testRemoveIfSuccessfulDoesNotRemoveTargetField() throws Exception {
         String field = "field";
         UriPartsProcessor processor = new UriPartsProcessor(null, null, field, field, true, false, false);

@@ -98,6 +98,14 @@ enum BinaryRangeUtil {
         return decodeRanges(encodedRanges, RangeType.FLOAT, BinaryRangeUtil::decodeFloat);
     }
 
+    static List<RangeFieldMapper.Range> decodeDateRanges(BytesRef encodedRanges) throws IOException {
+        return decodeRanges(encodedRanges, RangeType.DATE, BinaryRangeUtil::decodeLong);
+    }
+
+    static List<RangeFieldMapper.Range> decodeIntegerRanges(BytesRef encodedRanges) throws IOException {
+        return decodeRanges(encodedRanges, RangeType.INTEGER, BinaryRangeUtil::decodeInt);
+    }
+
     static List<RangeFieldMapper.Range> decodeRanges(
         BytesRef encodedRanges,
         RangeType rangeType,
@@ -178,6 +186,14 @@ enum BinaryRangeUtil {
             sign = 0;
         }
         return encode(number, sign);
+    }
+
+    static int decodeInt(byte[] bytes, int offset, int length) {
+        // We encode integers same as longs but we know
+        // that during parsing we got actual integers.
+        // So every decoded long should be inside the range of integers.
+        long longValue = decodeLong(bytes, offset, length);
+        return Math.toIntExact(longValue);
     }
 
     static long decodeLong(byte[] bytes, int offset, int length) {

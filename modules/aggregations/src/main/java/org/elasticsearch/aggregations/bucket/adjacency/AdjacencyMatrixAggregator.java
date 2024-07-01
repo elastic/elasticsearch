@@ -20,7 +20,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -195,7 +194,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         }
         assert builtBucketIndex == totalBucketsToBuild;
         builtBucketIndex = 0;
-        InternalAggregations[] bucketSubAggs = buildSubAggsForBuckets(bucketOrdsToBuild);
+        var bucketSubAggs = buildSubAggsForBuckets(bucketOrdsToBuild);
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         for (int owningBucketOrdIdx = 0; owningBucketOrdIdx < owningBucketOrds.length; owningBucketOrdIdx++) {
             List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(filters.length);
@@ -209,7 +208,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                     InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
                         keys[i],
                         docCount,
-                        bucketSubAggs[builtBucketIndex++]
+                        bucketSubAggs.apply(builtBucketIndex++)
                     );
                     buckets.add(bucket);
                 }
@@ -225,7 +224,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                         InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
                             intersectKey,
                             docCount,
-                            bucketSubAggs[builtBucketIndex++]
+                            bucketSubAggs.apply(builtBucketIndex++)
                         );
                         buckets.add(bucket);
                     }
@@ -240,8 +239,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(0);
-        return new InternalAdjacencyMatrix(name, buckets, metadata());
+        return new InternalAdjacencyMatrix(name, List.of(), metadata());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {

@@ -108,7 +108,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             Index head = dataStream.getWriteIndex();
             IndexMetadata im = current.metadata().getIndexSafe(head);
             Instant currentEnd = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
-            TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(im.getSettings());
+            TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(im.getSettings());
             Instant newEnd = DataStream.getCanonicalTimestampBound(
                 now.plus(lookAheadTime.getMillis(), ChronoUnit.MILLIS).plus(pollInterval.getMillis(), ChronoUnit.MILLIS)
             );

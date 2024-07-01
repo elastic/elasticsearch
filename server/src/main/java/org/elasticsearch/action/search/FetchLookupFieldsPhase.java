@@ -15,9 +15,9 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.fetch.subphase.LookupField;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.ArrayList;
@@ -33,10 +33,10 @@ import java.util.stream.Collectors;
  */
 final class FetchLookupFieldsPhase extends SearchPhase {
     private final SearchPhaseContext context;
-    private final InternalSearchResponse searchResponse;
+    private final SearchResponseSections searchResponse;
     private final AtomicArray<SearchPhaseResult> queryResults;
 
-    FetchLookupFieldsPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+    FetchLookupFieldsPhase(SearchPhaseContext context, SearchResponseSections searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         super("fetch_lookup_fields");
         this.context = context;
         this.searchResponse = searchResponse;
@@ -47,9 +47,9 @@ final class FetchLookupFieldsPhase extends SearchPhase {
 
     }
 
-    private static List<Cluster> groupLookupFieldsByClusterAlias(InternalSearchResponse response) {
+    private static List<Cluster> groupLookupFieldsByClusterAlias(SearchHits searchHits) {
         final Map<String, List<SearchHit>> perClusters = new HashMap<>();
-        for (SearchHit hit : response.hits.getHits()) {
+        for (SearchHit hit : searchHits.getHits()) {
             String clusterAlias = hit.getClusterAlias() != null ? hit.getClusterAlias() : RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY;
             if (hit.hasLookupFields()) {
                 perClusters.computeIfAbsent(clusterAlias, k -> new ArrayList<>()).add(hit);
@@ -70,11 +70,15 @@ final class FetchLookupFieldsPhase extends SearchPhase {
 
     @Override
     public void run() {
-        final List<Cluster> clusters = groupLookupFieldsByClusterAlias(searchResponse);
+        final List<Cluster> clusters = groupLookupFieldsByClusterAlias(searchResponse.hits);
         if (clusters.isEmpty()) {
             context.sendSearchResponse(searchResponse, queryResults);
             return;
         }
+        doRun(clusters);
+    }
+
+    private void doRun(List<Cluster> clusters) {
         final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         for (Cluster cluster : clusters) {
             // Do not prepend the clusterAlias to the targetIndex if the search request is already on the remote cluster.
@@ -83,7 +87,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
                 : "lookup across clusters only if [ccs_minimize_roundtrips] is disabled";
             for (LookupField lookupField : cluster.lookupFields) {
                 final SearchRequest searchRequest = lookupField.toSearchRequest(clusterAlias);
-                searchRequest.setCcsMinimizeRoundtrips(false);
+                searchRequest.setCcsMinimizeRoundtrips(context.getRequest().isCcsMinimizeRoundtrips());
                 multiSearchRequest.add(searchRequest);
             }
         }

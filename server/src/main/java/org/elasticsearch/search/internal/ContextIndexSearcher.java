@@ -22,6 +22,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -48,8 +49,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
@@ -193,15 +192,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
+        Timer rewriteTimer = null;
         if (profiler != null) {
-            profiler.startRewriteTime();
+            rewriteTimer = profiler.startRewriteTime();
         }
-
         try {
             return super.rewrite(original);
+        } catch (TimeExceededException e) {
+            timeExceeded = true;
+            return new MatchNoDocsQuery("rewrite timed out");
         } finally {
             if (profiler != null) {
-                profiler.stopAndAddRewriteTime();
+                profiler.stopAndAddRewriteTime(rewriteTimer);
             }
         }
     }
@@ -252,13 +254,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // Make a copy so we can sort:
         List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
         // Sort by maxDoc, descending:
-        final Comparator<LeafReaderContext> leafComparator = Comparator.comparingInt(l -> l.reader().maxDoc());
-        sortedLeaves.sort(leafComparator.reversed());
+        sortedLeaves.sort((c1, c2) -> Integer.compare(c2.reader().maxDoc(), c1.reader().maxDoc()));
         // we add the groups on a priority queue, so we can add orphan leafs to the smallest group
-        final Comparator<List<LeafReaderContext>> groupComparator = Comparator.comparingInt(
-            l -> l.stream().mapToInt(lr -> lr.reader().maxDoc()).sum()
+        final PriorityQueue<List<LeafReaderContext>> queue = new PriorityQueue<>(
+            (c1, c2) -> Integer.compare(sumMaxDocValues(c1), sumMaxDocValues(c2))
         );
-        final PriorityQueue<List<LeafReaderContext>> queue = new PriorityQueue<>(groupComparator);
         long docSum = 0;
         List<LeafReaderContext> group = new ArrayList<>();
         for (LeafReaderContext ctx : sortedLeaves) {
@@ -294,13 +294,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return slices;
     }
 
+    private static int sumMaxDocValues(List<LeafReaderContext> l) {
+        int sum = 0;
+        for (LeafReaderContext lr : l) {
+            sum += lr.reader().maxDoc();
+        }
+        return sum;
+    }
+
     @Override
     public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
         final C firstCollector = collectorManager.newCollector();
+        // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
+        query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
         final Weight weight;
         try {
-            // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
-            query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
             weight = createWeight(query, firstCollector.scoreMode(), 1);
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
@@ -334,7 +342,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
                 }
             }
-            final List<Callable<C>> listTasks = new ArrayList<>();
+            final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
             for (int i = 0; i < leafSlices.length; ++i) {
                 final LeafReaderContext[] leaves = leafSlices[i].leaves;
                 final C collector = collectors.get(i);
@@ -521,13 +529,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
 
-        private final Set<Runnable> runnables = new HashSet<>();
+        private final List<Runnable> runnables = new ArrayList<>();
 
         private Runnable add(Runnable action) {
             Objects.requireNonNull(action, "cancellation runnable should not be null");
-            if (runnables.add(action) == false) {
-                throw new IllegalArgumentException("Cancellation runnable already added");
-            }
+            assert runnables.contains(action) == false : "Cancellation runnable already added";
+            runnables.add(action);
             return action;
         }
 

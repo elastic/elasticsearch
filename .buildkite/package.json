@@ -1,6 +1,5 @@
 {
   "name": "buildkite-pipelines",
-  "module": "index.ts",
   "type": "module",
   "devDependencies": {
     "@types/node": "^20.6.0",

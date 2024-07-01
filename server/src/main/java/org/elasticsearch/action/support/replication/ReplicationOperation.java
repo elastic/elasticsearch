@@ -189,7 +189,10 @@ public class ReplicationOperation<
                 logger.trace("[{}] op [{}] post replication actions failed for [{}]", primary.routingEntry().shardId(), opType, request);
                 // TODO: fail shard? This will otherwise have the local / global checkpoint info lagging, or possibly have replicas
                 // go out of sync with the primary
-                finishAsFailed(e);
+                // We update the checkpoints since a refresh might fail but the operations could be safely persisted, in the case that the
+                // fsync failed the local checkpoint won't advance and the engine will be marked as failed when the next indexing operation
+                // is appended into the translog.
+                updateCheckPoints(primary.routingEntry(), primary::localCheckpoint, primary::globalCheckpoint, () -> finishAsFailed(e));
             }
         });
     }
@@ -466,14 +469,13 @@ public class ReplicationOperation<
 
     private void finish() {
         if (finished.compareAndSet(false, true)) {
-            final ReplicationResponse.ShardInfo.Failure[] failuresArray;
-            if (shardReplicaFailures.isEmpty()) {
-                failuresArray = ReplicationResponse.NO_FAILURES;
-            } else {
-                failuresArray = new ReplicationResponse.ShardInfo.Failure[shardReplicaFailures.size()];
-                shardReplicaFailures.toArray(failuresArray);
-            }
-            primaryResult.setShardInfo(new ReplicationResponse.ShardInfo(totalShards.get(), successfulShards.get(), failuresArray));
+            primaryResult.setShardInfo(
+                ReplicationResponse.ShardInfo.of(
+                    totalShards.get(),
+                    successfulShards.get(),
+                    shardReplicaFailures.toArray(ReplicationResponse.NO_FAILURES)
+                )
+            );
             resultListener.onResponse(primaryResult);
         }
     }

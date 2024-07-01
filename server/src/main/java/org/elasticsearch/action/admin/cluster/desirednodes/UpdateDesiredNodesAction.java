@@ -15,6 +15,6 @@ public class UpdateDesiredNodesAction extends ActionType<UpdateDesiredNodesRespo
     public static final String NAME = "cluster:admin/desired_nodes/update";
 
     UpdateDesiredNodesAction() {
-        super(NAME, UpdateDesiredNodesResponse::new);
+        super(NAME);
     }
 }

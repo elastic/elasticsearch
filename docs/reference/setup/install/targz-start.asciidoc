@@ -53,4 +53,4 @@ symbolic link.
 
 :slash:     /
 
-include::{es-repo-dir}/security/enroll-nodes.asciidoc[]
+include::{es-ref-dir}/security/enroll-nodes.asciidoc[]

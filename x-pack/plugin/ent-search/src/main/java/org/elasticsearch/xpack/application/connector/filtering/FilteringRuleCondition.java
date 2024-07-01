@@ -33,6 +33,6 @@ public enum FilteringRuleCondition {
                 return filteringRuleCondition;
             }
         }
-        throw new IllegalArgumentException("Unknown FilteringRuleCondition: " + condition);
+        throw new IllegalArgumentException("Unknown " + FilteringRuleCondition.class.getSimpleName() + " [" + condition + "].");
     }
 }

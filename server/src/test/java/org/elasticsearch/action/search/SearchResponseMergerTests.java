@@ -21,6 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -29,7 +30,6 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
@@ -60,6 +60,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -108,8 +109,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
-                SearchResponse searchResponse = new SearchResponse(
-                    InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
                     1,
                     1,
@@ -169,8 +169,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     shardSearchFailures[j] = failure;
                     priorityQueue.add(Tuple.tuple(searchShardTarget, failure));
                 }
-                SearchResponse searchResponse = new SearchResponse(
-                    InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
                     1,
                     1,
@@ -231,8 +230,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     shardSearchFailures[j] = failure;
                     priorityQueue.add(Tuple.tuple(shardId, failure));
                 }
-                SearchResponse searchResponse = new SearchResponse(
-                    InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
                     1,
                     1,
@@ -291,8 +289,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     shardSearchFailures[j] = shardSearchFailure;
                     expectedFailures.add(shardSearchFailure);
                 }
-                SearchResponse searchResponse = new SearchResponse(
-                    InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
                     1,
                     1,
@@ -334,10 +331,14 @@ public class SearchResponseMergerTests extends ESTestCase {
             for (int i = 0; i < numResponses; i++) {
                 SearchProfileResults profile = SearchProfileResultsTests.createTestItem();
                 expectedProfile.putAll(profile.getShardResults());
-                SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, null, profile, false, null, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                    null,
+                    null,
+                    false,
+                    null,
+                    profile,
+                    1,
                     null,
                     1,
                     1,
@@ -394,7 +395,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     i,
                     Collections.emptyMap()
                 );
-                SearchHit hit = new SearchHit(docId);
+                SearchHit hit = SearchHit.unpooled(docId);
                 ShardId shardId = new ShardId(
                     randomAlphaOfLengthBetween(5, 10),
                     randomAlphaOfLength(10),
@@ -407,10 +408,15 @@ public class SearchResponseMergerTests extends ESTestCase {
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);
                 Suggest suggest = new Suggest(suggestions);
-                SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, suggest, null, false, null, 1);
+                SearchHits searchHits = SearchHits.empty(null, Float.NaN);
                 SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    searchHits,
+                    null,
+                    suggest,
+                    false,
+                    null,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -475,7 +481,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1F,
                     Collections.emptyMap()
                 );
-                SearchHit searchHit = new SearchHit(docId);
+                SearchHit searchHit = SearchHit.unpooled(docId);
                 searchHit.shard(
                     new SearchShardTarget(
                         "node",
@@ -488,10 +494,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);
                 Suggest suggest = new Suggest(suggestions);
-                SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, suggest, null, false, null, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    SearchHits.empty(null, Float.NaN),
+                    null,
+                    suggest,
+                    false,
+                    null,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -554,7 +564,6 @@ public class SearchResponseMergerTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
         try (
             SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
                 0,
@@ -566,9 +575,14 @@ public class SearchResponseMergerTests extends ESTestCase {
         ) {
             for (Max max : Arrays.asList(max1, max2)) {
                 InternalAggregations aggs = InternalAggregations.from(Arrays.asList(max));
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, aggs, null, null, false, null, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    SearchHits.empty(null, Float.NaN),
+                    aggs,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -629,10 +643,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                 );
                 InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
                 InternalAggregations aggs = InternalAggregations.from(Arrays.asList(range, max));
-                SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, aggs, null, null, false, null, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    SearchHits.empty(null, Float.NaN),
+                    aggs,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -641,6 +659,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
+
                 try {
                     addResponse(searchResponseMerger, searchResponse);
                 } finally {
@@ -787,18 +806,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                 Boolean terminatedEarly = frequently() ? null : true;
                 expectedTerminatedEarly = expectedTerminatedEarly == null ? terminatedEarly : expectedTerminatedEarly;
 
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
+                SearchResponse searchResponse = new SearchResponse(
                     searchHits,
-                    null,
                     null,
                     null,
                     timedOut,
                     terminatedEarly,
-                    numReducePhases
-                );
-
-                SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    null,
+                    numReducePhases,
                     null,
                     total,
                     successful,
@@ -807,9 +822,11 @@ public class SearchResponseMergerTests extends ESTestCase {
                     ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponseTests.randomClusters()
                 );
+
                 try {
                     addResponse(searchResponseMerger, searchResponse);
                 } finally {
+                    searchHits.decRef();
                     searchResponse.decRef();
                 }
             }
@@ -937,9 +954,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                     null,
                     null
                 );
-                InternalSearchResponse response = new InternalSearchResponse(searchHits, null, null, null, false, false, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    response,
+                    searchHits,
+                    null,
+                    null,
+                    false,
+                    false,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -951,21 +973,19 @@ public class SearchResponseMergerTests extends ESTestCase {
                 try {
                     merger.add(searchResponse);
                 } finally {
+                    searchHits.decRef();
                     searchResponse.decRef();
                 }
             }
             {
-                SearchHits empty = new SearchHits(
-                    new SearchHit[0],
-                    new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-                    Float.NaN,
-                    null,
-                    null,
-                    null
-                );
-                InternalSearchResponse response = new InternalSearchResponse(empty, null, null, null, false, false, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    response,
+                    SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                    null,
+                    null,
+                    false,
+                    false,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -1014,10 +1034,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                     long previousValue = expectedTotalHits == null ? 0 : expectedTotalHits.value;
                     expectedTotalHits = new TotalHits(Math.min(previousValue + totalHits.value, trackTotalHitsUpTo), totalHitsRelation);
                 }
-                SearchHits empty = new SearchHits(new SearchHit[0], totalHits, Float.NaN, null, null, null);
-                InternalSearchResponse response = new InternalSearchResponse(empty, null, null, null, false, false, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    response,
+                    SearchHits.empty(totalHits, Float.NaN),
+                    null,
+                    null,
+                    false,
+                    false,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -1071,6 +1095,443 @@ public class SearchResponseMergerTests extends ESTestCase {
             ShardId shardId = new ShardId(randomFrom(indices), randomIntBetween(0, 10));
             SearchShardTarget shardTarget = new SearchShardTarget(randomAlphaOfLengthBetween(3, 8), shardId, clusterAlias);
             SearchHit hit = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE));
+
+            float score = Float.NaN;
+            if (Float.isNaN(maxScore) == false) {
+                score = (maxScore - j) * scoreFactor;
+                hit.score(score);
+            }
+
+            hit.shard(shardTarget);
+            if (sortFields != null) {
+                Object[] rawSortValues = new Object[sortFields.length];
+                DocValueFormat[] docValueFormats = new DocValueFormat[sortFields.length];
+                for (int k = 0; k < sortFields.length; k++) {
+                    SortField sortField = sortFields[k];
+                    if (sortField == SortField.FIELD_SCORE) {
+                        hit.score(score);
+                        rawSortValues[k] = score;
+                    } else {
+                        rawSortValues[k] = sortField.getReverse() ? numDocs * sortFieldFactors[k] - j : j;
+                    }
+                    docValueFormats[k] = DocValueFormat.RAW;
+                }
+                hit.sortValues(rawSortValues, docValueFormats);
+            }
+            hits[j] = hit;
+            priorityQueue.add(hit);
+        }
+        return hits;
+    }
+
+    /**
+     * Tests the partial results scenario used by MutableSearchResponse when
+     * doing cross-cluster search with minimize_roundtrips=true
+     */
+    public void testPartialAggsMixedWithFullResponses() {
+        String maxAggName = "max123";
+        String rangeAggName = "range123";
+
+        // partial aggs from local cluster (no search hits)
+        double value = 33.33;
+        int count = 33;
+        SearchResponse searchResponsePartialAggs = new SearchResponse(
+            SearchHits.empty(new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), Float.NaN),
+            createDeterminsticAggregation(maxAggName, rangeAggName, value, count),
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            2,
+            2,
+            0,
+            33,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+
+        // full response from remote1 remote cluster
+        value = 44.44;
+        count = 44;
+        String clusterAlias = "remote1";
+        int total = 3;
+        int successful = 2;
+        int skipped = 1;
+        Index[] indices = new Index[] { new Index("foo_idx", "1bba9f5b-c5a1-4664-be1b-26be590c1aff") };
+        final SearchResponse searchResponseRemote1 = new SearchResponse(
+            createSimpleDeterministicSearchHits(clusterAlias, indices),
+            createDeterminsticAggregation(maxAggName, rangeAggName, value, count),
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            total,
+            successful,
+            skipped,
+            44,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+
+        // full response from remote2 remote cluster
+        value = 55.55;
+        count = 55;
+        clusterAlias = "remote2";
+        total = 3;
+        successful = 2;
+        skipped = 1;
+        indices = new Index[] { new Index("foo_idx", "ae024679-097a-4a27-abf8-403f1e9189de") };
+        SearchResponse searchResponseRemote2 = new SearchResponse(
+            createSimpleDeterministicSearchHits(clusterAlias, indices),
+            createDeterminsticAggregation(maxAggName, rangeAggName, value, count),
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            total,
+            successful,
+            skipped,
+            55,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+        try {
+            SearchResponse.Clusters clusters = SearchResponseTests.createCCSClusterObject(
+                3,
+                2,
+                true,
+                2,
+                1,
+                0,
+                0,
+                new ShardSearchFailure[0]
+            );
+
+            // merge partial aggs with remote1, check, then merge in remote2, check
+            try (
+                SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
+                    0,
+                    10,
+                    10,
+                    new SearchTimeProvider(0, 0, () -> 0),
+                    emptyReduceContextBuilder(
+                        new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
+                            .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
+                    )
+                )
+            ) {
+                searchResponseMerger.add(searchResponsePartialAggs);
+                searchResponseMerger.add(searchResponseRemote1);
+                SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
+                try {
+                    SearchHits hits = mergedResponse.getHits();
+                    assertThat(hits.getTotalHits().value, equalTo(2L)); // should be 2 hits from remote1
+                    SearchHit hit1 = hits.getHits()[0];
+                    String expectedHit1 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 2.0,
+                          "sort" : [
+                            2.0
+                          ]
+                        }""";
+                    assertEquals(hit1.toString(), expectedHit1);
+
+                    SearchHit hit2 = hits.getHits()[1];
+                    String expectedHit2 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 1.0,
+                          "sort" : [
+                            1.0
+                          ]
+                        }""";
+                    assertEquals(hit2.toString(), expectedHit2);
+
+                    double expectedMaxValue = 44.44;  // value from remote1
+                    long expectedBucketsDocCount = 33 + 44;
+                    Max max = mergedResponse.getAggregations().get(maxAggName);
+                    assertEquals(expectedMaxValue, max.value(), 0d);
+                    Range range = mergedResponse.getAggregations().get(rangeAggName);
+                    assertEquals(1, range.getBuckets().size());
+                    Range.Bucket bucket = range.getBuckets().get(0);
+                    assertEquals("0.0", bucket.getFromAsString());
+                    assertEquals("10000.0", bucket.getToAsString());
+                    assertEquals(expectedBucketsDocCount, bucket.getDocCount());
+                } finally {
+                    mergedResponse.decRef();
+                }
+
+                searchResponseMerger.add(searchResponseRemote2);
+                mergedResponse = searchResponseMerger.getMergedResponse(clusters);
+                try {
+                    SearchHits hits = mergedResponse.getHits();
+                    assertThat(hits.getTotalHits().value, equalTo(4L)); // should be 2 hits from remote1, 2 from remote2
+
+                    SearchHit hit1 = hits.getHits()[0];
+                    String expectedHit1 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 2.0,
+                          "sort" : [
+                            2.0
+                          ]
+                        }""";
+                    assertEquals(hit1.toString(), expectedHit1);
+
+                    SearchHit hit2 = hits.getHits()[1];
+                    String expectedHit2 = """
+                        {
+                          "_index" : "remote2:foo_idx",
+                          "_score" : 2.0,
+                          "sort" : [
+                            2.0
+                          ]
+                        }""";
+                    assertEquals(hit2.toString(), expectedHit2);
+
+                    SearchHit hit3 = hits.getHits()[2];
+                    String expectedHit3 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 1.0,
+                          "sort" : [
+                            1.0
+                          ]
+                        }""";
+                    assertEquals(hit3.toString(), expectedHit3);
+
+                    SearchHit hit4 = hits.getHits()[3];
+                    String expectedHit4 = """
+                        {
+                          "_index" : "remote2:foo_idx",
+                          "_score" : 1.0,
+                          "sort" : [
+                            1.0
+                          ]
+                        }""";
+                    assertEquals(hit4.toString(), expectedHit4);
+
+                    double expectedMaxValue = 55.55;  // value from remote2
+                    long expectedBucketsDocCount = 33 + 44 + 55;
+                    Max max = mergedResponse.getAggregations().get(maxAggName);
+                    assertEquals(expectedMaxValue, max.value(), 0d);
+                    Range range = mergedResponse.getAggregations().get(rangeAggName);
+                    assertEquals(1, range.getBuckets().size());
+                    Range.Bucket bucket = range.getBuckets().get(0);
+                    assertEquals("0.0", bucket.getFromAsString());
+                    assertEquals("10000.0", bucket.getToAsString());
+                    assertEquals(expectedBucketsDocCount, bucket.getDocCount());
+                } finally {
+                    mergedResponse.decRef();
+                }
+            }
+
+            // merge remote1 and remote2, no partial aggs, check, then merge in partial aggs from local, check
+            try (
+                SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
+                    0,
+                    10,
+                    10,
+                    new SearchTimeProvider(0, 0, () -> 0),
+                    emptyReduceContextBuilder(
+                        new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
+                            .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
+                    )
+                )
+            ) {
+                searchResponseMerger.add(searchResponseRemote2);
+                searchResponseMerger.add(searchResponseRemote1);
+                SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
+                try {
+                    SearchHits hits = mergedResponse.getHits();
+                    SearchHit hit1 = hits.getHits()[0];
+                    String expectedHit1 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 2.0,
+                          "sort" : [
+                            2.0
+                          ]
+                        }""";
+                    assertEquals(hit1.toString(), expectedHit1);
+
+                    SearchHit hit2 = hits.getHits()[1];
+                    String expectedHit2 = """
+                        {
+                          "_index" : "remote2:foo_idx",
+                          "_score" : 2.0,
+                          "sort" : [
+                            2.0
+                          ]
+                        }""";
+                    assertEquals(hit2.toString(), expectedHit2);
+
+                    SearchHit hit3 = hits.getHits()[2];
+                    String expectedHit3 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 1.0,
+                          "sort" : [
+                            1.0
+                          ]
+                        }""";
+                    assertEquals(hit3.toString(), expectedHit3);
+
+                    SearchHit hit4 = hits.getHits()[3];
+                    String expectedHit4 = """
+                        {
+                          "_index" : "remote2:foo_idx",
+                          "_score" : 1.0,
+                          "sort" : [
+                            1.0
+                          ]
+                        }""";
+                    assertEquals(hit4.toString(), expectedHit4);
+
+                    double expectedMaxValue = 55.55;  // value from remote2
+                    long expectedBucketsDocCount = 44 + 55; // missing 33 from local partial aggs
+                    Max max = mergedResponse.getAggregations().get(maxAggName);
+                    assertEquals(expectedMaxValue, max.value(), 0d);
+                    Range range = mergedResponse.getAggregations().get(rangeAggName);
+                    assertEquals(1, range.getBuckets().size());
+                    Range.Bucket bucket = range.getBuckets().get(0);
+                    assertEquals("0.0", bucket.getFromAsString());
+                    assertEquals("10000.0", bucket.getToAsString());
+                    assertEquals(expectedBucketsDocCount, bucket.getDocCount());
+                } finally {
+                    mergedResponse.decRef();
+                }
+
+                searchResponseMerger.add(searchResponsePartialAggs);
+                mergedResponse = searchResponseMerger.getMergedResponse(clusters);
+                try {
+                    SearchHits hits = mergedResponse.getHits();
+                    assertThat(hits.getTotalHits().value, equalTo(4L)); // should be 2 hits from remote1, 2 from remote2
+
+                    SearchHit hit1 = hits.getHits()[0];
+                    String expectedHit1 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 2.0,
+                          "sort" : [
+                            2.0
+                          ]
+                        }""";
+                    assertEquals(hit1.toString(), expectedHit1);
+
+                    SearchHit hit2 = hits.getHits()[1];
+                    String expectedHit2 = """
+                        {
+                          "_index" : "remote2:foo_idx",
+                          "_score" : 2.0,
+                          "sort" : [
+                            2.0
+                          ]
+                        }""";
+                    assertEquals(hit2.toString(), expectedHit2);
+
+                    SearchHit hit3 = hits.getHits()[2];
+                    String expectedHit3 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 1.0,
+                          "sort" : [
+                            1.0
+                          ]
+                        }""";
+                    assertEquals(hit3.toString(), expectedHit3);
+
+                    SearchHit hit4 = hits.getHits()[3];
+                    String expectedHit4 = """
+                        {
+                          "_index" : "remote2:foo_idx",
+                          "_score" : 1.0,
+                          "sort" : [
+                            1.0
+                          ]
+                        }""";
+                    assertEquals(hit4.toString(), expectedHit4);
+
+                    double expectedMaxValue = 55.55;  // value from remote2
+                    long expectedBucketsDocCount = 33 + 44 + 55;  // contributions from all 3 search responses
+                    Max max = mergedResponse.getAggregations().get(maxAggName);
+                    assertEquals(expectedMaxValue, max.value(), 0d);
+                    Range range = mergedResponse.getAggregations().get(rangeAggName);
+                    assertEquals(1, range.getBuckets().size());
+                    Range.Bucket bucket = range.getBuckets().get(0);
+                    assertEquals("0.0", bucket.getFromAsString());
+                    assertEquals("10000.0", bucket.getToAsString());
+                    assertEquals(expectedBucketsDocCount, bucket.getDocCount());
+                } finally {
+                    mergedResponse.decRef();
+                }
+            }
+        } finally {
+            searchResponseRemote1.decRef();
+            searchResponseRemote2.decRef();
+            searchResponsePartialAggs.decRef();
+        }
+    }
+
+    private SearchHits createSimpleDeterministicSearchHits(String clusterAlias, Index[] indices) {
+        TotalHits totalHits = new TotalHits(2, TotalHits.Relation.EQUAL_TO);
+        final int numDocs = (int) totalHits.value;
+        int scoreFactor = 1;
+        float maxScore = numDocs;
+        int numFields = 1;
+        SortField[] sortFields = new SortField[numFields];
+        sortFields[0] = SortField.FIELD_SCORE;
+        PriorityQueue<SearchHit> priorityQueue = new PriorityQueue<>(new SearchHitComparator(sortFields));
+        SearchHit[] hits = deterministicSearchHitArray(numDocs, clusterAlias, indices, maxScore, scoreFactor, sortFields, priorityQueue);
+
+        return SearchHits.unpooled(hits, totalHits, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore, sortFields, null, null);
+    }
+
+    private static InternalAggregations createDeterminsticAggregation(String maxAggName, String rangeAggName, double value, int count) {
+        Max max = new Max(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
+        InternalDateRange.Factory factory = new InternalDateRange.Factory();
+        InternalDateRange.Bucket bucket = factory.createBucket(
+            "bucket",
+            0D,
+            10000D,
+            count,
+            InternalAggregations.EMPTY,
+            false,
+            DocValueFormat.RAW
+        );
+
+        InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
+        InternalAggregations aggs = InternalAggregations.from(Arrays.asList(range, max));
+        return aggs;
+    }
+
+    private static SearchHit[] deterministicSearchHitArray(
+        int numDocs,
+        String clusterAlias,
+        Index[] indices,
+        float maxScore,
+        int scoreFactor,
+        SortField[] sortFields,
+        PriorityQueue<SearchHit> priorityQueue
+    ) {
+        SearchHit[] hits = new SearchHit[numDocs];
+
+        int[] sortFieldFactors = new int[sortFields == null ? 0 : sortFields.length];
+        for (int j = 0; j < sortFieldFactors.length; j++) {
+            sortFieldFactors[j] = 1;
+        }
+
+        for (int j = 0; j < numDocs; j++) {
+            ShardId shardId = new ShardId(randomFrom(indices), j);
+            SearchShardTarget shardTarget = new SearchShardTarget("abc123", shardId, clusterAlias);
+            SearchHit hit = SearchHit.unpooled(j);
 
             float score = Float.NaN;
             if (Float.isNaN(maxScore) == false) {

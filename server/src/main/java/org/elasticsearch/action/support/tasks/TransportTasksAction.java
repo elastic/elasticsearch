@@ -56,7 +56,6 @@ public abstract class TransportTasksAction<
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Writeable.Reader<TasksRequest> requestReader;
-    protected final Writeable.Reader<TasksResponse> responsesReader;
     protected final Writeable.Reader<TaskResponse> responseReader;
 
     protected final String transportNodeAction;
@@ -67,7 +66,6 @@ public abstract class TransportTasksAction<
         TransportService transportService,
         ActionFilters actionFilters,
         Writeable.Reader<TasksRequest> requestReader,
-        Writeable.Reader<TasksResponse> responsesReader,
         Writeable.Reader<TaskResponse> responseReader,
         Executor nodeExecutor
     ) {
@@ -77,7 +75,6 @@ public abstract class TransportTasksAction<
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";
         this.requestReader = requestReader;
-        this.responsesReader = responsesReader;
         this.responseReader = responseReader;
 
         transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());
@@ -134,7 +131,7 @@ public abstract class TransportTasksAction<
 
             @Override
             protected void onItemFailure(String nodeId, Exception e) {
-                logger.debug(() -> Strings.format("failed to execute on node [{}]", nodeId), e);
+                logger.debug(() -> Strings.format("failed to execute on node [%s]", nodeId), e);
                 synchronized (failedNodeExceptions) {
                     failedNodeExceptions.add(new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", e));
                 }

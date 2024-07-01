@@ -27,14 +27,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class GetSearchApplicationAction extends ActionType<GetSearchApplicationAction.Response> {
+public class GetSearchApplicationAction {
 
-    public static final GetSearchApplicationAction INSTANCE = new GetSearchApplicationAction();
     public static final String NAME = "cluster:admin/xpack/application/search_application/get";
+    public static final ActionType<GetSearchApplicationAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private GetSearchApplicationAction() {
-        super(NAME, GetSearchApplicationAction.Response::new);
-    }
+    private GetSearchApplicationAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String name;
@@ -128,20 +126,6 @@ public class GetSearchApplicationAction extends ActionType<GetSearchApplicationA
             SearchApplicationTemplate template
         ) {
             this.searchApp = new SearchApplication(name, indices, analyticsCollectionName, updatedAtMillis, template);
-        }
-
-        private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
-            "get_search_application_response",
-            p -> new Response((SearchApplication) p[0])
-        );
-        public static final ParseField SEARCH_APPLICATION_FIELD = new ParseField("searchApp");
-
-        static {
-            PARSER.declareObject(constructorArg(), (p, c) -> SearchApplication.fromXContent(c, p), SEARCH_APPLICATION_FIELD);
-        }
-
-        public static Response parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         public static Response fromXContent(String resourceName, XContentParser parser) throws IOException {

@@ -94,7 +94,6 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
             actionFilters,
             StopDatafeedAction.Request::new,
             StopDatafeedAction.Response::new,
-            StopDatafeedAction.Response::new,
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -252,6 +251,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 // already waits for these persistent tasks to disappear.
                 persistentTasksService.sendRemoveRequest(
                     datafeedTask.getId(),
+                    null,
                     ActionListener.wrap(
                         r -> auditDatafeedStopped(datafeedTask),
                         e -> logger.error("[" + datafeedId + "] failed to remove task to stop unassigned datafeed", e)
@@ -278,6 +278,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
                     persistentTasksService.sendRemoveRequest(
                         datafeedTask.getId(),
+                        null,
                         ActionListener.wrap(r -> auditDatafeedStopped(datafeedTask), e -> {
                             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 logger.debug("[{}] relocated datafeed task already removed", datafeedId);
@@ -381,7 +382,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         for (String datafeedId : notStoppedDatafeeds) {
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             if (datafeedTask != null) {
-                persistentTasksService.sendRemoveRequest(datafeedTask.getId(), ActionListener.wrap(persistentTask -> {
+                persistentTasksService.sendRemoveRequest(datafeedTask.getId(), null, ActionListener.wrap(persistentTask -> {
                     // For force stop, only audit here if the datafeed was unassigned at the time of the stop, hence inactive.
                     // If the datafeed was active then it audits itself on being cancelled.
                     if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes)) {

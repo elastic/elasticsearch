@@ -10,8 +10,10 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.ScriptLanguagesInfo;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -22,8 +24,33 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class GetScriptLanguageResponseTests extends AbstractXContentSerializingTestCase<GetScriptLanguageResponse> {
+
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<ScriptLanguagesInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "script_languages_info",
+        true,
+        (a) -> new ScriptLanguagesInfo(
+            new HashSet<>((List<String>) a[0]),
+            ((List<Tuple<String, Set<String>>>) a[1]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
+        )
+    );
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<Tuple<String, Set<String>>, Void> LANGUAGE_CONTEXT_PARSER =
+        new ConstructingObjectParser<>("language_contexts", true, (m, name) -> new Tuple<>((String) m[0], Set.copyOf((List<String>) m[1])));
+
+    static {
+        PARSER.declareStringArray(constructorArg(), ScriptLanguagesInfo.TYPES_ALLOWED);
+        PARSER.declareObjectArray(constructorArg(), LANGUAGE_CONTEXT_PARSER, ScriptLanguagesInfo.LANGUAGE_CONTEXTS);
+        LANGUAGE_CONTEXT_PARSER.declareString(constructorArg(), ScriptLanguagesInfo.LANGUAGE);
+        LANGUAGE_CONTEXT_PARSER.declareStringArray(constructorArg(), ScriptLanguagesInfo.CONTEXTS);
+    }
+
     private static int MAX_VALUES = 4;
     private static final int MIN_LENGTH = 1;
     private static final int MAX_LENGTH = 16;
@@ -38,7 +65,7 @@ public class GetScriptLanguageResponseTests extends AbstractXContentSerializingT
 
     @Override
     protected GetScriptLanguageResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetScriptLanguageResponse.fromXContent(parser);
+        return new GetScriptLanguageResponse(PARSER.parse(parser, null));
     }
 
     @Override

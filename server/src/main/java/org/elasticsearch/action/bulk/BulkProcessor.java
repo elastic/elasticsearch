@@ -438,7 +438,19 @@ public class BulkProcessor implements Closeable {
         lock.lock();
         try {
             ensureOpen();
-            bulkRequest.add(data, defaultIndex, null, null, defaultPipeline, null, null, true, xContentType, RestApiVersion.current());
+            bulkRequest.add(
+                data,
+                defaultIndex,
+                null,
+                null,
+                defaultPipeline,
+                null,
+                null,
+                null,
+                true,
+                xContentType,
+                RestApiVersion.current()
+            );
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {
             lock.unlock();

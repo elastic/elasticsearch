@@ -148,11 +148,7 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
     private HttpValidator getValidator(ExecutorService executorService, AtomicBoolean success, Semaphore validationDone) {
         return (httpRequest, channel, listener) -> {
             executorService.submit(() -> {
-                if (randomBoolean()) {
-                    threadPool.getThreadContext().putHeader(randomAlphaOfLength(16), "tampered thread context");
-                } else {
-                    threadPool.getThreadContext().putTransient(randomAlphaOfLength(16), "tampered thread context");
-                }
+                tamperThreadContext();
                 if (success.get()) {
                     listener.onResponse(null);
                 } else {
@@ -164,6 +160,21 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
             });
         };
     };
+
+    private void tamperThreadContext() {
+        boolean tampered = false;
+        if (randomBoolean()) {
+            threadPool.getThreadContext().putHeader(randomAlphaOfLength(16), "tampered with request header");
+            tampered = true;
+        }
+        if (randomBoolean()) {
+            threadPool.getThreadContext().putTransient(randomAlphaOfLength(16), "tampered with transient request header");
+            tampered = true;
+        }
+        if (randomBoolean() || tampered == false) {
+            threadPool.getThreadContext().addResponseHeader(randomAlphaOfLength(8), "tampered with response header");
+        }
+    }
 
     private void sendRequestThrough(boolean success, Semaphore validationDone) throws Exception {
         threadPool.generic().submit(() -> {

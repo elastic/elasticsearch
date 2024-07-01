@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -207,7 +208,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
     public void validateMatchedRoutingPath(final String routingPath) {
         throw new IllegalArgumentException(
             "All fields that match routing_path "
-                + "must be keywords with [time_series_dimension: true] "
+                + "must be configured with [time_series_dimension: true] "
                 + "or flattened fields with a list of dimensions in [time_series_dimensions] "
                 + "and without the [script] parameter. ["
                 + name()
@@ -215,6 +216,14 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
                 + typeName()
                 + "]."
         );
+    }
+
+    @Override
+    public final boolean fieldHasValue(FieldInfos fieldInfos) {
+        // To know whether script field types have value we would need to run the script,
+        // this because script fields do not have footprint in Lucene. Since running the
+        // script would be too expensive for _field_caps we consider them as always non-empty.
+        return true;
     }
 
     // Placeholder Script for source-only fields

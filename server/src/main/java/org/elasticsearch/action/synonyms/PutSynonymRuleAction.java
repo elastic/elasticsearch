@@ -34,7 +34,7 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
     public static final String NAME = "cluster:admin/synonym_rules/put";
 
     public PutSynonymRuleAction() {
-        super(NAME, SynonymUpdateResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

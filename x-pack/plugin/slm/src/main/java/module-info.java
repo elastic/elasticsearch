@@ -18,4 +18,6 @@ module org.elasticsearch.slm {
     provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
         with
             org.elasticsearch.xpack.slm.ReservedLifecycleStateHandlerProvider;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.slm.SnapshotLifecycleFeatures;
 }

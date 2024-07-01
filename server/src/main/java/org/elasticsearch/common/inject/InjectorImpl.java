@@ -17,15 +17,12 @@
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.Classes;
-import org.elasticsearch.common.inject.internal.Annotations;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.InstanceBindingImpl;
 import org.elasticsearch.common.inject.internal.InternalContext;
 import org.elasticsearch.common.inject.internal.InternalFactory;
-import org.elasticsearch.common.inject.internal.LinkedBindingImpl;
-import org.elasticsearch.common.inject.internal.LinkedProviderBindingImpl;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
 import org.elasticsearch.common.inject.internal.Scoping;
 import org.elasticsearch.common.inject.internal.SourceProvider;
@@ -37,9 +34,7 @@ import org.elasticsearch.common.inject.spi.ProviderBinding;
 import org.elasticsearch.common.inject.spi.ProviderKeyBinding;
 import org.elasticsearch.common.inject.util.Providers;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -50,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.common.inject.internal.Annotations.findScopeAnnotation;
 
 /**
  * Default {@link Injector} implementation.
@@ -195,8 +189,8 @@ class InjectorImpl implements Injector, Lookups {
         }
 
         @Override
-        public <V> V acceptTargetVisitor(BindingTargetVisitor<? super Provider<T>, V> visitor) {
-            return visitor.visit();
+        public <V> void acceptTargetVisitor(BindingTargetVisitor<? super Provider<T>, V> visitor) {
+            visitor.visit();
         }
 
         @Override
@@ -270,8 +264,8 @@ class InjectorImpl implements Injector, Lookups {
         }
 
         @Override
-        public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-            return visitor.visit();
+        public <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+            visitor.visit();
         }
 
         @Override
@@ -322,20 +316,6 @@ class InjectorImpl implements Injector, Lookups {
             return binding;
         }
 
-        // Handle @ImplementedBy
-        ImplementedBy implementedBy = rawType.getAnnotation(ImplementedBy.class);
-        if (implementedBy != null) {
-            Annotations.checkForMisplacedScopeAnnotations(rawType, source, errors);
-            return createImplementedByBinding(key, scoping, implementedBy, errors);
-        }
-
-        // Handle @ProvidedBy.
-        ProvidedBy providedBy = rawType.getAnnotation(ProvidedBy.class);
-        if (providedBy != null) {
-            Annotations.checkForMisplacedScopeAnnotations(rawType, source, errors);
-            return createProvidedByBinding(key, scoping, providedBy, errors);
-        }
-
         // We can't inject abstract classes.
         // TODO: Method interceptors could actually enable us to implement
         // abstract types. Should we remove this restriction?
@@ -346,13 +326,6 @@ class InjectorImpl implements Injector, Lookups {
         // Error: Inner class.
         if (Classes.isInnerClass(rawType)) {
             throw errors.cannotInjectInnerClass(rawType).toException();
-        }
-
-        if (scoping.isExplicitlyScoped() == false) {
-            Class<? extends Annotation> scopeAnnotation = findScopeAnnotation(errors, rawType);
-            if (scopeAnnotation != null) {
-                scoping = Scopes.makeInjectable(Scoping.forAnnotation(scopeAnnotation), this, errors.withSource(rawType));
-            }
         }
 
         return ConstructorBindingImpl.create(this, key, source, scoping);
@@ -383,80 +356,6 @@ class InjectorImpl implements Injector, Lookups {
         TypeLiteral<T> value = (TypeLiteral<T>) TypeLiteral.get(innerType);
         InternalFactory<TypeLiteral<T>> factory = new ConstantFactory<>(Initializables.of(value));
         return new InstanceBindingImpl<>(this, key, SourceProvider.UNKNOWN_SOURCE, factory, emptySet(), value);
-    }
-
-    /**
-     * Creates a binding for a type annotated with @ProvidedBy.
-     */
-    <T> BindingImpl<T> createProvidedByBinding(Key<T> key, Scoping scoping, ProvidedBy providedBy, Errors errors) throws ErrorsException {
-        final Class<?> rawType = key.getTypeLiteral().getRawType();
-        final Class<? extends Provider<?>> providerType = providedBy.value();
-
-        // Make sure it's not the same type. TODO: Can we check for deeper loops?
-        if (providerType == rawType) {
-            throw errors.recursiveProviderType().toException();
-        }
-
-        // Assume the provider provides an appropriate type. We double check at runtime.
-        @SuppressWarnings("unchecked")
-        final Key<? extends Provider<T>> providerKey = (Key<? extends Provider<T>>) Key.get(providerType);
-        final BindingImpl<? extends Provider<?>> providerBinding = getBindingOrThrow(providerKey, errors);
-
-        InternalFactory<T> internalFactory = (errors1, context, dependency) -> {
-            errors1 = errors1.withSource(providerKey);
-            Provider<?> provider = providerBinding.getInternalFactory().get(errors1, context, dependency);
-            try {
-                Object o = provider.get();
-                if (o != null && rawType.isInstance(o) == false) {
-                    throw errors1.subtypeNotProvided(providerType, rawType).toException();
-                }
-                @SuppressWarnings("unchecked") // protected by isInstance() check above
-                T t = (T) o;
-                return t;
-            } catch (RuntimeException e) {
-                throw errors1.errorInProvider(e).toException();
-            }
-        };
-
-        return new LinkedProviderBindingImpl<>(
-            this,
-            key,
-            rawType /* source */,
-            Scopes.scope(this, internalFactory, scoping),
-            scoping,
-            providerKey
-        );
-    }
-
-    /**
-     * Creates a binding for a type annotated with @ImplementedBy.
-     */
-    <T> BindingImpl<T> createImplementedByBinding(Key<T> key, Scoping scoping, ImplementedBy implementedBy, Errors errors)
-        throws ErrorsException {
-        Class<?> rawType = key.getTypeLiteral().getRawType();
-        Class<?> implementationType = implementedBy.value();
-
-        // Make sure it's not the same type. TODO: Can we check for deeper cycles?
-        if (implementationType == rawType) {
-            throw errors.recursiveImplementationType().toException();
-        }
-
-        // Make sure implementationType extends type.
-        if (rawType.isAssignableFrom(implementationType) == false) {
-            throw errors.notASubtype(implementationType, rawType).toException();
-        }
-
-        @SuppressWarnings("unchecked") // After the preceding check, this cast is safe.
-        Class<? extends T> subclass = (Class<? extends T>) implementationType;
-
-        // Look up the target binding.
-        final Key<? extends T> targetKey = Key.get(subclass);
-        final BindingImpl<? extends T> targetBinding = getBindingOrThrow(targetKey, errors);
-
-        InternalFactory<T> internalFactory = (errors1, context, dependency) -> targetBinding.getInternalFactory()
-            .get(errors1.withSource(targetKey), context, dependency);
-
-        return new LinkedBindingImpl<>(this, key, rawType /* source */, Scopes.scope(this, internalFactory, scoping), scoping, targetKey);
     }
 
     /**
@@ -582,13 +481,6 @@ class InjectorImpl implements Injector, Lookups {
     <T> SingleParameterInjector<T> createParameterInjector(final Dependency<T> dependency, final Errors errors) throws ErrorsException {
         InternalFactory<? extends T> factory = getInternalFactory(dependency.getKey(), errors);
         return new SingleParameterInjector<>(dependency, factory);
-    }
-
-    /**
-     * Invokes a method.
-     */
-    interface MethodInvoker {
-        Object invoke(Object target, Object... parameters) throws IllegalAccessException, InvocationTargetException;
     }
 
     /**

@@ -53,7 +53,10 @@ public class FieldValueFeatureExtractor implements FeatureExtractor {
     public void addFeatures(Map<String, Object> featureMap, int docId) throws IOException {
         Source source = sourceLookup.getSource(this.segmentContext, docId);
         for (FieldValueFetcher vf : this.valueFetcherList) {
-            featureMap.put(vf.fieldName(), vf.valueFetcher().fetchValues(source, docId, new ArrayList<>()).get(0));
+            List<Object> values = vf.valueFetcher().fetchValues(source, docId, new ArrayList<>());
+            if (values.isEmpty() == false) {
+                featureMap.put(vf.fieldName(), values.get(0));
+            }
         }
     }
 

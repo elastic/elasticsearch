@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,9 +24,9 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
 
     public static TextExpansionResults createRandomResults(int min, int max) {
         int numTokens = randomIntBetween(min, max);
-        List<TextExpansionResults.WeightedToken> tokenList = new ArrayList<>();
+        List<WeightedToken> tokenList = new ArrayList<>();
         for (int i = 0; i < numTokens; i++) {
-            tokenList.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (float) randomDoubleBetween(0.0, 5.0, false)));
+            tokenList.add(new WeightedToken(Integer.toString(i), (float) randomDoubleBetween(0.0, 5.0, false)));
         }
         return new TextExpansionResults(randomAlphaOfLength(4), tokenList, randomBoolean());
     }
@@ -49,9 +50,7 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
     @SuppressWarnings("unchecked")
     void assertFieldValues(TextExpansionResults createdInstance, IngestDocument document, String parentField, String resultsField) {
         var ingestedTokens = (Map<String, Object>) document.getFieldValue(parentField + resultsField, Map.class);
-        var tokenMap = createdInstance.getWeightedTokens()
-            .stream()
-            .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));
+        var tokenMap = createdInstance.getWeightedTokens().stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight));
         assertEquals(tokenMap.size(), ingestedTokens.size());
 
         assertEquals(tokenMap, ingestedTokens);

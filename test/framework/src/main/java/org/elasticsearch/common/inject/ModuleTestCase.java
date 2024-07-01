@@ -17,6 +17,8 @@ import java.lang.annotation.Annotation;
 import java.util.List;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
+
 /**
  * Base testcase for testing {@link Module} implementations.
  */
@@ -44,13 +46,13 @@ public abstract class ModuleTestCase extends ESTestCase {
             if (element instanceof InstanceBinding<?> binding) {
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     if (annotation == null || annotation.equals(binding.getKey().getAnnotationType())) {
-                        assertTrue(tester.test(to.cast(binding.getInstance())));
+                        assertThat(tester, trueWith(to.cast(binding.getInstance())));
                         return;
                     }
                 }
             } else if (element instanceof ProviderInstanceBinding<?> binding) {
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
-                    assertTrue(tester.test(to.cast(binding.getProviderInstance().get())));
+                    assertThat(tester, trueWith(to.cast(binding.getProviderInstance().get())));
                     return;
                 }
             }

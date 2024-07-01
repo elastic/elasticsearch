@@ -54,7 +54,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class PainlessContextAction {
 
-    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/context", Response::new);
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/context");
 
     private static final String SCRIPT_CONTEXT_NAME_PARAM = "context";
 
@@ -106,12 +106,6 @@ public class PainlessContextAction {
             scriptContextNames.sort(String::compareTo);
             this.scriptContextNames = Collections.unmodifiableList(scriptContextNames);
             this.painlessContextInfo = painlessContextInfo;
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            scriptContextNames = in.readStringCollectionAsList();
-            painlessContextInfo = in.readOptionalWriteable(PainlessContextInfo::new);
         }
 
         @Override

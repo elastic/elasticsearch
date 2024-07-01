@@ -29,13 +29,13 @@ POST /my-index-000001/_close
 
 You use the close index API to close open indices.
 
-include::{es-repo-dir}/indices/open-close.asciidoc[tag=closed-index]
+include::{es-ref-dir}/indices/open-close.asciidoc[tag=closed-index]
 
 
 [[close-index-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
 To close all indices, use `_all` or `*`.
 By default, you must explicitly name the indices you are closing.
@@ -48,19 +48,19 @@ or using the <<cluster-update-settings,cluster update settings>> API.
 [[close-index-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[close-index-api-example]]

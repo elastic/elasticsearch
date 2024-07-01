@@ -29,11 +29,11 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     CreateIndexRequestBuilder> {
 
     public CreateIndexRequestBuilder(ElasticsearchClient client) {
-        super(client, CreateIndexAction.INSTANCE, new CreateIndexRequest());
+        super(client, TransportCreateIndexAction.TYPE, new CreateIndexRequest());
     }
 
     public CreateIndexRequestBuilder(ElasticsearchClient client, String index) {
-        super(client, CreateIndexAction.INSTANCE, new CreateIndexRequest(index));
+        super(client, TransportCreateIndexAction.TYPE, new CreateIndexRequest(index));
     }
 
     /**
@@ -245,5 +245,13 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
      */
     public CreateIndexRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
         return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
+    /**
+     * Set whether this request requires a data stream. The data stream may be pre-existing or to-be-created.
+     */
+    public CreateIndexRequestBuilder setRequireDataStream(final boolean requireDataStream) {
+        request.requireDataStream(requireDataStream);
+        return this;
     }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.util.List;
 import java.util.Map;
@@ -28,10 +27,5 @@ public class InternalSamplerTests extends InternalSingleBucketAggregationTestCas
     @Override
     protected void extraAssertReduced(InternalSampler reduced, List<InternalSampler> inputs) {
         // Nothing extra to assert
-    }
-
-    @Override
-    protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
-        return ParsedSampler.class;
     }
 }

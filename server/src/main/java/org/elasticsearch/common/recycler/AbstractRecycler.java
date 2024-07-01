@@ -16,4 +16,8 @@ abstract class AbstractRecycler<T> implements Recycler<T> {
         this.c = c;
     }
 
+    @Override
+    public int pageSize() {
+        return c.pageSize();
+    }
 }

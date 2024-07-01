@@ -26,7 +26,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -84,6 +84,7 @@ public class RestSimulateIngestAction extends BaseRestHandler {
             defaultFetchSourceContext,
             defaultPipeline,
             null,
+            null,
             true,
             true,
             request.getXContentType(),
@@ -140,7 +141,7 @@ public class RestSimulateIngestAction extends BaseRestHandler {
      * simulate-style xcontent.
      * Non-private for unit testing
      */
-    static class SimulateIngestRestToXContentListener extends RestToXContentListener<BulkResponse> {
+    static class SimulateIngestRestToXContentListener extends RestBuilderListener<BulkResponse> {
 
         SimulateIngestRestToXContentListener(RestChannel channel) {
             super(channel);
@@ -150,8 +151,7 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {
             assert response.isFragment() == false;
             toXContent(response, builder, channel.request());
-            RestStatus restStatus = statusFunction.apply(response);
-            return new RestResponse(restStatus, builder);
+            return new RestResponse(RestStatus.OK, builder);
         }
 
         private static void toXContent(BulkResponse response, XContentBuilder builder, ToXContent.Params params) throws IOException {

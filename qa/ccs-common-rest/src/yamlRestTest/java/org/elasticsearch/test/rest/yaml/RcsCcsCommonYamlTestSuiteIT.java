@@ -15,7 +15,6 @@ import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.TimeUnits;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -26,13 +25,13 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.TestCandidateAwareClient;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -45,7 +44,11 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.CCS_APIS;
@@ -221,19 +224,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 clusterHosts.toArray(new HttpHost[clusterHosts.size()])
             );
 
-            Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminSearchClient);
-            final Version esVersion = versionVersionTuple.v1();
-            final String os = readOsFromNodesInfo(adminSearchClient);
-
-            searchYamlTestClient = new TestCandidateAwareClient(
-                getRestSpec(),
-                searchClient,
-                hosts,
-                esVersion,
-                ESRestTestCase::clusterHasFeature,
-                os,
-                this::getClientBuilderWithSniffedHosts
-            );
+            searchYamlTestClient = new TestCandidateAwareClient(getRestSpec(), searchClient, hosts, this::getClientBuilderWithSniffedHosts);
 
             configureRemoteCluster();
             // check that we have an established CCS connection
@@ -255,6 +246,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static void configureRemoteCluster() throws IOException {
         final Settings.Builder builder = Settings.builder();
+        builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", "false");
         if (randomBoolean()) {
             builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
                 .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));
@@ -282,18 +274,53 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @Override
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
-        ClientYamlTestClient clientYamlTestClient
+        ClientYamlTestClient clientYamlTestClient,
+        final Set<String> nodesVersions,
+        final TestFeatureService testFeatureService,
+        final Set<String> osSet
     ) {
-        // depending on the API called, we either return the client running against the "write" or the "search" cluster here
-        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType()) {
-            protected ClientYamlTestClient clientYamlTestClient(String apiName) {
-                if (CCS_APIS.contains(apiName)) {
-                    return searchYamlTestClient;
-                } else {
-                    return super.clientYamlTestClient(apiName);
+        try {
+            // Ensure the test specific initialization is run by calling it explicitly (@Before annotations on base-derived class may
+            // be called in a different order)
+            initSearchClient();
+            // Reconcile and provide unified features, os, version(s), based on both clientYamlTestClient and searchYamlTestClient
+            var searchOs = readOsFromNodesInfo(adminSearchClient);
+            var searchNodeVersions = readVersionsFromNodesInfo(adminSearchClient);
+            var semanticNodeVersions = searchNodeVersions.stream()
+                .map(ESRestTestCase::parseLegacyVersion)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
+            final TestFeatureService searchTestFeatureService = createTestFeatureService(
+                getClusterStateFeatures(adminSearchClient),
+                semanticNodeVersions
+            );
+            final TestFeatureService combinedTestFeatureService = featureId -> testFeatureService.clusterHasFeature(featureId)
+                && searchTestFeatureService.clusterHasFeature(featureId);
+
+            final Set<String> combinedOsSet = Stream.concat(osSet.stream(), Stream.of(searchOs)).collect(Collectors.toSet());
+            final Set<String> combinedNodeVersions = Stream.concat(nodesVersions.stream(), searchNodeVersions.stream())
+                .collect(Collectors.toSet());
+
+            return new ClientYamlTestExecutionContext(
+                clientYamlTestCandidate,
+                clientYamlTestClient,
+                randomizeContentType(),
+                combinedNodeVersions,
+                combinedTestFeatureService,
+                combinedOsSet
+            ) {
+                // depending on the API called, we either return the client running against the "write" or the "search" cluster here
+                protected ClientYamlTestClient clientYamlTestClient(String apiName) {
+                    if (CCS_APIS.contains(apiName)) {
+                        return searchYamlTestClient;
+                    } else {
+                        return super.clientYamlTestClient(apiName);
+                    }
                 }
-            }
-        };
+            };
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @AfterClass

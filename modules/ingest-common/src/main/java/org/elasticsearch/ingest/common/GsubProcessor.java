@@ -8,6 +8,9 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -21,6 +24,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 public final class GsubProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "gsub";
+    private static final Logger logger = LogManager.getLogger(GsubProcessor.class);
 
     private final Pattern pattern;
     private final String replacement;
@@ -49,7 +53,19 @@ public final class GsubProcessor extends AbstractStringProcessor<String> {
 
     @Override
     protected String process(String value) {
-        return pattern.matcher(value).replaceAll(replacement);
+        try {
+            return pattern.matcher(value).replaceAll(replacement);
+        } catch (StackOverflowError e) {
+            /*
+             * A bad regex on problematic data can trigger a StackOverflowError. In this case we can safely recover from the
+             * StackOverflowError, so we rethrow it as an Exception instead. This way the document fails this processor, but processing
+             * can carry on. The value would be useful to log here, but we do not do so for because we do not want to write potentially
+             * sensitive data to the logs.
+             */
+            String message = "Caught a StackOverflowError while processing gsub pattern: [" + pattern + "]";
+            logger.trace(message, e);
+            throw new IllegalArgumentException(message);
+        }
     }
 
     @Override

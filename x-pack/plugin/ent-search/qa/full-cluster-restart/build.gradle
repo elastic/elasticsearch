@@ -30,10 +30,3 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.after("8.8.0")) { bwcVersion, 
     systemProperty("tests.old_cluster_version", bwcVersion)
   }
 }
-
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 1
-  setting 'xpack.license.self_generated.type', 'trial'
-}

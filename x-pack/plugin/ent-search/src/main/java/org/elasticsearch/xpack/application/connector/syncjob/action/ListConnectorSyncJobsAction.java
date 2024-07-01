@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -20,6 +19,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobSearchResult;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 
@@ -30,33 +31,39 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJobsAction.Response> {
+public class ListConnectorSyncJobsAction {
 
-    public static final ListConnectorSyncJobsAction INSTANCE = new ListConnectorSyncJobsAction();
-    public static final String NAME = "cluster:admin/xpack/connector/sync_job/list";
+    public static final String NAME = "indices:data/read/xpack/connector/sync_job/list";
+    public static final ActionType<ListConnectorSyncJobsAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public ListConnectorSyncJobsAction() {
-        super(NAME, ListConnectorSyncJobsAction.Response::new);
-    }
+    private ListConnectorSyncJobsAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorSyncJobActionRequest implements ToXContentObject {
         public static final ParseField CONNECTOR_ID_FIELD = new ParseField("connector_id");
         private static final ParseField PAGE_PARAMS_FIELD = new ParseField("pageParams");
         private final PageParams pageParams;
         private final String connectorId;
         private final ConnectorSyncStatus connectorSyncStatus;
+        private final List<ConnectorSyncJobType> connectorSyncJobTypeList;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.pageParams = new PageParams(in);
             this.connectorId = in.readOptionalString();
             this.connectorSyncStatus = in.readOptionalEnum(ConnectorSyncStatus.class);
+            this.connectorSyncJobTypeList = stringToEnumList(in.readOptionalStringCollectionAsList());
         }
 
-        public Request(PageParams pageParams, String connectorId, ConnectorSyncStatus connectorSyncStatus) {
+        public Request(
+            PageParams pageParams,
+            String connectorId,
+            ConnectorSyncStatus connectorSyncStatus,
+            List<ConnectorSyncJobType> connectorSyncJobTypeList
+        ) {
             this.pageParams = pageParams;
             this.connectorId = connectorId;
             this.connectorSyncStatus = connectorSyncStatus;
+            this.connectorSyncJobTypeList = connectorSyncJobTypeList;
         }
 
         public PageParams getPageParams() {
@@ -71,6 +78,10 @@ public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJob
             return connectorSyncStatus;
         }
 
+        public List<ConnectorSyncJobType> getConnectorSyncJobTypeList() {
+            return connectorSyncJobTypeList;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             // Pagination validation is done as part of PageParams constructor
@@ -83,6 +94,7 @@ public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJob
             pageParams.writeTo(out);
             out.writeOptionalString(connectorId);
             out.writeOptionalEnum(connectorSyncStatus);
+            out.writeOptionalStringCollection(enumToStringList(connectorSyncJobTypeList));
         }
 
         @Override
@@ -92,20 +104,25 @@ public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJob
             Request request = (Request) o;
             return Objects.equals(pageParams, request.pageParams)
                 && Objects.equals(connectorId, request.connectorId)
-                && connectorSyncStatus == request.connectorSyncStatus;
+                && connectorSyncStatus == request.connectorSyncStatus
+                && connectorSyncJobTypeList == null
+                    ? request.connectorSyncJobTypeList == null
+                    : connectorSyncJobTypeList.equals(request.connectorSyncJobTypeList);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pageParams, connectorId, connectorSyncStatus);
+            return Objects.hash(pageParams, connectorId, connectorSyncStatus, connectorSyncJobTypeList);
         }
 
+        @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<ListConnectorSyncJobsAction.Request, String> PARSER = new ConstructingObjectParser<>(
             "list_connector_sync_jobs_request",
             p -> new ListConnectorSyncJobsAction.Request(
                 (PageParams) p[0],
                 (String) p[1],
-                p[2] != null ? ConnectorSyncStatus.fromString((String) p[2]) : null
+                p[2] != null ? ConnectorSyncStatus.fromString((String) p[2]) : null,
+                p[3] != null ? ((List<String>) p[3]).stream().map(ConnectorSyncJobType::fromString).toList() : null
             )
         );
 
@@ -113,6 +130,7 @@ public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJob
             PARSER.declareObject(constructorArg(), (p, c) -> PageParams.fromXContent(p), PAGE_PARAMS_FIELD);
             PARSER.declareString(optionalConstructorArg(), CONNECTOR_ID_FIELD);
             PARSER.declareString(optionalConstructorArg(), ConnectorSyncJob.STATUS_FIELD);
+            PARSER.declareStringArray(optionalConstructorArg(), ConnectorSyncJob.JOB_TYPE_FIELD);
         }
 
         public static ListConnectorSyncJobsAction.Request parse(XContentParser parser) {
@@ -126,23 +144,38 @@ public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJob
                 builder.field(PAGE_PARAMS_FIELD.getPreferredName(), pageParams);
                 builder.field(CONNECTOR_ID_FIELD.getPreferredName(), connectorId);
                 builder.field(ConnectorSyncJob.STATUS_FIELD.getPreferredName(), connectorSyncStatus);
+                builder.field(ConnectorSyncJob.JOB_TYPE_FIELD.getPreferredName(), connectorSyncJobTypeList);
             }
             builder.endObject();
             return builder;
+        }
+
+        private List<ConnectorSyncJobType> stringToEnumList(List<String> jobTypeList) {
+            if (jobTypeList == null) {
+                return null;
+            }
+            return jobTypeList.stream().map(ConnectorSyncJobType::fromString).toList();
+        }
+
+        private List<String> enumToStringList(List<ConnectorSyncJobType> jobTypeList) {
+            if (jobTypeList == null) {
+                return null;
+            }
+            return jobTypeList.stream().map(ConnectorSyncJobType::name).toList();
         }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField RESULTS_FIELD = new ParseField("results");
 
-        final QueryPage<ConnectorSyncJob> queryPage;
+        final QueryPage<ConnectorSyncJobSearchResult> queryPage;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.queryPage = new QueryPage<>(in, ConnectorSyncJob::new);
+            this.queryPage = new QueryPage<>(in, ConnectorSyncJobSearchResult::new);
         }
 
-        public Response(List<ConnectorSyncJob> items, Long totalResults) {
+        public Response(List<ConnectorSyncJobSearchResult> items, Long totalResults) {
             this.queryPage = new QueryPage<>(items, totalResults, RESULTS_FIELD);
         }
 

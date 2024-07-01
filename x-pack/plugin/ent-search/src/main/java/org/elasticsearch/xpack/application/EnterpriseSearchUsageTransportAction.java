@@ -22,8 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,11 +41,13 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.IntSummaryStatistics;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.MAX_RULE_COUNT;
@@ -57,7 +57,6 @@ import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSe
 import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.TOTAL_RULE_COUNT;
 
 public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private static final Logger logger = LogManager.getLogger(EnterpriseSearchUsageTransportAction.class);
     private final XPackLicenseState licenseState;
     private final OriginSettingClient clientWithOrigin;
     private final IndicesAdminClient indicesAdminClient;
@@ -98,7 +97,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
     ) {
         if (enabled == false) {
             EnterpriseSearchFeatureSetUsage usage = new EnterpriseSearchFeatureSetUsage(
-                LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                LicenseUtils.PLATINUM_LICENSED_FEATURE.checkWithoutTracking(licenseState),
                 enabled,
                 Collections.emptyMap(),
                 Collections.emptyMap(),
@@ -122,7 +121,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             listener.onResponse(
                 new XPackUsageFeatureResponse(
                     new EnterpriseSearchFeatureSetUsage(
-                        LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                        LicenseUtils.PLATINUM_LICENSED_FEATURE.checkWithoutTracking(licenseState),
                         enabled,
                         searchApplicationsUsage,
                         analyticsCollectionsUsage,
@@ -134,7 +133,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             listener.onResponse(
                 new XPackUsageFeatureResponse(
                     new EnterpriseSearchFeatureSetUsage(
-                        LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                        LicenseUtils.PLATINUM_LICENSED_FEATURE.checkWithoutTracking(licenseState),
                         enabled,
                         Collections.emptyMap(),
                         analyticsCollectionsUsage,
@@ -165,6 +164,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
         // Step 1: Fetch analytics collections count
         GetAnalyticsCollectionAction.Request analyticsCollectionsCountRequest = new GetAnalyticsCollectionAction.Request(
+            request.masterNodeTimeout(),
             new String[] { "*" }
         );
 
@@ -176,7 +176,9 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
                     Map<String, IndexStats> indicesStats = indicesStatsResponse.getIndices();
                     int queryRulesetCount = indicesStats.values()
                         .stream()
-                        .mapToInt(indexShardStats -> (int) indexShardStats.getPrimaries().getDocs().getCount())
+                        .map(indexShardStats -> indexShardStats.getPrimaries().getDocs())
+                        .filter(Objects::nonNull)
+                        .mapToInt(docsStats -> (int) docsStats.getCount())
                         .sum();
 
                     ListQueryRulesetsAction.Request queryRulesetsCountRequest = new ListQueryRulesetsAction.Request(
@@ -224,7 +226,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         List<QueryRulesetListItem> results = response.queryPage().results();
         IntSummaryStatistics ruleStats = results.stream().mapToInt(QueryRulesetListItem::ruleTotalCount).summaryStatistics();
 
-        Map<QueryRuleCriteriaType, Integer> criteriaTypeCountMap = new HashMap<>();
+        Map<QueryRuleCriteriaType, Integer> criteriaTypeCountMap = new EnumMap<>(QueryRuleCriteriaType.class);
         results.stream()
             .flatMap(result -> result.criteriaTypeToCountMap().entrySet().stream())
             .forEach(entry -> criteriaTypeCountMap.merge(entry.getKey(), entry.getValue(), Integer::sum));

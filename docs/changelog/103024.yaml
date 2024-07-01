@@ -1,6 +1,0 @@
-pr: 103024
-summary: Fix template simulate setting application ordering
-area: Indices APIs
-type: bug
-issues:
- - 103008

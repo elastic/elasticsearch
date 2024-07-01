@@ -12,12 +12,22 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportResponse;
+
+import java.util.concurrent.Executor;
 
 public class ParentTaskAssigningClientTests extends ESTestCase {
     public void testSetsParentId() {
@@ -49,6 +59,49 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
             client.unwrap().bulk(new BulkRequest());
             client.unwrap().search(new SearchRequest());
             client.unwrap().clearScroll(new ClearScrollRequest());
+        }
+    }
+
+    public void testRemoteClientIsAlsoAParentAssigningClient() {
+        TaskId parentTaskId = new TaskId(randomAlphaOfLength(3), randomLong());
+
+        try (var threadPool = createThreadPool()) {
+            final var mockClient = new NoOpClient(threadPool) {
+                @Override
+                public RemoteClusterClient getRemoteClusterClient(
+                    String clusterAlias,
+                    Executor responseExecutor,
+                    RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+                ) {
+                    return new RemoteClusterClient() {
+                        @Override
+                        public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+                            RemoteClusterActionType<Response> action,
+                            Request request,
+                            ActionListener<Response> listener
+                        ) {
+                            assertSame(parentTaskId, request.getParentTask());
+                            listener.onFailure(new UnsupportedOperationException("fake remote-cluster client"));
+                        }
+                    };
+                }
+            };
+
+            final var client = new ParentTaskAssigningClient(mockClient, parentTaskId);
+            final var remoteClusterClient = client.getRemoteClusterClient(
+                "remote-cluster",
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                randomFrom(RemoteClusterService.DisconnectedStrategy.values())
+            );
+            assertEquals(
+                "fake remote-cluster client",
+                expectThrows(
+                    UnsupportedOperationException.class,
+                    () -> PlainActionFuture.<ClusterStateResponse, Exception>get(
+                        fut -> remoteClusterClient.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), fut)
+                    )
+                ).getMessage()
+            );
         }
     }
 }

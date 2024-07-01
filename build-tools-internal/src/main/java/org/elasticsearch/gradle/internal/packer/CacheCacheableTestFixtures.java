@@ -25,7 +25,9 @@ import org.reflections.util.ConfigurationBuilder;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -74,9 +76,14 @@ public abstract class CacheCacheableTestFixtures extends DefaultTask {
                 Set<Class<?>> classes = (Set<Class<?>>) reflections.getSubTypesOf(ifClass);
 
                 for (Class<?> cacheableTestFixtureClazz : classes) {
-                    Object o = cacheableTestFixtureClazz.getDeclaredConstructor().newInstance();
-                    Method cacheMethod = cacheableTestFixtureClazz.getMethod("cache");
-                    cacheMethod.invoke(o);
+                    if (Modifier.isAbstract(cacheableTestFixtureClazz.getModifiers()) == false) {
+                        Constructor<?> declaredConstructor = cacheableTestFixtureClazz.getDeclaredConstructor();
+                        declaredConstructor.setAccessible(true);
+                        Object o = declaredConstructor.newInstance();
+                        Method cacheMethod = cacheableTestFixtureClazz.getMethod("cache");
+                        System.out.println("Caching resources from " + cacheableTestFixtureClazz.getName());
+                        cacheMethod.invoke(o);
+                    }
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);

@@ -61,13 +61,13 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected void resolveRequest(EsqlStatsRequest request, ClusterState clusterState) {
+    protected DiscoveryNode[] resolveRequest(EsqlStatsRequest request, ClusterState clusterState) {
         if (featureService.clusterHasFeature(clusterState, ESQL_STATS_FEATURE)) {
             // use the whole cluster
-            super.resolveRequest(request, clusterState);
+            return super.resolveRequest(request, clusterState);
         } else {
             // not all nodes in the cluster have upgraded to esql - just use this node for now
-            request.setConcreteNodes(new DiscoveryNode[] { clusterService.localNode() });
+            return new DiscoveryNode[] { clusterService.localNode() };
         }
     }
 

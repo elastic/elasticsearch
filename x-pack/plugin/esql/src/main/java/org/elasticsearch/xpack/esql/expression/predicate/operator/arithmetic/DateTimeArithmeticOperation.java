@@ -7,27 +7,31 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.Collection;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
-abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
+public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     /** Arithmetic (quad) function. */
     interface DatetimeArithmeticEvaluator {
         ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory expressionEvaluator, TemporalAmount temporalAmount);
@@ -40,45 +44,68 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         Expression left,
         Expression right,
         OperationSymbol op,
-        ArithmeticEvaluator ints,
-        ArithmeticEvaluator longs,
-        ArithmeticEvaluator ulongs,
-        ArithmeticEvaluator doubles,
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles,
         DatetimeArithmeticEvaluator datetimes
     ) {
         super(source, left, right, op, ints, longs, ulongs, doubles);
         this.datetimes = datetimes;
     }
 
+    DateTimeArithmeticOperation(
+        StreamInput in,
+        OperationSymbol op,
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles,
+        DatetimeArithmeticEvaluator datetimes
+    ) throws IOException {
+        super(in, op, ints, longs, ulongs, doubles);
+        this.datetimes = datetimes;
+    }
+
     @Override
-    protected TypeResolution resolveType() {
+    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
+        return TypeResolutions.isType(
+            e,
+            t -> t.isNumeric() || EsqlDataTypes.isDateTimeOrTemporal(t) || DataType.isNull(t),
+            sourceText(),
+            paramOrdinal,
+            "datetime",
+            "numeric"
+        );
+    }
+
+    @Override
+    protected TypeResolution checkCompatibility() {
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
 
         // Date math is only possible if either
         // - one argument is a DATETIME and the other a (foldable) TemporalValue, or
-        // - both arguments are TemporalValues (so we can fold them).
+        // - both arguments are TemporalValues (so we can fold them), or
+        // - one argument is NULL and the other one a DATETIME.
         if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
-            if ((leftType == DataTypes.DATETIME && isTemporalAmount(rightType))
-                || (rightType == DataTypes.DATETIME && isTemporalAmount(leftType))) {
+            if (isNull(leftType) || isNull(rightType)) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-            if (leftType == TIME_DURATION && rightType == TIME_DURATION) {
+            if ((isDateTime(leftType) && isTemporalAmount(rightType)) || (isTemporalAmount(leftType) && isDateTime(rightType))) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-            if (leftType == DATE_PERIOD && rightType == DATE_PERIOD) {
+            if (isTemporalAmount(leftType) && isTemporalAmount(rightType) && leftType == rightType) {
                 return TypeResolution.TYPE_RESOLVED;
             }
 
-            return new TypeResolution(
-                format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), leftType, rightType)
-            );
+            return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
         }
-        return super.resolveType();
+        return super.checkCompatibility();
     }
 
     /**
-     * Override this to allow processing literals of type {@link EsqlDataTypes#DATE_PERIOD} when folding constants.
+     * Override this to allow processing literals of type {@link DataType#DATE_PERIOD} when folding constants.
      * Used in {@link DateTimeArithmeticOperation#fold()}.
      * @param left the left period
      * @param right the right period
@@ -87,7 +114,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     abstract Period fold(Period left, Period right);
 
     /**
-     * Override this to allow processing literals of type {@link EsqlDataTypes#TIME_DURATION} when folding constants.
+     * Override this to allow processing literals of type {@link DataType#TIME_DURATION} when folding constants.
      * Used in {@link DateTimeArithmeticOperation#fold()}.
      * @param left the left duration
      * @param right the right duration
@@ -126,16 +153,19 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
                 throw ExceptionUtils.math(source(), e);
             }
         }
+        if (isNull(leftDataType) || isNull(rightDataType)) {
+            return null;
+        }
         return super.fold();
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        if (dataType() == DataTypes.DATETIME) {
+        if (dataType() == DATETIME) {
             // One of the arguments has to be a datetime and the other a temporal amount.
             Expression datetimeArgument;
             Expression temporalAmountArgument;
-            if (left().dataType() == DataTypes.DATETIME) {
+            if (left().dataType() == DATETIME) {
                 datetimeArgument = left();
                 temporalAmountArgument = right();
             } else {

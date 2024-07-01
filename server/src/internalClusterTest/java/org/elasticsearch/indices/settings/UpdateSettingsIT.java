@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.settings;
 
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,7 +40,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WR
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -51,9 +51,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareClose("test").get());
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareUpdateSettings("test")
+            indicesAdmin().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put("index.analysis.char_filter.invalid_char.type", "invalid"))
-                .get()
         );
         assertEquals(exception.getMessage(), "Unknown char_filter type [invalid] for [invalid_char]");
     }
@@ -62,7 +61,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         createIndex("test");
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.dummy", "boom")).get()
+            indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.dummy", "boom"))
         );
         assertEquals(exception.getCause().getMessage(), "this setting goes boom");
         IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
@@ -142,22 +141,21 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     public void testUpdateDependentClusterSettings() {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("cluster.acc.test.pw", "asdf")).get()
+            clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("cluster.acc.test.pw", "asdf"))
         );
         assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         iae = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.acc.test.pw", "asdf")).get()
+            clusterAdmin().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.acc.test.pw", "asdf"))
         );
         assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         iae = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareUpdateSettings()
+            clusterAdmin().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.acc.test.pw", "asdf"))
                 .setPersistentSettings(Settings.builder().put("cluster.acc.test.user", "asdf"))
-                .get()
         );
         assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
@@ -167,7 +165,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .get();
             iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> clusterAdmin().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("cluster.acc.test.user")).get()
+                clusterAdmin().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("cluster.acc.test.user"))
             );
             assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
             clusterAdmin().prepareUpdateSettings()
@@ -180,9 +178,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
             iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().putNull("cluster.acc.test.user"))
-                    .get()
+                clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("cluster.acc.test.user"))
             );
             assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
@@ -193,7 +189,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     public void testUpdateDependentIndexSettings() {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareCreate("test", Settings.builder().put("index.acc.test.pw", "asdf")).get()
+            prepareCreate("test", Settings.builder().put("index.acc.test.pw", "asdf"))
         );
         assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
@@ -206,7 +202,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
             iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.acc.test.pw", "asdf")).get()
+                indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.acc.test.pw", "asdf"))
             );
             assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
@@ -219,7 +215,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             // now try to remove it and make sure it fails
             iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().putNull("index.acc.test.user")).get()
+                indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().putNull("index.acc.test.user"))
             );
             assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
@@ -290,23 +286,22 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         createIndex("test");
         expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareUpdateSettings("test")
+            indicesAdmin().prepareUpdateSettings("test")
                 .setSettings(
                     Settings.builder()
                         .put("index.refresh_interval", -1) // this one can change
                         .put("index.fielddata.cache", "none")
                 ) // this one can't
-                .get()
+
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareUpdateSettings("test")
+            indicesAdmin().prepareUpdateSettings("test")
                 .setSettings(
                     Settings.builder()
                         .put("index.refresh_interval", -1) // this one can change
                         .put("index.final", "no")
                 ) // this one can't
-                .get()
         );
         IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
         assertThat(indexMetadata.getSettings().get("index.refresh_interval"), nullValue());
@@ -333,7 +328,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         // Wait for the index to turn green before attempting to close it
         ClusterHealthResponse health = clusterAdmin().prepareHealth()
-            .setTimeout("30s")
+            .setTimeout(TimeValue.timeValueSeconds(30))
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .get();
@@ -360,13 +355,12 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareUpdateSettings("test")
+            indicesAdmin().prepareUpdateSettings("test")
                 .setSettings(
                     Settings.builder()
                         .put("index.refresh_interval", -1) // this one can change
                         .put("index.final", "no")
                 ) // this one really can't
-                .get()
         );
         assertThat(ex.getMessage(), containsString("final test setting [index.final], not updateable"));
         indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
@@ -384,10 +378,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("f", 1).setVersionType(VersionType.EXTERNAL).setVersion(1).get();
         client().prepareDelete("test", "1").setVersionType(VersionType.EXTERNAL).setVersion(2).get();
         // delete is still in cache this should fail
-        assertRequestBuilderThrows(
-            prepareIndex("test").setId("1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1),
-            VersionConflictEngineException.class
-        );
+        RequestBuilder<?, ?> builder = prepareIndex("test").setId("1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1);
+        expectThrows(VersionConflictEngineException.class, builder);
 
         assertAcked(indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.gc_deletes", 0)));
 

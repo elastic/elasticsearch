@@ -72,9 +72,10 @@ public class IndexGraveyardTests extends ESTestCase {
                 )
             );
         }
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        parser.nextToken(); // the beginning of the parser
-        assertThat(IndexGraveyard.fromXContent(parser), equalTo(graveyard));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            parser.nextToken(); // the beginning of the parser
+            assertThat(IndexGraveyard.fromXContent(parser), equalTo(graveyard));
+        }
     }
 
     public void testChunking() {

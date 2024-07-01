@@ -99,7 +99,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
             .get();
 
         // test that point was inserted
-        assertHitCount(client().prepareSearch("geo_points_only").setQuery(matchAllQuery()).get(), 2L);
+        assertHitCount(client().prepareSearch("geo_points_only").setQuery(matchAllQuery()), 2L);
     }
 
     public void testPointsOnly() throws Exception {

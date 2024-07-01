@@ -11,6 +11,7 @@ package org.elasticsearch.xcontent.provider.yaml;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,6 +19,7 @@ import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.XContentImplUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,7 +44,10 @@ public final class YamlXContentImpl implements XContent {
     }
 
     static {
-        yamlFactory = new YAMLFactory();
+        yamlFactory = XContentImplUtils.configure(YAMLFactory.builder());
+        // YAMLFactory.builder() differs from new YAMLFactory() in that builder() does not set the default yaml parser feature flags.
+        // So set the only default feature flag, EMPTY_STRING_AS_NULL, here.
+        yamlFactory.configure(YAMLParser.Feature.EMPTY_STRING_AS_NULL, true);
         yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         yamlFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
         yamlXContent = new YamlXContentImpl();

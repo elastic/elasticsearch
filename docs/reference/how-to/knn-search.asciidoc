@@ -11,19 +11,50 @@ the indexing algorithm runs searches under the hood to create the vector index
 structures. So these same recommendations also help with indexing speed.
 
 [discrete]
-=== Prefer `dot_product` over `cosine`
+=== Reduce vector memory foot-print
 
-When indexing vectors for approximate kNN search, you need to specify the
-<<dense-vector-similarity, `similarity` function>> for comparing the vectors.
-If you'd like to compare vectors through cosine similarity, there are two
-options.
+The default <<dense-vector-element-type,`element_type`>> is `float`. But this
+can be automatically quantized during index time through
+<<dense-vector-quantization,`quantization`>>. Quantization will reduce the
+required memory by 4x, but it will also reduce the precision of the vectors and
+increase disk usage for the field (by up to 25%). Increased disk usage is a
+result of {es} storing both the quantized and the unquantized vectors.
+For example, when quantizing 40GB of floating point vectors an extra 10GB of data will be stored for the quantized vectors. The total disk usage amounts to 50GB, but the memory usage for fast search will be reduced to 10GB.
 
-The `cosine` option accepts any float vector and computes the cosine
-similarity. While this is convenient for testing, it's not the most efficient
-approach. Instead, we recommend using the `dot_product` option to compute the
-similarity. To use `dot_product`, all vectors need to be normalized in advance
-to have length 1. The `dot_product` option is significantly faster, since it
-avoids performing extra vector length computations during the search.
+For `float` vectors with `dim` greater than or equal to `384`, using a
+<<dense-vector-quantization,`quantized`>> index is highly recommended.
+
+[discrete]
+=== Reduce vector dimensionality
+
+The speed of kNN search scales linearly with the number of vector dimensions,
+because each similarity computation considers each element in the two vectors.
+Whenever possible, it's better to use vectors with a lower dimension. Some
+embedding models come in different "sizes", with both lower and higher
+dimensional options available. You could also experiment with dimensionality
+reduction techniques like PCA. When experimenting with different approaches,
+it's important to measure the impact on relevance to ensure the search
+quality is still acceptable.
+
+[discrete]
+=== Exclude vector fields from `_source`
+
+{es} stores the original JSON document that was passed at index time in the
+<<mapping-source-field, `_source` field>>. By default, each hit in the search
+results contains the full document `_source`. When the documents contain
+high-dimensional `dense_vector` fields, the `_source` can be quite large and
+expensive to load. This could significantly slow down the speed of kNN search.
+
+You can disable storing `dense_vector` fields in the `_source` through the
+<<include-exclude, `excludes`>> mapping parameter. This prevents loading and
+returning large vectors during search, and also cuts down on the index size.
+Vectors that have been omitted from `_source` can still be used in kNN search,
+since it relies on separate data structures to perform the search. Before
+using the <<include-exclude, `excludes`>> parameter, make sure to review the
+downsides of omitting fields from `_source`.
+
+Another option is to use  <<synthetic-source,synthetic `_source`>> if all
+your index fields support it.
 
 [discrete]
 === Ensure data nodes have enough memory
@@ -52,53 +83,10 @@ of datasets and configurations that we use for our nightly benchmarks.
 include::search-speed.asciidoc[tag=warm-fs-cache]
 
 The following file extensions are used for the approximate kNN search:
-+
---
+
 * `vec` and `veq` for vector values
 * `vex` for HNSW graph
 * `vem`, `vemf`, and `vemq` for metadata
---
-
-[discrete]
-=== Reduce vector dimensionality
-
-The speed of kNN search scales linearly with the number of vector dimensions,
-because each similarity computation considers each element in the two vectors.
-Whenever possible, it's better to use vectors with a lower dimension. Some
-embedding models come in different "sizes", with both lower and higher
-dimensional options available. You could also experiment with dimensionality
-reduction techniques like PCA. When experimenting with different approaches,
-it's important to measure the impact on relevance to ensure the search
-quality is still acceptable.
-
-[discrete]
-=== Reduce vector memory foot-print
-
-The default <<dense-vector-element-type,`element_type`>> is `float`. But this can be
-automatically quantized during index time through <<dense-vector-quantization,`quantization`>>. Quantization will
-reduce the required memory by 4x, but it will also reduce the precision of the vectors. For `float` vectors with
-`dim` greater than or equal to `384`, using a <<dense-vector-quantization,`quantized`>> index is highly recommended.
-
-[discrete]
-=== Exclude vector fields from `_source`
-
-{es} stores the original JSON document that was passed at index time in the
-<<mapping-source-field, `_source` field>>. By default, each hit in the search
-results contains the full document `_source`. When the documents contain
-high-dimensional `dense_vector` fields, the `_source` can be quite large and
-expensive to load. This could significantly slow down the speed of kNN search.
-
-You can disable storing `dense_vector` fields in the `_source` through the
-<<include-exclude, `excludes`>> mapping parameter. This prevents loading and
-returning large vectors during search, and also cuts down on the index size.
-Vectors that have been omitted from `_source` can still be used in kNN search,
-since it relies on separate data structures to perform the search. Before
-using the <<include-exclude, `excludes`>> parameter, make sure to review the
-downsides of omitting fields from `_source`.
-
-Another option is to use  <<synthetic-source,synthetic `_source`>> if all
-your index fields support it.
-
 
 [discrete]
 === Reduce the number of index segments
@@ -121,7 +109,7 @@ force merge to one segment, the kNN search only need to check a single,
 all-inclusive HNSW graph. Force merging `dense_vector` fields is an expensive
 operation that can take significant time to complete.
 
-include::{es-repo-dir}/indices/forcemerge.asciidoc[tag=force-merge-read-only-warn]
+include::{es-ref-dir}/indices/forcemerge.asciidoc[tag=force-merge-read-only-warn]
 
 [discrete]
 ==== Create large segments during bulk indexing

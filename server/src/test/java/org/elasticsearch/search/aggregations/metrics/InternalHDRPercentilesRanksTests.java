@@ -68,11 +68,6 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
     }
 
     @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedHDRPercentileRanks.class;
-    }
-
-    @Override
     protected InternalHDRPercentileRanks mutateInstance(InternalHDRPercentileRanks instance) {
         String name = instance.getName();
         double[] percents = instance.keys;

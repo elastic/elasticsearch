@@ -15,7 +15,7 @@ depleted, {es} will reject search requests until more threads are available.
 
 **Check CPU usage**
 
-include::{es-repo-dir}/tab-widgets/cpu-usage-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/cpu-usage-widget.asciidoc[]
 
 **Check hot threads**
 

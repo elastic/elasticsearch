@@ -82,7 +82,7 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
         request.add(new SearchRequest("index"));
         Exception e = expectThrows(
             ActionRequestValidationException.class,
-            () -> client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet()
+            client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request))
         );
         assertThat(e.getMessage(), equalTo("Validation Failed: 1: index [index] is not an enrich index;"));
     }
@@ -94,7 +94,7 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
         request.add(new SearchRequest(indexName));
         Exception e = expectThrows(
             IllegalStateException.class,
-            () -> client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet()
+            client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request))
         );
         assertThat(e.getMessage(), equalTo("index [.enrich-1] should have 1 shard, but has 2 shards"));
     }

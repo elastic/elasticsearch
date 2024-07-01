@@ -61,7 +61,6 @@ public class EvilSecurityTests extends ESTestCase {
     }
 
     /** test generated permissions for all configured paths */
-    @SuppressWarnings("deprecation") // needs to check settings for deprecated path
     @SuppressForbidden(reason = "to create FilePermission object")
     public void testEnvironmentPaths() throws Exception {
         Path path = createTempDir();

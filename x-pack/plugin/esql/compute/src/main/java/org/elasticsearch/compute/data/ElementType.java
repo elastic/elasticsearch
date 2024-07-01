@@ -13,16 +13,17 @@ import org.apache.lucene.util.BytesRef;
  * The type of elements in {@link Block} and {@link Vector}
  */
 public enum ElementType {
-    BOOLEAN(BooleanBlock::newBlockBuilder),
-    INT(IntBlock::newBlockBuilder),
-    LONG(LongBlock::newBlockBuilder),
-    DOUBLE(DoubleBlock::newBlockBuilder),
+    BOOLEAN(BlockFactory::newBooleanBlockBuilder),
+    INT(BlockFactory::newIntBlockBuilder),
+    LONG(BlockFactory::newLongBlockBuilder),
+    FLOAT(BlockFactory::newFloatBlockBuilder),
+    DOUBLE(BlockFactory::newDoubleBlockBuilder),
     /**
      * Blocks containing only null values.
      */
-    NULL((estimatedSize, blockFactory) -> new ConstantNullBlock.Builder(blockFactory)),
+    NULL((blockFactory, estimatedSize) -> new ConstantNullBlock.Builder(blockFactory)),
 
-    BYTES_REF(BytesRefBlock::newBlockBuilder),
+    BYTES_REF(BlockFactory::newBytesRefBlockBuilder),
 
     /**
      * Blocks that reference individual lucene documents.
@@ -30,12 +31,17 @@ public enum ElementType {
     DOC(DocBlock::newBlockBuilder),
 
     /**
+     * Composite blocks which contain array of sub-blocks.
+     */
+    COMPOSITE((blockFactory, estimatedSize) -> { throw new UnsupportedOperationException("can't build composite blocks"); }),
+
+    /**
      * Intermediate blocks which don't support retrieving elements.
      */
-    UNKNOWN((estimatedSize, blockFactory) -> { throw new UnsupportedOperationException("can't build null blocks"); });
+    UNKNOWN((blockFactory, estimatedSize) -> { throw new UnsupportedOperationException("can't build null blocks"); });
 
-    interface BuilderSupplier {
-        Block.Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory);
+    private interface BuilderSupplier {
+        Block.Builder newBlockBuilder(BlockFactory blockFactory, int estimatedSize);
     }
 
     private final BuilderSupplier builder;
@@ -46,18 +52,9 @@ public enum ElementType {
 
     /**
      * Create a new {@link Block.Builder} for blocks of this type.
-     * @deprecated use {@link #newBlockBuilder(int, BlockFactory)}
-     */
-    @Deprecated
-    public Block.Builder newBlockBuilder(int estimatedSize) {
-        return builder.newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Create a new {@link Block.Builder} for blocks of this type.
      */
     public Block.Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return builder.newBlockBuilder(estimatedSize, blockFactory);
+        return builder.newBlockBuilder(blockFactory, estimatedSize);
     }
 
     public static ElementType fromJava(Class<?> type) {
@@ -66,6 +63,8 @@ public enum ElementType {
             elementType = INT;
         } else if (type == Long.class) {
             elementType = LONG;
+        } else if (type == Float.class) {
+            elementType = FLOAT;
         } else if (type == Double.class) {
             elementType = DOUBLE;
         } else if (type == String.class || type == BytesRef.class) {

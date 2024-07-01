@@ -1,0 +1,313 @@
+---
+setup:
+  - skip:
+      awaits_fix: "waiting for final decisions on supporting generic expressions on the right https://github.com/elastic/elasticsearch/issues/103599"
+  - requires:
+      test_runner_features: allowed_warnings_regex
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              id:
+                type: long
+              keyword:
+                type: keyword
+              keywordUpper:
+                type: keyword
+              text:
+                type: text
+              textCamel:
+                type: text
+              wildcard:
+                type: keyword
+              wildcardText:
+                type: text
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 0, "keyword": "Foo", "keywordUpper": "FOO", "text": "foo", "textCamel": "FoO", "wildcard": "Foo*", "wildcardText": "FOo*" }
+          - { "index": { } }
+          - { "id": 1, "keyword": "Foo", "keywordUpper": "BAR", "text": "baz", "textCamel": "BaR", "wildcard": "Bar?", "wildcardText": "bar?" }
+          - { "index": { } }
+          - { "id": 2, "keyword": "abc", "keywordUpper": "XYZ", "text": "def", "textCamel": "GhI", "wildcard": "jkl?", "wildcardText": "MNO?" }
+
+---
+"insensitive equals field vs field keywords":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where keyword =~ keywordUpper | keep id, keyword, keywordUpper'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "keyword" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "keywordUpper" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "Foo", "FOO"] }
+
+---
+"insensitive equals field vs field text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where text =~ textCamel | keep id, text, textCamel'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "text" }
+  - match: { columns.1.type: "text" }
+  - match: { columns.2.name: "textCamel" }
+  - match: { columns.2.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "foo", "FoO"] }
+
+
+---
+"insensitive equals keyword field vs text field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where keyword =~ text | keep id, keyword, text'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "keyword" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "text" }
+  - match: { columns.2.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "Foo", "foo"] }
+
+
+---
+"insensitive equals keyword field vs text field 2":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where keywordUpper =~ textCamel | keep id, keywordUpper, textCamel | sort id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "keywordUpper" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "textCamel" }
+  - match: { columns.2.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 0, "FOO", "FoO"] }
+  - match: { values.1: [ 1, "BAR", "BaR"] }
+
+
+---
+"wildcards":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where keywordUpper =~ "fo*" | keep id, keywordUpper'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "keywordUpper" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 0 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where wildcard =~ "foo*" | keep id, wildcard'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcard" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "Foo*"] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where wildcard =~ "fOo*" | keep id, wildcard'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcard" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "Foo*"] }
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where keywordUpper =~ "fo?" | keep id, keywordUpper'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "keywordUpper" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 0 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where wildcard =~ "bar?" | keep id, wildcard'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcard" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 1, "Bar?"] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where wildcard =~ "bAr?" | keep id, wildcard'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcard" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 1, "Bar?"] }
+
+
+---
+"wildcards on text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where text =~ "Fo*" | keep id, text | sort id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "text" }
+  - match: { columns.1.type: "text" }
+
+  - length: { values: 0 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where wildcardText =~ "fOo*" | keep id, wildcardText'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcardText" }
+  - match: { columns.1.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "FOo*"] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where wildcardText =~ "bAr?" | keep id, wildcardText'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcardText" }
+  - match: { columns.1.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 1, "bar?"] }
+
+
+---
+"wildcards on text no match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where text =~ "fo\\*" | keep id, text'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "text" }
+  - match: { columns.1.type: "text" }
+
+  - length: { values: 0 }
+
+
+---
+"wildcards on keyword vs text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where wildcard =~ wildcardText | keep id, wildcard, wildcardText | sort id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcard" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "wildcardText" }
+  - match: { columns.2.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 0, "Foo*", "FOo*"] }
+  - match: { values.1: [ 1, "Bar?", "bar?"] }
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where NOT wildcard =~ wildcardText | keep id, wildcard, wildcardText | sort id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcard" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "wildcardText" }
+  - match: { columns.2.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 2, "jkl?", "MNO?"] }

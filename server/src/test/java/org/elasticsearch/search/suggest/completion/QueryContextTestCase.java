@@ -34,11 +34,12 @@ public abstract class QueryContextTestCase<QC extends ToXContent> extends ESTest
             QC toXContent = createTestModel();
             XContentBuilder builder = XContentFactory.jsonBuilder();
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentParser parser = createParser(builder);
-            parser.nextToken();
-            QC fromXContext = fromXContent(parser);
-            assertEquals(toXContent, fromXContext);
-            assertEquals(toXContent.hashCode(), fromXContext.hashCode());
+            try (XContentParser parser = createParser(builder)) {
+                parser.nextToken();
+                QC fromXContext = fromXContent(parser);
+                assertEquals(toXContent, fromXContext);
+                assertEquals(toXContent.hashCode(), fromXContext.hashCode());
+            }
         }
     }
 }

@@ -1,0 +1,23 @@
+{
+    "properties" : {
+        "text" : {
+            "type" : "text",
+            "fields" : {
+                "raw" : {
+                    "type" : "keyword"
+                },
+                "english" : {
+                    "type" : "text",
+                    "analyzer" : "english"
+                },
+                "constant" : {
+                    "type" : "constant_keyword",
+                    "value" : "some constant value"
+                },
+                "wildcard" : {
+                    "type" : "wildcard"
+                }
+            }
+        }
+    }
+}

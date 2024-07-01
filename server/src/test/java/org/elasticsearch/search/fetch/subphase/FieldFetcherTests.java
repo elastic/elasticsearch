@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LongFieldScriptTests;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
@@ -1169,7 +1170,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             """;
 
         var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
-        SearchHit searchHit = new SearchHit(0);
+        SearchHit searchHit = SearchHit.unpooled(0);
         searchHit.addDocumentFields(results, Map.of());
         assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
     }
@@ -1686,7 +1687,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         );
     }
 

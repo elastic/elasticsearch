@@ -69,8 +69,8 @@
 
 ---
 "Close index with wait_for_active_shards set to all":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  "closed indices are replicated starting version 7.2.0"
 
   - do:
@@ -124,10 +124,10 @@
 
 ---
 "?wait_for_active_shards=index-setting is deprecated":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "required deprecation warning is only emitted in 8.0 and later"
-      features: ["warnings", "node_selector"]
+      test_runner_features: ["warnings"]
 
   - do:
       indices.create:
@@ -140,7 +140,5 @@
       indices.close:
         index: "index_*"
         wait_for_active_shards: index-setting
-      node_selector:
-        version: "8.0.0 - "
       warnings:
         - "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter should no longer be used since it will become unsupported in version 9"

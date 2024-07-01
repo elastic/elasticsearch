@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -199,8 +199,8 @@ text multi plain:
 
 ---
 text single unified from reanalysis:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "support for weight matches was added in 8.10"
 
   - do:
@@ -218,8 +218,8 @@ text single unified from reanalysis:
 
 ---
 text multi unified from reanalysis:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "support for weight matches was added in 8.10"
 
   - do:
@@ -237,8 +237,8 @@ text multi unified from reanalysis:
 
 ---
 text single unified from positions:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "support for weight matches was added in 8.10"
 
   - do:
@@ -256,8 +256,8 @@ text single unified from positions:
 
 ---
 text multi unified from positions:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "support for weight matches was added in 8.10"
 
   - do:
@@ -275,8 +275,8 @@ text multi unified from positions:
 
 ---
 text single unified from vectors:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "support for weight matches was added in 8.10"
 
   - do:
@@ -294,8 +294,8 @@ text single unified from vectors:
 
 ---
 text multi unified from vectors:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "support for weight matches was added in 8.10"
 
   - do:
@@ -313,8 +313,8 @@ text multi unified from vectors:
 
 ---
 text single fvh source order:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "support for weight matches was added in 8.10"
 
   - do:
@@ -332,8 +332,8 @@ text single fvh source order:
 
 ---
 text multi fvh source order:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "support for weight matches was added in 8.10"
 
   - do:
@@ -351,8 +351,8 @@ text multi fvh source order:
 
 ---
 text single fvh score order:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "support for weight matches was added in 8.10"
 
   - do:
@@ -371,8 +371,8 @@ text single fvh score order:
 
 ---
 text multi fvh score order:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "support for weight matches was added in 8.10"
 
   - do:

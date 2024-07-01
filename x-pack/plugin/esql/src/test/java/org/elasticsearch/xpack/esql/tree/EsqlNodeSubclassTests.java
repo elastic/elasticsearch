@@ -9,38 +9,36 @@ package org.elasticsearch.xpack.esql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.dissect.DissectParser;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeSubclassTests;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedNamedExpression;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Node;
-import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
@@ -52,6 +50,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/110272")
 public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests<T, B> {
 
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class);
@@ -59,11 +58,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
     private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
         UnresolvedAttribute.class,
-        UnresolvedAlias.class,
         UnresolvedException.class,
         UnresolvedFunction.class,
-        UnresolvedNamedExpression.class,
-        UnresolvedStar.class
+        UnresolvedNamedExpression.class
     );
 
     public EsqlNodeSubclassTests(Class<T> subclass) {
@@ -86,25 +83,18 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomResolvedExpression(randomBoolean() ? FieldAttribute.class : Literal.class);
         } else if (isPlanNodeClass(toBuildClass) && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(argClass);
-        } else if (argClass == EnrichPolicyResolution.class) {
-            // EnrichPolicyResolution is a record
-            return new EnrichPolicyResolution(
-                randomAlphaOfLength(5),
-                new EnrichPolicy(
-                    randomAlphaOfLength(10),
-                    null,
-                    List.of(randomAlphaOfLength(5)),
-                    randomAlphaOfLength(5),
-                    List.of(randomAlphaOfLength(5), randomAlphaOfLength(5))
-                ),
-                IndexResolution.invalid(randomAlphaOfLength(5))
-            );
-
         } else if (argClass == Stat.class) {
             // record field
             return new Stat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
         } else if (argClass == Integer.class) {
             return randomInt();
+        } else if (argClass == JoinConfig.class) {
+            return new JoinConfig(
+                JoinType.LEFT,
+                randomList(0, 10, () -> (Attribute) makeArg(Attribute.class)),
+                randomList(0, 10, () -> (Attribute) makeArg(Attribute.class)),
+                randomList(0, 10, () -> (Attribute) makeArg(Attribute.class))
+            );
         }
 
         return null;
@@ -131,7 +121,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(toBuildClass::equals);
     }
 
-    static final Predicate<String> CLASSNAME_FILTER = className -> (className.startsWith("org.elasticsearch.xpack.ql") != false
+    static final Predicate<String> CLASSNAME_FILTER = className -> (className.startsWith("org.elasticsearch.xpack.esql.core") != false
         || className.startsWith("org.elasticsearch.xpack.esql") != false);
 
     @Override
@@ -140,7 +130,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     /** Scans the {@code .class} files to identify all classes and checks if they are subclasses of {@link Node}. */
-    @ParametersFactory
+    @ParametersFactory(argumentFormatting = "%1s")
     @SuppressWarnings("rawtypes")
     public static List<Object[]> nodeSubclasses() throws IOException {
         return subclassesOf(Node.class, CLASSNAME_FILTER).stream()
@@ -159,8 +149,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         Class<? extends Expression> asNodeSubclass = (Class<? extends Expression>) argClass;
         if (Modifier.isAbstract(argClass.getModifiers())) {
             while (true) {
-                var candidate = randomFrom(subclassesOf(asNodeSubclass));
-                if (UNRESOLVED_CLASSES.contains(candidate) == false) {
+                var candidate = randomFrom(subclassesOf(asNodeSubclass, CLASSNAME_FILTER));
+                if (UNRESOLVED_CLASSES.stream().allMatch(unresolved -> unresolved.isAssignableFrom(candidate) == false)) {
                     asNodeSubclass = candidate;
                     break;
                 }
@@ -179,7 +169,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         );
     }
 
-    static List<DataType> DATA_TYPES = EsqlDataTypes.types().stream().toList();
+    static List<DataType> DATA_TYPES = DataType.types().stream().toList();
 
     static EsQueryExec.FieldSort randomFieldSort() {
         return new EsQueryExec.FieldSort(

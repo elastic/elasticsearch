@@ -32,10 +32,6 @@ class MedianAbsoluteDeviationLongAggregator {
         state.add(inValue);
     }
 
-    public static void combineStates(QuantileStates.SingleState current, QuantileStates.SingleState state) {
-        current.add(state);
-    }
-
     public static Block evaluateFinal(QuantileStates.SingleState state, DriverContext driverContext) {
         return state.evaluateMedianAbsoluteDeviation(driverContext);
     }

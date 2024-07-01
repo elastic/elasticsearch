@@ -1,6 +1,0 @@
-pr: 103183
-summary: "[Connectors API] Handle nullable fields correctly in the `ConnectorSyncJob`\
-  \ parser"
-area: Application
-type: bug
-issues: []

@@ -327,7 +327,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
             CollationFieldType ft = new CollationFieldType(
-                context.buildFullName(name),
+                context.buildFullName(leafName()),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -337,7 +337,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 meta.getValue()
             );
             return new ICUCollationKeywordFieldMapper(
-                name,
+                leafName(),
                 buildFieldType(),
                 ft,
                 multiFieldsBuilder.build(this, context),
@@ -508,7 +508,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
@@ -526,7 +526,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (value.length() > ignoreAbove) {
-            context.addIgnoredField(name());
+            context.addIgnoredField(fullPath());
             return;
         }
 

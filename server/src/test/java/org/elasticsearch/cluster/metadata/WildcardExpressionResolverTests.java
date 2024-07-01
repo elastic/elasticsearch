@@ -280,6 +280,114 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(IndexNameExpressionResolver.resolveExpressions(noExpandContext, "_all").size(), equalTo(0));
     }
 
+    public void testAllAliases() {
+        {
+            // hidden index with hidden alias should not be returned
+            Metadata.Builder mdBuilder = Metadata.builder()
+                .put(
+                    indexBuilder("index-hidden-alias", true) // index hidden
+                        .state(State.OPEN)
+                        .putAlias(AliasMetadata.builder("alias-hidden").isHidden(true)) // alias hidden
+                );
+
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+                state,
+                IndicesOptions.lenientExpandOpen(), // don't include hidden
+                SystemIndexAccessLevel.NONE
+            );
+            assertThat(newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)), equalTo(newHashSet()));
+        }
+
+        {
+            // hidden index with visible alias should be returned
+            Metadata.Builder mdBuilder = Metadata.builder()
+                .put(
+                    indexBuilder("index-visible-alias", true) // index hidden
+                        .state(State.OPEN)
+                        .putAlias(AliasMetadata.builder("alias-visible").isHidden(false)) // alias visible
+                );
+
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+                state,
+                IndicesOptions.lenientExpandOpen(), // don't include hidden
+                SystemIndexAccessLevel.NONE
+            );
+            assertThat(
+                newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)),
+                equalTo(newHashSet("index-visible-alias"))
+            );
+        }
+    }
+
+    public void testAllDataStreams() {
+
+        String dataStreamName = "foo_logs";
+        long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
+        IndexMetadata firstBackingIndexMetadata = createBackingIndex(dataStreamName, 1, epochMillis).build();
+
+        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(
+            randomBoolean(),
+            randomBoolean(),
+            true,
+            false,
+            true,
+            false,
+            false,
+            false
+        );
+
+        {
+            // visible data streams should be returned by _all even show backing indices are hidden
+            Metadata.Builder mdBuilder = Metadata.builder()
+                .put(firstBackingIndexMetadata, true)
+                .put(DataStreamTestHelper.newInstance(dataStreamName, List.of(firstBackingIndexMetadata.getIndex())));
+
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+                state,
+                indicesAndAliasesOptions,
+                false,
+                false,
+                true,
+                SystemIndexAccessLevel.NONE,
+                NONE,
+                NONE
+            );
+
+            assertThat(
+                newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)),
+                equalTo(newHashSet(DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis)))
+            );
+        }
+
+        {
+            // if data stream itself is hidden, backing indices should not be returned
+            var dataStream = DataStream.builder(dataStreamName, List.of(firstBackingIndexMetadata.getIndex())).setHidden(true).build();
+
+            Metadata.Builder mdBuilder = Metadata.builder().put(firstBackingIndexMetadata, true).put(dataStream);
+
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+                state,
+                indicesAndAliasesOptions,
+                false,
+                false,
+                true,
+                SystemIndexAccessLevel.NONE,
+                NONE,
+                NONE
+            );
+
+            assertThat(newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)), equalTo(newHashSet()));
+        }
+    }
+
     public void testResolveEmpty() {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(

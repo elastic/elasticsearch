@@ -23,7 +23,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -100,7 +100,7 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
         assertDatabaseLoadStatus(ingestNode, false);
         final IndexRequest indexRequest = new IndexRequest("index");
         indexRequest.setPipeline("geoip");
-        indexRequest.source(Collections.singletonMap("ip", "1.1.1.1"));
+        indexRequest.source(Map.of("ip", "1.1.1.1"));
         final DocWriteResponse indexResponse = client(ingestNode).index(indexRequest).actionGet();
         assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
         // now the geo-IP database should be loaded on the ingest node

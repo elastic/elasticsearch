@@ -20,6 +20,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -62,7 +63,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     }
 
     public void testSimpleOpenMissingIndex() {
-        Exception e = expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareOpen("test1").get());
+        Exception e = expectThrows(IndexNotFoundException.class, indicesAdmin().prepareOpen("test1"));
         assertThat(e.getMessage(), is("no such index [test1]"));
     }
 
@@ -71,7 +72,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         createIndex("test1");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
-        Exception e = expectThrows(IndexNotFoundException.class, () -> client.admin().indices().prepareOpen("test1", "test2").get());
+        Exception e = expectThrows(IndexNotFoundException.class, client.admin().indices().prepareOpen("test1", "test2"));
         assertThat(e.getMessage(), is("no such index [test2]"));
     }
 
@@ -162,12 +163,12 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     }
 
     public void testOpenNoIndex() {
-        Exception e = expectThrows(ActionRequestValidationException.class, () -> indicesAdmin().prepareOpen().get());
+        Exception e = expectThrows(ActionRequestValidationException.class, indicesAdmin().prepareOpen());
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
     public void testOpenNullIndex() {
-        Exception e = expectThrows(ActionRequestValidationException.class, () -> indicesAdmin().prepareOpen((String[]) null).get());
+        Exception e = expectThrows(ActionRequestValidationException.class, indicesAdmin().prepareOpen((String[]) null));
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
@@ -233,7 +234,12 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("test").setSettings(settings).get());
         assertAcked(client.admin().indices().prepareClose("test").get());
 
-        OpenIndexResponse response = client.admin().indices().prepareOpen("test").setTimeout("100ms").setWaitForActiveShards(2).get();
+        OpenIndexResponse response = client.admin()
+            .indices()
+            .prepareOpen("test")
+            .setTimeout(TimeValue.timeValueMillis(100))
+            .setWaitForActiveShards(2)
+            .get();
         assertThat(response.isShardsAcknowledged(), equalTo(false));
         assertBusy(
             () -> assertThat(

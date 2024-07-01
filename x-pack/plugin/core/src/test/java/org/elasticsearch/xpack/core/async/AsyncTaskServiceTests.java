@@ -15,7 +15,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -23,17 +22,12 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -88,139 +82,17 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testEnsuredAuthenticatedUserIsSame() throws IOException {
-        Authentication original = AuthenticationTestHelper.builder()
-            .user(new User("test", "role"))
-            .realmRef(new Authentication.RealmRef("realm", "file", "node"))
-            .build(false);
-        Authentication current = randomBoolean()
-            ? original
-            : AuthenticationTestHelper.builder()
-                .user(new User("test", "role"))
-                .realmRef(new Authentication.RealmRef("realm", "file", "node"))
-                .build(false);
-        current.writeToContext(indexService.getSecurityContext().getThreadContext());
-        assertThat(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)), is(true));
-
-        // original is not authenticated
-        assertThat(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(Collections.emptyMap()), is(true));
-        // current is not authenticated
-        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
-            assertThat(
-                indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)),
-                is(false)
-            );
-            assertThat(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(Map.of()), is(true));
-        }
-
-        // original user being run as
-        final User authenticatingUser = new User("authenticated", "runas");
-        final User effectiveUser = new User("test", "role");
-        assertThat(
-            indexService.getSecurityContext()
-                .canIAccessResourcesCreatedWithHeaders(
-                    getAuthenticationAsHeaders(
-                        AuthenticationTestHelper.builder()
-                            .user(authenticatingUser)
-                            .realmRef(new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"))
-                            .runAs()
-                            .user(effectiveUser)
-                            .realmRef(new Authentication.RealmRef("realm", "file", "node"))
-                            .build()
-                    )
-                ),
-            is(true)
-        );
-
-        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
-            // current user being run as
-            current = AuthenticationTestHelper.builder()
-                .user(authenticatingUser)
-                .realmRef(new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"))
-                .runAs()
-                .user(effectiveUser)
-                .realmRef(new Authentication.RealmRef("realm", "file", "node"))
-                .build();
-            current.writeToContext(indexService.getSecurityContext().getThreadContext());
-            assertThat(
-                indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)),
-                is(true)
-            );
-
-            // both users are run as
-            assertThat(
-                indexService.getSecurityContext()
-                    .canIAccessResourcesCreatedWithHeaders(
-                        getAuthenticationAsHeaders(
-                            AuthenticationTestHelper.builder()
-                                .user(authenticatingUser)
-                                .realmRef(new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"))
-                                .runAs()
-                                .user(effectiveUser)
-                                .realmRef(new Authentication.RealmRef("realm", "file", "node"))
-                                .build()
-                        )
-                    ),
-                is(true)
-            );
-        }
-
-        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
-            // different authenticated by type
-            final Authentication differentRealmType = AuthenticationTestHelper.builder()
-                .user(new User("test", "role"))
-                .realmRef(new Authentication.RealmRef("realm", randomAlphaOfLength(10), "node"))
-                .build(false);
-            differentRealmType.writeToContext(indexService.getSecurityContext().getThreadContext());
-            assertFalse(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)));
-        }
-
-        // different user
-        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
-            final Authentication differentUser = AuthenticationTestHelper.builder()
-                .user(new User("test2", "role"))
-                .realmRef(new Authentication.RealmRef("realm", "file", "node"))
-                .build(false);
-            differentUser.writeToContext(indexService.getSecurityContext().getThreadContext());
-            assertFalse(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)));
-        }
-
-        // run as different user
-        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
-            final Authentication differentRunAs = AuthenticationTestHelper.builder()
-                .user(new User("authenticated", "runas"))
-                .realmRef(new Authentication.RealmRef("realm_runas", "file", "node1"))
-                .runAs()
-                .user(new User("test2", "role"))
-                .realmRef(new Authentication.RealmRef("realm", "file", "node1"))
-                .build();
-            differentRunAs.writeToContext(indexService.getSecurityContext().getThreadContext());
-            assertFalse(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)));
-        }
-
-        // run as different looked up by type
-        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
-            final Authentication runAsDiffType = AuthenticationTestHelper.builder()
-                .user(authenticatingUser)
-                .realmRef(new Authentication.RealmRef("realm", "file", "node"))
-                .runAs()
-                .user(effectiveUser)
-                .realmRef(new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node"))
-                .build();
-            runAsDiffType.writeToContext(indexService.getSecurityContext().getThreadContext());
-            assertFalse(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)));
-        }
-    }
-
     public void testAutoCreateIndex() throws Exception {
         // To begin with, the results index should be auto-created.
         AsyncExecutionId id = new AsyncExecutionId("0", new TaskId("N/A", 0));
         AsyncSearchResponse resp = new AsyncSearchResponse(id.getEncoded(), true, true, 0L, 0L);
-        {
+        try {
             PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();
+        } finally {
+            resp.decRef();
         }
 
         // Delete the index, so we can test subsequent auto-create behaviour
@@ -265,9 +137,4 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         assertThat(expected, is(settings.filter(expected::hasValue)));
     }
 
-    private Map<String, String> getAuthenticationAsHeaders(Authentication authentication) throws IOException {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        authentication.writeToContext(threadContext);
-        return threadContext.getHeaders();
-    }
 }

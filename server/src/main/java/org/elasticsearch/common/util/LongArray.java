@@ -30,7 +30,12 @@ public interface LongArray extends BigArray, Writeable {
     /**
      * Set a value at the given index and return the previous value.
      */
-    long set(long index, long value);
+    long getAndSet(long index, long value);
+
+    /**
+     * Set a value at the given index.
+     */
+    void set(long index, long value);
 
     /**
      * Increment value at the given index by <code>inc</code> and return the value.
@@ -41,6 +46,11 @@ public interface LongArray extends BigArray, Writeable {
      * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
      */
     void fill(long fromIndex, long toIndex, long value);
+
+    /**
+     * Alternative of {@link #readFrom(StreamInput)} where the written bytes are loaded into an existing {@link LongArray}
+     */
+    void fillWith(StreamInput in) throws IOException;
 
     /**
      * Bulk set.

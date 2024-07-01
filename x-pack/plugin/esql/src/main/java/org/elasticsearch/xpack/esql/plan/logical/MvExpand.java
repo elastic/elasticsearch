@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,13 +22,12 @@ public class MvExpand extends UnaryPlan {
     private final NamedExpression target;
     private final Attribute expanded;
 
-    private final List<Attribute> output;
+    private List<Attribute> output;
 
     public MvExpand(Source source, LogicalPlan child, NamedExpression target, Attribute expanded) {
         super(source, child);
         this.target = target;
         this.expanded = expanded;
-        this.output = calculateOutput(child.output(), target, expanded);
     }
 
     public static List<Attribute> calculateOutput(List<Attribute> input, NamedExpression target, Attribute expanded) {
@@ -63,6 +62,9 @@ public class MvExpand extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
+        if (output == null) {
+            output = calculateOutput(child().output(), target, expanded);
+        }
         return output;
     }
 

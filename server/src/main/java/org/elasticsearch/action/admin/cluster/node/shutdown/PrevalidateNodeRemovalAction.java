@@ -16,7 +16,7 @@ public class PrevalidateNodeRemovalAction extends ActionType<PrevalidateNodeRemo
     public static final String NAME = "cluster:admin/shutdown/prevalidate_removal";
 
     private PrevalidateNodeRemovalAction() {
-        super(NAME, PrevalidateNodeRemovalResponse::new);
+        super(NAME);
     }
 
 }

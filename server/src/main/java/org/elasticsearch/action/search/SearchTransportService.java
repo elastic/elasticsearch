@@ -13,13 +13,12 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -40,6 +39,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
+import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -59,6 +60,20 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.ACTION_ATTRIBUTE_NAME;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.CLEAR_SCROLL_CONTEXTS_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.DFS_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FETCH_ID_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FETCH_ID_SCROLL_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FREE_CONTEXT_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FREE_CONTEXT_SCROLL_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_CAN_MATCH_NODE_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_FETCH_SCROLL_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_ID_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_SCROLL_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.RANK_SHARD_FEATURE_ACTION_METRIC;
+
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
  * transport.
@@ -68,13 +83,29 @@ public class SearchTransportService {
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
     public static final String CLEAR_SCROLL_CONTEXTS_ACTION_NAME = "indices:data/read/search[clear_scroll_contexts]";
+
+    /**
+     * Part of DFS_QUERY_THEN_FETCH, which fetches distributed term frequencies and executes KNN.
+     */
     public static final String DFS_ACTION_NAME = "indices:data/read/search[phase/dfs]";
     public static final String QUERY_ACTION_NAME = "indices:data/read/search[phase/query]";
+
+    /**
+     * Part of DFS_QUERY_THEN_FETCH, which fetches distributed term frequencies and executes KNN.
+     */
     public static final String QUERY_ID_ACTION_NAME = "indices:data/read/search[phase/query/id]";
     public static final String QUERY_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query/scroll]";
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
+
+    public static final String RANK_FEATURE_SHARD_ACTION_NAME = "indices:data/read/search[phase/rank/feature]";
+
+    /**
+     * The Can-Match phase. It is executed to pre-filter shards that a search request hits. It rewrites the query on
+     * the shard and checks whether the result of the rewrite matches no documents, in which case the shard can be
+     * filtered out.
+     */
     public static final String QUERY_CAN_MATCH_NODE_NAME = "indices:data/read/search[can_match][n]";
 
     private final TransportService transportService;
@@ -147,7 +178,7 @@ public class SearchTransportService {
         transportService.sendRequest(
             connection,
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-            TransportRequest.Empty.INSTANCE,
+            new ClearScrollContextsRequest(),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(
                 listener,
@@ -168,7 +199,7 @@ public class SearchTransportService {
             DFS_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, DfsSearchResult::new, clientConnections, connection.getNode().getId())
+            new ConnectionCountingHandler<>(listener, DfsSearchResult::new, connection)
         );
     }
 
@@ -190,7 +221,7 @@ public class SearchTransportService {
             QUERY_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId())
+            new ConnectionCountingHandler<>(handler, reader, connection)
         );
     }
 
@@ -205,7 +236,7 @@ public class SearchTransportService {
             QUERY_ID_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, QuerySearchResult::new, clientConnections, connection.getNode().getId())
+            new ConnectionCountingHandler<>(listener, QuerySearchResult::new, connection)
         );
     }
 
@@ -220,7 +251,22 @@ public class SearchTransportService {
             QUERY_SCROLL_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, ScrollQuerySearchResult::new, clientConnections, connection.getNode().getId())
+            new ConnectionCountingHandler<>(listener, ScrollQuerySearchResult::new, connection)
+        );
+    }
+
+    public void sendExecuteRankFeature(
+        Transport.Connection connection,
+        final RankFeatureShardRequest request,
+        SearchTask task,
+        final SearchActionListener<RankFeatureResult> listener
+    ) {
+        transportService.sendChildRequest(
+            connection,
+            RANK_FEATURE_SHARD_ACTION_NAME,
+            request,
+            task,
+            new ConnectionCountingHandler<>(listener, RankFeatureResult::new, connection)
         );
     }
 
@@ -235,7 +281,7 @@ public class SearchTransportService {
             QUERY_FETCH_SCROLL_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, clientConnections, connection.getNode().getId())
+            new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, connection)
         );
     }
 
@@ -269,7 +315,7 @@ public class SearchTransportService {
             action,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, FetchSearchResult::new, clientConnections, connection.getNode().getId())
+            new ConnectionCountingHandler<>(listener, FetchSearchResult::new, connection)
         );
     }
 
@@ -283,7 +329,7 @@ public class SearchTransportService {
             TransportMultiSearchAction.TYPE.name(),
             request,
             task,
-            new ConnectionCountingHandler<>(listener, MultiSearchResponse::new, clientConnections, connection.getNode().getId())
+            new ConnectionCountingHandler<>(listener, MultiSearchResponse::new, connection)
         );
     }
 
@@ -321,6 +367,14 @@ public class SearchTransportService {
             return this.contextId;
         }
 
+    }
+
+    private static class ClearScrollContextsRequest extends TransportRequest {
+        ClearScrollContextsRequest() {}
+
+        ClearScrollContextsRequest(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
@@ -382,35 +436,39 @@ public class SearchTransportService {
         }
     }
 
-    public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
+    public static void registerRequestHandler(
+        TransportService transportService,
+        SearchService searchService,
+        SearchTransportAPMMetrics searchTransportMetrics
+    ) {
+        final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
+            boolean freed = searchService.freeReaderContext(request.id());
+            channel.sendResponse(new SearchFreeContextResponse(freed));
+        };
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            transportService.getThreadPool().generic(),
             ScrollFreeContextRequest::new,
-            (request, channel, task) -> {
-                boolean freed = searchService.freeReaderContext(request.id());
-                channel.sendResponse(new SearchFreeContextResponse(freed));
-            }
+            instrumentedHandler(FREE_CONTEXT_SCROLL_ACTION_METRIC, transportService, searchTransportMetrics, freeContextHandler)
         );
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, false, SearchFreeContextResponse::new);
+
         transportService.registerRequestHandler(
             FREE_CONTEXT_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            transportService.getThreadPool().generic(),
             SearchFreeContextRequest::new,
-            (request, channel, task) -> {
-                boolean freed = searchService.freeReaderContext(request.id());
-                channel.sendResponse(new SearchFreeContextResponse(freed));
-            }
+            instrumentedHandler(FREE_CONTEXT_ACTION_METRIC, transportService, searchTransportMetrics, freeContextHandler)
         );
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, false, SearchFreeContextResponse::new);
+
         transportService.registerRequestHandler(
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            TransportRequest.Empty::new,
-            (request, channel, task) -> {
+            transportService.getThreadPool().generic(),
+            ClearScrollContextsRequest::new,
+            instrumentedHandler(CLEAR_SCROLL_CONTEXTS_ACTION_METRIC, transportService, searchTransportMetrics, (request, channel, task) -> {
                 searchService.freeAllScrollContexts();
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            }
+            })
         );
         TransportActionProxy.registerProxyAction(
             transportService,
@@ -423,19 +481,32 @@ public class SearchTransportService {
             DFS_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
-            (request, channel, task) -> searchService.executeDfsPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
+            instrumentedHandler(
+                DFS_ACTION_METRIC,
+                transportService,
+                searchTransportMetrics,
+                (request, channel, task) -> searchService.executeDfsPhase(
+                    request,
+                    (SearchShardTask) task,
+                    new ChannelActionListener<>(channel)
+                )
+            )
         );
-
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, true, DfsSearchResult::new);
 
         transportService.registerRequestHandler(
             QUERY_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
-            (request, channel, task) -> searchService.executeQueryPhase(
-                request,
-                (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+            instrumentedHandler(
+                QUERY_ACTION_METRIC,
+                transportService,
+                searchTransportMetrics,
+                (request, channel, task) -> searchService.executeQueryPhase(
+                    request,
+                    (SearchShardTask) task,
+                    new ChannelActionListener<>(channel)
+                )
             )
         );
         TransportActionProxy.registerProxyActionWithDynamicResponseType(
@@ -449,9 +520,16 @@ public class SearchTransportService {
             QUERY_ID_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             QuerySearchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
-            }
+            instrumentedHandler(
+                QUERY_ID_ACTION_METRIC,
+                transportService,
+                searchTransportMetrics,
+                (request, channel, task) -> searchService.executeQueryPhase(
+                    request,
+                    (SearchShardTask) task,
+                    new ChannelActionListener<>(channel)
+                )
+            )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, true, QuerySearchResult::new);
 
@@ -459,9 +537,16 @@ public class SearchTransportService {
             QUERY_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             InternalScrollSearchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
-            }
+            instrumentedHandler(
+                QUERY_SCROLL_ACTION_METRIC,
+                transportService,
+                searchTransportMetrics,
+                (request, channel, task) -> searchService.executeQueryPhase(
+                    request,
+                    (SearchShardTask) task,
+                    new ChannelActionListener<>(channel)
+                )
+            )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, true, ScrollQuerySearchResult::new);
 
@@ -469,22 +554,36 @@ public class SearchTransportService {
             QUERY_FETCH_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             InternalScrollSearchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
-            }
+            instrumentedHandler(
+                QUERY_FETCH_SCROLL_ACTION_METRIC,
+                transportService,
+                searchTransportMetrics,
+                (request, channel, task) -> searchService.executeFetchPhase(
+                    request,
+                    (SearchShardTask) task,
+                    new ChannelActionListener<>(channel)
+                )
+            )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, true, ScrollQueryFetchSearchResult::new);
 
-        TransportRequestHandler<ShardFetchRequest> shardFetchHandler = (request, channel, task) -> searchService.executeFetchPhase(
-            request,
-            (SearchShardTask) task,
-            new ChannelActionListener<>(channel)
+        final TransportRequestHandler<RankFeatureShardRequest> rankShardFeatureRequest = (request, channel, task) -> searchService
+            .executeRankFeaturePhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+        transportService.registerRequestHandler(
+            RANK_FEATURE_SHARD_ACTION_NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            RankFeatureShardRequest::new,
+            instrumentedHandler(RANK_SHARD_FEATURE_ACTION_METRIC, transportService, searchTransportMetrics, rankShardFeatureRequest)
         );
+        TransportActionProxy.registerProxyAction(transportService, RANK_FEATURE_SHARD_ACTION_NAME, true, RankFeatureResult::new);
+
+        final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
+            .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardFetchRequest::new,
-            shardFetchHandler
+            instrumentedHandler(FETCH_ID_SCROLL_ACTION_METRIC, transportService, searchTransportMetrics, shardFetchRequestHandler)
         );
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, true, FetchSearchResult::new);
 
@@ -494,7 +593,7 @@ public class SearchTransportService {
             true,
             true,
             ShardFetchSearchRequest::new,
-            shardFetchHandler
+            instrumentedHandler(FETCH_ID_ACTION_METRIC, transportService, searchTransportMetrics, shardFetchRequestHandler)
         );
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, true, FetchSearchResult::new);
 
@@ -502,16 +601,42 @@ public class SearchTransportService {
             QUERY_CAN_MATCH_NODE_NAME,
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION),
             CanMatchNodeRequest::new,
-            (request, channel, task) -> searchService.canMatch(request, new ChannelActionListener<>(channel))
+            instrumentedHandler(
+                QUERY_CAN_MATCH_NODE_METRIC,
+                transportService,
+                searchTransportMetrics,
+                (request, channel, task) -> searchService.canMatch(request, new ChannelActionListener<>(channel))
+            )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NODE_NAME, true, CanMatchNodeResponse::new);
+    }
+
+    private static <Request extends TransportRequest> TransportRequestHandler<Request> instrumentedHandler(
+        String actionQualifier,
+        TransportService transportService,
+        SearchTransportAPMMetrics searchTransportMetrics,
+        TransportRequestHandler<Request> transportRequestHandler
+    ) {
+        var threadPool = transportService.getThreadPool();
+        var latencies = searchTransportMetrics.getActionLatencies();
+        Map<String, Object> attributes = Map.of(ACTION_ATTRIBUTE_NAME, actionQualifier);
+        return (request, channel, task) -> {
+            var startTime = threadPool.relativeTimeInMillis();
+            try {
+                transportRequestHandler.messageReceived(request, channel, task);
+            } finally {
+                var elapsedTime = threadPool.relativeTimeInMillis() - startTime;
+                latencies.record(elapsedTime, attributes);
+            }
+        };
     }
 
     /**
      * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved
      * against the local cluster.
+     *
      * @param clusterAlias the cluster alias the node should be resolved against
-     * @param node the node to resolve
+     * @param node         the node to resolve
      * @return a connection to the given node belonging to the cluster with the provided alias.
      */
     public Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
@@ -522,19 +647,16 @@ public class SearchTransportService {
         }
     }
 
-    static final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
-        private final Map<String, Long> clientConnections;
+    private final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
         private final String nodeId;
 
         ConnectionCountingHandler(
             final ActionListener<? super Response> listener,
             final Writeable.Reader<Response> responseReader,
-            final Map<String, Long> clientConnections,
-            final String nodeId
+            final Transport.Connection connection
         ) {
             super(listener, responseReader, TransportResponseHandler.TRANSPORT_WORKER);
-            this.clientConnections = clientConnections;
-            this.nodeId = nodeId;
+            this.nodeId = connection.getNode().getId();
             // Increment the number of connections for this node by one
             clientConnections.compute(nodeId, (id, conns) -> conns == null ? 1 : conns + 1);
         }
@@ -542,27 +664,26 @@ public class SearchTransportService {
         @Override
         public void handleResponse(Response response) {
             super.handleResponse(response);
-            // Decrement the number of connections or remove it entirely if there are no more connections
-            // We need to remove the entry here so we don't leak when nodes go away forever
-            assert assertNodePresent();
-            clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
+            decConnectionCount();
         }
 
         @Override
         public void handleException(TransportException e) {
             super.handleException(e);
-            // Decrement the number of connections or remove it entirely if there are no more connections
-            // We need to remove the entry here so we don't leak when nodes go away forever
+            decConnectionCount();
+        }
+
+        // Decrement the number of connections or remove it entirely if there are no more connections
+        // We need to remove the entry here so we don't leak when nodes go away forever
+        private void decConnectionCount() {
             assert assertNodePresent();
-            clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
+            clientConnections.computeIfPresent(nodeId, (id, conns) -> conns == 1 ? null : conns - 1);
         }
 
         private boolean assertNodePresent() {
-            clientConnections.compute(nodeId, (id, conns) -> {
-                assert conns != null : "number of connections for " + id + " is null, but should be an integer";
-                assert conns >= 1 : "number of connections for " + id + " should be >= 1 but was " + conns;
-                return conns;
-            });
+            var conns = clientConnections.get(nodeId);
+            assert conns != null : "number of connections for " + nodeId + " is null, but should be an integer";
+            assert conns >= 1 : "number of connections for " + nodeId + " should be >= 1 but was " + conns;
             // Always return true, there is additional asserting here, the boolean is just so this
             // can be skipped when assertions are not enabled
             return true;
@@ -573,10 +694,6 @@ public class SearchTransportService {
         CancelTasksRequest req = new CancelTasksRequest().setTargetTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
             .setReason("Fatal failure during search: " + reason);
         // force the origin to execute the cancellation as a system user
-        new OriginSettingClient(client, GetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.noop());
-    }
-
-    public NamedWriteableRegistry getNamedWriteableRegistry() {
-        return client.getNamedWriteableRegistry();
+        new OriginSettingClient(client, TransportGetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.noop());
     }
 }

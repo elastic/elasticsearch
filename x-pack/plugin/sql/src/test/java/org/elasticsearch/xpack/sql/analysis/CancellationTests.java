@@ -22,6 +22,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -171,7 +173,7 @@ public class CancellationTests extends ESTestCase {
         ClusterService mockClusterService = mockClusterService(nodeId);
 
         String[] indices = new String[] { "endgame" };
-        String pitId = randomAlphaOfLength(10);
+        BytesReference pitId = new BytesArray(randomAlphaOfLength(10));
 
         // Emulation of field capabilities
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);

@@ -8,10 +8,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -19,10 +16,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class ClosePointInTimeResponse extends ClearScrollResponse {
     public ClosePointInTimeResponse(boolean succeeded, int numFreed) {
         super(succeeded, numFreed);
-    }
-
-    public ClosePointInTimeResponse(StreamInput in) throws IOException {
-        super(in);
     }
 
     @Override

@@ -134,7 +134,7 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
     public void testReduce() {
         List<InternalAggregation> aggs = createInternalAggregations();
         AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
-        SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).reduce(aggs, context);
+        SignificantTerms reducedAgg = (SignificantTerms) InternalAggregationTestCase.reduce(aggs, context);
         assertThat(reducedAgg.getBuckets().size(), equalTo(2));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetSize(), equalTo(16L));
@@ -197,8 +197,10 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         stBuilder.significanceHeuristic(significanceHeuristic).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.toString(stXContentBuilder));
-        SignificanceHeuristic parsedHeuristic = parseSignificanceHeuristic(stParser);
+        SignificanceHeuristic parsedHeuristic;
+        try (XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.toString(stXContentBuilder))) {
+            parsedHeuristic = parseSignificanceHeuristic(stParser);
+        }
         assertThat(significanceHeuristic, equalTo(parsedHeuristic));
     }
 

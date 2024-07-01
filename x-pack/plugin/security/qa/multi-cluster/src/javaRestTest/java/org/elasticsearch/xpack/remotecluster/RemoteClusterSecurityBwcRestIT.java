@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
@@ -46,7 +47,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .version(OLD_CLUSTER_VERSION)
-            .distribution(DistributionType.INTEG_TEST)
+            .distribution(DistributionType.DEFAULT)
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")
@@ -98,6 +99,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
+                  "description": "This description should not be sent to remote clusters.",
                   "cluster": ["manage_own_api_key"],
                   "indices": [
                     {
@@ -189,7 +191,10 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                 ? performRequestWithRemoteAccessUser(searchRequest)
                 : performRequestWithApiKey(searchRequest, apiKeyEncoded);
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            final SearchResponse searchResponse;
+            try (var parser = responseAsParser(response)) {
+                searchResponse = SearchResponseUtils.parseSearchResponse(parser);
+            }
             try {
                 final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
                     .map(SearchHit::getIndex)

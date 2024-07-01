@@ -10,7 +10,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -36,19 +35,16 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
 
   private final DriverContext driverContext;
 
-  private final BigArrays bigArrays;
-
   public MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext, BigArrays bigArrays) {
+      QuantileStates.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.bigArrays = bigArrays;
   }
 
   public static MedianAbsoluteDeviationDoubleGroupingAggregatorFunction create(
-      List<Integer> channels, DriverContext driverContext, BigArrays bigArrays) {
-    return new MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(channels, MedianAbsoluteDeviationDoubleAggregator.initGrouping(bigArrays), driverContext, bigArrays);
+      List<Integer> channels, DriverContext driverContext) {
+    return new MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(channels, MedianAbsoluteDeviationDoubleAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -154,7 +150,11 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    Block quartUncast = page.getBlock(channels.get(0));
+    if (quartUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));

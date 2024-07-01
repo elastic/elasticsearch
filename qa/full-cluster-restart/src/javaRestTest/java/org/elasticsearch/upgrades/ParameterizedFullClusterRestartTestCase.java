@@ -14,12 +14,14 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -39,6 +41,8 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     private static IndexVersion oldIndexVersion;
     private static boolean upgradeFailed = false;
     private static boolean upgraded = false;
+
+    private static TestFeatureService oldClusterTestFeatureService;
     private final FullClusterRestartUpgradeStatus requestedUpgradeStatus;
 
     public ParameterizedFullClusterRestartTestCase(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -48,6 +52,14 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return Arrays.stream(FullClusterRestartUpgradeStatus.values()).map(v -> new Object[] { v }).toList();
+    }
+
+    @Before
+    public void retainOldClusterTestFeatureService() {
+        if (upgraded == false && oldClusterTestFeatureService == null) {
+            assert testFeatureServiceInitialized() : "testFeatureService must be initialized, see ESRestTestCase#initClient";
+            oldClusterTestFeatureService = testFeatureService;
+        }
     }
 
     @Before
@@ -111,6 +123,7 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     public static void resetUpgrade() {
         upgraded = false;
         upgradeFailed = false;
+        oldClusterTestFeatureService = null;
     }
 
     public boolean isRunningAgainstOldCluster() {
@@ -119,6 +132,16 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
 
     public static String getOldClusterVersion() {
         return OLD_CLUSTER_VERSION;
+    }
+
+    protected static boolean oldClusterHasFeature(String featureId) {
+        assert oldClusterTestFeatureService != null
+            : "testFeatureService of old cluster cannot be accessed before initialization is completed";
+        return oldClusterTestFeatureService.clusterHasFeature(featureId);
+    }
+
+    protected static boolean oldClusterHasFeature(NodeFeature feature) {
+        return oldClusterHasFeature(feature.id());
     }
 
     public static IndexVersion getOldClusterIndexVersion() {

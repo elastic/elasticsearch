@@ -51,7 +51,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
             this.roleTemplates = in.readCollectionAsList(TemplateRoleName::new);
         }
         this.rules = ExpressionParser.readExpression(in);
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
         this.refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
@@ -165,17 +165,5 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
 
     public ExpressionRoleMapping getMapping() {
         return new ExpressionRoleMapping(name, rules, roles, roleTemplates, metadata, enabled);
-    }
-
-    public static PutRoleMappingRequest fromMapping(ExpressionRoleMapping mapping) {
-        var request = new PutRoleMappingRequest();
-        request.setName(mapping.getName());
-        request.setEnabled(mapping.isEnabled());
-        request.setRoles(mapping.getRoles());
-        request.setRoleTemplates(mapping.getRoleTemplates());
-        request.setRules(mapping.getExpression());
-        request.setMetadata(mapping.getMetadata());
-
-        return request;
     }
 }

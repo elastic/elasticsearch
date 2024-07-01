@@ -61,49 +61,61 @@ public class TransformSchedulerTests extends ESTestCase {
     }
 
     public void testScheduling() {
+        testScheduling(5, 0);
+    }
+
+    public void testScheduling_withMinFrequency() {
+        testScheduling(1, 5);
+    }
+
+    // Note: frequencySeconds and minFrequencySeconds together should lead to an expected frequency of 5 seconds.
+    private void testScheduling(int frequencySeconds, int minFreqencySeconds) {
         String transformId = "test-with-fake-clock";
-        int frequencySeconds = 5;
         TimeValue frequency = TimeValue.timeValueSeconds(frequencySeconds);
+        TimeValue minFrequency = TimeValue.timeValueSeconds(minFreqencySeconds);
+        TimeValue fiveSeconds = TimeValue.timeValueSeconds(5);
         TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, minFrequency);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         transformScheduler.registerTransform(transformTaskParams, listener);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(1)));
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
-            contains(new TransformScheduledTask(transformId, frequency, 0L, 0, 5000, listener))
+            contains(new TransformScheduledTask(transformId, fiveSeconds, 0L, 0, 5000, listener))
         );
         assertThat(events, hasSize(1));
 
-        for (int i = 0; i < frequencySeconds; ++i) {
+        for (int i = 0; i < 5; ++i) {
             transformScheduler.processScheduledTasks();
             assertThat(
                 transformScheduler.getTransformScheduledTasks(),
-                contains(new TransformScheduledTask(transformId, frequency, 0L, 0, 5000, listener))
+                contains(new TransformScheduledTask(transformId, fiveSeconds, 0L, 0, 5000, listener))
             );
             assertThat(events, hasSize(1));
             clock.advanceTimeBy(Duration.ofMillis(1001));
         }
         assertThat(clock.instant(), is(equalTo(Instant.ofEpochMilli(5005))));
 
-        for (int i = 0; i < frequencySeconds; ++i) {
+        for (int i = 0; i < 5; ++i) {
             transformScheduler.processScheduledTasks();
             assertThat(
                 transformScheduler.getTransformScheduledTasks(),
-                contains(new TransformScheduledTask(transformId, frequency, 5005L, 0, 10005, listener))
+                contains(new TransformScheduledTask(transformId, fiveSeconds, 5005L, 0, 10005, listener))
             );
             assertThat(events, hasSize(2));
             clock.advanceTimeBy(Duration.ofMillis(1001));
         }
         assertThat(clock.instant(), is(equalTo(Instant.ofEpochMilli(10010))));
 
-        for (int i = 0; i < frequencySeconds; ++i) {
+        for (int i = 0; i < 5; ++i) {
             transformScheduler.processScheduledTasks();
             assertThat(
                 transformScheduler.getTransformScheduledTasks(),
-                contains(new TransformScheduledTask(transformId, frequency, 10010L, 0, 15010, listener))
+                contains(new TransformScheduledTask(transformId, fiveSeconds, 10010L, 0, 15010, listener))
             );
             assertThat(events, hasSize(3));
             clock.advanceTimeBy(Duration.ofMillis(1001));
@@ -115,6 +127,7 @@ public class TransformSchedulerTests extends ESTestCase {
         assertThat(events.get(2), is(equalTo(new TransformScheduler.Event(transformId, 10005, 10010))));
 
         transformScheduler.deregisterTransform(transformId);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         assertThat(transformScheduler.getTransformScheduledTasks(), is(empty()));
 
         transformScheduler.stop();
@@ -128,8 +141,10 @@ public class TransformSchedulerTests extends ESTestCase {
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         transformScheduler.registerTransform(transformTaskParams, listener);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(1)));
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
             contains(new TransformScheduledTask(transformId, frequency, 0L, 0, 60 * 60 * 1000, listener))
@@ -167,6 +182,7 @@ public class TransformSchedulerTests extends ESTestCase {
         );
 
         transformScheduler.deregisterTransform(transformId);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         assertThat(transformScheduler.getTransformScheduledTasks(), is(empty()));
 
         transformScheduler.stop();
@@ -180,8 +196,10 @@ public class TransformSchedulerTests extends ESTestCase {
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         transformScheduler.registerTransform(transformTaskParams, listener);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(1)));
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
             contains(new TransformScheduledTask(transformId, frequency, 0L, 0, 60 * 60 * 1000, listener))
@@ -216,6 +234,7 @@ public class TransformSchedulerTests extends ESTestCase {
         assertThat(events.get(2), is(equalTo(new TransformScheduler.Event(transformId, 31 * 60 * 1000, 31 * 60 * 1000))));
 
         transformScheduler.deregisterTransform(transformId);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         assertThat(transformScheduler.getTransformScheduledTasks(), is(empty()));
 
         transformScheduler.stop();
@@ -230,7 +249,7 @@ public class TransformSchedulerTests extends ESTestCase {
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
         transformScheduler.registerTransform(transformTaskParams, listener);
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
@@ -267,7 +286,7 @@ public class TransformSchedulerTests extends ESTestCase {
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
         TransformScheduler.Listener taskModifyingListener = new TransformScheduler.Listener() {
             private boolean firstTime = true;
 
@@ -309,7 +328,7 @@ public class TransformSchedulerTests extends ESTestCase {
         Clock clock = Clock.systemUTC();
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
         transformScheduler.start();
         transformScheduler.registerTransform(transformTaskParams, events::add);
         assertThat(events, hasSize(1));
@@ -334,7 +353,7 @@ public class TransformSchedulerTests extends ESTestCase {
         Clock clock = Clock.systemUTC();
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
         transformScheduler.start();
         transformScheduler.registerTransform(transformTaskParams, events::add);
         assertThat(events, hasSize(1));
@@ -391,10 +410,12 @@ public class TransformSchedulerTests extends ESTestCase {
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         transformScheduler.registerTransform(transformTaskParams1, listener);
         transformScheduler.registerTransform(transformTaskParams2, listener);
         transformScheduler.registerTransform(transformTaskParams3, listener);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(3)));
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
             contains(
@@ -421,10 +442,12 @@ public class TransformSchedulerTests extends ESTestCase {
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         transformScheduler.registerTransform(transformTaskParams1, listener);
         transformScheduler.registerTransform(transformTaskParams2, listener);
         transformScheduler.registerTransform(transformTaskParams3, listener);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(3)));
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
             contains(

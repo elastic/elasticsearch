@@ -40,7 +40,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
     public static final String NAME = "cluster:admin/persistent/completion";
 
     private CompletionPersistentTaskAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -53,7 +53,9 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
 
         private String localAbortReason;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -64,6 +66,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
 
         public Request(String taskId, long allocationId, Exception exception, String localAbortReason) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.taskId = taskId;
             this.exception = exception;
             this.allocationId = allocationId;

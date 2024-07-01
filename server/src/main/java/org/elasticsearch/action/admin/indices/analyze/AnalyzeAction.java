@@ -40,7 +40,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     public static final String NAME = "indices:admin/analyze";
 
     private AnalyzeAction() {
-        super(NAME, AnalyzeAction.Response::new);
+        super(NAME);
     }
 
     public static class Fields {
@@ -441,7 +441,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 positionLength = 1;
             }
             type = in.readOptionalString();
-            attributes = in.readMap();
+            attributes = in.readGenericMap();
         }
 
         public String getTerm() {

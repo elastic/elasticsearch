@@ -17,8 +17,8 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
     NodesStatsResponse,
     NodesStatsRequestBuilder> {
 
-    public NodesStatsRequestBuilder(ElasticsearchClient client) {
-        super(client, TransportNodesStatsAction.TYPE, new NodesStatsRequest());
+    public NodesStatsRequestBuilder(ElasticsearchClient client, String[] nodeIds) {
+        super(client, TransportNodesStatsAction.TYPE, new NodesStatsRequest(nodeIds));
     }
 
     /**
@@ -155,6 +155,11 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
 
     public NodesStatsRequestBuilder setRepositoryStats(boolean repositoryStats) {
         addOrRemoveMetric(repositoryStats, NodesStatsRequestParameters.Metric.REPOSITORIES);
+        return this;
+    }
+
+    public NodesStatsRequestBuilder setAllocationStats(boolean allocationStats) {
+        addOrRemoveMetric(allocationStats, NodesStatsRequestParameters.Metric.ALLOCATIONS);
         return this;
     }
 

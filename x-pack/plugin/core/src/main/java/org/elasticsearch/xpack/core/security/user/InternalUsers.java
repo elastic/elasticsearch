@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -146,9 +147,9 @@ public class InternalUsers {
                         ForceMergeAction.NAME + "*",
                         // indices stats is used by rollover, so we need to grant it here
                         IndicesStatsAction.NAME + "*",
-                        UpdateSettingsAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name(),
                         DownsampleAction.NAME,
-                        AddIndexBlockAction.NAME
+                        TransportAddIndexBlockAction.TYPE.name()
                     )
                     .allowRestrictedIndices(false)
                     .build(),
@@ -165,10 +166,32 @@ public class InternalUsers {
                         ForceMergeAction.NAME + "*",
                         // indices stats is used by rollover, so we need to grant it here
                         IndicesStatsAction.NAME + "*",
-                        UpdateSettingsAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name(),
                         DownsampleAction.NAME,
-                        AddIndexBlockAction.NAME
+                        TransportAddIndexBlockAction.TYPE.name()
                     )
+                    .allowRestrictedIndices(true)
+                    .build() },
+            null,
+            null,
+            new String[] {},
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
+    /**
+     * Internal user that can rollover an index/data stream.
+     */
+    public static final InternalUser LAZY_ROLLOVER_USER = new InternalUser(
+        UsernamesField.LAZY_ROLLOVER_NAME,
+        new RoleDescriptor(
+            UsernamesField.LAZY_ROLLOVER_ROLE,
+            new String[] {},
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("*")
+                    .privileges(LazyRolloverAction.NAME)
                     .allowRestrictedIndices(true)
                     .build() },
             null,
@@ -211,7 +234,8 @@ public class InternalUsers {
             ASYNC_SEARCH_USER,
             STORAGE_USER,
             DATA_STREAM_LIFECYCLE_USER,
-            SYNONYMS_USER
+            SYNONYMS_USER,
+            LAZY_ROLLOVER_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }
 

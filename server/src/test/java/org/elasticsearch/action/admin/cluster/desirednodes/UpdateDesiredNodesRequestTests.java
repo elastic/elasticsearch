@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.common.settings.Settings;
@@ -46,14 +45,13 @@ public class UpdateDesiredNodesRequestTests extends ESTestCase {
             .build();
 
         if (randomBoolean()) {
-            return new DesiredNode(settings, randomFloat(), ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            return new DesiredNode(settings, randomFloat(), ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1));
         } else {
             return new DesiredNode(
                 settings,
                 new DesiredNode.ProcessorsRange(1, randomBoolean() ? null : (double) 1),
                 ByteSizeValue.ofGb(1),
-                ByteSizeValue.ofGb(1),
-                Version.CURRENT
+                ByteSizeValue.ofGb(1)
             );
         }
     }

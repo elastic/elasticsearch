@@ -9,43 +9,36 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Objects;
 
 public final class OpenPointInTimeResponse extends ActionResponse implements ToXContentObject {
-    private static final ParseField ID = new ParseField("id");
+    private final BytesReference pointInTimeId;
 
-    private final String pointInTimeId;
-
-    public OpenPointInTimeResponse(String pointInTimeId) {
+    public OpenPointInTimeResponse(BytesReference pointInTimeId) {
         this.pointInTimeId = Objects.requireNonNull(pointInTimeId, "Point in time parameter must be not null");
-    }
-
-    public OpenPointInTimeResponse(StreamInput in) throws IOException {
-        super(in);
-        pointInTimeId = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(pointInTimeId);
+        out.writeBytesReference(pointInTimeId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ID.getPreferredName(), pointInTimeId);
+        builder.field("id", Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(pointInTimeId)));
         builder.endObject();
         return builder;
     }
 
-    public String getPointInTimeId() {
+    public BytesReference getPointInTimeId() {
         return pointInTimeId;
     }
 

@@ -170,7 +170,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.STARTED ? null : randomIdentifier(),
             isPrimary,
             state,
-            TestShardRouting.buildRecoveryTarget(isPrimary, state),
+            TestShardRouting.buildRecoverySource(isPrimary, state),
             TestShardRouting.buildUnassignedInfo(state),
             TestShardRouting.buildRelocationFailureInfo(state),
             TestShardRouting.buildAllocationId(state),

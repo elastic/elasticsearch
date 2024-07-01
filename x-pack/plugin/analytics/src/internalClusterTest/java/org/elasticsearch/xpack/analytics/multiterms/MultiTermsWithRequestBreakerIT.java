@@ -61,7 +61,7 @@ public class MultiTermsWithRequestBreakerIT extends ESIntegTestCase {
                         new MultiValuesSourceFieldConfig.Builder().setFieldName("field1.keyword").build()
                     )
                 )
-            ).get();
+            ).get().decRef();
         } catch (ElasticsearchException e) {
             if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) == null) {
                 throw e;

@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -153,6 +155,95 @@ public class MetadataTests extends ESTestCase {
             Map<String, List<AliasMetadata>> aliases = metadata.findAllAliases(Strings.EMPTY_ARRAY);
             assertThat(aliases, anEmptyMap());
         }
+    }
+
+    public void testFindDataStreamAliases() {
+        Metadata.Builder builder = Metadata.builder();
+
+        addDataStream("d1", builder);
+        addDataStream("d2", builder);
+        addDataStream("d3", builder);
+        addDataStream("d4", builder);
+
+        builder.put("alias1", "d1", null, null);
+        builder.put("alias2", "d2", null, null);
+        builder.put("alias2-part2", "d2", null, null);
+
+        Metadata metadata = builder.build();
+
+        {
+            GetAliasesRequest request = new GetAliasesRequest();
+            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), Strings.EMPTY_ARRAY);
+            assertThat(aliases, anEmptyMap());
+        }
+
+        {
+            GetAliasesRequest request = new GetAliasesRequest().aliases("alias1");
+            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index" });
+            assertThat(aliases, anEmptyMap());
+        }
+
+        {
+            GetAliasesRequest request = new GetAliasesRequest().aliases("alias1");
+            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(
+                request.aliases(),
+                new String[] { "index", "d1", "d2" }
+            );
+            assertEquals(1, aliases.size());
+            List<DataStreamAlias> found = aliases.get("d1");
+            assertThat(found, transformedItemsMatch(DataStreamAlias::getAlias, contains("alias1")));
+        }
+
+        {
+            GetAliasesRequest request = new GetAliasesRequest().aliases("ali*");
+            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index", "d2" });
+            assertEquals(1, aliases.size());
+            List<DataStreamAlias> found = aliases.get("d2");
+            assertThat(found, transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
+        }
+
+        // test exclusion
+        {
+            GetAliasesRequest request = new GetAliasesRequest().aliases("*");
+            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(
+                request.aliases(),
+                new String[] { "index", "d1", "d2", "d3", "d4" }
+            );
+            assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
+            assertThat(aliases.get("d1"), transformedItemsMatch(DataStreamAlias::getAlias, contains("alias1")));
+
+            request.aliases("*", "-alias1");
+            aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index", "d1", "d2", "d3", "d4" });
+            assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
+            assertNull(aliases.get("d1"));
+        }
+    }
+
+    public void testDataStreamAliasesByDataStream() {
+        Metadata.Builder builder = Metadata.builder();
+
+        addDataStream("d1", builder);
+        addDataStream("d2", builder);
+        addDataStream("d3", builder);
+        addDataStream("d4", builder);
+
+        builder.put("alias1", "d1", null, null);
+        builder.put("alias2", "d2", null, null);
+        builder.put("alias2-part2", "d2", null, null);
+
+        Metadata metadata = builder.build();
+
+        var aliases = metadata.dataStreamAliasesByDataStream();
+
+        assertTrue(aliases.containsKey("d1"));
+        assertTrue(aliases.containsKey("d2"));
+        assertFalse(aliases.containsKey("d3"));
+        assertFalse(aliases.containsKey("d4"));
+
+        assertEquals(1, aliases.get("d1").size());
+        assertEquals(2, aliases.get("d2").size());
+
+        assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
     }
 
     public void testFindAliasWithExclusion() {
@@ -694,9 +785,9 @@ public class MetadataTests extends ESTestCase {
                         && field.equals("address.location") == false;
                 }
                 if (index.equals("index2")) {
-                    return field -> false;
+                    return Predicates.never();
                 }
-                return MapperPlugin.NOOP_FIELD_PREDICATE;
+                return FieldPredicate.ACCEPT_ALL;
             }, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
 
             assertIndexMappingsNoFields(mappings, "index2");

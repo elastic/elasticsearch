@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -122,6 +123,7 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
 
         logger.info("--> mount snapshot");
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             "test-idx",
             repositoryName,
             si.snapshotId().getName(),
@@ -136,9 +138,9 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
         logger.info("--> run a search");
-        var searchResponse = client.prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("text", "sometext")).get();
-
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
-        assertThat(COUNTS.intValue(), greaterThan(0));
+        assertResponse(client.prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("text", "sometext")), searchResponse -> {
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+            assertThat(COUNTS.intValue(), greaterThan(0));
+        });
     }
 }

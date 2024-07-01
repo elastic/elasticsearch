@@ -1,25 +1,29 @@
 [[semantic-search]]
 == Semantic search
 
-Semantic search is a search method that helps you find data based on the intent
-and contextual meaning of a search query, instead of a match on query terms
+Semantic search is a search method that helps you find data based on the intent and contextual meaning of a search query, instead of a match on query terms
 (lexical search).
 
-{es} provides semantic search capabilities using {ml-docs}/ml-nlp.html[natural
-language processing (NLP)] and vector search. Deploying an NLP model to {es}
-enables it to extract text embeddings out of text. Embeddings are vectors that
-provide a numeric representation of a text. Pieces of content with similar
-meaning have similar representations. 
+{es} provides various semantic search capabilities using {ml-docs}/ml-nlp.html[natural language processing (NLP)] and vector search.
+Using an NLP model enables you to extract text embeddings out of text.
+Embeddings are vectors that provide a numeric representation of a text.
+Pieces of content with similar meaning have similar representations. 
+NLP models can be used in the {stack} various ways, you can:
+
+* deploy models in {es}
+* use the <<semantic-search-semantic-text, `semantic_text` workflow>> (recommended)
+* use the <<semantic-search-inference, {infer} API workflow>>
+
 
 [[semantic-search-diagram]]
 .A simplified representation of encoding textual concepts as vectors
 image::images/search/vector-search-oversimplification.png[A simplified representation of encoding textual concepts as vectors,align="center"]
 
-At query time, {es} can use the same NLP model to convert a query into
-embeddings, enabling you to find documents with similar text embeddings.
+At query time, {es} can use the same NLP model to convert a query into embeddings, enabling you to find documents with similar text embeddings.
 
-This guide shows you how to implement semantic search with {es}, from selecting
-an NLP model, to writing queries.
+This guide shows you how to implement semantic search with {es}: From selecting an NLP model, to writing queries.
+
+IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer to the <<semantic-search-semantic-text, `semantic_text`>> end-to-end tutorial.
 
 [discrete]
 [[semantic-search-select-nlp-model]]
@@ -64,7 +68,7 @@ important each is.
 After you decide which model you want to use for implementing semantic search, 
 you need to deploy the model in {es}.
 
-include::{es-repo-dir}/tab-widgets/semantic-search/deploy-nlp-model-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/semantic-search/deploy-nlp-model-widget.asciidoc[]
 
 [discrete]
 [[semantic-search-field-mappings]]
@@ -74,7 +78,7 @@ Before you start using the deployed model to generate embeddings based on your
 input text, you need to prepare your index mapping first. The mapping of the 
 index depends on the type of model.
 
-include::{es-repo-dir}/tab-widgets/semantic-search/field-mappings-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/semantic-search/field-mappings-widget.asciidoc[]
 
 [discrete]
 [[semantic-search-generate-embeddings]]
@@ -89,7 +93,7 @@ infer against the data ingested through the pipeline. After you created the
 ingest pipeline with the inference processor, you can ingest your data through 
 it to generate the model output.
 
-include::{es-repo-dir}/tab-widgets/semantic-search/generate-embeddings-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/semantic-search/generate-embeddings-widget.asciidoc[]
 
 Now it is time to perform semantic search!
 
@@ -100,7 +104,7 @@ Now it is time to perform semantic search!
 Depending on the type of model you have deployed, you can query rank features 
 with a text expansion query, or dense vectors with a kNN search.
 
-include::{es-repo-dir}/tab-widgets/semantic-search/search-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/semantic-search/search-widget.asciidoc[]
 
 [discrete]
 [[semantic-search-hybrid-search]]
@@ -114,7 +118,7 @@ Combining semantic and lexical search into one hybrid search request using
 but hybrid search using reciprocal rank fusion {blog-ref}improving-information-retrieval-elastic-stack-hybrid[has been shown to perform better
 in general].
 
-include::{es-repo-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc[]
 
 [discrete]
 [[semantic-search-read-more]]
@@ -135,4 +139,6 @@ include::{es-repo-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc
 ** The https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] repo contains a number of interactive semantic search examples in the form of executable Python notebooks, using the {es} Python client
 
 include::semantic-search-elser.asciidoc[]
+include::semantic-search-semantic-text.asciidoc[]
 include::semantic-search-inference.asciidoc[]
+include::cohere-es.asciidoc[]

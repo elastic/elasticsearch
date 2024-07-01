@@ -35,10 +35,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class APMMeterRegistryTests extends ESTestCase {
@@ -84,8 +82,8 @@ public class APMMeterRegistryTests extends ESTestCase {
     public void testLookupByName() {
         var apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel).getMeterRegistry();
 
-        DoubleCounter registeredCounter = apmMeter.registerDoubleCounter("name", "desc", "unit");
-        DoubleCounter lookedUpCounter = apmMeter.getDoubleCounter("name");
+        DoubleCounter registeredCounter = apmMeter.registerDoubleCounter("es.test.name.total", "desc", "unit");
+        DoubleCounter lookedUpCounter = apmMeter.getDoubleCounter("es.test.name.total");
 
         assertThat(lookedUpCounter, sameInstance(registeredCounter));
     }
@@ -103,19 +101,6 @@ public class APMMeterRegistryTests extends ESTestCase {
         assertThat(meter, sameInstance(noopOtel));
     }
 
-    public void testMaxNameLength() {
-        APMMeterService apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel);
-        apmMeter.start();
-        int max_length = 255;
-        var counter = apmMeter.getMeterRegistry().registerLongCounter("a".repeat(max_length), "desc", "count");
-        assertThat(counter, instanceOf(LongCounter.class));
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> apmMeter.getMeterRegistry().registerLongCounter("a".repeat(max_length + 1), "desc", "count")
-        );
-        assertThat(iae.getMessage(), containsString("exceeds maximum length [255]"));
-    }
-
     public void testAllInstrumentsSwitchProviders() {
         TestAPMMeterService apmMeter = new TestAPMMeterService(
             Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), false).build(),
@@ -125,18 +110,18 @@ public class APMMeterRegistryTests extends ESTestCase {
         APMMeterRegistry registry = apmMeter.getMeterRegistry();
 
         Supplier<DoubleWithAttributes> doubleObserver = () -> new DoubleWithAttributes(1.5, Collections.emptyMap());
-        DoubleCounter dc = registry.registerDoubleCounter("dc", "", "");
-        DoubleUpDownCounter dudc = registry.registerDoubleUpDownCounter("dudc", "", "");
-        DoubleHistogram dh = registry.registerDoubleHistogram("dh", "", "");
-        DoubleAsyncCounter dac = registry.registerDoubleAsyncCounter("dac", "", "", doubleObserver);
-        DoubleGauge dg = registry.registerDoubleGauge("dg", "", "", doubleObserver);
+        DoubleCounter dc = registry.registerDoubleCounter("es.test.dc.total", "", "");
+        DoubleUpDownCounter dudc = registry.registerDoubleUpDownCounter("es.test.dudc.current", "", "");
+        DoubleHistogram dh = registry.registerDoubleHistogram("es.test.dh.histogram", "", "");
+        DoubleAsyncCounter dac = registry.registerDoubleAsyncCounter("es.test.dac.total", "", "", doubleObserver);
+        DoubleGauge dg = registry.registerDoubleGauge("es.test.dg.current", "", "", doubleObserver);
 
         Supplier<LongWithAttributes> longObserver = () -> new LongWithAttributes(100, Collections.emptyMap());
-        LongCounter lc = registry.registerLongCounter("lc", "", "");
-        LongUpDownCounter ludc = registry.registerLongUpDownCounter("ludc", "", "");
-        LongHistogram lh = registry.registerLongHistogram("lh", "", "");
-        LongAsyncCounter lac = registry.registerLongAsyncCounter("lac", "", "", longObserver);
-        LongGauge lg = registry.registerLongGauge("lg", "", "", longObserver);
+        LongCounter lc = registry.registerLongCounter("es.test.lc.total", "", "");
+        LongUpDownCounter ludc = registry.registerLongUpDownCounter("es.test.ludc.total", "", "");
+        LongHistogram lh = registry.registerLongHistogram("es.test.lh.histogram", "", "");
+        LongAsyncCounter lac = registry.registerLongAsyncCounter("es.test.lac.total", "", "", longObserver);
+        LongGauge lg = registry.registerLongGauge("es.test.lg.current", "", "", longObserver);
 
         apmMeter.setEnabled(true);
 

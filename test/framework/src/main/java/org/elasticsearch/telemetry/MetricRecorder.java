@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.telemetry.metric.Instrument;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +105,12 @@ public class MetricRecorder<I> {
 
     public List<Measurement> getMeasurements(InstrumentType instrumentType, String name) {
         return metrics.get(instrumentType).called.getOrDefault(Objects.requireNonNull(name), Collections.emptyList());
+    }
+
+    public ArrayList<String> getRegisteredMetrics(InstrumentType instrumentType) {
+        ArrayList<String> registeredMetrics = new ArrayList<>();
+        metrics.get(instrumentType).instruments.forEach((name, registration) -> { registeredMetrics.add(name); });
+        return registeredMetrics;
     }
 
     /**

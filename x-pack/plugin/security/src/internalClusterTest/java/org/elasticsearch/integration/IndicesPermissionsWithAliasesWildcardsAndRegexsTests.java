@@ -8,7 +8,7 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -281,7 +281,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
     }
 
     private void putComposableIndexTemplate(String id, List<String> patterns) throws IOException {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
@@ -289,6 +289,6 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 }

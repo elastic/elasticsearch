@@ -8,27 +8,24 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
 
-abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
+abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggregator.MultiDoubleValue {
 
     protected final double[] keys;
-    protected final ValuesSource valuesSource;
     protected final DocValueFormat formatter;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
@@ -47,9 +44,8 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, context, parent, metadata);
+        super(name, config, context, parent, metadata);
         assert config.hasValues();
-        this.valuesSource = config.getValuesSource();
         this.keyed = keyed;
         this.formatter = formatter;
         this.states = context.bigArrays().newObjectArray(1);
@@ -59,22 +55,28 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
     }
 
     @Override
-    public ScoreMode scoreMode() {
-        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
-    }
-
-    @Override
-    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-        final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(aggCtx.getLeafReaderContext());
+    protected LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, final LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
                 if (values.advanceExact(doc)) {
-                    final int valueCount = values.docValueCount();
-                    for (int i = 0; i < valueCount; i++) {
+                    final TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
+                    for (int i = 0; i < values.docValueCount(); i++) {
                         state.add(values.nextValue());
                     }
+                }
+            }
+        };
+    }
+
+    @Override
+    protected LeafBucketCollector getLeafCollector(NumericDoubleValues values, final LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (values.advanceExact(doc)) {
+                    final TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
+                    state.add(values.doubleValue());
                 }
             }
         };

@@ -19,6 +19,7 @@ import java.io.IOException;
 public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<PutMappingClusterStateUpdateRequest> {
 
     private final CompressedXContent source;
+    private boolean autoUpdate;
 
     public PutMappingClusterStateUpdateRequest(String source) throws IOException {
         this.source = CompressedXContent.fromJSON(source);
@@ -28,4 +29,12 @@ public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpda
         return source;
     }
 
+    public PutMappingClusterStateUpdateRequest autoUpdate(boolean autoUpdate) {
+        this.autoUpdate = autoUpdate;
+        return this;
+    }
+
+    public boolean autoUpdate() {
+        return autoUpdate;
+    }
 }

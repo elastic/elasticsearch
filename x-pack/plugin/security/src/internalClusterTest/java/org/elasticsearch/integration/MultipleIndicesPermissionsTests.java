@@ -12,7 +12,9 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.client.Request;
@@ -33,6 +35,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -204,11 +207,10 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         assertThat(getSettingsResponse.getIndexToSettings().containsKey("foobar"), is(true));
         assertThat(getSettingsResponse.getIndexToSettings().containsKey("foobarfoo"), is(true));
 
-        final IndicesShardStoresResponse indicesShardsStoresResponse = client.admin()
-            .indices()
-            .prepareShardStores(randomFrom("*", "_all", "foo*"))
-            .setShardStatuses("all")
-            .get();
+        final IndicesShardStoresResponse indicesShardsStoresResponse = client.execute(
+            TransportIndicesShardStoresAction.TYPE,
+            new IndicesShardStoresRequest(randomFrom("*", "_all", "foo*")).shardStatuses("all")
+        ).actionGet(10, TimeUnit.SECONDS);
         assertThat(indicesShardsStoresResponse.getStoreStatuses().size(), is(3));
         assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foo"), is(true));
         assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foobar"), is(true));

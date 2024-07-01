@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
-import org.elasticsearch.health.node.DiskHealthInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -22,17 +21,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.elasticsearch.health.node.HealthInfoTests.randomDiskHealthInfo;
+import static org.elasticsearch.health.node.HealthInfoTests.randomRepoHealthInfo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
@@ -248,12 +248,9 @@ public class HealthServiceTests extends ESTestCase {
         var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
         var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
-        Map<String, DiskHealthInfo> diskHealthInfoMap = new HashMap<>();
-        diskHealthInfoMap.put(
-            randomAlphaOfLength(30),
-            new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
-        );
-        HealthInfo healthInfo = new HealthInfo(diskHealthInfoMap, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS);
+        var diskHealthInfoMap = randomMap(1, 1, () -> tuple(randomAlphaOfLength(10), randomDiskHealthInfo()));
+        var repoHealthInfoMap = randomMap(1, 1, () -> tuple(randomAlphaOfLength(10), randomRepoHealthInfo()));
+        HealthInfo healthInfo = new HealthInfo(diskHealthInfoMap, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, repoHealthInfoMap);
 
         var service = new HealthService(
             // The preflight indicator does not get data because the data is not fetched until after the preflight check

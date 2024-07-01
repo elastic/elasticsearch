@@ -11,11 +11,11 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.PostStartBasicAction;
@@ -23,8 +23,8 @@ import org.elasticsearch.license.PostStartBasicRequest;
 import org.elasticsearch.license.PostStartTrialAction;
 import org.elasticsearch.license.PostStartTrialRequest;
 import org.elasticsearch.license.PostStartTrialResponse;
+import org.elasticsearch.license.TransportDeleteLicenseAction;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -39,31 +39,40 @@ import static org.hamcrest.Matchers.oneOf;
 public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
 
     public void testFeatureUsage() throws Exception {
-        XPackUsageFeatureResponse usage = client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest()).get();
+        XPackUsageFeatureResponse usage = safeGet(
+            client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT))
+        );
         assertThat(usage.getUsage(), instanceOf(ArchiveFeatureSetUsage.class));
         ArchiveFeatureSetUsage archiveUsage = (ArchiveFeatureSetUsage) usage.getUsage();
         assertEquals(0, archiveUsage.getNumberOfArchiveIndices());
 
-        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
+        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName)
+            .waitForCompletion(true);
 
         final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().restoreSnapshot(req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
-        usage = client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest()).get();
+        usage = safeGet(client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT)));
         assertThat(usage.getUsage(), instanceOf(ArchiveFeatureSetUsage.class));
         archiveUsage = (ArchiveFeatureSetUsage) usage.getUsage();
         assertEquals(1, archiveUsage.getNumberOfArchiveIndices());
     }
 
     public void testFailRestoreOnInvalidLicense() throws Exception {
-        assertAcked(client().execute(DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest()).get());
-        assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
+        assertAcked(
+            client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+                .get()
+        );
+        assertAcked(
+            client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get()
+        );
 
         ensureClusterSizeConsistency();
         ensureClusterStateConsistency();
 
-        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
+        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName)
+            .waitForCompletion(true);
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
             () -> clusterAdmin().restoreSnapshot(req).actionGet()
@@ -77,7 +86,8 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
             TestRepositoryPlugin.FAKE_VERSIONS_TYPE,
             Settings.builder().put(getRepositoryOnMaster(repoName).getMetadata().settings()).put("version", Version.fromString("2.0.0").id)
         );
-        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
+        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName)
+            .waitForCompletion(true);
         SnapshotRestoreException e = expectThrows(SnapshotRestoreException.class, () -> clusterAdmin().restoreSnapshot(req).actionGet());
         assertThat(
             e.getMessage(),
@@ -87,14 +97,20 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
 
     // checks that shards are failed if license becomes invalid after successful restore
     public void testShardAllocationOnInvalidLicense() throws Exception {
-        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
+        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName)
+            .waitForCompletion(true);
 
         final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().restoreSnapshot(req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
-        assertAcked(client().execute(DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest()).get());
-        assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
+        assertAcked(
+            client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+                .get()
+        );
+        assertAcked(
+            client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get()
+        );
 
         ensureClusterSizeConsistency();
         ensureClusterStateConsistency();
@@ -122,7 +138,8 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
         waitNoPendingTasksOnAll();
         ensureClusterStateConsistency();
 
-        PostStartTrialRequest request = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName()).acknowledge(true);
+        PostStartTrialRequest request = new PostStartTrialRequest(TEST_REQUEST_TIMEOUT).setType(License.LicenseType.TRIAL.getTypeName())
+            .acknowledge(true);
         final PostStartTrialResponse response = client().execute(PostStartTrialAction.INSTANCE, request).get();
         assertThat(
             response.getStatus(),

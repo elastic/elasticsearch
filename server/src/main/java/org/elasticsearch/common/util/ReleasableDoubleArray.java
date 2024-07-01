@@ -44,7 +44,7 @@ class ReleasableDoubleArray implements DoubleArray {
     }
 
     @Override
-    public double set(long index, double value) {
+    public void set(long index, double value) {
         throw new UnsupportedOperationException();
     }
 
@@ -55,6 +55,11 @@ class ReleasableDoubleArray implements DoubleArray {
 
     @Override
     public void fill(long fromIndex, long toIndex, double value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void fillWith(StreamInput in) throws IOException {
         throw new UnsupportedOperationException();
     }
 

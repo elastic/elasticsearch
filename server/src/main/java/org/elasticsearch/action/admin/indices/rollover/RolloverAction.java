@@ -16,7 +16,7 @@ public class RolloverAction extends ActionType<RolloverResponse> {
     public static final String NAME = "indices:admin/rollover";
 
     private RolloverAction() {
-        super(NAME, RolloverResponse::new);
+        super(NAME);
     }
 
 }

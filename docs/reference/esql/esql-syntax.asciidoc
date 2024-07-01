@@ -40,37 +40,28 @@ source-command | processing-command1 | processing-command2
 [[esql-identifiers]]
 ==== Identifiers
 
-The identifiers can be used as they are and don't require quoting, unless
-containing special characters, in which case they must be quoted with
-backticks (+{backtick}+). What "special characters" means is command dependent.
+Identifiers need to be quoted with backticks (+{backtick}+) if:
 
-For <<esql-from, FROM>>, <<esql-keep, KEEP>>, <<esql-drop, DROP>>,
-<<esql-rename, RENAME>>, <<esql-mv_expand, MV_EXPAND>> and
-<<esql-enrich, ENRICH>> these are: `=`, +{backtick}+, `,`, ` ` (space), `|` ,
-`[`, `]`, `\t` (TAB), `\r` (CR), `\n` (LF); one `/` is allowed unquoted, but
-a sequence of two or more require quoting.
+* they don't start with a letter, `_` or `@`
+* any of the other characters is not a letter, number, or `_`
 
-The rest of the commands - those allowing for identifiers be used in
-expressions - require quoting if the identifier contains characters other than
-letters, numbers and `_` and doesn't start with a letter, `_` or `@`.
-
-For instance:
+For example:
 
 [source,esql]
 ----
-// Retain just one field
 FROM index
-| KEEP 1.field
+| KEEP `1.field`
 ----
 
-is legal. However, if same field is to be used with an <<esql-eval, EVAL>>,
-it'd have to be quoted:
+When referencing a function alias that itself uses a quoted identifier, the
+backticks of the quoted identifier need to be escaped with another backtick. For
+example:
 
 [source,esql]
 ----
-// Copy one field
 FROM index
-| EVAL my_field = `1.field`
+| STATS COUNT(`1.field`)
+| EVAL my_count = `COUNT(``1.field``)`
 ----
 
 [discrete]
@@ -169,14 +160,15 @@ Datetime intervals and timespans can be expressed using timespan literals.
 Timespan literals are a combination of a number and a qualifier. These
 qualifiers are supported:
 
-* `millisecond`/`milliseconds`
-* `second`/`seconds`
-* `minute`/`minutes`
-* `hour`/`hours`
-* `day`/`days`
-* `week`/`weeks`
-* `month`/`months`
-* `year`/`years`
+* `millisecond`/`milliseconds`/`ms`
+* `second`/`seconds`/`sec`/`s`
+* `minute`/`minutes`/`min`
+* `hour`/`hours`/`h`
+* `day`/`days`/`d`
+* `week`/`weeks`/`w`
+* `month`/`months`/`mo`
+* `quarter`/`quarters`/`q`
+* `year`/`years`/`yr`/`y`
 
 Timespan literals are not whitespace sensitive. These expressions are all valid:
 

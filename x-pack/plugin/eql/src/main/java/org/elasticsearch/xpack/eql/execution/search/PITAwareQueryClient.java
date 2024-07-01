@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.get.GetResult;
@@ -44,12 +45,14 @@ import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 // search and multi-search hence the code repetition
 public class PITAwareQueryClient extends BasicQueryClient {
 
-    private String pitId;
+    private BytesReference pitId;
     private final TimeValue keepAlive;
+    private final QueryBuilder filter;
 
     public PITAwareQueryClient(EqlSession eqlSession) {
         super(eqlSession);
         this.keepAlive = eqlSession.configuration().requestTimeout();
+        this.filter = eqlSession.configuration().filter();
     }
 
     @Override
@@ -98,6 +101,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
     }
 
     private void makeRequestPITCompatible(SearchRequest request) {
+        request.indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
         SearchSourceBuilder source = request.source();
         // don't increase the keep alive
         source.pointInTimeBuilder(new PointInTimeBuilder(pitId));
@@ -111,7 +115,10 @@ public class PITAwareQueryClient extends BasicQueryClient {
     }
 
     // listener handing the extraction of new PIT and closing in case of exceptions
-    private <Response> ActionListener<Response> pitListener(Function<Response, String> pitIdExtractor, ActionListener<Response> listener) {
+    private <Response> ActionListener<Response> pitListener(
+        Function<Response, BytesReference> pitIdExtractor,
+        ActionListener<Response> listener
+    ) {
         return wrap(r -> {
             // get pid
             pitId = pitIdExtractor.apply(r);
@@ -122,7 +129,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
                 listener.onFailure(e);
                 if (pitId != null && cfg.isCancelled() == false) {
                     // ignore any success/failure to avoid obfuscating the response
-                    close(wrap(b -> {}, ex -> {}));
+                    close(ActionListener.noop());
                 }
             }
         );
@@ -131,6 +138,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
             .keepAlive(keepAlive);
+        request.indexFilter(filter);
         client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();
             runnable.run();

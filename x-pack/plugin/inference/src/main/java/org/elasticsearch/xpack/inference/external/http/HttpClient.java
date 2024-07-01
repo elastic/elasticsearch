@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
@@ -19,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.Closeable;
@@ -66,6 +66,25 @@ public class HttpClient implements Closeable {
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();
 
+        /*
+          By default, if a keep-alive header is not returned by the server then the connection will be kept alive
+          indefinitely. In this situation the default keep alive strategy will return -1. Since we use a connection eviction thread,
+          connections that are idle past the max idle time will be closed with the eviction thread executes. If that functionality proves
+          not to be sufficient we can add a keep-alive strategy to the builder below.
+
+          In my testing, setting a keep-alive didn't actually influence when the connection would be removed from the pool. Setting a low
+          keep alive forced later requests that occurred after the duration to recreate the connection. The stale connections would not be
+          removed from the pool until the eviction thread closes expired connections.
+
+          My understanding is that a connection marked as ready to be closed because of an elapsed keep-alive time will only be put into
+          expiry status when another request is made.
+
+          For more info see the tutorial here under section keep-alive strategy:
+          https://hc.apache.org/httpcomponents-client-4.5.x/current/tutorial/html/connmgmt.html
+
+          And this stackoverflow question:
+          https://stackoverflow.com/questions/64676200/understanding-the-lifecycle-of-a-connection-managed-by-poolinghttpclientconnecti
+         */
         return clientBuilder.build();
     }
 
@@ -83,11 +102,11 @@ public class HttpClient implements Closeable {
         }
     }
 
-    public void send(HttpUriRequest request, HttpClientContext context, ActionListener<HttpResult> listener) throws IOException {
+    public void send(HttpRequest request, HttpClientContext context, ActionListener<HttpResult> listener) throws IOException {
         // The caller must call start() first before attempting to send a request
         assert status.get() == Status.STARTED : "call start() before attempting to send a request";
 
-        SocketAccess.doPrivileged(() -> client.execute(request, context, new FutureCallback<>() {
+        SocketAccess.doPrivileged(() -> client.execute(request.httpRequestBase(), context, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
                 respondUsingUtilityThread(response, request, listener);
@@ -95,23 +114,30 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                throttlerManager.warn(logger, format("Request [%s] failed", request.getRequestLine()), ex);
+                throttlerManager.warn(logger, format("Request from inference entity id [%s] failed", request.inferenceEntityId()), ex);
                 failUsingUtilityThread(ex, listener);
             }
 
             @Override
             public void cancelled() {
-                failUsingUtilityThread(new CancellationException(format("Request [%s] was cancelled", request.getRequestLine())), listener);
+                failUsingUtilityThread(
+                    new CancellationException(format("Request from inference entity id [%s] was cancelled", request.inferenceEntityId())),
+                    listener
+                );
             }
         }));
     }
 
-    private void respondUsingUtilityThread(HttpResponse response, HttpUriRequest request, ActionListener<HttpResult> listener) {
+    private void respondUsingUtilityThread(HttpResponse response, HttpRequest request, ActionListener<HttpResult> listener) {
         threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
             } catch (Exception e) {
-                throttlerManager.warn(logger, format("Failed to create http result for [%s]", request.getRequestLine()), e);
+                throttlerManager.warn(
+                    logger,
+                    format("Failed to create http result from inference entity id [%s]", request.inferenceEntityId()),
+                    e
+                );
                 listener.onFailure(e);
             }
         });

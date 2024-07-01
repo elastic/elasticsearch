@@ -22,6 +22,10 @@
       ]
     },
     "params":{
+      "master_timeout":{
+        "type":"time",
+        "description":"Timeout for connection to master node"
+      },
       "include_yes_decisions":{
         "type":"boolean",
         "description":"Return 'YES' decisions in explanation (default: false)"

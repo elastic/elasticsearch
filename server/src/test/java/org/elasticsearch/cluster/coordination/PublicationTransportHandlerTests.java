@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -147,7 +146,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 in = request.bytes().streamInput();
                 final Compressor compressor = CompressorFactory.compressor(request.bytes());
                 if (compressor != null) {
-                    in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
+                    in = compressor.threadLocalStreamInput(in);
                 }
                 in.setTransportVersion(version);
                 return in.readBoolean() == false;
@@ -459,6 +458,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 new PublishRequest(clusterState0),
                 ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
             );
+            deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(completed.getAndSet(false));
             receivedState0 = receivedStateRef.getAndSet(null);
             assertEquals(clusterState0.stateUUID(), receivedState0.stateUUID());
@@ -500,6 +500,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 new PublishRequest(clusterState1),
                 ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
             );
+            deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(completed.getAndSet(false));
             var receivedState1 = receivedStateRef.getAndSet(null);
             assertEquals(clusterState1.stateUUID(), receivedState1.stateUUID());

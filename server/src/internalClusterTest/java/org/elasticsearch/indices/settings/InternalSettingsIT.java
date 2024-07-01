@@ -42,9 +42,7 @@ public class InternalSettingsIT extends ESIntegTestCase {
         // we can not update the setting via the update settings API
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("index.internal", "internal-update"))
-                .get()
+            indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.internal", "internal-update"))
         );
         final String message = "can not update internal setting [index.internal]; this setting is managed via a dedicated API";
         assertThat(e, hasToString(containsString(message)));

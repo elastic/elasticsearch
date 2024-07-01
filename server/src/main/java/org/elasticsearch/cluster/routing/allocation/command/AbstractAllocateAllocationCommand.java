@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -65,8 +64,6 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         public void setNode(String node) {
             this.node = node;
         }
-
-        public abstract Builder<T> parse(XContentParser parser) throws IOException;
 
         public abstract T build();
 

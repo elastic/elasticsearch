@@ -40,6 +40,7 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
     public void testScroll() {
         final int size = randomIntBetween(1, 4);
         assertScrollResponsesAndHitCount(
+            client(),
             TimeValue.timeValueSeconds(60),
             prepareSearch("index").setSize(size).addAggregation(terms("f").field("f")),
             numDocs,
@@ -47,7 +48,7 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
                 assertNoFailures(response);
 
                 if (respNum == 1) { // initial response.
-                    Aggregations aggregations = response.getAggregations();
+                    InternalAggregations aggregations = response.getAggregations();
                     assertNotNull(aggregations);
                     Terms terms = aggregations.get("f");
                     assertEquals(Math.min(numDocs, 3L), terms.getBucketByKey("0").getDocCount());

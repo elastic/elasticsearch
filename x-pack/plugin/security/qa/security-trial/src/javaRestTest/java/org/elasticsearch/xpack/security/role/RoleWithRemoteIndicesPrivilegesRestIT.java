@@ -88,6 +88,8 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                         .privileges("read")
                         .grantedFields("field")
                         .build() },
+                null,
+                null,
                 null
             )
         );
@@ -161,6 +163,8 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                         .query("{\"match\":{\"field\":\"a\"}}")
                         .grantedFields("field")
                         .build() },
+                null,
+                null,
                 null
             )
         );
@@ -179,6 +183,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "field_security": {
                     "grant": ["field"]
                   }
+                }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-a", "*"]
                 }
               ]
             }""");
@@ -203,6 +213,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "query": ["{\\"match\\":{\\"field\\":\\"a\\"}}"],
                   "field_security": [{"grant": ["field"]}]
                 }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-a", "*"]
+                }
               ]
             }""")));
 
@@ -221,6 +237,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "names": ["index-a", "*"],
                   "privileges": ["read"],
                   "clusters": ["remote-a", "*"]
+                }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-c"]
                 }
               ]
             }""");
@@ -248,6 +270,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "privileges": ["read"],
                   "allow_restricted_indices": false,
                   "clusters": ["remote-a", "*"]
+                }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-c"]
                 }
               ]
             }""")));
@@ -323,7 +351,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         throws IOException {
         final Map<String, RoleDescriptor> actual = responseAsParser(getRoleResponse).map(
             HashMap::new,
-            p -> RoleDescriptor.parse(expectedRoleDescriptor.getName(), p, false)
+            p -> RoleDescriptor.parserBuilder().build().parse(expectedRoleDescriptor.getName(), p)
         );
         assertThat(actual, equalTo(Map.of(expectedRoleDescriptor.getName(), expectedRoleDescriptor)));
     }

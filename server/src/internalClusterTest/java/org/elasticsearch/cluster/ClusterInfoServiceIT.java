@@ -166,11 +166,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertThat("some shard sizes are populated", shardSizes.values().size(), greaterThan(0));
         for (DiskUsage usage : leastUsages.values()) {
             logger.info("--> usage: {}", usage);
-            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+            assertThat("usage has be retrieved", usage.freeBytes(), greaterThan(0L));
         }
         for (DiskUsage usage : mostUsages.values()) {
             logger.info("--> usage: {}", usage);
-            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+            assertThat("usage has be retrieved", usage.freeBytes(), greaterThan(0L));
         }
         for (Long size : shardSizes.values()) {
             logger.info("--> shard size: {}", size);

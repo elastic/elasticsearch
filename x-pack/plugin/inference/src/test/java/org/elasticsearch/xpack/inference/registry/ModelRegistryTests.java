@@ -25,6 +25,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,7 +64,7 @@ public class ModelRegistryTests extends ESTestCase {
 
     public void testGetUnparsedModelMap_ThrowsResourceNotFound_WhenNoHitsReturned() {
         var client = mockClient();
-        mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[0]));
+        mockClientExecuteSearch(client, mockSearchResponse(SearchHits.EMPTY));
 
         var registry = new ModelRegistry(client);
 
@@ -71,12 +72,12 @@ public class ModelRegistryTests extends ESTestCase {
         registry.getModelWithSecrets("1", listener);
 
         ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(exception.getMessage(), is("Model not found [1]"));
+        assertThat(exception.getMessage(), is("Inference endpoint not found [1]"));
     }
 
     public void testGetUnparsedModelMap_ThrowsIllegalArgumentException_WhenInvalidIndexReceived() {
         var client = mockClient();
-        var unknownIndexHit = SearchHit.createFromMap(Map.of("_index", "unknown_index"));
+        var unknownIndexHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", "unknown_index"));
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { unknownIndexHit }));
 
         var registry = new ModelRegistry(client);
@@ -87,13 +88,13 @@ public class ModelRegistryTests extends ESTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             exception.getMessage(),
-            is("Invalid result while loading model [1] index: [unknown_index]. Try deleting and reinitializing the service")
+            is("Invalid result while loading inference endpoint [1] index: [unknown_index]. Try deleting and reinitializing the service")
         );
     }
 
     public void testGetUnparsedModelMap_ThrowsIllegalStateException_WhenUnableToFindInferenceEntry() {
         var client = mockClient();
-        var inferenceSecretsHit = SearchHit.createFromMap(Map.of("_index", ".secrets-inference"));
+        var inferenceSecretsHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".secrets-inference"));
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceSecretsHit }));
 
         var registry = new ModelRegistry(client);
@@ -104,13 +105,13 @@ public class ModelRegistryTests extends ESTestCase {
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             exception.getMessage(),
-            is("Failed to load model, model [1] is in an invalid state. Try deleting and reinitializing the service")
+            is("Failed to load inference endpoint [1]. Endpoint is in an invalid state, try deleting and reinitializing the service")
         );
     }
 
     public void testGetUnparsedModelMap_ThrowsIllegalStateException_WhenUnableToFindInferenceSecretsEntry() {
         var client = mockClient();
-        var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
+        var inferenceHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".inference"));
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit }));
 
         var registry = new ModelRegistry(client);
@@ -121,7 +122,7 @@ public class ModelRegistryTests extends ESTestCase {
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             exception.getMessage(),
-            is("Failed to load model, model [1] is in an invalid state. Try deleting and reinitializing the service")
+            is("Failed to load inference endpoint [1]. Endpoint is in an invalid state, try deleting and reinitializing the service")
         );
     }
 
@@ -140,9 +141,9 @@ public class ModelRegistryTests extends ESTestCase {
             }
             """;
 
-        var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
+        var inferenceHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".inference"));
         inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
-        var inferenceSecretsHit = SearchHit.createFromMap(Map.of("_index", ".secrets-inference"));
+        var inferenceSecretsHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".secrets-inference"));
         inferenceSecretsHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(secrets))));
 
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit, inferenceSecretsHit }));
@@ -153,7 +154,7 @@ public class ModelRegistryTests extends ESTestCase {
         registry.getModelWithSecrets("1", listener);
 
         var modelConfig = listener.actionGet(TIMEOUT);
-        assertEquals("1", modelConfig.modelId());
+        assertEquals("1", modelConfig.inferenceEntityId());
         assertEquals("foo", modelConfig.service());
         assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
         assertThat(modelConfig.settings().keySet(), empty());
@@ -171,7 +172,7 @@ public class ModelRegistryTests extends ESTestCase {
             }
             """;
 
-        var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
+        var inferenceHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".inference"));
         inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
 
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit }));
@@ -183,7 +184,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         registry.getModel("1", listener);
         var modelConfig = listener.actionGet(TIMEOUT);
-        assertEquals("1", modelConfig.modelId());
+        assertEquals("1", modelConfig.inferenceEntityId());
         assertEquals("foo", modelConfig.service());
         assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
         assertThat(modelConfig.settings().keySet(), empty());
@@ -228,8 +229,8 @@ public class ModelRegistryTests extends ESTestCase {
             exception.getMessage(),
             is(
                 format(
-                    "Failed to store inference model [%s], invalid bulk response received. Try reinitializing the service",
-                    model.getConfigurations().getModelId()
+                    "Failed to store inference endpoint [%s], invalid bulk response received. Try reinitializing the service",
+                    model.getConfigurations().getInferenceEntityId()
                 )
             )
         );
@@ -255,7 +256,10 @@ public class ModelRegistryTests extends ESTestCase {
         registry.storeModel(model, listener);
 
         ResourceAlreadyExistsException exception = expectThrows(ResourceAlreadyExistsException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(exception.getMessage(), is(format("Inference model [%s] already exists", model.getConfigurations().getModelId())));
+        assertThat(
+            exception.getMessage(),
+            is(format("Inference endpoint [%s] already exists", model.getConfigurations().getInferenceEntityId()))
+        );
     }
 
     public void testStoreModel_ThrowsException_WhenFailureIsNotAVersionConflict() {
@@ -278,7 +282,10 @@ public class ModelRegistryTests extends ESTestCase {
         registry.storeModel(model, listener);
 
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(exception.getMessage(), is(format("Failed to store inference model [%s]", model.getConfigurations().getModelId())));
+        assertThat(
+            exception.getMessage(),
+            is(format("Failed to store inference endpoint [%s]", model.getConfigurations().getInferenceEntityId()))
+        );
     }
 
     private Client mockBulkClient() {
@@ -299,7 +306,7 @@ public class ModelRegistryTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> actionListener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
-            actionListener.onResponse(searchResponse);
+            ActionListener.respondAndRelease(actionListener, searchResponse);
             return Void.TYPE;
         }).when(client).execute(any(), any(), any());
     }
@@ -314,10 +321,13 @@ public class ModelRegistryTests extends ESTestCase {
     }
 
     private static SearchResponse mockSearchResponse(SearchHit[] hits) {
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1);
-
         var searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(searchHits);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1);
+        try {
+            when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
+        } finally {
+            searchHits.decRef();
+        }
 
         return searchResponse;
     }

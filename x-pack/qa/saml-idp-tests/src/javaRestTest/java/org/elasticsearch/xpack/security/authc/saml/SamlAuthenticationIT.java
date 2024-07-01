@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -42,6 +44,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.fixtures.idp.IdpTestContainer;
+import org.elasticsearch.test.fixtures.idp.OpenLdapTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -52,6 +57,10 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+import org.testcontainers.containers.Network;
+import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -73,6 +82,7 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import static java.util.Map.entry;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -82,13 +92,17 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * An integration test for validating SAML authentication against a real Identity Provider (Shibboleth)
  */
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class SamlAuthenticationIT extends ESRestTestCase {
 
     private static final String SAML_RESPONSE_FIELD = "SAMLResponse";
     private static final String KIBANA_PASSWORD = "K1b@na K1b@na K1b@na";
 
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    private static Network network = Network.newNetwork();
+    private static OpenLdapTestContainer openLdapTestContainer = new OpenLdapTestContainer(network);
+    private static IdpTestContainer idpFixture = new IdpTestContainer(network);
+
+    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
@@ -131,11 +145,24 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         .setting("xpack.security.authc.realms.native.native.order", "4")
         .setting("xpack.ml.enabled", "false")
         .setting("logger.org.elasticsearch.xpack.security", "TRACE")
-        .configFile("sp-signing.key", Resource.fromClasspath("sp-signing.key"))
-        .configFile("idp-metadata.xml", Resource.fromClasspath("idp-metadata.xml"))
-        .configFile("sp-signing.crt", Resource.fromClasspath("sp-signing.crt"))
+        .configFile("sp-signing.key", Resource.fromClasspath("/idp/shibboleth-idp/credentials/sp-signing.key"))
+        .configFile("idp-metadata.xml", Resource.fromString(SamlAuthenticationIT::calculateIdpMetaData))
+        .configFile("sp-signing.crt", Resource.fromClasspath("/idp/shibboleth-idp/credentials/sp-signing.crt"))
         .user("test_admin", "x-pack-test-password")
         .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(network).around(openLdapTestContainer).around(idpFixture).around(cluster);
+
+    private static String calculateIdpMetaData() {
+        Resource resource = Resource.fromClasspath("/idp/shibboleth-idp/metadata/idp-metadata.xml");
+        try (InputStream stream = resource.asStream()) {
+            String metadata = IOUtils.toString(stream, "UTF-8");
+            return metadata.replace("${port}", String.valueOf(idpFixture.getDefaultPort()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -225,19 +252,23 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * </ol>
      */
     public void testLoginUserWithSamlRoleMapping() throws Exception {
-        // this realm name comes from the config in build.gradle
         final Tuple<String, String> authTokens = loginViaSaml("shibboleth");
         verifyElasticsearchAccessTokenForRoleMapping(authTokens.v1());
-        final String accessToken = verifyElasticsearchRefreshToken(authTokens.v2());
+        final Tuple<String, String> newAuthTokens = verifyElasticsearchRefreshToken(authTokens.v2());
+        final String accessToken = newAuthTokens.v1();
         verifyElasticsearchAccessTokenForRoleMapping(accessToken);
+        logoutSaml(newAuthTokens);
+        verifyElasticsearchAccessTokenInvalidated(accessToken);
     }
 
     public void testLoginUserWithAuthorizingRealm() throws Exception {
-        // this realm name comes from the config in build.gradle
         final Tuple<String, String> authTokens = loginViaSaml("shibboleth_native");
         verifyElasticsearchAccessTokenForAuthorizingRealms(authTokens.v1());
-        final String accessToken = verifyElasticsearchRefreshToken(authTokens.v2());
+        final Tuple<String, String> newAuthTokens = verifyElasticsearchRefreshToken(authTokens.v2());
+        final String accessToken = newAuthTokens.v1();
         verifyElasticsearchAccessTokenForAuthorizingRealms(accessToken);
+        logoutSaml(newAuthTokens);
+        verifyElasticsearchAccessTokenInvalidated(accessToken);
     }
 
     public void testLoginWithWrongRealmFails() throws Exception {
@@ -314,6 +345,11 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         assertThat(metadata.get("is_native"), equalTo(true));
     }
 
+    private void verifyElasticsearchAccessTokenInvalidated(String accessToken) {
+        var e = expectThrows(ResponseException.class, () -> callAuthenticateApiUsingAccessToken(accessToken));
+        assertThat(e.getMessage(), containsString("The access token expired"));
+    }
+
     private Map<String, Object> callAuthenticateApiUsingAccessToken(String accessToken) throws IOException {
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -322,7 +358,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         return entityAsMap(client().performRequest(request));
     }
 
-    private String verifyElasticsearchRefreshToken(String refreshToken) throws IOException {
+    private Tuple<String, String> verifyElasticsearchRefreshToken(String refreshToken) throws IOException {
         final Map<String, ?> body = Map.of("grant_type", "refresh_token", "refresh_token", refreshToken);
         final Response response = client().performRequest(buildRequest("POST", "/_security/oauth2/token", body, kibanaAuth()));
         assertOK(response);
@@ -335,7 +371,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         final Object accessToken = result.get("access_token");
         assertThat(accessToken, notNullValue());
         assertThat(accessToken, instanceOf(String.class));
-        return (String) accessToken;
+        return Tuple.tuple((String) accessToken, (String) newRefreshToken);
     }
 
     /**
@@ -436,6 +472,13 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         }
     }
 
+    private Map<String, Object> logoutSaml(final Tuple<String, String> authTokens) throws IOException {
+        final Map<String, Object> body = Map.of("token", authTokens.v1(), "refresh_token", authTokens.v2());
+        final Response response = client().performRequest(buildRequest("POST", "/_security/saml/logout", body, kibanaAuth()));
+        assertHttpOk(response.getStatusLine());
+        return parseResponseAsMap(response.getEntity());
+    }
+
     /**
      * Finds the target URL for the HTML form within the provided content.
      */
@@ -526,7 +569,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     private SSLContext getClientSslContext() throws Exception {
-        final Path pem = getDataPath("/idp-browser.pem");
+        final Path pem = idpFixture.getBrowserPem();
         final X509ExtendedTrustManager trustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(pem));
         SSLContext context = SSLContext.getInstance("TLS");
         context.init(new KeyManager[0], new TrustManager[] { trustManager }, new SecureRandom());

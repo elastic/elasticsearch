@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -125,7 +126,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
 
     @Override
     public void allocateUnassigned(
@@ -331,8 +332,8 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     }
 
     private static boolean isDelayedDueToNodeRestart(RoutingAllocation allocation, ShardRouting shardRouting) {
-        if (shardRouting.unassignedInfo().isDelayed()) {
-            String lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
+        if (shardRouting.unassignedInfo().delayed()) {
+            String lastAllocatedNodeId = shardRouting.unassignedInfo().lastAllocatedNodeId();
             if (lastAllocatedNodeId != null) {
                 return allocation.metadata().nodeShutdowns().contains(lastAllocatedNodeId, SingleNodeShutdownMetadata.Type.RESTART);
             }

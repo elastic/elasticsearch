@@ -12,7 +12,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -194,10 +193,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     }
 
     public void testAddBlockToMissingIndex() {
-        IndexNotFoundException e = expectThrows(
-            IndexNotFoundException.class,
-            () -> indicesAdmin().prepareAddBlock(randomAddableBlock(), "test").get()
-        );
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, indicesAdmin().prepareAddBlock(randomAddableBlock(), "test"));
         assertThat(e.getMessage(), is("no such index [test]"));
     }
 
@@ -205,7 +201,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         createIndex("test1");
         final IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> indicesAdmin().prepareAddBlock(randomAddableBlock(), "test1", "test2").get()
+            indicesAdmin().prepareAddBlock(randomAddableBlock(), "test1", "test2")
         );
         assertThat(e.getMessage(), is("no such index [test2]"));
     }
@@ -224,7 +220,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     public void testAddBlockNoIndex() {
         final ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> indicesAdmin().prepareAddBlock(randomAddableBlock()).get()
+            indicesAdmin().prepareAddBlock(randomAddableBlock())
         );
         assertThat(e.getMessage(), containsString("index is missing"));
     }
@@ -235,8 +231,10 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     public void testCannotAddReadOnlyAllowDeleteBlock() {
         createIndex("test1");
-        final AddIndexBlockRequestBuilder request = indicesAdmin().prepareAddBlock(APIBlock.READ_ONLY_ALLOW_DELETE, "test1");
-        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, request::get);
+        final ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            indicesAdmin().prepareAddBlock(APIBlock.READ_ONLY_ALLOW_DELETE, "test1")
+        );
         assertThat(e.getMessage(), containsString("read_only_allow_delete block is for internal use only"));
     }
 

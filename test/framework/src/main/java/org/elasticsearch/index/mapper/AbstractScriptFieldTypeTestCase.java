@@ -10,7 +10,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -61,6 +64,18 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     protected abstract MappedFieldType loopFieldType();
 
     protected abstract String typeName();
+
+    /**
+     * Add the provided document to the provided writer, and randomly flush.
+     * This is useful for situations where there are not enough documents indexed to trigger random flush and commit performed
+     * by {@link RandomIndexWriter}. Flushing is important to obtain multiple slices and inter-segment concurrency.
+     */
+    protected static <T extends IndexableField> void addDocument(RandomIndexWriter iw, Iterable<T> indexableFields) throws IOException {
+        iw.addDocument(indexableFields);
+        if (randomBoolean()) {
+            iw.flush();
+        }
+    }
 
     public final void testMinimalSerializesToItself() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
@@ -196,6 +211,21 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                 expectThrows(RuntimeException.class, () -> searcher.count(query));
             }
         }
+    }
+
+    @Override
+    public void testFieldHasValue() {
+        assertTrue(getMappedFieldType().fieldHasValue(new FieldInfos(new FieldInfo[] { getFieldInfoWithName(randomAlphaOfLength(5)) })));
+    }
+
+    @Override
+    public void testFieldHasValueWithEmptyFieldInfos() {
+        assertTrue(getMappedFieldType().fieldHasValue(FieldInfos.EMPTY));
+    }
+
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return simpleMappedFieldType();
     }
 
     protected abstract AbstractScriptFieldType<?> build(String error, Map<String, Object> emptyMap, OnScriptError onScriptError);
@@ -423,6 +453,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             }
 
             @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
             public SearchLookup lookup() {
                 return mockContext().lookup();
             }
@@ -435,6 +470,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             @Override
             public String parentField(String field) {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
             }
         };
     }

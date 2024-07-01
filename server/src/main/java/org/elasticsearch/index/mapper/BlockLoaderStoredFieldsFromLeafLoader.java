@@ -19,36 +19,53 @@ public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.Stored
     private final LeafStoredFieldLoader loader;
     private final SourceLoader.Leaf sourceLoader;
     private Source source;
+    private int docId = -1;
+    private int loaderDocId = -1;
+    private int sourceDocId = -1;
 
     public BlockLoaderStoredFieldsFromLeafLoader(LeafStoredFieldLoader loader, SourceLoader.Leaf sourceLoader) {
         this.loader = loader;
         this.sourceLoader = sourceLoader;
     }
 
-    public void advanceTo(int doc) throws IOException {
-        loader.advanceTo(doc);
-        if (sourceLoader != null) {
-            source = sourceLoader.source(loader, doc);
+    public void advanceTo(int docId) {
+        this.docId = docId;
+    }
+
+    private void advanceIfNeeded() throws IOException {
+        if (loaderDocId != docId) {
+            loader.advanceTo(docId);
+            loaderDocId = docId;
         }
     }
 
     @Override
-    public Source source() {
+    public Source source() throws IOException {
+        advanceIfNeeded();
+        if (sourceLoader != null) {
+            if (sourceDocId != docId) {
+                source = sourceLoader.source(loader, docId);
+                sourceDocId = docId;
+            }
+        }
         return source;
     }
 
     @Override
-    public String id() {
+    public String id() throws IOException {
+        advanceIfNeeded();
         return loader.id();
     }
 
     @Override
-    public String routing() {
+    public String routing() throws IOException {
+        advanceIfNeeded();
         return loader.routing();
     }
 
     @Override
-    public Map<String, List<Object>> storedFields() {
+    public Map<String, List<Object>> storedFields() throws IOException {
+        advanceIfNeeded();
         return loader.storedFields();
     }
 }

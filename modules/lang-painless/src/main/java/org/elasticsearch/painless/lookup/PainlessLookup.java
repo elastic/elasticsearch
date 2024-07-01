@@ -163,18 +163,6 @@ public final class PainlessLookup {
         return lookupPainlessObject(targetClass, objectLookup);
     }
 
-    public List<PainlessMethod> lookupPainlessSubClassesMethod(String targetCanonicalClassName, String methodName, int methodArity) {
-        Objects.requireNonNull(targetCanonicalClassName);
-
-        Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
-
-        if (targetClass == null) {
-            return null;
-        }
-
-        return lookupPainlessSubClassesMethod(targetClass, methodName, methodArity);
-    }
-
     public List<PainlessMethod> lookupPainlessSubClassesMethod(Class<?> targetClass, String methodName, int methodArity) {
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(methodName);
@@ -216,18 +204,6 @@ public final class PainlessLookup {
         }
 
         return subMethods;
-    }
-
-    public PainlessField lookupPainlessField(String targetCanonicalClassName, boolean isStatic, String fieldName) {
-        Objects.requireNonNull(targetCanonicalClassName);
-
-        Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
-
-        if (targetClass == null) {
-            return null;
-        }
-
-        return lookupPainlessField(targetClass, isStatic, fieldName);
     }
 
     public PainlessField lookupPainlessField(Class<?> targetClass, boolean isStatic, String fieldName) {

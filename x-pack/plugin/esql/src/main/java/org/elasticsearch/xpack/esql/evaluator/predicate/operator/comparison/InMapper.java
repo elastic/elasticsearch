@@ -8,23 +8,23 @@
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanArrayBlock;
-import org.elasticsearch.compute.data.BooleanArrayVector;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
-
-import static org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.ComparisonMapper.EQUALS;
 
 public class InMapper extends ExpressionMapper<In> {
 
@@ -38,13 +38,15 @@ public class InMapper extends ExpressionMapper<In> {
         List<ExpressionEvaluator.Factory> listEvaluators = new ArrayList<>(in.list().size());
         in.list().forEach(e -> {
             Equals eq = new Equals(in.source(), in.value(), e);
-            ExpressionEvaluator.Factory eqEvaluator = ((ExpressionMapper) EQUALS).map(eq, layout);
+            ExpressionEvaluator.Factory eqEvaluator = EvalMapper.toEvaluator(eq, layout);
             listEvaluators.add(eqEvaluator);
         });
-        return dvrCtx -> new InExpressionEvaluator(listEvaluators.stream().map(fac -> fac.get(dvrCtx)).toList());
+        return dvrCtx -> new InExpressionEvaluator(dvrCtx, listEvaluators.stream().map(fac -> fac.get(dvrCtx)).toList());
     }
 
-    record InExpressionEvaluator(List<EvalOperator.ExpressionEvaluator> listEvaluators) implements EvalOperator.ExpressionEvaluator {
+    record InExpressionEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> listEvaluators)
+        implements
+            EvalOperator.ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             int positionCount = page.getPositionCount();
@@ -68,7 +70,7 @@ public class InMapper extends ExpressionMapper<In> {
                 }
             }
 
-            return evalWithNulls(values, nulls, nullInValues);
+            return evalWithNulls(driverContext.blockFactory(), values, nulls, nullInValues);
         }
 
         private static void updateValues(BooleanVector vector, boolean[] values) {
@@ -94,9 +96,9 @@ public class InMapper extends ExpressionMapper<In> {
             }
         }
 
-        private static Block evalWithNulls(boolean[] values, BitSet nulls, boolean nullInValues) {
+        private static Block evalWithNulls(BlockFactory blockFactory, boolean[] values, BitSet nulls, boolean nullInValues) {
             if (nulls.isEmpty() && nullInValues == false) {
-                return new BooleanArrayVector(values, values.length).asBlock();
+                return blockFactory.newBooleanArrayVector(values, values.length).asBlock();
             } else {
                 // 3VL: true trumps null; null trumps false.
                 for (int i = 0; i < values.length; i++) {
@@ -108,9 +110,9 @@ public class InMapper extends ExpressionMapper<In> {
                 }
                 if (nulls.isEmpty()) {
                     // no nulls and no multi-values means we must use a Vector
-                    return new BooleanArrayVector(values, values.length).asBlock();
+                    return blockFactory.newBooleanArrayVector(values, values.length).asBlock();
                 } else {
-                    return new BooleanArrayBlock(values, values.length, null, nulls, Block.MvOrdering.UNORDERED);
+                    return blockFactory.newBooleanArrayBlock(values, values.length, null, nulls, Block.MvOrdering.UNORDERED);
                 }
             }
         }

@@ -58,7 +58,7 @@ public class AnalyzeIndexDiskUsageRequest extends BroadcastRequest<AnalyzeIndexD
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, AnalyzeIndexDiskUsageAction.NAME, type, "", parentTaskId, headers) {
+        return new CancellableTask(id, TransportAnalyzeIndexDiskUsageAction.TYPE.name(), type, "", parentTaskId, headers) {
             @Override
             public String getDescription() {
                 return AnalyzeIndexDiskUsageRequest.this.getDescription();

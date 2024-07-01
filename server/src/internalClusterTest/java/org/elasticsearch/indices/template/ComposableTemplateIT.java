@@ -9,7 +9,7 @@
 package org.elasticsearch.indices.template;
 
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -50,8 +50,8 @@ public class ComposableTemplateIT extends ESIntegTestCase {
             .metadata(Collections.singletonMap("egg", "bread"))
             .build();
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)
         ).get();
 
         internalCluster().fullRestart();
@@ -85,8 +85,8 @@ public class ComposableTemplateIT extends ESIntegTestCase {
             .metadata(Collections.singletonMap("egg", "bread"))
             .build();
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit2)
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit2)
         ).get();
     }
 }

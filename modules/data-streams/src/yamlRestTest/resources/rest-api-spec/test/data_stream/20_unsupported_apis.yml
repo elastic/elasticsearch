@@ -1,9 +1,9 @@
 ---
 "Test apis that do not supported data streams":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -57,10 +57,10 @@
 
 ---
 "Prohibit clone on data stream's write index":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -101,10 +101,10 @@
 
 ---
 "Prohibit shrink on data stream's write index":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -144,10 +144,10 @@
 
 ---
 "Prohibit split on data stream's write index":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -188,10 +188,10 @@
 
 ---
 "Non append-only writes into a data stream":
-  - skip:
-      version: " - 7.9.3"
+  - requires:
+      cluster_features: ["gte_v7.9.4"]
       reason: "validation bug only backported to 7.9.3"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:

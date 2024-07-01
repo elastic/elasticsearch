@@ -9,36 +9,21 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ClearScrollResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ParseField SUCCEEDED = new ParseField("succeeded");
-    private static final ParseField NUMFREED = new ParseField("num_freed");
-
-    private static final ConstructingObjectParser<ClosePointInTimeResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "clear_scroll",
-        true,
-        a -> new ClosePointInTimeResponse((boolean) a[0], (int) a[1])
-    );
-    static {
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SUCCEEDED, ObjectParser.ValueType.BOOLEAN);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.intValue(), NUMFREED, ObjectParser.ValueType.INT);
-    }
+    public static final ParseField SUCCEEDED = new ParseField("succeeded");
+    public static final ParseField NUMFREED = new ParseField("num_freed");
 
     private final boolean succeeded;
     private final int numFreed;
@@ -46,12 +31,6 @@ public class ClearScrollResponse extends ActionResponse implements ToXContentObj
     public ClearScrollResponse(boolean succeeded, int numFreed) {
         this.succeeded = succeeded;
         this.numFreed = numFreed;
-    }
-
-    public ClearScrollResponse(StreamInput in) throws IOException {
-        super(in);
-        succeeded = in.readBoolean();
-        numFreed = in.readVInt();
     }
 
     /**
@@ -80,13 +59,6 @@ public class ClearScrollResponse extends ActionResponse implements ToXContentObj
         builder.field(NUMFREED.getPreferredName(), numFreed);
         builder.endObject();
         return builder;
-    }
-
-    /**
-     * Parse the clear scroll response body into a new {@link ClearScrollResponse} object
-     */
-    public static ClosePointInTimeResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override

@@ -108,7 +108,8 @@ public class DynamicMapperBenchmark {
             if (random.nextBoolean()) {
                 continue;
             }
-            String objFieldPrefix = Stream.generate(() -> "obj_field_" + idx).limit(objFieldDepth).collect(Collectors.joining("."));
+            int objFieldDepthActual = random.nextInt(1, objFieldDepth);
+            String objFieldPrefix = Stream.generate(() -> "obj_field_" + idx).limit(objFieldDepthActual).collect(Collectors.joining("."));
             for (int j = 0; j < textFields; j++) {
                 if (random.nextBoolean()) {
                     StringBuilder fieldValueBuilder = generateTextField(fieldValueCountMax);

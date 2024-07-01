@@ -90,12 +90,8 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
-    /** Setting for enabling or disabling APM Data. Defaults to false. */
-    public static final Setting<Boolean> APM_DATA_ENABLED = Setting.boolSetting(
-        "xpack.apm_data.enabled",
-        false,
-        Setting.Property.NodeScope
-    );
+    /** Setting for enabling or disabling APM Data. Defaults to true. */
+    public static final Setting<Boolean> APM_DATA_ENABLED = Setting.boolSetting("xpack.apm_data.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling enterprise search. Defaults to true. */
     public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
@@ -157,6 +153,12 @@ public class XPackSettings {
     public static final Setting<Boolean> FIPS_MODE_ENABLED = Setting.boolSetting(
         "xpack.security.fips_mode.enabled",
         false,
+        Property.NodeScope
+    );
+
+    /** Optional setting to prevent startup if required providers are not discovered at runtime */
+    public static final Setting<List<String>> FIPS_REQUIRED_PROVIDERS = Setting.stringListSetting(
+        "xpack.security.fips_mode.required_providers",
         Property.NodeScope
     );
 

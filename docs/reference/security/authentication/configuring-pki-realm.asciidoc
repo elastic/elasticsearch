@@ -6,11 +6,6 @@ the desired network layers (transport or http), and map the Distinguished Names
 (DNs) from the Subject field in the user certificates to roles. You create the
 mappings in a role mapping file or use the role mappings API.
 
-TIP: You can use a combination of PKI and username/password authentication. For
-example, you can enable SSL/TLS on the transport layer and define a PKI realm to
-require transport clients to authenticate with X.509 certificates, while still
-authenticating HTTP traffic using username and password credentials.
-
 . Add a realm configuration for a `pki` realm to `elasticsearch.yml` under the
 `xpack.security.authc.realms.pki` namespace. You must explicitly set the `order`
 attribute. See <<ref-pki-settings>> for all of the options you can set for a
@@ -42,7 +37,8 @@ realms you specify are used for authentication. If you also want to use the
 
 --
 
-. Optional: If you want to use something other than the CN of the Subject DN as
+. Optional: The username is defined by the <<ref-pki-settings, username_pattern>>.
+If you want to use something other than the CN of the Subject DN as
 the username, you can specify a regex to extract the desired username. The regex
 is applied on the Subject DN.
 +

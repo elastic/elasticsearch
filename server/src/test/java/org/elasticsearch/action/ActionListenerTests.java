@@ -8,7 +8,9 @@
 package org.elasticsearch.action;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
@@ -369,6 +371,52 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }
 
+    public void testAssertAtLeastOnceWillLogAssertionErrorWhenNotResolved() throws Exception {
+        assumeTrue("assertAtLeastOnce will be a no-op when assertions are disabled", Assertions.ENABLED);
+        ActionListener<Object> listenerRef = ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
+            // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
+        }));
+        // Nullify reference so it becomes unreachable
+        listenerRef = null;
+        assertBusy(() -> {
+            System.gc();
+            assertLeakDetected();
+        });
+    }
+
+    public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() {
+        assumeTrue("assertAtLeastOnce will be a no-op when assertions are disabled", Assertions.ENABLED);
+        ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+        ActionListener<Object> listenerRef = reachabilityChecker.register(ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
+            // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
+        })));
+        // Call onResponse and/or onFailure at least once
+        int times = randomIntBetween(1, 3);
+        for (int i = 0; i < times; i++) {
+            if (randomBoolean()) {
+                listenerRef.onResponse("succeeded");
+            } else {
+                listenerRef.onFailure(new RuntimeException("Failed"));
+            }
+        }
+        // Nullify reference so it becomes unreachable
+        listenerRef = null;
+        reachabilityChecker.ensureUnreachable();
+    }
+
+    public void testAssertAtLeastOnceWillDelegateResponses() {
+        final var response = new Object();
+        assertSame(response, safeAwait(SubscribableListener.newForked(l -> ActionListener.assertAtLeastOnce(l).onResponse(response))));
+    }
+
+    public void testAssertAtLeastOnceWillDelegateFailures() {
+        final var exception = new RuntimeException();
+        assertSame(
+            exception,
+            safeAwaitFailure(SubscribableListener.newForked(l -> ActionListener.assertAtLeastOnce(l).onFailure(exception)))
+        );
+    }
+
     /**
      * Test that map passes the output of the function to its delegate listener and that exceptions in the function are propagated to the
      * onFailure handler. Also verify that exceptions from ActionListener.onResponse does not invoke onFailure, since it is the
@@ -501,6 +549,77 @@ public class ActionListenerTests extends ESTestCase {
         } else {
             listener.onFailure(new RuntimeException("simulated"));
         }
+    }
+
+    public void testRun() throws Exception {
+        final var successFuture = new PlainActionFuture<>();
+        final var successResult = new Object();
+        ActionListener.run(successFuture, l -> l.onResponse(successResult));
+        assertTrue(successFuture.isDone());
+        assertSame(successResult, successFuture.get());
+
+        final var failFuture = new PlainActionFuture<>();
+        final var failException = new ElasticsearchException("simulated");
+        ActionListener.run(failFuture, l -> {
+            if (randomBoolean()) {
+                l.onFailure(failException);
+            } else {
+                throw failException;
+            }
+        });
+        assertTrue(failFuture.isDone());
+        assertSame(failException, expectThrows(ExecutionException.class, ElasticsearchException.class, failFuture::get));
+    }
+
+    public void testRunWithResource() {
+        final var future = new PlainActionFuture<>();
+        final var successResult = new Object();
+        final var failException = new ElasticsearchException("simulated");
+        final var resourceIsClosed = new AtomicBoolean(false);
+        ActionListener.runWithResource(ActionListener.runBefore(future, () -> assertTrue(resourceIsClosed.get())), () -> new Releasable() {
+            @Override
+            public void close() {
+                assertTrue(resourceIsClosed.compareAndSet(false, true));
+            }
+
+            @Override
+            public String toString() {
+                return "test releasable";
+            }
+        }, (l, r) -> {
+            assertFalse(resourceIsClosed.get());
+            assertEquals("test releasable", r.toString());
+            if (randomBoolean()) {
+                l.onResponse(successResult);
+            } else {
+                if (randomBoolean()) {
+                    l.onFailure(failException);
+                } else {
+                    throw failException;
+                }
+            }
+        });
+
+        assertTrue(future.isDone());
+        try {
+            assertSame(successResult, future.get());
+        } catch (ExecutionException e) {
+            assertSame(failException, e.getCause());
+        } catch (InterruptedException e) {
+            fail(e);
+        }
+
+        final var failureFuture = new PlainActionFuture<>();
+        ActionListener.runWithResource(
+            failureFuture,
+            () -> { throw new ElasticsearchException("resource creation failure"); },
+            (l, r) -> fail("should not be called")
+        );
+        assertTrue(failureFuture.isDone());
+        assertEquals(
+            "resource creation failure",
+            expectThrows(ExecutionException.class, ElasticsearchException.class, failureFuture::get).getMessage()
+        );
     }
 
     public void testReleaseAfter() {

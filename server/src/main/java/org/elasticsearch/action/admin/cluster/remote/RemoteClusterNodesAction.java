@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
@@ -38,7 +39,11 @@ import java.util.Objects;
 public class RemoteClusterNodesAction {
 
     public static final String NAME = "cluster:internal/remote_cluster/nodes";
-    public static final ActionType<RemoteClusterNodesAction.Response> TYPE = new ActionType<>(NAME, RemoteClusterNodesAction.Response::new);
+    public static final ActionType<RemoteClusterNodesAction.Response> TYPE = new ActionType<>(NAME);
+    public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        RemoteClusterNodesAction.Response::new
+    );
 
     public static class Request extends ActionRequest {
         public static final Request ALL_NODES = new Request(false);

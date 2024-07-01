@@ -24,7 +24,7 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/filters/get";
 
     private GetFiltersAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static final class Request extends AbstractGetResourcesRequest {

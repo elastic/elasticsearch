@@ -11,12 +11,14 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * Vector implementation that stores a constant $type$ value.
  * This class is generated. Do not edit it.
  */
-public final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
+final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
 
 $if(BytesRef)$
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
@@ -27,16 +29,9 @@ $endif$
 
     private final $type$ value;
 
-    private final $Type$Block block;
-
-    public Constant$Type$Vector($type$ value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
+    Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
-        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
@@ -50,13 +45,60 @@ $endif$
 
     @Override
     public $Type$Block asBlock() {
-        return block;
+        return new $Type$VectorBlock(this);
     }
+
+$if(BytesRef)$
+    @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
+    }
+$endif$
 
     @Override
     public $Type$Vector filter(int... positions) {
-        return new Constant$Type$Vector(value, positions.length);
+        return blockFactory().newConstant$Type$Vector(value, positions.length);
     }
+
+    @Override
+    public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new $Type$Lookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single(($Type$Block) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstant$Type$BlockWith(value, positions.getPositionCount()));
+        }
+        return new $Type$Lookup(asBlock(), positions, targetBlockSize);
+    }
+
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        return value;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        return value;
+    }
+$endif$
 
     @Override
     public ElementType elementType() {
@@ -100,14 +142,5 @@ $endif$
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 }

@@ -34,14 +34,16 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
     public static final String NAME = "cluster:admin/persistent/remove";
 
     private RemovePersistentTaskAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
 
         private String taskId;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -49,6 +51,7 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
 
         public Request(String taskId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.taskId = taskId;
         }
 

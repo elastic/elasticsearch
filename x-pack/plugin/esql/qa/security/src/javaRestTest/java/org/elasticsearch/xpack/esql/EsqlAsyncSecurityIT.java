@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.http.HttpUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -119,8 +121,10 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
                 logResponse(response);
                 return response;
             } catch (ResponseException e) {
-                if (e.getResponse().getStatusLine().getStatusCode() == 404) {
-                    logger.warn("404 fetching task status", e);
+                if (e.getResponse().getStatusLine().getStatusCode() == 404
+                    && EntityUtils.toString(e.getResponse().getEntity()).contains("no such index [.async-search]")) {
+
+                    logger.warn("async-search index does not exist", e);
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException ex) {

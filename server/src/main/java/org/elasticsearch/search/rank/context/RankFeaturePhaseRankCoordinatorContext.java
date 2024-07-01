@@ -24,7 +24,8 @@ import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 /**
  * {@code RankFeaturePhaseRankCoordinatorContext} is a base class that runs on the coordinating node and is responsible for retrieving
- * {@code window_size} total results from all shards, rank them, and then produce a final paginated response of [from, from+size] results.
+ * {@code rank_window_size} total results from all shards, rank them, and then produce a final paginated response of [from, from+size]
+ * results.
  */
 public abstract class RankFeaturePhaseRankCoordinatorContext {
 
@@ -45,6 +46,16 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     protected abstract void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener);
 
     /**
+     * Preprocesses the provided documents: sorts them by score descending.
+     * @param originalDocs documents to process
+     */
+    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
+        return Arrays.stream(originalDocs)
+            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
+            .toArray(RankFeatureDoc[]::new);
+    }
+
+    /**
      * This method is responsible for ranking the global results based on the provided rank feature results from each shard.
      * <p>
      * We first start by extracting ordered feature data through a {@code List<RankFeatureDoc>}
@@ -63,22 +74,28 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
         RankFeatureDoc[] featureDocs = extractFeatureDocs(rankSearchResults);
 
         // generate the final `topResults` results, and pass them to fetch phase through the `rankListener`
-        computeScores(featureDocs, rankListener.delegateFailureAndWrap((listener, scores) -> {
-            for (int i = 0; i < featureDocs.length; i++) {
-                featureDocs[i].score = scores[i];
-            }
-            listener.onResponse(featureDocs);
-        }));
+        if (featureDocs.length == 0) {
+            rankListener.onResponse(new RankFeatureDoc[0]);
+        } else {
+            computeScores(featureDocs, rankListener.delegateFailureAndWrap((listener, scores) -> {
+                for (int i = 0; i < featureDocs.length; i++) {
+                    featureDocs[i].score = scores[i];
+                }
+                listener.onResponse(featureDocs);
+            }));
+        }
     }
 
     /**
-     * Ranks the provided {@link RankFeatureDoc} array and paginates the results based on the `from` and `size` parameters.
+     * Ranks the provided {@link RankFeatureDoc} array and paginates the results based on the `from` and `size` parameters. Filters out
+     * documents that have a relevance score less than min_score.
+     * @param rankFeatureDocs documents to process
      */
     public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs) {
-        Arrays.sort(rankFeatureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
-        RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, rankFeatureDocs.length - from))];
+        RankFeatureDoc[] sortedDocs = preprocess(rankFeatureDocs);
+        RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, sortedDocs.length - from))];
         for (int rank = 0; rank < topResults.length; ++rank) {
-            topResults[rank] = rankFeatureDocs[from + rank];
+            topResults[rank] = sortedDocs[from + rank];
             topResults[rank].rank = from + rank + 1;
         }
         return topResults;

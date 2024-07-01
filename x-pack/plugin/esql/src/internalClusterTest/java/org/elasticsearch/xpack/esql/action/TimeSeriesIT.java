@@ -249,6 +249,28 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             assertThat((double) values.get(0).get(0), closeTo(avg, 0.1));
             assertThat((double) values.get(0).get(1), closeTo(avg, 0.1));
         }
+        try (var resp = run("METRICS hosts max(rate(request_count)), min(rate(request_count)), min(cpu), max(cpu)")) {
+            assertThat(
+                resp.columns(),
+                equalTo(
+                    List.of(
+                        new ColumnInfo("max(rate(request_count))", "double"),
+                        new ColumnInfo("min(rate(request_count))", "double"),
+                        new ColumnInfo("min(cpu)", "double"),
+                        new ColumnInfo("max(cpu)", "double")
+                    )
+                )
+            );
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values.get(0), hasSize(4));
+            assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> d).max().orElse(0.0), 0.1));
+            assertThat((double) values.get(0).get(1), closeTo(rates.stream().mapToDouble(d -> d).min().orElse(0.0), 0.1));
+            double minCpu = docs.stream().mapToDouble(d -> d.cpu).min().orElse(Long.MAX_VALUE);
+            double maxCpu = docs.stream().mapToDouble(d -> d.cpu).max().orElse(Long.MIN_VALUE);
+            assertThat((double) values.get(0).get(2), closeTo(minCpu, 0.1));
+            assertThat((double) values.get(0).get(3), closeTo(maxCpu, 0.1));
+        }
     }
 
     public void testRateGroupedByCluster() {
@@ -436,16 +458,21 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             groups.computeIfAbsent(key, k -> new ArrayList<>()).add(new RequestCounter(doc.timestamp, doc.requestCount));
         }
         record GroupKey(String cluster, long interval) {}
-        Map<GroupKey, List<Double>> buckets = new HashMap<>();
+        Map<GroupKey, List<Double>> rateBuckets = new HashMap<>();
         for (Map.Entry<RateKey, List<RequestCounter>> e : groups.entrySet()) {
             RateKey key = e.getKey();
-            List<Double> values = buckets.computeIfAbsent(new GroupKey(key.cluster, key.interval), k -> new ArrayList<>());
+            List<Double> values = rateBuckets.computeIfAbsent(new GroupKey(key.cluster, key.interval), k -> new ArrayList<>());
             Double rate = computeRate(e.getValue());
             if (rate != null) {
                 values.add(rate);
             }
         }
-        List<GroupKey> sortedKeys = buckets.keySet()
+        Map<GroupKey, List<Double>> cpuBuckets = new HashMap<>();
+        for (Doc doc : docs) {
+            GroupKey key = new GroupKey(doc.cluster, rounding.round(doc.timestamp));
+            cpuBuckets.computeIfAbsent(key, k -> new ArrayList<>()).add(doc.cpu);
+        }
+        List<GroupKey> sortedKeys = rateBuckets.keySet()
             .stream()
             .sorted(Comparator.comparing(GroupKey::interval).thenComparing(GroupKey::cluster))
             .limit(5)
@@ -472,7 +499,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var key = sortedKeys.get(i);
                 assertThat(row.get(1), equalTo(DEFAULT_DATE_TIME_FORMATTER.formatMillis(key.interval)));
                 assertThat(row.get(2), equalTo(key.cluster));
-                List<Double> bucketValues = buckets.get(key);
+                List<Double> bucketValues = rateBuckets.get(key);
                 if (bucketValues.isEmpty()) {
                     assertNull(row.get(0));
                 } else {
@@ -502,7 +529,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var key = sortedKeys.get(i);
                 assertThat(row.get(1), equalTo(DEFAULT_DATE_TIME_FORMATTER.formatMillis(key.interval)));
                 assertThat(row.get(2), equalTo(key.cluster));
-                List<Double> bucketValues = buckets.get(key);
+                List<Double> bucketValues = rateBuckets.get(key);
                 if (bucketValues.isEmpty()) {
                     assertNull(row.get(0));
                 } else {
@@ -534,7 +561,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var key = sortedKeys.get(i);
                 assertThat(row.get(2), equalTo(DEFAULT_DATE_TIME_FORMATTER.formatMillis(key.interval)));
                 assertThat(row.get(3), equalTo(key.cluster));
-                List<Double> bucketValues = buckets.get(key);
+                List<Double> bucketValues = rateBuckets.get(key);
                 if (bucketValues.isEmpty()) {
                     assertNull(row.get(0));
                     assertNull(row.get(1));
@@ -577,7 +604,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var key = sortedKeys.get(i);
                 assertThat(row.get(3), equalTo(DEFAULT_DATE_TIME_FORMATTER.formatMillis(key.interval)));
                 assertThat(row.get(4), equalTo(key.cluster));
-                List<Double> bucketValues = buckets.get(key);
+                List<Double> bucketValues = rateBuckets.get(key);
                 if (bucketValues.isEmpty()) {
                     assertNull(row.get(0));
                     assertNull(row.get(1));
@@ -588,6 +615,81 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     assertThat((double) row.get(1), closeTo(max, 0.1));
                 }
                 assertEquals(row.get(0), row.get(2));
+            }
+        }
+        try (var resp = run("""
+            METRICS hosts sum(rate(request_count)), max(cpu) BY ts=bucket(@timestamp, 1 minute), cluster
+            | SORT ts, cluster
+            | LIMIT 5""")) {
+            assertThat(
+                resp.columns(),
+                equalTo(
+                    List.of(
+                        new ColumnInfo("sum(rate(request_count))", "double"),
+                        new ColumnInfo("max(cpu)", "double"),
+                        new ColumnInfo("ts", "date"),
+                        new ColumnInfo("cluster", "keyword")
+                    )
+                )
+            );
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(sortedKeys.size()));
+            for (int i = 0; i < sortedKeys.size(); i++) {
+                List<Object> row = values.get(i);
+                assertThat(row, hasSize(4));
+                var key = sortedKeys.get(i);
+                assertThat(row.get(2), equalTo(DEFAULT_DATE_TIME_FORMATTER.formatMillis(key.interval)));
+                assertThat(row.get(3), equalTo(key.cluster));
+                List<Double> rateBucket = rateBuckets.get(key);
+                if (rateBucket.isEmpty()) {
+                    assertNull(row.get(0));
+                } else {
+                    assertThat((double) row.get(0), closeTo(rateBucket.stream().mapToDouble(d -> d).sum(), 0.1));
+                }
+                List<Double> cpuBucket = cpuBuckets.get(key);
+                if (cpuBuckets.isEmpty()) {
+                    assertNull(row.get(1));
+                } else {
+                    assertThat((double) row.get(1), closeTo(cpuBucket.stream().mapToDouble(d -> d).max().orElse(0.0), 0.1));
+                }
+            }
+        }
+        try (var resp = run("""
+            METRICS hosts sum(rate(request_count)), avg(cpu) BY ts=bucket(@timestamp, 1 minute), cluster
+            | SORT ts, cluster
+            | LIMIT 5""")) {
+            assertThat(
+                resp.columns(),
+                equalTo(
+                    List.of(
+                        new ColumnInfo("sum(rate(request_count))", "double"),
+                        new ColumnInfo("avg(cpu)", "double"),
+                        new ColumnInfo("ts", "date"),
+                        new ColumnInfo("cluster", "keyword")
+                    )
+                )
+            );
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(sortedKeys.size()));
+            for (int i = 0; i < sortedKeys.size(); i++) {
+                List<Object> row = values.get(i);
+                assertThat(row, hasSize(4));
+                var key = sortedKeys.get(i);
+                assertThat(row.get(2), equalTo(DEFAULT_DATE_TIME_FORMATTER.formatMillis(key.interval)));
+                assertThat(row.get(3), equalTo(key.cluster));
+                List<Double> rateBucket = rateBuckets.get(key);
+                if (rateBucket.isEmpty()) {
+                    assertNull(row.get(0));
+                } else {
+                    assertThat((double) row.get(0), closeTo(rateBucket.stream().mapToDouble(d -> d).sum(), 0.1));
+                }
+                List<Double> cpuBucket = cpuBuckets.get(key);
+                if (cpuBuckets.isEmpty()) {
+                    assertNull(row.get(1));
+                } else {
+                    double avg = cpuBucket.stream().mapToDouble(d -> d).sum() / cpuBucket.size();
+                    assertThat((double) row.get(1), closeTo(avg, 0.1));
+                }
             }
         }
     }

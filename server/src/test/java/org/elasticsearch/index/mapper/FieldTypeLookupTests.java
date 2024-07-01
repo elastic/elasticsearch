@@ -520,6 +520,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     @SafeVarargs
+    @SuppressWarnings("varargs")
     static <T> List<T> randomizedList(T... values) {
         ArrayList<T> list = new ArrayList<>(Arrays.asList(values));
         Collections.shuffle(list, random());

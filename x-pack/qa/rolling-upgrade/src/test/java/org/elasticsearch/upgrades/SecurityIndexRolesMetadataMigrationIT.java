@@ -29,6 +29,7 @@ import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationV
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCase {
@@ -204,8 +205,13 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
                 request.setJsonEntity(metadataQuery);
                 ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(request));
                 if (e.getResponse().getStatusLine().getStatusCode() == 400) {
-                    // this is an old node
-                    assertThat(e.getMessage(), containsString("no handler found for uri [/_security/_query/role]"));
+                    // this is an old node that doesn't know about the API
+                    assertThat(
+                        e.getMessage(),
+                        either(containsString("no handler found for uri [/_security/_query/role]")).or(
+                            containsString("Invalid index name [_security]")
+                        )
+                    );
                 } else if (e.getResponse().getStatusLine().getStatusCode() == 503) {
                     // this is an upgraded node, but migration does not work
                     assertThat(e.getMessage(), containsString("Cannot query or sort role metadata until automatic migration completed"));

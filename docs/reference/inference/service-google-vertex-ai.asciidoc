@@ -1,5 +1,5 @@
 [[infer-service-google-vertex-ai]]
-==== Google Vertex AI {infer} service
+=== Google Vertex AI {infer} service
 
 Creates an {infer} endpoint to perform an {infer} task with the `googlevertexai` service.
 

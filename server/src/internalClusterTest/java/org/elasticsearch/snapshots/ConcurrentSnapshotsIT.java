@@ -46,6 +46,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteTransportException;
 
@@ -674,9 +675,17 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/108237",
+        value = "org.elasticsearch.snapshots.SnapshotsService:DEBUG,"
+            + "org.elasticsearch.cluster.service.MasterService:DEBUG,"
+            + "org.elasticsearch.repositories.blobstore.BlobStoreRepository:DEBUG,"
+            + "org.elasticsearch.snapshots.mockstore.MockRepository:DEBUG"
+    )
     public void testQueuedOperationsOnMasterDisconnect() throws Exception {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(4, dataNode);
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
         createIndexWithContent("index-one");
@@ -693,7 +702,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .execute();
         waitForBlock(masterNode, repoName);
 
-        final ActionFuture<CreateSnapshotResponse> createThirdSnapshot = client(masterNode).admin()
+        final ActionFuture<CreateSnapshotResponse> createSnapshot = client(masterNode).admin()
             .cluster()
             .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-three")
             .setWaitForCompletion(true)
@@ -714,8 +723,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> make sure all failing requests get a response");
         assertAcked(firstDeleteFuture.get());
         assertAcked(secondDeleteFuture.get());
-        expectThrows(SnapshotException.class, createThirdSnapshot);
-
+        expectThrows(SnapshotException.class, createSnapshot);
         awaitNoMoreRunningOperations();
     }
 

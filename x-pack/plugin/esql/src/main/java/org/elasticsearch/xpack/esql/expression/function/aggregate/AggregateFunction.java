@@ -6,12 +6,18 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -23,6 +29,26 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * A type of {@code Function} that takes multiple values and extracts a single value out of them. For example, {@code AVG()}.
  */
 public abstract class AggregateFunction extends Function {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            Avg.ENTRY,
+            Count.ENTRY,
+            CountDistinct.ENTRY,
+            Max.ENTRY,
+            Median.ENTRY,
+            MedianAbsoluteDeviation.ENTRY,
+            Min.ENTRY,
+            Percentile.ENTRY,
+            SpatialCentroid.ENTRY,
+            Sum.ENTRY,
+            TopList.ENTRY,
+            Values.ENTRY,
+            Rate.ENTRY,
+            // internal functions
+            ToPartial.ENTRY,
+            FromPartial.ENTRY
+        );
+    }
 
     private final Expression field;
     private final List<? extends Expression> parameters;
@@ -37,12 +63,30 @@ public abstract class AggregateFunction extends Function {
         this.parameters = parameters;
     }
 
+    protected AggregateFunction(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(field());
+    }
+
     public Expression field() {
         return field;
     }
 
     public List<? extends Expression> parameters() {
         return parameters;
+    }
+
+    /**
+     * Returns the input expressions used in aggregation.
+     * Defaults to a list containing the only the input field.
+     */
+    public List<Expression> inputExpressions() {
+        return List.of(field);
     }
 
     @Override

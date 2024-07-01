@@ -282,16 +282,21 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
 
     @Override
     public InternalHistogram create(List<Bucket> buckets) {
+        if (this.buckets.equals(buckets)) {
+            return this;
+        }
         return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
     }
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
+        if (prototype.aggregations.equals(aggregations)) {
+            return prototype;
+        }
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
     private List<Bucket> reduceBuckets(PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
-        int consumeBucketCount = 0;
         List<Bucket> reducedBuckets = new ArrayList<>();
         if (pq.size() > 0) {
             // list of buckets coming from different shards that have the same key
@@ -305,13 +310,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
                     // The key changes, reduce what we already buffered and reset the buffer for current buckets.
                     // Using Double.compare instead of != to handle NaN correctly.
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                    if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
-                        reducedBuckets.add(reduced);
-                        if (consumeBucketCount++ >= REPORT_EMPTY_EVERY) {
-                            reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
-                            consumeBucketCount = 0;
-                        }
-                    }
+                    maybeAddBucket(reduceContext, reducedBuckets, reduced);
                     currentBuckets.clear();
                     key = top.current().key;
                 }
@@ -329,18 +328,19 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
 
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
-                    reducedBuckets.add(reduced);
-                    if (consumeBucketCount++ >= REPORT_EMPTY_EVERY) {
-                        reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
-                        consumeBucketCount = 0;
-                    }
-                }
+                maybeAddBucket(reduceContext, reducedBuckets, reduced);
             }
         }
-
-        reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
         return reducedBuckets;
+    }
+
+    private void maybeAddBucket(AggregationReduceContext reduceContext, List<Bucket> reducedBuckets, Bucket reduced) {
+        if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
+            reduceContext.consumeBucketsAndMaybeBreak(1);
+            reducedBuckets.add(reduced);
+        } else {
+            reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
+        }
     }
 
     private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
@@ -481,6 +481,9 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
                         CollectionUtil.introSort(reducedBuckets, order.comparator());
                     }
                 }
+                if (reducedBuckets.equals(buckets)) {
+                    return InternalHistogram.this;
+                }
                 return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
             }
         };
@@ -526,14 +529,9 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     }
 
     @Override
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public InternalAggregation createAggregation(List<MultiBucketsAggregation.Bucket> buckets) {
-        // convert buckets to the right type
-        List<Bucket> buckets2 = new ArrayList<>(buckets.size());
-        for (Object b : buckets) {
-            buckets2.add((Bucket) b);
-        }
-        buckets2 = Collections.unmodifiableList(buckets2);
-        return new InternalHistogram(name, buckets2, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
+        return new InternalHistogram(name, (List) buckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
     @Override

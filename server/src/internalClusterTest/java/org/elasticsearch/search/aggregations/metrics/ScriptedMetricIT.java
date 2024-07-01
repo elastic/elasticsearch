@@ -722,7 +722,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo(numDocs));
                 assertThat(global.getAggregations(), notNullValue());
-                assertThat(global.getAggregations().asMap().size(), equalTo(1));
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 ScriptedMetric scriptedMetricAggregation = global.getAggregations().get("scripted");
                 assertThat(scriptedMetricAggregation, notNullValue());

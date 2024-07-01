@@ -299,7 +299,7 @@ public class EnrichLookupService {
                 );
                 BlockLoader loader = ctx.blockLoader(
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
-                    EsqlDataTypes.isUnsupported(extractField.dataType()),
+                    extractField.dataType() == DataType.UNSUPPORTED,
                     MappedFieldType.FieldExtractPreference.NONE
                 );
                 fields.add(

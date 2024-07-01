@@ -226,7 +226,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitString(EsqlBaseParser.StringContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, unquoteString(source), DataType.KEYWORD);
+        return new Literal(source, unquote(source), DataType.KEYWORD);
     }
 
     @Override
@@ -729,7 +729,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             int index = Integer.parseInt(nameOrPosition);
             if (params.get(index) == null) {
                 String message = "";
-                int np = params.positionalParams().size();
+                int np = params.size();
                 if (np > 0) {
                     message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }

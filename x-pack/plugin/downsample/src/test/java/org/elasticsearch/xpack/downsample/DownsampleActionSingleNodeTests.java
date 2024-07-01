@@ -70,7 +70,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistog
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
-import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -134,6 +133,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_TIMESTAMP = "@timestamp";
     public static final String FIELD_DIMENSION_1 = "dimension_kw";
     public static final String FIELD_DIMENSION_2 = "dimension_long";
+    public static final String FIELD_DIMENSION_3 = "dimension_flattened";
+    public static final String FIELD_DIMENSION_4 = "dimension_kw_multifield";
     public static final String FIELD_NUMERIC_1 = "numeric_1";
     public static final String FIELD_NUMERIC_2 = "numeric_2";
     public static final String FIELD_AGG_METRIC = "agg_metric_1";
@@ -212,6 +213,19 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         // Dimensions
         mapping.startObject(FIELD_DIMENSION_1).field("type", "keyword").field("time_series_dimension", true).endObject();
         mapping.startObject(FIELD_DIMENSION_2).field("type", "long").field("time_series_dimension", true).endObject();
+        mapping.startObject(FIELD_DIMENSION_3)
+            .field("type", "flattened")
+            .array("time_series_dimensions", "level1_value", "level1_obj.level2_value")
+            .endObject();
+        mapping.startObject(FIELD_DIMENSION_4)
+            .field("type", "text")
+            .startObject("fields")
+            .startObject("keyword")
+            .field("type", "keyword")
+            .field("time_series_dimension", true)
+            .endObject()
+            .endObject()
+            .endObject();
 
         // Metrics
         mapping.startObject(FIELD_NUMERIC_1).field("type", "long").field("time_series_metric", "gauge").endObject();
@@ -299,6 +313,42 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
                 .field("value_count", randomIntBetween(100, 1000))
                 .endObject()
+                .endObject();
+        };
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex, true);
+        downsample(sourceIndex, downsampleIndex, config);
+        assertDownsampleIndex(sourceIndex, downsampleIndex, config);
+    }
+
+    public void testDownsampleIndexWithFlattenedAndMultiFieldDimensions() throws Exception {
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForInterval(config.getInterval());
+            double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, "dim1") // not important for this test
+                .startObject(FIELD_DIMENSION_3)
+                .field("level1_value", randomFrom(dimensionValues))
+                .field("level1_othervalue", randomFrom(dimensionValues))
+                .startObject("level1_object")
+                .field("level2_value", randomFrom(dimensionValues))
+                .field("level2_othervalue", randomFrom(dimensionValues))
+                .endObject()
+                .endObject()
+                .field(FIELD_DIMENSION_4, randomFrom(dimensionValues))
+                .field(FIELD_NUMERIC_1, randomInt())
+                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .startObject(FIELD_AGG_METRIC)
+                .field("min", randomDoubleBetween(-2000, -1001, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", randomIntBetween(100, 10000))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
+                .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
                 .endObject();
         };
         bulkIndex(sourceSupplier);
@@ -1103,7 +1153,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private InternalAggregations aggregate(final String index, AggregationBuilder aggregationBuilder) {
-        var resp = client().prepareSearch(index).addAggregation(aggregationBuilder).get();
+        var resp = client().prepareSearch(index).setSize(0).addAggregation(aggregationBuilder).get();
         try {
             return resp.getAggregations();
         } finally {
@@ -1220,12 +1270,15 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields
     ) {
         final AggregationBuilder aggregations = buildAggregations(config, metricFields, labelFields, config.getTimestampField());
-        InternalAggregations origResp = aggregate(sourceIndex, aggregations);
-        InternalAggregations downsampleResp = aggregate(downsampleIndex, aggregations);
-        assertEquals(origResp.asMap().keySet(), downsampleResp.asMap().keySet());
+        List<InternalAggregation> origList = aggregate(sourceIndex, aggregations).asList();
+        List<InternalAggregation> downsampleList = aggregate(downsampleIndex, aggregations).asList();
+        assertEquals(origList.size(), downsampleList.size());
+        for (int i = 0; i < origList.size(); i++) {
+            assertEquals(origList.get(i).getName(), downsampleList.get(i).getName());
+        }
 
-        StringTerms originalTsIdTermsAggregation = (StringTerms) origResp.getAsMap().values().stream().toList().get(0);
-        StringTerms downsampleTsIdTermsAggregation = (StringTerms) downsampleResp.getAsMap().values().stream().toList().get(0);
+        StringTerms originalTsIdTermsAggregation = (StringTerms) origList.get(0);
+        StringTerms downsampleTsIdTermsAggregation = (StringTerms) downsampleList.get(0);
         originalTsIdTermsAggregation.getBuckets().forEach(originalBucket -> {
 
             StringTerms.Bucket downsampleBucket = downsampleTsIdTermsAggregation.getBucketByKey(originalBucket.getKeyAsString());
@@ -1268,7 +1321,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                     .stream()
                     .filter(agg -> agg.getType().equals("top_hits"))
                     .toList();
-                assertEquals(topHitsDownsampleAggregations.size(), topHitsDownsampleAggregations.size());
+                assertEquals(topHitsOriginalAggregations.size(), topHitsDownsampleAggregations.size());
 
                 for (int j = 0; j < topHitsDownsampleAggregations.size(); ++j) {
                     InternalTopHits originalTopHits = (InternalTopHits) topHitsOriginalAggregations.get(j);
@@ -1304,14 +1357,17 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                                     originalFieldsList.contains(field)
                                 )
                             );
-                            Object originalLabelValue = originalHit.getDocumentFields().values().stream().toList().get(0).getValue();
-                            Object downsampleLabelValue = downsampleHit.getDocumentFields().values().stream().toList().get(0).getValue();
-                            Optional<InternalAggregation> labelAsMetric = nonTopHitsOriginalAggregations.stream()
+                            String labelName = originalHit.getDocumentFields().values().stream().findFirst().get().getName();
+                            Object originalLabelValue = originalHit.getDocumentFields().values().stream().findFirst().get().getValue();
+                            Object downsampleLabelValue = downsampleHit.getDocumentFields().values().stream().findFirst().get().getValue();
+                            Optional<InternalAggregation> labelAsMetric = topHitsOriginalAggregations.stream()
                                 .filter(agg -> agg.getName().equals("metric_" + downsampleTopHits.getName()))
                                 .findFirst();
                             // NOTE: this check is possible only if the label can be indexed as a metric (the label is a numeric field)
                             if (labelAsMetric.isPresent()) {
-                                double metricValue = ((Max) labelAsMetric.get()).value();
+                                double metricValue = ((InternalTopHits) labelAsMetric.get()).getHits().getHits()[0].field(
+                                    "metric_" + labelName
+                                ).getValue();
                                 assertEquals(metricValue, downsampleLabelValue);
                                 assertEquals(metricValue, originalLabelValue);
                             }

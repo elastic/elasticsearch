@@ -60,7 +60,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -154,7 +154,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
 
         Request() {
-            super(TimeValue.THIRTY_SECONDS);
+            super(TEST_REQUEST_TIMEOUT);
         }
 
         Request(StreamInput in) throws IOException {
@@ -495,10 +495,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         request.decRef();
         assertTrue(request.hasReferences());
 
-        MockLogAppender.assertThatLogger(
+        MockLog.assertThatLogger(
             () -> setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes)),
             ClusterApplierService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "listener log",
                 ClusterApplierService.class.getCanonicalName(),
                 Level.TRACE,

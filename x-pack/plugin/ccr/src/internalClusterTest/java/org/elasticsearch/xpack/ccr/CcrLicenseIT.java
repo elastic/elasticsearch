@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -111,7 +111,10 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
 
     public void testThatPutAutoFollowPatternsIsUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        final PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        final PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
         request.setName("name");
         request.setRemoteCluster("leader");
         request.setLeaderIndexPatterns(Collections.singletonList("*"));
@@ -133,11 +136,9 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
 
     public void testAutoFollowCoordinatorLogsSkippingAutoFollowCoordinationWithNonCompliantLicense() throws Exception {
         final Logger logger = LogManager.getLogger(AutoFollowCoordinator.class);
-        final MockLogAppender appender = new MockLogAppender();
-
-        try (var ignored = appender.capturing(AutoFollowCoordinator.class)) {
-            appender.addExpectation(
-                new MockLogAppender.ExceptionSeenEventExpectation(
+        try (var mockLog = MockLog.capture(AutoFollowCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
                     getTestName(),
                     logger.getName(),
                     Level.WARN,
@@ -197,7 +198,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                 }
             });
             latch.await();
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

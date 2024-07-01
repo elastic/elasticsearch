@@ -9,15 +9,13 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
-import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -33,9 +31,9 @@ public class TransportLoggerTests extends ESTestCase {
             + ", type: request"
             + ", version: .*"
             + ", header size: \\d+B"
-            + ", action: cluster:monitor/stats]"
+            + ", action: internal:test]"
             + " WRITE: \\d+B";
-        final MockLogAppender.LoggingExpectation writeExpectation = new MockLogAppender.PatternSeenEventExpectation(
+        final MockLog.LoggingExpectation writeExpectation = new MockLog.PatternSeenEventExpectation(
             "hot threads request",
             TransportLogger.class.getCanonicalName(),
             Level.TRACE,
@@ -47,23 +45,23 @@ public class TransportLoggerTests extends ESTestCase {
             + ", type: request"
             + ", version: .*"
             + ", header size: \\d+B"
-            + ", action: cluster:monitor/stats]"
+            + ", action: internal:test]"
             + " READ: \\d+B";
 
-        final MockLogAppender.LoggingExpectation readExpectation = new MockLogAppender.PatternSeenEventExpectation(
-            "cluster monitor request",
+        final MockLog.LoggingExpectation readExpectation = new MockLog.PatternSeenEventExpectation(
+            "cluster state request",
             TransportLogger.class.getCanonicalName(),
             Level.TRACE,
             readPattern
         );
 
-        try (var appender = MockLogAppender.capture(TransportLogger.class)) {
-            appender.addExpectation(writeExpectation);
-            appender.addExpectation(readExpectation);
+        try (var mockLog = MockLog.capture(TransportLogger.class)) {
+            mockLog.addExpectation(writeExpectation);
+            mockLog.addExpectation(readExpectation);
             BytesReference bytesReference = buildRequest();
             TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
             TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -73,9 +71,9 @@ public class TransportLoggerTests extends ESTestCase {
         try (RecyclerBytesStreamOutput bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
             OutboundMessage.Request request = new OutboundMessage.Request(
                 new ThreadContext(Settings.EMPTY),
-                new ClusterStatsRequest(),
+                new EmptyRequest(),
                 TransportVersion.current(),
-                TransportClusterStatsAction.TYPE.name(),
+                "internal:test",
                 randomInt(30),
                 false,
                 compress

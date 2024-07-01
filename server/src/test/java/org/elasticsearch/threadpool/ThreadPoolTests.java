@@ -20,7 +20,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -106,17 +106,17 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testTimerThreadWarningLogging() throws Exception {
-        try (var appender = MockLogAppender.capture(ThreadPool.class)) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ThreadPool.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
                     "timer thread slept for [*] on absolute clock which is above the warn threshold of [100ms]"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -127,7 +127,7 @@ public class ThreadPoolTests extends ESTestCase {
             final ThreadPool.CachedTimeThread thread = new ThreadPool.CachedTimeThread("[timer]", 200, 100);
             thread.start();
 
-            assertBusy(appender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
 
             thread.interrupt();
             thread.join();
@@ -135,14 +135,14 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testTimeChangeChecker() throws Exception {
-        try (var appender = MockLogAppender.capture(ThreadPool.class)) {
+        try (var mockLog = MockLog.capture(ThreadPool.class)) {
             long absoluteMillis = randomLong(); // overflow should still be handled correctly
             long relativeNanos = randomLong(); // overflow should still be handled correctly
 
             final ThreadPool.TimeChangeChecker timeChangeChecker = new ThreadPool.TimeChangeChecker(100, absoluteMillis, relativeNanos);
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -152,10 +152,10 @@ public class ThreadPoolTests extends ESTestCase {
 
             absoluteMillis += TimeValue.timeValueSeconds(2).millis();
             timeChangeChecker.check(absoluteMillis, relativeNanos);
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -165,10 +165,10 @@ public class ThreadPoolTests extends ESTestCase {
 
             relativeNanos += TimeValue.timeValueSeconds(3).nanos();
             timeChangeChecker.check(absoluteMillis, relativeNanos);
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -178,10 +178,10 @@ public class ThreadPoolTests extends ESTestCase {
 
             absoluteMillis -= 1;
             timeChangeChecker.check(absoluteMillis, relativeNanos);
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.ERROR,
@@ -195,7 +195,7 @@ public class ThreadPoolTests extends ESTestCase {
             } catch (AssertionError e) {
                 // yeah really shouldn't happen but at least we should log the right warning
             }
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
         }
     }
@@ -270,9 +270,9 @@ public class ThreadPoolTests extends ESTestCase {
             "test",
             Settings.builder().put(ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.getKey(), "10ms").build()
         );
-        try (var appender = MockLogAppender.capture(ThreadPool.class)) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ThreadPool.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for slow task",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -296,7 +296,7 @@ public class ThreadPoolTests extends ESTestCase {
                 }
             };
             threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            assertBusy(appender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
         } finally {
             assertTrue(terminate(threadPool));
         }

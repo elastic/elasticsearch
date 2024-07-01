@@ -26,7 +26,13 @@ public class MoveToStepRequestTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected TransportMoveToStepAction.Request createTestInstance() {
-        return new TransportMoveToStepAction.Request(index, stepKeyTests.createTestInstance(), randomStepSpecification());
+        return new TransportMoveToStepAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            index,
+            stepKeyTests.createTestInstance(),
+            randomStepSpecification()
+        );
     }
 
     @Override
@@ -36,7 +42,16 @@ public class MoveToStepRequestTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected TransportMoveToStepAction.Request doParseInstance(XContentParser parser) {
-        return TransportMoveToStepAction.Request.parseRequest(index, parser);
+        return TransportMoveToStepAction.Request.parseRequest(
+            (currentStepKey, nextStepKey) -> new TransportMoveToStepAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                index,
+                currentStepKey,
+                nextStepKey
+            ),
+            parser
+        );
     }
 
     @Override
@@ -52,7 +67,7 @@ public class MoveToStepRequestTests extends AbstractXContentSerializingTestCase<
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new TransportMoveToStepAction.Request(indexName, currentStepKey, nextStepKey);
+        return new TransportMoveToStepAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, indexName, currentStepKey, nextStepKey);
     }
 
     private static TransportMoveToStepAction.Request.PartialStepKey randomStepSpecification() {

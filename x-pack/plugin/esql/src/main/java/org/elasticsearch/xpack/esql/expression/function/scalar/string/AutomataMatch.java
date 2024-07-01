@@ -17,7 +17,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * Matches {@link BytesRef}s against {@link Automaton automata}.

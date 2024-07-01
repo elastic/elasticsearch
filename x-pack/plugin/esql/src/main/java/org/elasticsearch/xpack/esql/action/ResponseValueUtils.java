@@ -27,8 +27,8 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -37,6 +37,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
@@ -46,7 +47,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 /**
  * Collection of static utility methods for helping transform response data between pages and values.
@@ -163,7 +163,7 @@ public final class ResponseValueUtils {
     static Page valuesToPage(BlockFactory blockFactory, List<ColumnInfo> columns, List<List<Object>> values) {
         List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
         List<Block.Builder> results = dataTypes.stream()
-            .map(c -> PlannerUtils.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size(), blockFactory))
+            .map(c -> PlannerUtils.toElementType(DataType.fromEs(c)).newBlockBuilder(values.size(), blockFactory))
             .toList();
 
         for (List<Object> row : values) {

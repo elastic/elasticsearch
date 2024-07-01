@@ -9,6 +9,7 @@ beta::[]
 
 Returns information about all stored connector sync jobs ordered by their creation date in ascending order.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 [[list-connector-sync-jobs-api-request]]
 ==== {api-request-title}

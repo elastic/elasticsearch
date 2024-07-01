@@ -164,6 +164,8 @@ tasks.named("processYamlRestTestResources").configure {
 tasks.named("internalClusterTest").configure {
   // this is tested explicitly in a separate test task
   exclude '**/S3RepositoryThirdPartyTests.class'
+  // TODO: remove once https://github.com/elastic/elasticsearch/issues/101608 is fixed
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
 tasks.named("yamlRestTest").configure {

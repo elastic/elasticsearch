@@ -7,9 +7,9 @@
 
 [IMPORTANT]
 ====
-cat APIs are only intended for human consumption using the command line or {kib} 
-console. They are _not_ intended for use by applications. For application 
-consumption, use the 
+cat APIs are only intended for human consumption using the command line or {kib}
+console. They are _not_ intended for use by applications. For application
+consumption, use the
 <<ml-get-job-stats,get anomaly detection job statistics API>>.
 ====
 
@@ -137,7 +137,7 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=sparse-bucket-count]
 
 `forecasts.memory.avg`, `fmavg`, `forecastsMemoryAvg`:::
 The average memory usage in bytes for forecasts related to the {anomaly-job}.
-  
+
 `forecasts.memory.max`, `fmmax`, `forecastsMemoryMax`:::
 The maximum memory usage in bytes for forecasts related to the {anomaly-job}.
 
@@ -145,8 +145,8 @@ The maximum memory usage in bytes for forecasts related to the {anomaly-job}.
 The minimum memory usage in bytes for forecasts related to the {anomaly-job}.
 
 `forecasts.memory.total`, `fmt`, `forecastsMemoryTotal`:::
-The total memory usage in bytes for forecasts related to the {anomaly-job}.                      
-  
+The total memory usage in bytes for forecasts related to the {anomaly-job}.
+
 `forecasts.records.avg`, `fravg`, `forecastsRecordsAvg`:::
 The average number of `model_forecast` documents written for forecasts related
 to the {anomaly-job}.
@@ -161,8 +161,8 @@ to the {anomaly-job}.
 
 `forecasts.records.total`, `frt`, `forecastsRecordsTotal`:::
 The total number of `model_forecast` documents written for forecasts related to
-the {anomaly-job}.                         
-                                                   
+the {anomaly-job}.
+
 `forecasts.time.avg`, `ftavg`, `forecastsTimeAvg`:::
 The average runtime in milliseconds for forecasts related to the {anomaly-job}.
 
@@ -198,7 +198,7 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-bytes-exceeded]
 
 `model.categorization_status`, `mcs`, `modelCategorizationStatus`:::
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=categorization-status]
-                         
+
 `model.categorized_doc_count`, `mcdc`, `modelCategorizedDocCount`:::
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=categorized-doc-count]
 
@@ -221,6 +221,9 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-anomaly-jobs]
 (Default)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-memory-status]
 
+`model.output_memory_allocator_bytes`, `momab`, `modelOutputMemoryAllocatorBytes`:::
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=output-memory-allocator-bytes]
+
 `model.over_fields`, `mof`, `modelOverFields`:::
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=total-over-field-count]
 
@@ -232,10 +235,10 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=rare-category-count]
 
 `model.timestamp`, `mt`, `modelTimestamp`:::
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-timestamp]
-                                                           
+
 `model.total_category_count`, `mtcc`, `modelTotalCategoryCount`:::
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=total-category-count]
-                            
+
 `node.address`, `na`, `nodeAddress`:::
 The network address of the node.
 +
@@ -261,7 +264,7 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=open-time]
 
 `state`, `s`:::
 (Default)
-include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=state-anomaly-job] 
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=state-anomaly-job]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 

@@ -120,7 +120,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             clusterService,
             threadPool,
             actionFilters,
-            Request::new,
+            Request::readFrom,
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

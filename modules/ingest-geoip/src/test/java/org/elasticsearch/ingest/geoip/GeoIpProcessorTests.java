@@ -80,10 +80,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("8.8.8.8"));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(6));
+        assertThat(geoData.size(), equalTo(7));
         assertThat(geoData.get("ip"), equalTo("8.8.8.8"));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
+        assertThat(geoData.get("continent_code"), equalTo("NA"));
         assertThat(geoData.get("continent_name"), equalTo("North America"));
         assertThat(geoData.get("timezone"), equalTo("America/Chicago"));
         Map<String, Object> location = new HashMap<>();
@@ -197,10 +198,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(address));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(9));
+        assertThat(geoData.size(), equalTo(10));
         assertThat(geoData.get("ip"), equalTo(address));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
+        assertThat(geoData.get("continent_code"), equalTo("NA"));
         assertThat(geoData.get("continent_name"), equalTo("North America"));
         assertThat(geoData.get("region_iso_code"), equalTo("US-FL"));
         assertThat(geoData.get("region_name"), equalTo("Florida"));
@@ -260,10 +262,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("82.170.213.79"));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(4));
+        assertThat(geoData.size(), equalTo(5));
         assertThat(geoData.get("ip"), equalTo("82.170.213.79"));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
         assertThat(geoData.get("country_name"), equalTo("Netherlands"));
+        assertThat(geoData.get("continent_code"), equalTo("EU"));
         assertThat(geoData.get("continent_name"), equalTo("Europe"));
     }
 
@@ -435,10 +438,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(23));
+        assertThat(geoData.size(), equalTo(24));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
+        assertThat(geoData.get("continent_code"), equalTo("NA"));
         assertThat(geoData.get("continent_name"), equalTo("North America"));
         assertThat(geoData.get("region_iso_code"), equalTo("US-NY"));
         assertThat(geoData.get("region_name"), equalTo("New York"));

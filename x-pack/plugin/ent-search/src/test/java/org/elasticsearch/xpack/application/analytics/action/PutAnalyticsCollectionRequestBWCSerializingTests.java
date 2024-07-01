@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -29,7 +28,7 @@ public class PutAnalyticsCollectionRequestBWCSerializingTests extends AbstractBW
 
     @Override
     protected PutAnalyticsCollectionAction.Request createTestInstance() {
-        return new PutAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, randomIdentifier());
+        return new PutAnalyticsCollectionAction.Request(TEST_REQUEST_TIMEOUT, randomIdentifier());
     }
 
     @Override
@@ -47,13 +46,13 @@ public class PutAnalyticsCollectionRequestBWCSerializingTests extends AbstractBW
         PutAnalyticsCollectionAction.Request instance,
         TransportVersion version
     ) {
-        return new PutAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, instance.getName());
+        return new PutAnalyticsCollectionAction.Request(TEST_REQUEST_TIMEOUT, instance.getName());
     }
 
     private static final ConstructingObjectParser<PutAnalyticsCollectionAction.Request, String> PARSER = new ConstructingObjectParser<>(
         "put_analytics_collection_request",
         false,
-        (p) -> new PutAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, (String) p[0])
+        (p) -> new PutAnalyticsCollectionAction.Request(TEST_REQUEST_TIMEOUT, (String) p[0])
     );
     static {
         PARSER.declareString(constructorArg(), NAME_FIELD);

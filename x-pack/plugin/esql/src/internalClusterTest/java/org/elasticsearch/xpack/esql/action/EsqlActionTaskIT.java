@@ -323,7 +323,10 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
          * or the cancellation chained from another cancellation and has
          * "task cancelled".
          */
-        assertThat(cancelException.getMessage(), either(equalTo("test cancel")).or(equalTo("task cancelled")));
+        assertThat(
+            cancelException.getMessage(),
+            either(equalTo("test cancel")).or(equalTo("task cancelled")).or(equalTo("request cancelled test cancel"))
+        );
         assertBusy(
             () -> assertThat(
                 client().admin()
@@ -368,7 +371,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         try {
             scriptPermits.release(numberOfDocs()); // do not block Lucene operators
             Client client = client(coordinator);
-            EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
             client().admin()
                 .indices()
                 .prepareUpdateSettings("test")

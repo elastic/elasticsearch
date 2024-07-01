@@ -12,6 +12,19 @@ setup:
               value_field:
                 type: integer
 
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: { }
+
+
 ---
 "Test basic get_jobs":
 

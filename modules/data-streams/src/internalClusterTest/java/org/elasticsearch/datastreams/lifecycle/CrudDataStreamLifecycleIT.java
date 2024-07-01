@@ -230,7 +230,7 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
         // Remove lifecycle from concrete data stream
         {
             DeleteDataStreamLifecycleAction.Request deleteDataLifecycleRequest = new DeleteDataStreamLifecycleAction.Request(
-                TimeValue.THIRTY_SECONDS,
+                TEST_REQUEST_TIMEOUT,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 new String[] { "with-lifecycle-1" }
             );
@@ -257,7 +257,7 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
         // Remove lifecycle from all data streams
         {
             DeleteDataStreamLifecycleAction.Request deleteDataLifecycleRequest = new DeleteDataStreamLifecycleAction.Request(
-                TimeValue.THIRTY_SECONDS,
+                TEST_REQUEST_TIMEOUT,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 new String[] { "*" }
             );

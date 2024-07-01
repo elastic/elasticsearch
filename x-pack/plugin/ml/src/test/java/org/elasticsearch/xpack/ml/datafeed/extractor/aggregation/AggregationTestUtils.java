@@ -36,12 +36,7 @@ public final class AggregationTestUtils {
     private AggregationTestUtils() {}
 
     static InternalHistogram.Bucket createHistogramBucket(long timestamp, long docCount, List<InternalAggregation> subAggregations) {
-        InternalHistogram.Bucket bucket = mock(InternalHistogram.Bucket.class);
-        when(bucket.getKey()).thenReturn(timestamp);
-        when(bucket.getDocCount()).thenReturn(docCount);
-        InternalAggregations aggs = createAggs(subAggregations);
-        when(bucket.getAggregations()).thenReturn(aggs);
-        return bucket;
+        return new InternalHistogram.Bucket(timestamp, docCount, false, DocValueFormat.RAW, createAggs(subAggregations));
     }
 
     static InternalComposite.InternalBucket createCompositeBucket(

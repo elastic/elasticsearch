@@ -75,6 +75,7 @@ public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<String> CITY_SUPPORTED_FIELDS = Set.of(
         "city.name",
+        "continent.code",
         "continent.name",
         "country.isoCode",
         "country.name",
@@ -88,7 +89,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "city.confidence",
         "city.geoNameId",
         "city.names",
-        "continent.code",
         "continent.geoNameId",
         "continent.names",
         "country.confidence",
@@ -156,9 +156,13 @@ public class MaxMindSupportTests extends ESTestCase {
     private static final Set<String> CONNECT_TYPE_SUPPORTED_FIELDS = Set.of("connectionType");
     private static final Set<String> CONNECT_TYPE_UNSUPPORTED_FIELDS = Set.of("ipAddress", "network");
 
-    private static final Set<String> COUNTRY_SUPPORTED_FIELDS = Set.of("continent.name", "country.isoCode", "country.name");
-    private static final Set<String> COUNTRY_UNSUPPORTED_FIELDS = Set.of(
+    private static final Set<String> COUNTRY_SUPPORTED_FIELDS = Set.of(
+        "continent.name",
+        "country.isoCode",
         "continent.code",
+        "country.name"
+    );
+    private static final Set<String> COUNTRY_UNSUPPORTED_FIELDS = Set.of(
         "continent.geoNameId",
         "continent.names",
         "country.confidence",
@@ -209,6 +213,7 @@ public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<String> ENTERPRISE_SUPPORTED_FIELDS = Set.of(
         "city.name",
+        "continent.code",
         "continent.name",
         "country.isoCode",
         "country.name",
@@ -238,7 +243,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "city.confidence",
         "city.geoNameId",
         "city.names",
-        "continent.code",
         "continent.geoNameId",
         "continent.names",
         "country.confidence",

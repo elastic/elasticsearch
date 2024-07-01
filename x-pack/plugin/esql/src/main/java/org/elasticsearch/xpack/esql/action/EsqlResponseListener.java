@@ -12,7 +12,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -26,9 +26,9 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.esql.core.util.LoggingUtils.logOnFailure;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
-import static org.elasticsearch.xpack.ql.util.LoggingUtils.logOnFailure;
 
 /**
  * Listens for a single {@link EsqlQueryResponse}, builds a corresponding {@link RestResponse} and sends it.
@@ -132,13 +132,13 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
             if (mediaType instanceof TextFormat format) {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,
-                    ChunkedRestResponseBody.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse)),
+                    ChunkedRestResponseBodyPart.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse)),
                     releasable
                 );
             } else {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,
-                    ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel),
+                    ChunkedRestResponseBodyPart.fromXContent(esqlResponse, channel.request(), channel),
                     releasable
                 );
             }

@@ -18,7 +18,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -43,9 +43,9 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH
 import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_SETTINGS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
-import static org.elasticsearch.test.MockLogAppender.LoggingExpectation;
-import static org.elasticsearch.test.MockLogAppender.SeenEventExpectation;
-import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
+import static org.elasticsearch.test.MockLog.LoggingExpectation;
+import static org.elasticsearch.test.MockLog.SeenEventExpectation;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -490,9 +490,9 @@ public class RecoverySettingsTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
 
-        try (var mockAppender = MockLogAppender.capture(RecoverySettings.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no warnings", RecoverySettings.class.getCanonicalName(), Level.WARN, "*")
+        try (var mockLog = MockLog.capture(RecoverySettings.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warnings", RecoverySettings.class.getCanonicalName(), Level.WARN, "*")
             );
 
             assertThat(recoverySettings.getUseSnapshotsDuringRecovery(), is(false));
@@ -507,7 +507,7 @@ public class RecoverySettingsTests extends ESTestCase {
             assertThat(releasable, is(notNullValue()));
             releasable.close();
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

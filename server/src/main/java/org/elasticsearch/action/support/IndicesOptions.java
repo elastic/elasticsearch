@@ -30,6 +30,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -1059,6 +1060,13 @@ public record IndicesOptions(
 
         public Builder failureStoreOptions(FailureStoreOptions.Builder failureStoreOptions) {
             this.failureStoreOptions = failureStoreOptions.build();
+            return this;
+        }
+
+        public Builder failureStoreOptions(Consumer<FailureStoreOptions.Builder> failureStoreOptionsConfig) {
+            FailureStoreOptions.Builder failureStoreOptionsBuilder = FailureStoreOptions.builder(failureStoreOptions);
+            failureStoreOptionsConfig.accept(failureStoreOptionsBuilder);
+            this.failureStoreOptions = failureStoreOptionsBuilder.build();
             return this;
         }
 

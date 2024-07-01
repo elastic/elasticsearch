@@ -8,6 +8,8 @@ preview::[]
 
 Sets connector sync job stats.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [[set-connector-sync-job-stats-api-request]]
 ==== {api-request-title}
 `PUT _connector/_sync_job/<connector_sync_job_id>/_stats`
@@ -50,6 +52,9 @@ This API is mainly used by the connector service for updating sync job informati
 
 `last_seen`::
 (Optional, instant) The timestamp to set the connector sync job's `last_seen` property.
+
+`metadata`::
+(Optional, object) The connector-specific metadata.
 
 [[set-connector-sync-job-stats-api-response-codes]]
 ==== {api-response-codes-title}

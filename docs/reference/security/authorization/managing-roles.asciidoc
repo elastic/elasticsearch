@@ -12,7 +12,8 @@ A role is defined by the following JSON structure:
   "global": { ... }, <3>
   "indices": [ ... ], <4>
   "applications": [ ... ], <5>
-  "remote_indices": [ ... ] <6>
+  "remote_indices": [ ... ], <6>
+  "remote_cluster": [ ... ] <7>
 }
 -----
 // NOTCONSOLE
@@ -35,6 +36,10 @@ A role is defined by the following JSON structure:
     <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
     This field is optional (missing `remote_indices` privileges effectively mean
     no index level permissions for any API key based remote clusters).
+<7> A list of cluster permissions entries for
+    <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
+    This field is optional (missing `remote_cluster` privileges effectively means
+    no additional cluster permissions for any API key based remote clusters).
 
 [[valid-role-name]]
 NOTE: Role names must be at least 1 and no more than 507 characters. They can
@@ -208,6 +213,36 @@ The following describes the structure of a remote indices permissions entry:
     If however, for administrative purposes, you need to create a role with privileges covering
     restricted indices, you must set this field to `true` (default is `false`), and then the
     `names` field will cover the restricted indices as well.
+
+[[roles-remote-cluster-priv]]
+==== Remote cluster privileges
+
+For <<remote-clusters-api-key,remote clusters configured with the API key based model>>, remote cluster privileges
+can be used to specify additional cluster privileges for matching remote clusters.
+
+NOTE: Remote cluster privileges are only effective for remote clusters configured with the API key based model.
+They have no effect on remote clusters configured with the certificate based model.
+
+The following describes the structure of a remote cluster permissions entry:
+
+[source,js]
+-------
+{
+  "clusters": [ ... ], <1>
+  "privileges": [ ... ] <2>
+}
+-------
+// NOTCONSOLE
+<1> A list of remote cluster aliases. It supports literal strings as well as
+<<api-multi-index,wildcards>> and <<regexp-syntax,regular expressions>>.
+This field is required.
+<2> The cluster level privileges for the remote cluster. The allowed values here are a subset of the
+<<privileges-list-cluster,cluster privileges>>. This field is required.
+
+The `monitor_enrich` privilege for remote clusters was introduced in version
+8.15.0. Currently, this is the only privilege available for remote clusters and
+is required to enable users to use the `ENRICH` keyword in ES|QL queries across
+clusters.
 
 ==== Example
 

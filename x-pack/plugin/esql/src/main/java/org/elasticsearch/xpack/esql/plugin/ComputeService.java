@@ -697,7 +697,7 @@ public class ComputeService {
         final RefCountingListener listenerRefs = new RefCountingListener(
             ActionListener.runBefore(listener.map(unused -> new ComputeResponse(collectedProfiles)), responseHeadersCollector::finish)
         );
-        try (listenerRefs) {
+        try {
             final AtomicBoolean cancelled = new AtomicBoolean();
             // run compute with target shards
             var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
@@ -746,6 +746,8 @@ public class ComputeService {
             exchangeService.finishSinkHandler(externalId, e);
             exchangeService.finishSinkHandler(request.sessionId(), e);
             listenerRefs.acquire().onFailure(e);
+        } finally {
+            listenerRefs.close();
         }
     }
 

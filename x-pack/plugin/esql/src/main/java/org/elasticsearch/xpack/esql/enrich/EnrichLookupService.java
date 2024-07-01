@@ -74,6 +74,9 @@ import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -81,9 +84,6 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -95,9 +95,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 
 /**
  * {@link EnrichLookupService} performs enrich lookup for a given input page. The lookup process consists of three stages:
@@ -302,7 +299,7 @@ public class EnrichLookupService {
                 );
                 BlockLoader loader = ctx.blockLoader(
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
-                    EsqlDataTypes.isUnsupported(extractField.dataType()),
+                    extractField.dataType() == DataType.UNSUPPORTED,
                     MappedFieldType.FieldExtractPreference.NONE
                 );
                 fields.add(
@@ -460,7 +457,7 @@ public class EnrichLookupService {
             }
             this.toRelease = inputPage;
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
-            this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
+            this.extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
         }
 
         @Override
@@ -475,7 +472,7 @@ public class EnrichLookupService {
             out.writeString(matchField);
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, null);
-            planOut.writeCollection(extractFields, writerFromPlanWriter(PlanStreamOutput::writeNamedExpression));
+            planOut.writeNamedWriteableCollection(extractFields);
         }
 
         @Override

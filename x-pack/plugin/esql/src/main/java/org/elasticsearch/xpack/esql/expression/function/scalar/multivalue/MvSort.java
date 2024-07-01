@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -26,38 +29,42 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.common.Failures;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
  * Sorts a multivalued field in lexicographical order.
  */
 public class MvSort extends EsqlScalarFunction implements OptionalArgument, Validatable {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSort", MvSort::new);
+
     private final Expression field, order;
 
-    private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataTypes.KEYWORD);
+    private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataType.KEYWORD);
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
@@ -80,7 +87,37 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     ) {
         super(source, order == null ? Arrays.asList(field, ASC) : Arrays.asList(field, order));
         this.field = field;
-        this.order = order == null ? ASC : order;
+        this.order = order;
+    }
+
+    private MvSort(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            ((PlanStreamInput) in).readExpression(),
+            // TODO readOptionalNamedWriteable
+            in.readOptionalWriteable(i -> ((PlanStreamInput) i).readExpression())
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(field);
+        // TODO writeOptionalNamedWriteable
+        out.writeOptionalWriteable(order == null ? null : o -> ((PlanStreamOutput) o).writeExpression(order));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    Expression field() {
+        return field;
+    }
+
+    Expression order() {
+        return order;
     }
 
     @Override
@@ -92,6 +129,9 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         TypeResolution resolution = isType(field, EsqlDataTypes::isRepresentable, sourceText(), FIRST, "representable");
 
         if (resolution.unresolved()) {
+            return resolution;
+        }
+        if (order == null) {
             return resolution;
         }
 
@@ -107,7 +147,10 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        boolean ordering = order.foldable() && ((BytesRef) order.fold()).utf8ToString().equalsIgnoreCase("DESC") ? false : true;
+        Expression nonNullOrder = order == null ? ASC : order;
+        boolean ordering = nonNullOrder.foldable() && ((BytesRef) nonNullOrder.fold()).utf8ToString().equalsIgnoreCase("DESC")
+            ? false
+            : true;
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BOOLEAN -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),

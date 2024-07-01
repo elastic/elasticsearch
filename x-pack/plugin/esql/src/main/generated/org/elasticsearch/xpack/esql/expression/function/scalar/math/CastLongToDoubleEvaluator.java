@@ -16,8 +16,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cast}.
@@ -32,9 +32,9 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
 
   public CastLongToDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -69,9 +69,9 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
   }
 
   public DoubleVector eval(int positionCount, LongVector vVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Cast.castLongToDouble(vVector.getLong(p)));
+        result.appendDouble(p, Cast.castLongToDouble(vVector.getLong(p)));
       }
       return result.build();
     }

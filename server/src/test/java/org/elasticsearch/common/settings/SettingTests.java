@@ -20,7 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
@@ -1423,7 +1423,7 @@ public class SettingTests extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.common.settings.IndexScopedSettings:INFO",
+        value = "org.elasticsearch.common.settings.IndexScopedSettings:DEBUG",
         reason = "to ensure we log INFO-level messages from IndexScopedSettings"
     )
     public void testLogSettingUpdate() throws Exception {
@@ -1433,12 +1433,12 @@ public class SettingTests extends ESTestCase {
         );
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
 
-        try (var mockLogAppender = MockLogAppender.capture(IndexScopedSettings.class)) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(IndexScopedSettings.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "message",
                     "org.elasticsearch.common.settings.IndexScopedSettings",
-                    Level.INFO,
+                    Level.DEBUG,
                     "updating [index.refresh_interval] from [20s] to [10s]"
                 ) {
                     @Override
@@ -1451,7 +1451,7 @@ public class SettingTests extends ESTestCase {
                 newIndexMeta("index1", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build())
             );
 
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

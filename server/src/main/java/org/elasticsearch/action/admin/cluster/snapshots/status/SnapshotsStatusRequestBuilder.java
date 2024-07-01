@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * Snapshots status request builder
@@ -23,15 +24,15 @@ public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBui
     /**
      * Constructs the new snapshot status request
      */
-    public SnapshotsStatusRequestBuilder(ElasticsearchClient client) {
-        super(client, TransportSnapshotsStatusAction.TYPE, new SnapshotsStatusRequest());
+    public SnapshotsStatusRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout) {
+        super(client, TransportSnapshotsStatusAction.TYPE, new SnapshotsStatusRequest(masterNodeTimeout));
     }
 
     /**
      * Constructs the new snapshot status request with specified repository
      */
-    public SnapshotsStatusRequestBuilder(ElasticsearchClient client, String repository) {
-        super(client, TransportSnapshotsStatusAction.TYPE, new SnapshotsStatusRequest(repository));
+    public SnapshotsStatusRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout, String repository) {
+        super(client, TransportSnapshotsStatusAction.TYPE, new SnapshotsStatusRequest(masterNodeTimeout, repository));
     }
 
     /**

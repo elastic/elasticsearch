@@ -26,6 +26,7 @@ public class CohereActionCreator implements CohereActionVisitor {
     private final ServiceComponents serviceComponents;
 
     public CohereActionCreator(Sender sender, ServiceComponents serviceComponents) {
+        // TODO Batching - accept a class that can handle batching
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }

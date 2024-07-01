@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ml.inference.ltr;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -26,9 +28,12 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConf
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRankRescorerBuilder> {
 
@@ -126,6 +131,47 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
             return doSearchRewrite(ctx);
         }
         return doCoordinatorNodeRewrite(ctx);
+    }
+
+    @Override
+    public ActionRequestValidationException validate(SearchRequest searchRequest, ActionRequestValidationException validationException) {
+        validationException = super.validate(searchRequest, validationException);
+
+        int searchRequestPaginationSize = searchRequest.source().from() + searchRequest.source().size();
+
+        if (windowSize() < searchRequestPaginationSize) {
+            return addValidationError(
+                "rescorer [window_size] is too small and should be at least the value of [from + size: "
+                    + searchRequestPaginationSize
+                    + "] but was ["
+                    + windowSize()
+                    + "]",
+                validationException
+            );
+        }
+
+        @SuppressWarnings("rawtypes")
+        List<RescorerBuilder> rescorers = searchRequest.source().rescores();
+        assert rescorers != null && rescorers.contains(this);
+
+        for (int i = rescorers.indexOf(this) + 1; i < rescorers.size(); i++) {
+            RescorerBuilder<?> nextRescorer = rescorers.get(i);
+            int nextRescorerWindowSize = nextRescorer.windowSize() != null ? nextRescorer.windowSize() : DEFAULT_WINDOW_SIZE;
+            if (windowSize() < nextRescorerWindowSize) {
+                return addValidationError(
+                    "unable to add a rescorer with [window_size: "
+                        + nextRescorerWindowSize
+                        + "] because a rescorer of type ["
+                        + getWriteableName()
+                        + "] with a smaller [window_size: "
+                        + windowSize()
+                        + "] has been added before",
+                    validationException
+                );
+            }
+        }
+
+        return validationException;
     }
 
     /**

@@ -296,7 +296,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList());
+        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList());
     }
 
     public void testSearchRequestRuntimeFields() {
@@ -548,7 +548,10 @@ public class SearchExecutionContextTests extends ESTestCase {
                 ScriptCompiler.NONE,
                 indexAnalyzers,
                 indexSettings,
-                indexSettings.getMode().buildIdFieldMapper(() -> true)
+                indexSettings.getMode().buildIdFieldMapper(() -> true),
+                query -> {
+                    throw new UnsupportedOperationException();
+                }
             )
         );
         when(mapperService.isMultiField(anyString())).then(

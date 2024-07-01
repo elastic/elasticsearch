@@ -34,7 +34,7 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -536,9 +536,9 @@ public class OutboundHandlerTests extends ESTestCase {
     public void testSlowLogOutboundMessage() throws Exception {
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
 
-        try (var mockAppender = MockLogAppender.capture(OutboundHandler.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "sending transport message ")
+        try (var mockLog = MockLog.capture(OutboundHandler.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "sending transport message ")
             );
 
             final int length = randomIntBetween(1, 100);
@@ -555,7 +555,7 @@ public class OutboundHandlerTests extends ESTestCase {
                 }
             }, new BytesArray(randomByteArrayOfLength(length)), f);
             f.get();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

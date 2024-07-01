@@ -47,7 +47,7 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
         String upgradedMetaKey = "upgraded-meta-test-key";
         String upgradedMetaValue = "upgraded-meta-test-value";
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createRoleWithMetadata(oldTestRole, Map.of(oldMetaKey, oldMetaValue));
+            createRoleWithMetadata(oldTestRole, Map.of(oldMetaKey, oldMetaValue, "meta", "test"));
             assertDocInSecurityIndex(oldTestRole);
             if (canRolesBeMigrated() == false) {
                 assertNoMigration(adminClient());
@@ -55,10 +55,10 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
             }
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             if (FIRST_MIXED_ROUND) {
-                createRoleWithMetadata(mixed1TestRole, Map.of(mixed1MetaKey, mixed1MetaValue));
+                createRoleWithMetadata(mixed1TestRole, Map.of(mixed1MetaKey, mixed1MetaValue, "meta", "test"));
                 assertDocInSecurityIndex(mixed1TestRole);
             } else {
-                createRoleWithMetadata(mixed2TestRole, Map.of(mixed2MetaKey, mixed2MetaValue));
+                createRoleWithMetadata(mixed2TestRole, Map.of(mixed2MetaKey, mixed2MetaValue, "meta", "test"));
                 assertDocInSecurityIndex(mixed2TestRole);
             }
             if (canRolesBeMigrated() == false) {
@@ -66,7 +66,7 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
                 assertCannotQueryRolesByMetadata(client());
             }
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            createRoleWithMetadata(upgradedTestRole, Map.of(upgradedMetaKey, upgradedMetaValue));
+            createRoleWithMetadata(upgradedTestRole, Map.of(upgradedMetaKey, upgradedMetaValue, "meta", "test"));
             assertTrue(canRolesBeMigrated());
             waitForMigrationCompletion(adminClient(), null);
             assertMigratedDocInSecurityIndex(oldTestRole, oldMetaKey, oldMetaValue);
@@ -221,7 +221,7 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
     private void assertAllRoles(RestClient client, String... roleNames) throws IOException {
         // this queries all roles by metadata
         String metadataQuery = """
-            {"query":{"bool":{"must_not":[{"exists":{"field":"metadata.missing_field"}}]}},"sort":["name"]}""";
+            {"query":{"bool":{"must":[{"exists":{"field":"metadata.meta"}}]}},"sort":["name"]}""";
         Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
         request.setJsonEntity(metadataQuery);
         Response response = client.performRequest(request);

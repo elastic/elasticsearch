@@ -424,6 +424,89 @@ dynamic templates - conflicting aliases:
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
+dynamic templates - conflicting aliases with top-level field:
+  - requires:
+      cluster_features: ["mapper.pass_through_priority"]
+      reason: support for priority in passthrough objects
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [otel] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [otel]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                body:
+                  type: match_only_text
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 1
+                scope:
+                  properties:
+                    attributes:
+                      type: passthrough
+                      dynamic: true
+                      time_series_dimension: true
+                      priority: 2
+                resource:
+                  properties:
+                    attributes:
+                      type: passthrough
+                      dynamic: true
+                      time_series_dimension: true
+                      priority: 3
+                metrics:
+                  type: passthrough
+                  dynamic: true
+                  priority: 0
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+                      ignore_malformed: true
+                - strings_as_keyword:
+                    mapping:
+                      type: keyword
+                      ignore_above: 1024
+                      match_mapping_type: string
+                      path_match: "*attributes.*"
+
+  - do:
+      bulk:
+        index: otel
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "metrics.data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "metrics": {"data": "10"}, "body": "top-level", "attributes": {"body": "attribute"}, "scope": {"attributes": {"body": "scope" }}, "resource": {"attributes": {"body": "resource" }}}'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: otel
+        body:
+          size: 1
+          fields: ["*"]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.body: [ top-level ] }
+  - match: { hits.hits.0.fields.attributes\.body: [ attribute ] }
+  - match: { hits.hits.0.fields.scope\.attributes\.body: [ scope ] }
+  - match: { hits.hits.0.fields.resource\.attributes\.body: [ resource ] }
+
+---
 dynamic templates with nesting:
   - requires:
       cluster_features: ["mapper.pass_through_priority"]

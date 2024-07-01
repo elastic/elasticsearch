@@ -29,7 +29,6 @@ import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationV
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCase {

@@ -13,7 +13,9 @@ import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonBuilder;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonWriter;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
@@ -26,15 +28,21 @@ import java.nio.charset.StandardCharsets;
 public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     private final AmazonBedrockEmbeddingsModel embeddingsModel;
     private final AmazonBedrockJsonWriter requestEntity;
+    private final Truncator truncator;
+    private final Truncator.TruncationResult truncationResult;
     private InvokeModelResult result;
     private AmazonBedrockProvider provider;
 
     public AmazonBedrockEmbeddingsRequest(
+        Truncator truncator,
+        Truncator.TruncationResult input,
         AmazonBedrockEmbeddingsModel model,
         AmazonBedrockJsonWriter requestEntity,
         @Nullable TimeValue timeout
     ) {
         super(model, timeout);
+        this.truncator = truncator;
+        this.truncationResult = input;
         this.embeddingsModel = model;
         this.provider = model.provider();
         this.requestEntity = requestEntity;
@@ -64,4 +72,16 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
             throw new RuntimeException(e);
         }
     }
+
+    @Override
+    public Request truncate() {
+        var truncatedInput = truncator.truncate(truncationResult.input());
+        return new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, embeddingsModel, requestEntity, timeout);
+    }
+
+    @Override
+    public boolean[] getTruncationInfo() {
+        return truncationResult.truncated().clone();
+    }
+
 }

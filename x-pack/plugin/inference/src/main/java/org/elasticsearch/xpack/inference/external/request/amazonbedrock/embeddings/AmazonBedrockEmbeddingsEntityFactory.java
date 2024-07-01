@@ -7,33 +7,30 @@
 
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings;
 
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonWriter;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
 
-import java.util.List;
-
-import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
-
 public final class AmazonBedrockEmbeddingsEntityFactory {
-    public static AmazonBedrockJsonWriter createEntity(
-        AmazonBedrockEmbeddingsModel model,
-        List<String> inputs,
-        Truncator truncator,
-        @Nullable Integer maxInputTokens
-    ) {
+    public static AmazonBedrockJsonWriter createEntity(AmazonBedrockEmbeddingsModel model, Truncator.TruncationResult truncationResult) {
         var serviceSettings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-        var truncatedInput = truncate(inputs, serviceSettings.maxInputTokens());
+
+        var truncatedInput = truncationResult.input();
+        if (truncatedInput == null || truncatedInput.isEmpty()) {
+            throw new ElasticsearchException("Input cannot be null or empty");
+        }
 
         switch (serviceSettings.provider()) {
             case AMAZONTITAN -> {
-                // TODO -- can we just use the first one here? Or do we need to warn?
-                return new AmazonBedrockTitanEmbeddingsRequestEntity(truncatedInput.input().get(0));
+                if (truncatedInput.size() > 1) {
+                    throw new ElasticsearchException("Input cannot contain more than one string");
+                }
+                return new AmazonBedrockTitanEmbeddingsRequestEntity(truncatedInput.get(0));
             }
             case COHERE -> {
-                return new AmazonBedrockCohereEmbeddingsRequestEntity(truncatedInput.input());
+                return new AmazonBedrockCohereEmbeddingsRequestEntity(truncatedInput);
             }
             default -> {
                 return null;

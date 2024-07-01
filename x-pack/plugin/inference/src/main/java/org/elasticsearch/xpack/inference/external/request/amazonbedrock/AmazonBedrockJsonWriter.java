@@ -11,6 +11,10 @@ import com.fasterxml.jackson.core.JsonGenerator;
 
 import java.io.IOException;
 
+/**
+ * This is needed as the input for the Amazon Bedrock SDK does not like
+ * the formatting of XContent JSON output
+ */
 public interface AmazonBedrockJsonWriter {
     JsonGenerator writeJson(JsonGenerator generator) throws IOException;
 }

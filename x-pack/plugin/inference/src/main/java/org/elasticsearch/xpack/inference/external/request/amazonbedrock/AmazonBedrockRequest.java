@@ -20,7 +20,7 @@ public abstract class AmazonBedrockRequest implements Request {
 
     protected final AmazonBedrockModel amazonBedrockModel;
     protected final String inferenceId;
-    private final TimeValue timeout;
+    protected final TimeValue timeout;
 
     protected AmazonBedrockRequest(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         this.amazonBedrockModel = model;

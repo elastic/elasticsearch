@@ -33,6 +33,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.common.TruncatorTests.createTruncator;
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.hamcrest.Matchers.containsString;
@@ -48,8 +49,10 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
             "accesskey",
             "secretkey"
         );
+        var truncator = createTruncator();
+        var truncatedInput = truncator.truncate(List.of("abc"));
         var requestEntity = new AmazonBedrockTitanEmbeddingsRequestEntity("abc");
-        var request = new AmazonBedrockEmbeddingsRequest(model, requestEntity, null);
+        var request = new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, model, requestEntity, null);
         var responseHandler = new AmazonBedrockEmbeddingsResponseHandler();
 
         var clientCache = new AmazonBedrockMockClientCache(null, getTestInvokeResult(TEST_AMAZON_TITAN_EMBEDDINGS_RESULT), null);
@@ -72,7 +75,9 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
             "secretkey"
         );
         var requestEntity = new AmazonBedrockTitanEmbeddingsRequestEntity("abc");
-        var request = new AmazonBedrockEmbeddingsRequest(model, requestEntity, null);
+        var truncator = createTruncator();
+        var truncatedInput = truncator.truncate(List.of("abc"));
+        var request = new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, model, requestEntity, null);
         var responseHandler = new AmazonBedrockEmbeddingsResponseHandler();
 
         var clientCache = new AmazonBedrockMockClientCache(null, getTestInvokeResult(TEST_COHERE_EMBEDDINGS_RESULT), null);

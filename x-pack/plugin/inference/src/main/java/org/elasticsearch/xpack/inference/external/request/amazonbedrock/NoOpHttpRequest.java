@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.inference.external.request.amazonbedrock;
 
 import org.apache.http.client.methods.HttpRequestBase;
 
+/**
+ * Needed for compatibility with RequestSender
+ */
 public class NoOpHttpRequest extends HttpRequestBase {
     @Override
     public String getMethod() {

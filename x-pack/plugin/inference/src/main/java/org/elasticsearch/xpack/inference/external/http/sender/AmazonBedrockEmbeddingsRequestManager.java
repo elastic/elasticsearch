@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.Amazo
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
+
 public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestManager {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockEmbeddingsRequestManager.class);
 
@@ -51,13 +53,9 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
         ActionListener<InferenceServiceResults> listener
     ) {
         var serviceSettings = (AmazonBedrockEmbeddingsServiceSettings) embeddingsModel.getServiceSettings();
-        var requestEntity = AmazonBedrockEmbeddingsEntityFactory.createEntity(
-            embeddingsModel,
-            input,
-            truncator,
-            serviceSettings.maxInputTokens()
-        );
-        var request = new AmazonBedrockEmbeddingsRequest(embeddingsModel, requestEntity, timeout);
+        var truncatedInput = truncate(input, serviceSettings.maxInputTokens());
+        var requestEntity = AmazonBedrockEmbeddingsEntityFactory.createEntity(embeddingsModel, truncatedInput);
+        var request = new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, embeddingsModel, requestEntity, timeout);
         var responseHandler = new AmazonBedrockEmbeddingsResponseHandler();
         var inferenceRequest = new ExecutableInferenceRequest(
             requestSender,

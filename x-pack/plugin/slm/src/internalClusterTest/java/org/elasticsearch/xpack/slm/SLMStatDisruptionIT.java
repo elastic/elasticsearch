@@ -507,7 +507,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     // ClusterChangeListener that wait for snapshot to complete then stops network disruption
     private SnapshotsStatusResponse getSnapshotStatus(String repo, String snapshotName) {
-        return clusterAdmin().prepareSnapshotStatus(repo).setSnapshots(snapshotName).get();
+        return clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repo).setSnapshots(snapshotName).get();
     }
 
     static class WaitForSnapshotListener implements ClusterStateListener {

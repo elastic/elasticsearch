@@ -172,6 +172,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
                 return cardinality <= KEY_ORDER_CONCURRENCY_THRESHOLD;
             }
             BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
+            // shard size is not inclusive
             return cardinality < adjusted.getShardSize();
         }
         return false;

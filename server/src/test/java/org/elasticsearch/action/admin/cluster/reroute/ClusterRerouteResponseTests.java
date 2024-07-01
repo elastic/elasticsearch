@@ -188,7 +188,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                 "0": []
                               },
                               "rollover_info": {},
-                              "mappings_updated_version" : %s,
+                              "index_version_watermark" : %s,
                               "system": false,
                               "timestamp_range": {
                                 "shards": []
@@ -272,7 +272,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             "0" : [ ]
                           },
                           "rollover_info" : { },
-                          "mappings_updated_version" : %s,
+                          "index_version_watermark" : %s,
                           "system" : false,
                           "timestamp_range" : {
                             "shards" : [ ]

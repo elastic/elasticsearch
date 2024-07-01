@@ -349,7 +349,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                       "0" : [ ]
                     },
                     "rollover_info" : { },
-                    "mappings_updated_version" : %s,
+                    "index_version_watermark" : %s,
                     "system" : false,
                     "timestamp_range" : {
                       "shards" : [ ]
@@ -523,7 +523,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         "time" : 1
                       }
                     },
-                    "mappings_updated_version" : %s,
+                    "index_version_watermark" : %s,
                     "system" : false,
                     "timestamp_range" : {
                       "shards" : [ ]
@@ -637,7 +637,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         "time" : 1
                       }
                     },
-                    "mappings_updated_version" : %s,
+                    "index_version_watermark" : %s,
                     "system" : false,
                     "timestamp_range" : {
                       "shards" : [ ]
@@ -777,7 +777,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         "time" : 1
                       }
                     },
-                    "mappings_updated_version" : %s,
+                    "index_version_watermark" : %s,
                     "system" : false,
                     "timestamp_range" : {
                       "shards" : [ ]

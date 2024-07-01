@@ -282,7 +282,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
     @Override
     public List<Bucket> getBuckets() {
-        return Collections.unmodifiableList(buckets);
+        return buckets;
     }
 
     public int getTargetBuckets() {
@@ -294,7 +294,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     }
 
     @Override
-    public InternalVariableWidthHistogram create(List<Bucket> buckets) {
+    protected InternalVariableWidthHistogram doCreate(List<Bucket> buckets) {
         return new InternalVariableWidthHistogram(name, buckets, emptyBucketInfo, targetNumBuckets, format, metadata);
     }
 

@@ -28,8 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.unmodifiableList;
-
 /** A range aggregation for data that is encoded in doc values using a binary representation. */
 public final class InternalBinaryRange extends InternalMultiBucketAggregation<InternalBinaryRange, InternalBinaryRange.Bucket>
     implements
@@ -230,11 +228,11 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
     @Override
     public List<InternalBinaryRange.Bucket> getBuckets() {
-        return unmodifiableList(buckets);
+        return buckets;
     }
 
     @Override
-    public InternalBinaryRange create(List<Bucket> buckets) {
+    protected InternalBinaryRange doCreate(List<Bucket> buckets) {
         return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
 

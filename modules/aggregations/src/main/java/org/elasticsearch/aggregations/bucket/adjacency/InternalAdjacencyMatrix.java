@@ -152,7 +152,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
-    public InternalAdjacencyMatrix create(List<InternalBucket> buckets) {
+    protected InternalAdjacencyMatrix doCreate(List<InternalBucket> buckets) {
         return new InternalAdjacencyMatrix(this.name, buckets, this.metadata);
     }
 

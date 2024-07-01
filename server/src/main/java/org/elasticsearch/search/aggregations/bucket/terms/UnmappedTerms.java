@@ -74,8 +74,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    public UnmappedTerms create(List<Bucket> buckets) {
-        return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
+    protected UnmappedTerms doCreate(List<Bucket> buckets) {
+        throw new UnsupportedOperationException("not supported for UnmappedTerms");
     }
 
     @Override

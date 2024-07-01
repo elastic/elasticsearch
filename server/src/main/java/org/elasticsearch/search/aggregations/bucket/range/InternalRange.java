@@ -313,7 +313,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     @SuppressWarnings("unchecked")
     @Override
-    public R create(List<B> buckets) {
+    protected R doCreate(List<B> buckets) {
         return getFactory().create(buckets, (R) this);
     }
 

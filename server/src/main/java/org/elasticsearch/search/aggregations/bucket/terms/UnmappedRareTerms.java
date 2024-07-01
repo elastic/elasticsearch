@@ -69,8 +69,8 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
     }
 
     @Override
-    public UnmappedRareTerms create(List<UnmappedRareTerms.Bucket> buckets) {
-        return new UnmappedRareTerms(name, metadata);
+    protected UnmappedRareTerms doCreate(List<UnmappedRareTerms.Bucket> buckets) {
+        throw new UnsupportedOperationException("not supported for UnmappedRareTerms");
     }
 
     @Override

@@ -264,7 +264,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
     @Override
     public List<InternalAutoDateHistogram.Bucket> getBuckets() {
-        return Collections.unmodifiableList(buckets);
+        return buckets;
     }
 
     DocValueFormat getFormatter() {
@@ -280,7 +280,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     }
 
     @Override
-    public InternalAutoDateHistogram create(List<Bucket> buckets) {
+    protected InternalAutoDateHistogram doCreate(List<Bucket> buckets) {
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, metadata, bucketInnerInterval);
     }
 

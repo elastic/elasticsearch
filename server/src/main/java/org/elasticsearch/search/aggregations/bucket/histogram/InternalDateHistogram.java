@@ -290,7 +290,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     @Override
     public List<InternalDateHistogram.Bucket> getBuckets() {
-        return Collections.unmodifiableList(buckets);
+        return buckets;
     }
 
     long getMinDocCount() {
@@ -306,7 +306,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     }
 
     @Override
-    public InternalDateHistogram create(List<Bucket> buckets) {
+    protected InternalDateHistogram doCreate(List<Bucket> buckets) {
         return new InternalDateHistogram(
             name,
             buckets,

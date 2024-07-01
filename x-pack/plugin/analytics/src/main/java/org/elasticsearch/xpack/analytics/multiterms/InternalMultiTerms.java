@@ -421,7 +421,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     @Override
     @SuppressWarnings("HiddenField")
-    public InternalMultiTerms create(List<Bucket> buckets) {
+    protected InternalMultiTerms doCreate(List<Bucket> buckets) {
         return new InternalMultiTerms(
             name,
             reduceOrder,

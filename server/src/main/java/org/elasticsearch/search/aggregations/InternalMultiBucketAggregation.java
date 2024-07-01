@@ -52,13 +52,30 @@ public abstract class InternalMultiBucketAggregation<
 
     /**
      * Create a new copy of this {@link Aggregation} with the same settings as
+     * this {@link Aggregation} and that contains the provided buckets. If the provided buckets are equal
+     * to the buckets in this instance, no copy will be created and this instance will be returned.
+     *
+     * @param buckets
+     *            the buckets to use in the new {@link Aggregation}
+     * @return the new {@link Aggregation}
+     */
+    @SuppressWarnings("unchecked")
+    public final A create(List<B> buckets) {
+        if (buckets.equals(getBuckets())) {
+            return (A) this;
+        }
+        return doCreate(buckets);
+    }
+
+    /**
+     * Create a new copy of this {@link Aggregation} with the same settings as
      * this {@link Aggregation} and contains the provided buckets.
      *
      * @param buckets
      *            the buckets to use in the new {@link Aggregation}
      * @return the new {@link Aggregation}
      */
-    public abstract A create(List<B> buckets);
+    protected abstract A doCreate(List<B> buckets);
 
     /**
      * Create a new {@link InternalBucket} using the provided prototype bucket

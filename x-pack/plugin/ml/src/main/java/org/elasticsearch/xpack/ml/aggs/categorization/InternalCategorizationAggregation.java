@@ -287,7 +287,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    public InternalCategorizationAggregation create(List<Bucket> buckets) {
+    protected InternalCategorizationAggregation doCreate(List<Bucket> buckets) {
         return new InternalCategorizationAggregation(name, requiredSize, minDocCount, similarityThreshold, super.metadata, buckets);
     }
 

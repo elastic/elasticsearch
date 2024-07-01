@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -308,7 +307,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     }
 
     @Override
-    public InternalIpPrefix create(List<Bucket> buckets) {
+    protected InternalIpPrefix doCreate(List<Bucket> buckets) {
         return new InternalIpPrefix(name, format, keyed, minDocCount, buckets, metadata);
     }
 
@@ -351,7 +350,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
 
     @Override
     public List<Bucket> getBuckets() {
-        return Collections.unmodifiableList(buckets);
+        return buckets;
     }
 
     @Override

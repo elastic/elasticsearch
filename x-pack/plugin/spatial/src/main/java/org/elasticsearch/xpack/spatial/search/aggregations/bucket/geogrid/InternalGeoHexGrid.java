@@ -31,7 +31,7 @@ public class InternalGeoHexGrid extends InternalGeoGrid<InternalGeoHexGridBucket
     }
 
     @Override
-    public InternalGeoGrid<InternalGeoHexGridBucket> create(List<InternalGeoGridBucket> buckets) {
+    protected InternalGeoGrid<InternalGeoHexGridBucket> doCreate(List<InternalGeoGridBucket> buckets) {
         return new InternalGeoHexGrid(name, requiredSize, buckets, metadata);
     }
 

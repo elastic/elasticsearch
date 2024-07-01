@@ -72,7 +72,7 @@ public abstract class InternalMappedSignificantTerms<
 
     @Override
     public Iterator<SignificantTerms.Bucket> iterator() {
-        return buckets.stream().map(bucket -> (SignificantTerms.Bucket) bucket).toList().iterator();
+        return buckets.stream().map(bucket -> (SignificantTerms.Bucket) bucket).iterator();
     }
 
     @Override

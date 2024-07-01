@@ -245,7 +245,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
     }
 
     @Override
-    public InternalTimeSeries create(List<InternalBucket> buckets) {
+    protected InternalTimeSeries doCreate(List<InternalBucket> buckets) {
         return new InternalTimeSeries(name, buckets, keyed, metadata);
     }
 

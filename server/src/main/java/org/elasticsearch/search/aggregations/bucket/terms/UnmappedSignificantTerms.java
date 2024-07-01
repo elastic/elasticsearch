@@ -79,8 +79,8 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    public UnmappedSignificantTerms create(List<Bucket> buckets) {
-        return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
+    protected UnmappedSignificantTerms doCreate(List<Bucket> buckets) {
+        throw new UnsupportedOperationException("not supported for UnmappedSignificantTerms");
     }
 
     @Override

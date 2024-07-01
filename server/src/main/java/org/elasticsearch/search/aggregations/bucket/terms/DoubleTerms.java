@@ -140,7 +140,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     }
 
     @Override
-    public DoubleTerms create(List<Bucket> buckets) {
+    protected DoubleTerms doCreate(List<Bucket> buckets) {
         return new DoubleTerms(
             name,
             reduceOrder,

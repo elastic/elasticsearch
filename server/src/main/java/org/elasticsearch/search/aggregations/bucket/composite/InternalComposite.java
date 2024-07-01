@@ -132,7 +132,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     }
 
     @Override
-    public InternalComposite create(List<InternalBucket> newBuckets) {
+    protected InternalComposite doCreate(List<InternalBucket> newBuckets) {
         /**
          * This is used by pipeline aggregations to filter/remove buckets so we
          * keep the <code>afterKey</code> of the original aggregation in order

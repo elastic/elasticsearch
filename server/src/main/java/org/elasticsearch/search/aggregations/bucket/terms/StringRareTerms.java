@@ -101,7 +101,7 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
     }
 
     @Override
-    public StringRareTerms create(List<StringRareTerms.Bucket> buckets) {
+    protected StringRareTerms doCreate(List<StringRareTerms.Bucket> buckets) {
         return new StringRareTerms(name, order, metadata, format, buckets, maxDocCount, filter);
     }
 

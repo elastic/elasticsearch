@@ -27,8 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.unmodifiableList;
-
 /**
  * Represents a grid of cells where each cell's location is determined by a specific geo hashing algorithm.
  * All geo-grid hash-encoding in a grid are of the same precision and held internally as a single long
@@ -74,7 +72,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
 
     @Override
     public List<InternalGeoGridBucket> getBuckets() {
-        return unmodifiableList(buckets);
+        return buckets;
     }
 
     @Override

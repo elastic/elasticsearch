@@ -160,7 +160,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
     }
 
     @Override
-    public StringTerms create(List<Bucket> buckets) {
+    protected StringTerms doCreate(List<Bucket> buckets) {
         return new StringTerms(
             name,
             reduceOrder,

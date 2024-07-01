@@ -30,7 +30,7 @@ public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBuck
     }
 
     @Override
-    public InternalGeoGrid<InternalGeoHashGridBucket> create(List<InternalGeoGridBucket> buckets) {
+    protected InternalGeoGrid<InternalGeoHashGridBucket> doCreate(List<InternalGeoGridBucket> buckets) {
         return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
     }
 

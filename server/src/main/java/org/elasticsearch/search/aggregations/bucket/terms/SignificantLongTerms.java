@@ -119,7 +119,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
     }
 
     @Override
-    public SignificantLongTerms create(List<SignificantLongTerms.Bucket> buckets) {
+    protected SignificantLongTerms doCreate(List<SignificantLongTerms.Bucket> buckets) {
         return new SignificantLongTerms(
             name,
             requiredSize,

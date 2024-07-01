@@ -107,7 +107,7 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
     }
 
     @Override
-    public LongRareTerms create(List<LongRareTerms.Bucket> buckets) {
+    protected LongRareTerms doCreate(List<LongRareTerms.Bucket> buckets) {
         return new LongRareTerms(name, order, metadata, format, buckets, maxDocCount, filter);
     }
 

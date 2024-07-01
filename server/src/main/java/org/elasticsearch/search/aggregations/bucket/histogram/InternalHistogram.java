@@ -269,7 +269,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
 
     @Override
     public List<InternalHistogram.Bucket> getBuckets() {
-        return Collections.unmodifiableList(buckets);
+        return buckets;
     }
 
     long getMinDocCount() {
@@ -281,10 +281,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     }
 
     @Override
-    public InternalHistogram create(List<Bucket> buckets) {
-        if (this.buckets.equals(buckets)) {
-            return this;
-        }
+    protected InternalHistogram doCreate(List<Bucket> buckets) {
         return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
     }
 

@@ -154,7 +154,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
-    public LongTerms create(List<Bucket> buckets) {
+    protected LongTerms doCreate(List<Bucket> buckets) {
         return new LongTerms(
             name,
             reduceOrder,

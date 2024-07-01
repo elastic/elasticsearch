@@ -175,7 +175,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     }
 
     @Override
-    public InternalFilters create(List<InternalBucket> buckets) {
+    protected InternalFilters doCreate(List<InternalBucket> buckets) {
         return new InternalFilters(name, buckets, keyed, keyedBucket, metadata);
     }
 

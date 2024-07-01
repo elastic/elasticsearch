@@ -123,7 +123,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
     }
 
     @Override
-    public SignificantStringTerms create(List<SignificantStringTerms.Bucket> buckets) {
+    protected SignificantStringTerms doCreate(List<SignificantStringTerms.Bucket> buckets) {
         return new SignificantStringTerms(
             name,
             requiredSize,

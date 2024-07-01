@@ -28,8 +28,8 @@ class UnmappedCategorizationAggregation extends InternalCategorizationAggregatio
     }
 
     @Override
-    public InternalCategorizationAggregation create(List<Bucket> buckets) {
-        return new UnmappedCategorizationAggregation(name, getRequiredSize(), getMinDocCount(), getSimilarityThreshold(), super.metadata);
+    protected InternalCategorizationAggregation doCreate(List<Bucket> buckets) {
+        throw new UnsupportedOperationException("not supported for UnmappedCategorizationAggregation");
     }
 
     @Override

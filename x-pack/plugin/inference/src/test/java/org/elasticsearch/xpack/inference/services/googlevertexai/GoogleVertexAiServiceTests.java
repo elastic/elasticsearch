@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -98,6 +100,38 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                             projectId
                         )
                     ),
+                    new HashMap<>(Map.of()),
+                    getSecretSettingsMap(serviceAccountJson)
+                ),
+                Set.of(),
+                modelListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesGoogleVertexAiRerankModel() throws IOException {
+        var projectId = "project";
+        var serviceAccountJson = """
+            {
+                "some json"
+            }
+            """;
+
+        try (var service = createGoogleVertexAiService()) {
+            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(GoogleVertexAiRerankModel.class));
+
+                var rerankModel = (GoogleVertexAiRerankModel) model;
+
+                assertThat(rerankModel.getServiceSettings().projectId(), is(projectId));
+                assertThat(rerankModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
+            }, e -> fail("Model parsing should succeeded, but failed: " + e.getMessage()));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.RERANK,
+                getRequestConfigMap(
+                    new HashMap<>(Map.of(GoogleVertexAiServiceFields.PROJECT_ID, projectId)),
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
@@ -288,6 +322,33 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
             assertThat(embeddingsModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesGoogleVertexAiRerankModel() throws IOException {
+        var projectId = "project";
+        var topN = 1;
+        var serviceAccountJson = """
+            {
+                "some json"
+            }
+            """;
+
+        try (var service = createGoogleVertexAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                new HashMap<>(Map.of(GoogleVertexAiServiceFields.PROJECT_ID, projectId)),
+                getTaskSettingsMap(topN),
+                getSecretSettingsMap(serviceAccountJson)
+            );
+
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.RERANK, persistedConfig.config(), persistedConfig.secrets());
+
+            assertThat(model, instanceOf(GoogleVertexAiRerankModel.class));
+
+            var rerankModel = (GoogleVertexAiRerankModel) model;
+            assertThat(rerankModel.getServiceSettings().projectId(), is(projectId));
+            assertThat(rerankModel.getTaskSettings(), is(new GoogleVertexAiRerankTaskSettings(topN)));
+            assertThat(rerankModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
         }
     }
 
@@ -550,6 +611,14 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         var taskSettings = new HashMap<String, Object>();
 
         taskSettings.put(GoogleVertexAiEmbeddingsTaskSettings.AUTO_TRUNCATE, autoTruncate);
+
+        return taskSettings;
+    }
+
+    private static Map<String, Object> getTaskSettingsMap(Integer topN) {
+        var taskSettings = new HashMap<String, Object>();
+
+        taskSettings.put(GoogleVertexAiRerankTaskSettings.TOP_N, topN);
 
         return taskSettings;
     }

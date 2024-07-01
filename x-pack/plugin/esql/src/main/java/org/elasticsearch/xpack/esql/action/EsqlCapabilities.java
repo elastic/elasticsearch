@@ -96,7 +96,12 @@ public class EsqlCapabilities {
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
-        GROK_DISSECT_MASKING;
+        GROK_DISSECT_MASKING,
+
+        /**
+         * Support for quoting index sources in double quotes.
+         */
+        DOUBLE_QUOTES_SOURCE_ENCLOSING;
 
         private final boolean snapshotOnly;
 

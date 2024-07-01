@@ -206,12 +206,7 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
                 ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(request));
                 if (e.getResponse().getStatusLine().getStatusCode() == 400) {
                     // this is an old node that doesn't know about the API
-                    assertThat(
-                        e.getMessage(),
-                        either(containsString("no handler found for uri [/_security/_query/role]")).or(
-                            containsString("Invalid index name [_security]")
-                        )
-                    );
+                    // note that 7.17 shows different error messages from "no handler found for uri"
                 } else if (e.getResponse().getStatusLine().getStatusCode() == 503) {
                     // this is an upgraded node, but migration does not work
                     assertThat(e.getMessage(), containsString("Cannot query or sort role metadata until automatic migration completed"));

@@ -6,16 +6,18 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,22 +27,11 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCase {
-
-    private static Boolean upgradingBeforeRoleMigration = false;
-
-    @Before
-    public void checkBeforeHasNoRoleMigrationFeature() {
-        if (CLUSTER_TYPE == ClusterType.OLD) {
-            if (clusterHasFeature("security.migration_framework") == false
-                || clusterHasFeature("security.roles_metadata_flattened") == false) {
-                upgradingBeforeRoleMigration = true;
-            }
-        }
-        assumeTrue("Only valid when upgrading from versions without role migration", upgradingBeforeRoleMigration);
-    }
 
     public void testRoleMigration() throws Exception {
         String oldTestRole = "old-test-role";
@@ -58,24 +49,32 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createRoleWithMetadata(oldTestRole, Map.of(oldMetaKey, oldMetaValue));
             assertDocInSecurityIndex(oldTestRole);
-            assertNoMigration(adminClient());
+            if (canRolesBeMigrated() == false) {
+                assertNoMigration(adminClient());
+                assertCannotQueryRolesByMetadata(client());
+            }
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             if (FIRST_MIXED_ROUND) {
                 createRoleWithMetadata(mixed1TestRole, Map.of(mixed1MetaKey, mixed1MetaValue));
                 assertDocInSecurityIndex(mixed1TestRole);
-                assertNoMigration(adminClient());
             } else {
                 createRoleWithMetadata(mixed2TestRole, Map.of(mixed2MetaKey, mixed2MetaValue));
                 assertDocInSecurityIndex(mixed2TestRole);
+            }
+            if (canRolesBeMigrated() == false) {
                 assertNoMigration(adminClient());
+                assertCannotQueryRolesByMetadata(client());
             }
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             createRoleWithMetadata(upgradedTestRole, Map.of(upgradedMetaKey, upgradedMetaValue));
+            assertTrue(canRolesBeMigrated());
             waitForMigrationCompletion(adminClient(), null);
             assertMigratedDocInSecurityIndex(oldTestRole, oldMetaKey, oldMetaValue);
             assertMigratedDocInSecurityIndex(mixed1TestRole, mixed1MetaKey, mixed1MetaValue);
             assertMigratedDocInSecurityIndex(mixed2TestRole, mixed2MetaKey, mixed2MetaValue);
             assertMigratedDocInSecurityIndex(upgradedTestRole, upgradedMetaKey, upgradedMetaValue);
+            // queries all roles by metadata
+            assertAllRoles(client(), "mixed1-test-role", "mixed2-test-role", "old-test-role", "upgraded-test-role");
         }
     }
 
@@ -191,5 +190,55 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
         );
         request.setJsonEntity(source.utf8ToString());
         assertOK(client().performRequest(request));
+    }
+
+    private void assertCannotQueryRolesByMetadata(RestClient client) {
+        List<Node> originalNodes = client.getNodes();
+        try {
+            // try the query on every node (upgraded or not)
+            for (Node node : originalNodes) {
+                client.setNodes(List.of(node));
+                String metadataQuery = """
+                    {"query":{"exists":{"field":"metadata.test"}}}""";
+                Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
+                request.setJsonEntity(metadataQuery);
+                ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(request));
+                if (e.getResponse().getStatusLine().getStatusCode() == 400) {
+                    // this is an old node
+                    assertThat(e.getMessage(), containsString("no handler found for uri [/_security/_query/role]"));
+                } else if (e.getResponse().getStatusLine().getStatusCode() == 503) {
+                    // this is an upgraded node, but migration does not work
+                    assertThat(e.getMessage(), containsString("Cannot query or sort role metadata until automatic migration completed"));
+                } else {
+                    fail(e, "Unexpected exception type");
+                }
+            }
+        } finally {
+            client.setNodes(originalNodes);
+        }
+    }
+
+    private void assertAllRoles(RestClient client, String... roleNames) throws IOException {
+        // this queries all roles by metadata
+        String metadataQuery = """
+            {"query":{"bool":{"must_not":[{"exists":{"field":"metadata.missing_field"}}]}},"sort":["name"]}""";
+        Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
+        request.setJsonEntity(metadataQuery);
+        Response response = client.performRequest(request);
+        assertOK(response);
+        Map<String, Object> responseMap = responseAsMap(response);
+        assertThat(responseMap.get("total"), is(roleNames.length));
+        assertThat(responseMap.get("count"), is(roleNames.length));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> roles = new ArrayList<>((List<Map<String, Object>>) responseMap.get("roles"));
+        assertThat(roles.size(), is(responseMap.get("count")));
+        for (int i = 0; i < roleNames.length; i++) {
+            assertThat(roles.get(i).get("name"), equalTo(roleNames[i]));
+        }
+    }
+
+    private boolean canRolesBeMigrated() {
+        return clusterHasFeature("security.migration_framework") != false
+            && clusterHasFeature("security.roles_metadata_flattened") != false;
     }
 }

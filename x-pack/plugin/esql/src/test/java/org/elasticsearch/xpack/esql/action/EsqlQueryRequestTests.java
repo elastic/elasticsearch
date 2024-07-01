@@ -34,8 +34,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,9 +79,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
-        assertEquals(params.size(), request.params().positionalParams().size());
+        assertEquals(params.size(), request.params().size());
         for (int i = 0; i < params.size(); i++) {
-            assertEquals(params.get(i), request.params().positionalParams().get(i));
+            assertEquals(params.get(i), request.params().get(i + 1));
         }
     }
 
@@ -114,10 +117,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
-        assertEquals(params.size(), request.params().positionalParams().size());
+        assertEquals(params.size(), request.params().size());
 
-        for (int i = 0; i < request.params().positionalParams().size(); i++) {
-            assertEquals(params.get(i), request.params().positionalParams().get(i));
+        for (int i = 0; i < request.params().size(); i++) {
+            assertEquals(params.get(i), request.params().get(i + 1));
         }
     }
 
@@ -182,6 +185,20 @@ public class EsqlQueryRequestTests extends ESTestCase {
         );
     }
 
+    // Test for https://github.com/elastic/elasticsearch/issues/110028
+    public void testNamedParamsMutation() {
+        EsqlQueryRequest request1 = new EsqlQueryRequest();
+        assertThat(request1.params(), equalTo(new QueryParams()));
+        var exceptionMessage = randomAlphaOfLength(10);
+        var paramName = randomAlphaOfLength(5);
+        var paramValue = randomAlphaOfLength(5);
+        request1.params().addParsingError(new ParsingException(Source.EMPTY, exceptionMessage));
+        request1.params().addTokenParam(null, new QueryParam(paramName, paramValue, DataType.KEYWORD));
+
+        EsqlQueryRequest request2 = new EsqlQueryRequest();
+        assertThat(request2.params(), equalTo(new QueryParams()));
+    }
+
     public void testParseFieldsForAsync() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
@@ -226,9 +243,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(keepOnCompletion, request.keepOnCompletion());
         assertEquals(waitForCompletion, request.waitForCompletionTimeout());
         assertEquals(keepAlive, request.keepAlive());
-        assertEquals(params.size(), request.params().positionalParams().size());
+        assertEquals(params.size(), request.params().size());
         for (int i = 0; i < params.size(); i++) {
-            assertEquals(params.get(i), request.params().positionalParams().get(i));
+            assertEquals(params.get(i), request.params().get(i + 1));
         }
     }
 

@@ -354,12 +354,12 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         int i = 0;
         int[] counts = new int[values.size()];
         for (Map.Entry<String, Integer> value : values.entrySet()) {
-            context.doc().add(new KeywordFieldMapper.KeywordField(name(), new BytesRef(value.getKey()), fieldType));
+            context.doc().add(new KeywordFieldMapper.KeywordField(fullPath(), new BytesRef(value.getKey()), fieldType));
             counts[i++] = value.getValue();
         }
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         streamOutput.writeVIntArray(counts);
-        context.doc().add(new BinaryDocValuesField(countFieldMapper.name(), streamOutput.bytes().toBytesRef()));
+        context.doc().add(new BinaryDocValuesField(countFieldMapper.fullPath(), streamOutput.bytes().toBytesRef()));
     }
 
     private void parseArray(DocumentParserContext context, SortedMap<String, Integer> values) throws IOException {

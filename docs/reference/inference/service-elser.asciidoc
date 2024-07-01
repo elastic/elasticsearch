@@ -1,0 +1,95 @@
+[[infer-service-elser]]
+=== ELSER {infer} service
+
+Creates an {infer} endpoint to perform an {infer} task with the `elser` service.
+
+
+[discrete]
+[[infer-service-elser-api-request]]
+==== {api-request-title}
+
+`PUT /_inference/<task_type>/<inference_id>`
+
+[discrete]
+[[infer-service-elser-api-path-params]]
+==== {api-path-parms-title}
+
+`<inference_id>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=inference-id]
+
+`<task_type>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=task-type]
++
+--
+Available task types:
+
+* `sparse_embedding`.
+--
+
+[discrete]
+[[infer-service-elser-api-request-body]]
+==== {api-request-body-title}
+
+`service`::
+(Required, string)
+The type of service supported for the specified task type. In this case, 
+`elser`.
+
+`service_settings`::
+(Required, object)
+include::inference-shared.asciidoc[tag=service-settings]
++
+--
+These settings are specific to the `elser` service.
+--
+
+`num_allocations`:::
+(Required, integer)
+The total number of allocations this model is assigned across machine learning nodes. Increasing this value generally increases the throughput.
+
+`num_threads`:::
+(Required, integer)
+Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node. 
+Must be a power of 2. Max allowed value is 32.
+
+
+[discrete]
+[[inference-example-elser]]
+==== ELSER service example
+
+The following example shows how to create an {infer} endpoint called
+`my-elser-model` to perform a `sparse_embedding` task type.
+Refer to the {ml-docs}/ml-nlp-elser.html[ELSER model documentation] for more info.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/my-elser-model
+{
+  "service": "elser",
+  "service_settings": {
+    "num_allocations": 1,
+    "num_threads": 1
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+Example response:
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "inference_id": "my-elser-model",
+  "task_type": "sparse_embedding",
+  "service": "elser",
+  "service_settings": {
+    "num_allocations": 1,
+    "num_threads": 1
+  },
+  "task_settings": {}
+}
+------------------------------------------------------------
+// NOTCONSOLE

@@ -88,6 +88,7 @@ setup:
                 task_type: text_embedding
                 dimensions: 4
                 similarity: cosine
+                element_type: float
               chunks:
                 - text: "these are not the droids you're looking for"
                   embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]

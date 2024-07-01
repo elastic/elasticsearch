@@ -433,7 +433,7 @@ public class ObjectMapper extends Mapper {
     }
 
     @Override
-    public String name() {
+    public String fullPath() {
         return this.fullPath;
     }
 
@@ -457,10 +457,6 @@ public class ObjectMapper extends Mapper {
     @Override
     public Iterator<Mapper> iterator() {
         return mappers.values().iterator();
-    }
-
-    public String fullPath() {
-        return this.fullPath;
     }
 
     public final Dynamic dynamic() {
@@ -492,11 +488,11 @@ public class ObjectMapper extends Mapper {
     @Override
     public ObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
         if (mergeWith instanceof ObjectMapper == false) {
-            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+            MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
         }
         if (this instanceof NestedObjectMapper == false && mergeWith instanceof NestedObjectMapper) {
             // TODO stop NestedObjectMapper extending ObjectMapper?
-            MapperErrors.throwNestedMappingConflictError(mergeWith.name());
+            MapperErrors.throwNestedMappingConflictError(mergeWith.fullPath());
         }
         var mergeResult = MergeResult.build(this, (ObjectMapper) mergeWith, parentMergeContext);
         return new ObjectMapper(
@@ -524,7 +520,9 @@ public class ObjectMapper extends Mapper {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
                     enabled = mergeWithObject.enabled;
                 } else if (existing.isEnabled() != mergeWithObject.isEnabled()) {
-                    throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + existing.name() + "]");
+                    throw new MapperException(
+                        "the [enabled] parameter can't be updated for the object mapping [" + existing.fullPath() + "]"
+                    );
                 } else {
                     enabled = existing.enabled;
                 }
@@ -537,7 +535,7 @@ public class ObjectMapper extends Mapper {
                     subObjects = mergeWithObject.subobjects;
                 } else if (existing.subobjects != mergeWithObject.subobjects) {
                     throw new MapperException(
-                        "the [subobjects] parameter can't be updated for the object mapping [" + existing.name() + "]"
+                        "the [subobjects] parameter can't be updated for the object mapping [" + existing.fullPath() + "]"
                     );
                 } else {
                     subObjects = existing.subobjects;
@@ -551,7 +549,7 @@ public class ObjectMapper extends Mapper {
                     trackArraySource = mergeWithObject.storeArraySource;
                 } else if (existing.storeArraySource != mergeWithObject.storeArraySource) {
                     throw new MapperException(
-                        "the [store_array_source] parameter can't be updated for the object mapping [" + existing.name() + "]"
+                        "the [store_array_source] parameter can't be updated for the object mapping [" + existing.fullPath() + "]"
                     );
                 } else {
                     trackArraySource = existing.storeArraySource;
@@ -606,9 +604,9 @@ public class ObjectMapper extends Mapper {
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                     if (mergeWithMapper instanceof NestedObjectMapper) {
-                        MapperErrors.throwNestedMappingConflictError(mergeWithMapper.name());
+                        MapperErrors.throwNestedMappingConflictError(mergeWithMapper.fullPath());
                     } else if (mergeWithMapper instanceof ObjectMapper) {
-                        MapperErrors.throwObjectMappingConflictError(mergeWithMapper.name());
+                        MapperErrors.throwObjectMappingConflictError(mergeWithMapper.fullPath());
                     }
 
                     // If we're merging template mappings when creating an index, then a field definition always
@@ -736,7 +734,7 @@ public class ObjectMapper extends Mapper {
     protected void serializeMappers(XContentBuilder builder, Params params) throws IOException {
         // sort the mappers so we get consistent serialization format
         Mapper[] sortedMappers = mappers.values().toArray(Mapper[]::new);
-        Arrays.sort(sortedMappers, Comparator.comparing(Mapper::name));
+        Arrays.sort(sortedMappers, Comparator.comparing(Mapper::fullPath));
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {
@@ -757,7 +755,7 @@ public class ObjectMapper extends Mapper {
     }
 
     protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers, boolean isFragment) {
-        var fields = mappers.sorted(Comparator.comparing(Mapper::name))
+        var fields = mappers.sorted(Comparator.comparing(Mapper::fullPath))
             .map(Mapper::syntheticFieldLoader)
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
             .toList();
@@ -887,7 +885,7 @@ public class ObjectMapper extends Mapper {
             if (objectsWithIgnoredFields == null || objectsWithIgnoredFields.isEmpty()) {
                 return false;
             }
-            ignoredValues = objectsWithIgnoredFields.remove(name());
+            ignoredValues = objectsWithIgnoredFields.remove(ObjectMapper.this.fullPath());
             hasValue |= ignoredValues != null;
             for (SourceLoader.SyntheticFieldLoader loader : fields) {
                 hasValue |= loader.setIgnoredValues(objectsWithIgnoredFields);
@@ -897,7 +895,7 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public String fieldName() {
-            return name();
+            return ObjectMapper.this.fullPath();
         }
     }
 

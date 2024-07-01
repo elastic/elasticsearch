@@ -316,7 +316,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         final String value = parser.textOrNull();
 
         if (value == null) {
-            throw new IllegalArgumentException("[constant_keyword] field [" + name() + "] doesn't accept [null] values");
+            throw new IllegalArgumentException("[constant_keyword] field [" + fullPath() + "] doesn't accept [null] values");
         }
 
         if (fieldType().value == null) {
@@ -328,7 +328,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["
-                    + name()
+                    + fullPath()
                     + "] only accepts values that are equal to the value defined in the mappings ["
                     + fieldType().value()
                     + "], but got ["
@@ -380,7 +380,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
             @Override
             public String fieldName() {
-                return name();
+                return fullPath();
             }
         };
     }

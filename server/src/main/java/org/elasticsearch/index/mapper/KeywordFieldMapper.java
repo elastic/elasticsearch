@@ -911,7 +911,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (value.length() > fieldType().ignoreAbove()) {
-            context.addIgnoredField(name());
+            context.addIgnoredField(fullPath());
             if (storeIgnored) {
                 // Save a copy of the field so synthetic source can load it
                 context.doc().add(new StoredField(originalName(), new BytesRef(value)));
@@ -919,7 +919,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        value = normalizeValue(fieldType().normalizer(), name(), value);
+        value = normalizeValue(fieldType().normalizer(), fullPath(), value);
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
@@ -1000,9 +1000,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public void doValidate(MappingLookup lookup) {
-        if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(name())) {
+        if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(fullPath())) {
             throw new IllegalArgumentException(
-                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + fullPath() + "]"
             );
         }
     }
@@ -1017,12 +1017,16 @@ public final class KeywordFieldMapper extends FieldMapper {
      * for synthetic source.
      */
     private String originalName() {
-        return name() + "._original";
+        return fullPath() + "._original";
     }
 
     @Override
     protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
+        if (fieldType.stored() || hasDocValues) {
+            return SyntheticSourceMode.NATIVE;
+        }
+
+        return SyntheticSourceMode.FALLBACK;
     }
 
     @Override
@@ -1036,17 +1040,18 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
         if (hasNormalizer()) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
             );
         }
+
         if (fieldType.stored()) {
             return new StringStoredFieldFieldLoader(
-                name(),
+                fullPath(),
                 simpleName,
                 fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
             ) {
@@ -1057,33 +1062,29 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             };
         }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + name()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values and isn't stored"
-            );
+
+        if (hasDocValues) {
+            return new SortedSetDocValuesSyntheticFieldLoader(
+                fullPath(),
+                simpleName,
+                fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
+                false
+            ) {
+
+                @Override
+                protected BytesRef convert(BytesRef value) {
+                    return value;
+                }
+
+                @Override
+                protected BytesRef preserve(BytesRef value) {
+                    // Preserve must make a deep copy because convert gets a shallow copy from the iterator
+                    return BytesRef.deepCopyOf(value);
+                }
+            };
         }
-        return new SortedSetDocValuesSyntheticFieldLoader(
-            name(),
-            simpleName,
-            fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
-            false
-        ) {
 
-            @Override
-            protected BytesRef convert(BytesRef value) {
-                return value;
-            }
-
-            @Override
-            protected BytesRef preserve(BytesRef value) {
-                // Preserve must make a deep copy because convert gets a shallow copy from the iterator
-                return BytesRef.deepCopyOf(value);
-            }
-        };
+        return super.syntheticFieldLoader();
     }
 
 }

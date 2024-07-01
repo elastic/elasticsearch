@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.optimizer.rules.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSpatialSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSurrogates;
+import org.elasticsearch.xpack.esql.optimizer.rules.TranslateMetricsAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -115,6 +116,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceStatsAggExpressionWithEval(),
             // lastly replace surrogate functions
             new SubstituteSurrogates(),
+            // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
+            new TranslateMetricsAggregate(),
+            new ReplaceStatsNestedExpressionWithEval(),
             new ReplaceRegexMatch(),
             new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),

@@ -80,7 +80,7 @@ dependencies {
 
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.10.1"
-  api "com.nimbusds:nimbus-jose-jwt:9.39.1"
+  api "com.nimbusds:nimbus-jose-jwt:9.37.3"
 //  api project(path: 'nimbus-jose-jwt', configuration: 'shadow')
 //  if (isEclipse) {
 //    /*
@@ -343,14 +343,14 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.crypto.StreamCipher',
         'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
         // 'org.bouncycastle.crypto.ec.CustomNamedCurves',
-//        'org.bouncycastle.crypto.engines.AESEngine',
+        'org.bouncycastle.crypto.engines.AESEngine',
         'org.bouncycastle.crypto.generators.BCrypt',
         'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
         'org.bouncycastle.crypto.generators.PKCS5S1ParametersGenerator',
         'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',
         'org.bouncycastle.crypto.macs.HMac',
         'org.bouncycastle.crypto.modes.AEADBlockCipher',
-//        'org.bouncycastle.crypto.modes.GCMBlockCipher',
+        'org.bouncycastle.crypto.modes.GCMBlockCipher',
         'org.bouncycastle.crypto.paddings.BlockCipherPadding',
         'org.bouncycastle.crypto.paddings.PaddedBufferedBlockCipher',
         'org.bouncycastle.crypto.params.AsymmetricKeyParameter',
@@ -391,13 +391,13 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.util.Arrays',
         'org.bouncycastle.util.io.Streams',
         'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
-//        'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
+        'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
         'org.bouncycastle.cert.X509CertificateHolder',
         'org.bouncycastle.openssl.PEMKeyPair',
         'org.bouncycastle.openssl.PEMParser',
         'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
-//        'org.bouncycastle.crypto.InvalidCipherTextException',
-//        'org.bouncycastle.jce.provider.BouncyCastleProvider',
+        'org.bouncycastle.crypto.InvalidCipherTextException',
+        'org.bouncycastle.jce.provider.BouncyCastleProvider',
   )
 
   ignoreViolations(

@@ -72,13 +72,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
         return new TestCaseSupplier.TypedDataSupplier(
             type + " rows",
-            () -> {
-                var rowCount = randomIntBetween(minRows, maxRows);
-
-                return IntStream.range(0, rowCount)
-                    .mapToObj(i -> values.get(randomIntBetween(1, values.size()) - 1).get().getValue())
-                    .toList();
-            },
+            () -> IntStream.range(0, randomIntBetween(minRows, maxRows))
+                .mapToObj(i -> values.get(randomIntBetween(1, values.size()) - 1).get().getValue())
+                .toList(),
             values.get(0).type(),
             false,
             true

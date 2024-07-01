@@ -15,18 +15,18 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 import java.io.IOException;
 import java.util.List;
 
-public class TopListSerializationTests extends AbstractExpressionSerializationTests<TopList> {
+public class TopSerializationTests extends AbstractExpressionSerializationTests<Top> {
     @Override
-    protected TopList createTestInstance() {
+    protected Top createTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression limit = randomChild();
         Expression order = randomChild();
-        return new TopList(source, field, limit, order);
+        return new Top(source, field, limit, order);
     }
 
     @Override
-    protected TopList mutateInstance(TopList instance) throws IOException {
+    protected Top mutateInstance(Top instance) throws IOException {
         Source source = instance.source();
         Expression field = instance.field();
         Expression limit = instance.limitField();
@@ -36,7 +36,7 @@ public class TopListSerializationTests extends AbstractExpressionSerializationTe
             case 1 -> limit = randomValueOtherThan(limit, AbstractExpressionSerializationTests::randomChild);
             case 2 -> order = randomValueOtherThan(order, AbstractExpressionSerializationTests::randomChild);
         }
-        return new TopList(source, field, limit, order);
+        return new Top(source, field, limit, order);
     }
 
     @Override

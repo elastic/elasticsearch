@@ -45,9 +45,9 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
-         * Support for aggregation function {@code TOP_LIST}.
+         * Support for aggregation function {@code TOP}.
          */
-        AGG_TOP_LIST,
+        AGG_TOP,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713

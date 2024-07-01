@@ -11,35 +11,35 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link TopListFloatAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link TopFloatAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class TopListFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class TopFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   private final int limit;
 
   private final boolean ascending;
 
-  public TopListFloatAggregatorFunctionSupplier(List<Integer> channels, int limit,
-      boolean ascending) {
+  public TopFloatAggregatorFunctionSupplier(List<Integer> channels, int limit,
+                                            boolean ascending) {
     this.channels = channels;
     this.limit = limit;
     this.ascending = ascending;
   }
 
   @Override
-  public TopListFloatAggregatorFunction aggregator(DriverContext driverContext) {
-    return TopListFloatAggregatorFunction.create(driverContext, channels, limit, ascending);
+  public TopFloatAggregatorFunction aggregator(DriverContext driverContext) {
+    return TopFloatAggregatorFunction.create(driverContext, channels, limit, ascending);
   }
 
   @Override
-  public TopListFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return TopListFloatGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
+  public TopFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+    return TopFloatGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
   }
 
   @Override
   public String describe() {
-    return "top_list of floats";
+    return "top of floats";
   }
 }

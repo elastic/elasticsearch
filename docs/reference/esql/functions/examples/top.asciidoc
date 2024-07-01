@@ -4,10 +4,10 @@
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/stats_top_list.csv-spec[tag=top-list]
+include::{esql-specs}/stats_top.csv-spec[tag=top]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/stats_top_list.csv-spec[tag=top-list-result]
+include::{esql-specs}/stats_top.csv-spec[tag=top-result]
 |===
 

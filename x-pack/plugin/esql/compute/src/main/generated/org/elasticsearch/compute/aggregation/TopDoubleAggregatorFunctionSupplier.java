@@ -11,35 +11,35 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link TopListLongAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link TopDoubleAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class TopListLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class TopDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   private final int limit;
 
   private final boolean ascending;
 
-  public TopListLongAggregatorFunctionSupplier(List<Integer> channels, int limit,
-      boolean ascending) {
+  public TopDoubleAggregatorFunctionSupplier(List<Integer> channels, int limit,
+                                             boolean ascending) {
     this.channels = channels;
     this.limit = limit;
     this.ascending = ascending;
   }
 
   @Override
-  public TopListLongAggregatorFunction aggregator(DriverContext driverContext) {
-    return TopListLongAggregatorFunction.create(driverContext, channels, limit, ascending);
+  public TopDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+    return TopDoubleAggregatorFunction.create(driverContext, channels, limit, ascending);
   }
 
   @Override
-  public TopListLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return TopListLongGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
+  public TopDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+    return TopDoubleGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
   }
 
   @Override
   public String describe() {
-    return "top_list of longs";
+    return "top of doubles";
   }
 }

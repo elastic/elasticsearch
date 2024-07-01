@@ -13,33 +13,33 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.sort.DoubleBucketedSort;
+import org.elasticsearch.compute.data.sort.IntBucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
 
 /**
- * Aggregates the top N field values for double.
+ * Aggregates the top N field values for int.
  */
-@Aggregator({ @IntermediateState(name = "topList", type = "DOUBLE_BLOCK") })
+@Aggregator({ @IntermediateState(name = "top", type = "INT_BLOCK") })
 @GroupingAggregator
-class TopListDoubleAggregator {
+class TopIntAggregator {
     public static SingleState initSingle(BigArrays bigArrays, int limit, boolean ascending) {
         return new SingleState(bigArrays, limit, ascending);
     }
 
-    public static void combine(SingleState state, double v) {
+    public static void combine(SingleState state, int v) {
         state.add(v);
     }
 
-    public static void combineIntermediate(SingleState state, DoubleBlock values) {
+    public static void combineIntermediate(SingleState state, IntBlock values) {
         int start = values.getFirstValueIndex(0);
         int end = start + values.getValueCount(0);
         for (int i = start; i < end; i++) {
-            combine(state, values.getDouble(i));
+            combine(state, values.getInt(i));
         }
     }
 
@@ -51,15 +51,15 @@ class TopListDoubleAggregator {
         return new GroupingState(bigArrays, limit, ascending);
     }
 
-    public static void combine(GroupingState state, int groupId, double v) {
+    public static void combine(GroupingState state, int groupId, int v) {
         state.add(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, DoubleBlock values, int valuesPosition) {
+    public static void combineIntermediate(GroupingState state, int groupId, IntBlock values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.getDouble(i));
+            combine(state, groupId, values.getInt(i));
         }
     }
 
@@ -72,13 +72,13 @@ class TopListDoubleAggregator {
     }
 
     public static class GroupingState implements Releasable {
-        private final DoubleBucketedSort sort;
+        private final IntBucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
-            this.sort = new DoubleBucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
+            this.sort = new IntBucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
         }
 
-        public void add(int groupId, double value) {
+        public void add(int groupId, int value) {
             sort.collect(value, groupId);
         }
 
@@ -111,7 +111,7 @@ class TopListDoubleAggregator {
             this.internalState = new GroupingState(bigArrays, limit, ascending);
         }
 
-        public void add(double value) {
+        public void add(int value) {
             internalState.add(0, value);
         }
 

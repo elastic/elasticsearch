@@ -13,6 +13,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,32 +29,55 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCase {
 
+    private static Boolean upgradingBeforeRoleMigration = false;
+
+    @Before
+    public void checkBeforeHasNoRoleMigrationFeature() {
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            if (clusterHasFeature("security.migration_framework") == false
+                || clusterHasFeature("security.roles_metadata_flattened") == false) {
+                upgradingBeforeRoleMigration = true;
+            }
+        }
+        assumeTrue("Only valid when upgrading from versions without role migration", upgradingBeforeRoleMigration);
+    }
+
     public void testRoleMigration() throws Exception {
         String oldTestRole = "old-test-role";
         String oldMetaKey = "old-meta-test-key";
         String oldMetaValue = "old-meta-test-value";
-        String mixedTestRole = "mixed-test-role";
-        String mixedMetaKey = "mixed-meta-test-key";
-        String mixedMetaValue = "mixed-meta-test-value";
+        String mixed1TestRole = "mixed1-test-role";
+        String mixed1MetaKey = "mixed1-meta-test-key";
+        String mixed1MetaValue = "mixed1-meta-test-value";
+        String mixed2TestRole = "mixed2-test-role";
+        String mixed2MetaKey = "mixed2-meta-test-key";
+        String mixed2MetaValue = "mixed2-meta-test-value";
         String upgradedTestRole = "upgraded-test-role";
         String upgradedMetaKey = "upgraded-meta-test-key";
         String upgradedMetaValue = "upgraded-meta-test-value";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createRoleWithMetadata(oldTestRole, Map.of(oldMetaKey, oldMetaValue));
             assertDocInSecurityIndex(oldTestRole);
+            assertNoMigration(adminClient());
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
-            createRoleWithMetadata(mixedTestRole, Map.of(mixedMetaKey, mixedMetaValue));
-            assertDocInSecurityIndex(mixedTestRole);
+            if (FIRST_MIXED_ROUND) {
+                createRoleWithMetadata(mixed1TestRole, Map.of(mixed1MetaKey, mixed1MetaValue));
+                assertDocInSecurityIndex(mixed1TestRole);
+                assertNoMigration(adminClient());
+            } else {
+                createRoleWithMetadata(mixed2TestRole, Map.of(mixed2MetaKey, mixed2MetaValue));
+                assertDocInSecurityIndex(mixed2TestRole);
+                assertNoMigration(adminClient());
+            }
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             createRoleWithMetadata(upgradedTestRole, Map.of(upgradedMetaKey, upgradedMetaValue));
             waitForMigrationCompletion(adminClient(), null);
             assertMigratedDocInSecurityIndex(oldTestRole, oldMetaKey, oldMetaValue);
-            assertMigratedDocInSecurityIndex(mixedTestRole, mixedMetaKey, mixedMetaValue);
+            assertMigratedDocInSecurityIndex(mixed1TestRole, mixed1MetaKey, mixed1MetaValue);
+            assertMigratedDocInSecurityIndex(mixed2TestRole, mixed2MetaKey, mixed2MetaValue);
             assertMigratedDocInSecurityIndex(upgradedTestRole, upgradedMetaKey, upgradedMetaValue);
         }
     }
-
-    // TODO assert no migration in mixed cluster
 
     @SuppressWarnings("unchecked")
     private void assertMigratedDocInSecurityIndex(String roleName, String metaKey, String metaValue) throws IOException {
@@ -111,7 +135,20 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
     }
 
     @SuppressWarnings("unchecked")
-    public static void waitForMigrationCompletion(RestClient adminClient, @Nullable Integer migrationVersion) throws Exception {
+    private static void assertNoMigration(RestClient adminClient) throws Exception {
+        Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
+        Response response = adminClient.performRequest(request);
+        assertOK(response);
+        Map<String, Object> responseMap = responseAsMap(response);
+        Map<String, Object> indicesMetadataMap = (Map<String, Object>) ((Map<String, Object>) responseMap.get("metadata")).get("indices");
+        assertTrue(indicesMetadataMap.containsKey(INTERNAL_SECURITY_MAIN_INDEX_7));
+        assertFalse(
+            ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).containsKey(MIGRATION_VERSION_CUSTOM_KEY)
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void waitForMigrationCompletion(RestClient adminClient, @Nullable Integer migrationVersion) throws Exception {
         final Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
         assertBusy(() -> {
             Response response = adminClient.performRequest(request);

@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.knn;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -81,5 +83,14 @@ public class KnnQueryPredicate extends Expression {
 
     public Expression getField() {
         return field;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeNamedWriteable(field);
+        out.writeFloatArray(vectorData);
+        out.writeGenericMap(options);
+        out.writeCollection(children(), (o, v) -> ((PlanStreamOutput) o).writeExpression(v));
     }
 }

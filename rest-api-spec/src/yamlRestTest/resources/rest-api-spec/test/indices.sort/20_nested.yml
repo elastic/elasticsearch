@@ -35,6 +35,7 @@ sort doc with nested object:
   - do:
       search:
         index: test
+        sort: name
 
   - match: { hits.total.value: 3 }
   - match: { hits.hits.0._source.name: aaaa }

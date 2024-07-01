@@ -57,7 +57,5 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
     }
 
     @Override
-    public Object fold() {
-        return makeProcessor().process(field().fold());
-    }
+    public abstract Object fold();
 }

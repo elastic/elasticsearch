@@ -28,38 +28,35 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCase {
 
-    public void testMetadataMigratedAfterUpgrade() throws Exception {
-        String testRole = "test-role";
-        String metaKey = "test_key";
-        String metaValue = "test_value";
-
-        Map<String, Object> testMetadata = Map.of(metaKey, metaValue);
+    public void testRoleMigration() throws Exception {
+        String oldTestRole = "old-test-role";
+        String oldMetaKey = "old-meta-test-key";
+        String oldMetaValue = "old-meta-test-value";
+        String mixedTestRole = "mixed-test-role";
+        String mixedMetaKey = "mixed-meta-test-key";
+        String mixedMetaValue = "mixed-meta-test-value";
+        String upgradedTestRole = "upgraded-test-role";
+        String upgradedMetaKey = "upgraded-meta-test-key";
+        String upgradedMetaValue = "upgraded-meta-test-value";
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createRole(testRole, testMetadata);
-            assertEntityInSecurityIndex(testRole);
-        }
-        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            refreshSecurityIndex();
+            createRoleWithMetadata(oldTestRole, Map.of(oldMetaKey, oldMetaValue));
+            assertDocInSecurityIndex(oldTestRole);
+        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+            createRoleWithMetadata(mixedTestRole, Map.of(mixedMetaKey, mixedMetaValue));
+            assertDocInSecurityIndex(mixedTestRole);
+        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            createRoleWithMetadata(upgradedTestRole, Map.of(upgradedMetaKey, upgradedMetaValue));
             waitForMigrationCompletion(adminClient(), null);
-            assertEntityInSecurityIndex(testRole, metaKey, metaValue);
+            assertMigratedDocInSecurityIndex(oldTestRole, oldMetaKey, oldMetaValue);
+            assertMigratedDocInSecurityIndex(mixedTestRole, mixedMetaKey, mixedMetaValue);
+            assertMigratedDocInSecurityIndex(upgradedTestRole, upgradedMetaKey, upgradedMetaValue);
         }
     }
 
-    public void testMetadataWrittenAfterUpgradeWithoutMigration() throws IOException {
-        String testRole = "another-test-role";
-        String metaKey = "another-test_key";
-        String metaValue = "another-test_value";
-
-        Map<String, Object> testMetadata = Map.of(metaKey, metaValue);
-
-        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            createRole(testRole, testMetadata);
-            assertEntityInSecurityIndex(testRole, metaKey, metaValue);
-        }
-    }
+    // TODO assert no migration in mixed cluster
 
     @SuppressWarnings("unchecked")
-    private void assertEntityInSecurityIndex(String roleName, String metaKey, String metaValue) throws IOException {
+    private void assertMigratedDocInSecurityIndex(String roleName, String metaKey, String metaValue) throws IOException {
         final Request request = new Request("POST", "/.security/_search");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         request.setJsonEntity(
@@ -85,7 +82,7 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
     }
 
     @SuppressWarnings("unchecked")
-    private void assertEntityInSecurityIndex(String id) throws IOException {
+    private void assertDocInSecurityIndex(String id) throws IOException {
         final Request request = new Request("POST", "/.security/_search");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         request.setJsonEntity(String.format(Locale.ROOT, """
@@ -143,7 +140,7 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
         });
     }
 
-    private void createRole(String roleName, Map<String, Object> metadata) throws IOException {
+    private void createRoleWithMetadata(String roleName, Map<String, Object> metadata) throws IOException {
         final Request request = new Request("POST", "/_security/role/" + roleName);
         BytesReference source = BytesReference.bytes(
             jsonBuilder().map(
@@ -156,15 +153,6 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
             )
         );
         request.setJsonEntity(source.utf8ToString());
-        assertOK(adminClient().performRequest(request));
-        refreshSecurityIndex();
-    }
-
-    private void refreshSecurityIndex() throws IOException {
-        Request request = new Request("POST", "/.security-7/_refresh");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        addExpectWarningOption(options);
-        request.setOptions(options);
-        assertOK(adminClient().performRequest(request));
+        assertOK(client().performRequest(request));
     }
 }

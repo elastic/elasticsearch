@@ -1,0 +1,5 @@
+pr: 110338
+summary: Remove `semantic_text` feature flag
+area: Mapping
+type: feature
+issues: []

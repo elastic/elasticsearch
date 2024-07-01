@@ -549,7 +549,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             inferenceId,
-            new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null)
+            new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
         );
 
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
@@ -577,7 +577,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             inferenceId,
-            new SemanticTextField.ModelSettings(TaskType.TEXT_EMBEDDING, 1024, SimilarityMeasure.COSINE)
+            new SemanticTextField.ModelSettings(
+                TaskType.TEXT_EMBEDDING,
+                1024,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            )
         );
 
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
@@ -597,41 +602,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             searchExecutionContext
         );
         assertThat(toParentBlockJoinQuery, equalTo(expectedQuery));
-    }
-
-    private MapperService mapperServiceForFieldWithModelSettings(
-        String fieldName,
-        String inferenceId,
-        SemanticTextField.ModelSettings modelSettings
-    ) throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {}));
-        mapperService.merge(
-            "_doc",
-            new CompressedXContent(
-                Strings.toString(PutMappingRequest.simpleMapping(fieldName, "type=semantic_text,inference_id=" + inferenceId))
-            ),
-            MapperService.MergeReason.MAPPING_UPDATE
-        );
-
-        SemanticTextField semanticTextField = new SemanticTextField(
-            fieldName,
-            List.of(),
-            new SemanticTextField.InferenceResult(inferenceId, modelSettings, List.of()),
-            XContentType.JSON
-        );
-        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        builder.field(semanticTextField.fieldName());
-        builder.value(semanticTextField);
-        builder.endObject();
-
-        SourceToParse sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
-        ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
-        mapperService.merge(
-            "_doc",
-            parsedDocument.dynamicMappingsUpdate().toCompressedXContent(),
-            MapperService.MergeReason.MAPPING_UPDATE
-        );
-        return mapperService;
     }
 
     @Override

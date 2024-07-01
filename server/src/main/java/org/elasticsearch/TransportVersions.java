@@ -205,6 +205,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_ADD_AGGREGATE_TYPE = def(8_696_00_0);
     public static final TransportVersion SECURITY_MIGRATIONS_MIGRATION_NEEDED_ADDED = def(8_697_00_0);
     public static final TransportVersion K_FOR_KNN_QUERY_ADDED = def(8_698_00_0);
+    public static final TransportVersion TEXT_SIMILARITY_RERANKER_RETRIEVER = def(8_699_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

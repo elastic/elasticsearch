@@ -17,6 +17,10 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Objects;
 
+/**
+ * Only required to test other processors.
+ */
+@Deprecated(forRemoval = true)
 public class ConstantProcessor implements Processor {
 
     public static String NAME = "c";

@@ -264,8 +264,6 @@ public final class IndexPrivilege extends Privilege {
 
     private IndexPrivilege(Set<String> name, Automaton automaton, boolean isSupportedInServerlessMode) {
         super(name, automaton);
-        assert false == isSupportedInServerlessMode || (name.size() == 1 && getNamedOrNull(name.stream().findFirst().get()) != null)
-            : "serverless mode flag can only be true for singleton predefined privileges";
         this.isSupportedInServerlessMode = isSupportedInServerlessMode;
     }
 
@@ -319,8 +317,8 @@ public final class IndexPrivilege extends Privilege {
         if (actions.isEmpty() == false) {
             automata.add(patterns(actions));
         }
-        // The `isSupportedInServerlessMode` flag is only meaningful for the builtin privileges constants
-        // defined in `VALUE`. For privileges consisting of multiple names we default to `false`.
+        // The `isSupportedInServerlessMode` flag is only meaningful for the builtin privileges constants defined in `VALUE`.
+        // For privileges consisting of multiple names we default to `false`, and trip an assertion in `isSupportedInServerlessMode()`.
         return new IndexPrivilege(name, unionAndMinimize(automata), false);
     }
 

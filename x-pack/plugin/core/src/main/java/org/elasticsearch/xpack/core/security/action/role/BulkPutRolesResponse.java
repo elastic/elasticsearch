@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.security.action.role;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -74,9 +74,11 @@ public class BulkPutRolesResponse extends ActionResponse implements ToXContentOb
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {}
+    public void writeTo(StreamOutput out) throws IOException {
+        TransportAction.localOnly();
+    }
 
-    public static class Item implements Writeable, ToXContentObject {
+    public static class Item implements ToXContentObject {
         private final Exception cause;
         private final String roleName;
 
@@ -133,13 +135,6 @@ public class BulkPutRolesResponse extends ActionResponse implements ToXContentOb
                 return cause.getMessage();
             }
             return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(roleName);
-            resultType.writeTo(out);
-            out.writeException(cause);
         }
     }
 

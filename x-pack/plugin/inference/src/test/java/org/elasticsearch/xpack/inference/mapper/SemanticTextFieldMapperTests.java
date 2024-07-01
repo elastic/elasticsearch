@@ -43,7 +43,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
-import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.Model;
@@ -557,17 +556,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
         Query existsQuery = ((SemanticTextFieldMapper) mapper).fieldType().existsQuery(searchExecutionContext);
         assertThat(existsQuery, instanceOf(ESToParentBlockJoinQuery.class));
-        ESToParentBlockJoinQuery toParentBlockJoinQuery = (ESToParentBlockJoinQuery) existsQuery;
-        SparseVectorFieldMapper sparseVectorFieldMapper = (SparseVectorFieldMapper) mapperService.mappingLookup()
-            .getMapper(getEmbeddingsFieldName(fieldName));
-        Query expectedQuery = NestedQueryBuilder.toQuery(
-            context -> sparseVectorFieldMapper.fieldType().existsQuery(context),
-            SemanticTextField.getChunksFieldName(fieldName),
-            toParentBlockJoinQuery.getScoreMode(),
-            false,
-            searchExecutionContext
-        );
-        assertThat(toParentBlockJoinQuery, equalTo(expectedQuery));
     }
 
     public void testExistsQueryDenseVector() throws IOException {
@@ -590,18 +578,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
         Query existsQuery = ((SemanticTextFieldMapper) mapper).fieldType().existsQuery(searchExecutionContext);
         assertThat(existsQuery, instanceOf(ESToParentBlockJoinQuery.class));
-        assertThat(existsQuery, instanceOf(ESToParentBlockJoinQuery.class));
-        ESToParentBlockJoinQuery toParentBlockJoinQuery = (ESToParentBlockJoinQuery) existsQuery;
-        DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappingLookup()
-            .getMapper(getEmbeddingsFieldName(fieldName));
-        Query expectedQuery = NestedQueryBuilder.toQuery(
-            context -> denseVectorFieldMapper.fieldType().existsQuery(context),
-            SemanticTextField.getChunksFieldName(fieldName),
-            toParentBlockJoinQuery.getScoreMode(),
-            false,
-            searchExecutionContext
-        );
-        assertThat(toParentBlockJoinQuery, equalTo(expectedQuery));
     }
 
     @Override

@@ -25,5 +25,5 @@ public interface ColumnInfo extends Writeable {
 
     String name();
 
-    String esType();
+    String outputType();
 }

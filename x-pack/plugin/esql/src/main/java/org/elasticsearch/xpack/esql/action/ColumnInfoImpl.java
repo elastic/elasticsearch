@@ -77,14 +77,14 @@ public class ColumnInfoImpl implements ColumnInfo {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeString(type.esType());
+        out.writeString(type.outputType());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field("name", name);
-        builder.field("type", type.esType());
+        builder.field("type", type.outputType());
         builder.endObject();
         return builder;
     }
@@ -95,8 +95,8 @@ public class ColumnInfoImpl implements ColumnInfo {
     }
 
     @Override
-    public String esType() {
-        return type.esType();
+    public String outputType() {
+        return type.outputType();
     }
 
     public DataType type() {

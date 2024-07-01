@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmeti
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexProcessor;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter.DefaultConverter;
@@ -53,8 +52,6 @@ public final class Processors {
         );
         entries.add(new Entry(Processor.class, BinaryArithmeticProcessor.NAME, BinaryArithmeticProcessor::new));
         entries.add(new Entry(Processor.class, UnaryArithmeticProcessor.NAME, UnaryArithmeticProcessor::new));
-        // comparators
-        entries.add(new Entry(Processor.class, BinaryComparisonProcessor.NAME, BinaryComparisonProcessor::new));
         // regex
         entries.add(new Entry(Processor.class, RegexProcessor.NAME, RegexProcessor::new));
 

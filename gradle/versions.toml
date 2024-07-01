@@ -1,6 +1,7 @@
 [versions]
 asm = "9.7"
 jackson = "2.15.0"
+jmh = "1.26"
 jna = "5.12.1"
 ecsLogging = "1.2.0"
 log4j = "2.19.0"
@@ -11,7 +12,7 @@ randomizedrunner = "2.8.0"
 [libraries]
 asm = { group = "org.ow2.asm", name="asm", version.ref="asm" }
 asm-tree = { group = "org.ow2.asm", name="asm-tree", version.ref="asm" }
-
+commons-math3 = "org.apache.commons:commons-math3:3.2"
 ecs-logging-core = { group = "co.elastic.logging", name="ecs-logging-core", version.ref="ecsLogging" }
 hamcrest = "org.hamcrest:hamcrest:2.1"
 hppc = "com.carrotsearch:hppc:0.8.1"
@@ -24,6 +25,9 @@ jackson-dataformat-yaml = { group = "com.fasterxml.jackson.dataformat", name="ja
 jackson-dataformat-cbor = { group = "com.fasterxml.jackson.dataformat", name="jackson-dataformat-cbor", version.ref="jackson" }
 
 jcodings = { group = "org.jruby.jcodings", name="jcodings", version="1.0.44" }
+jmh-core = { group = "org.openjdk.jmh", name="jmh-core", version.ref="jmh" }
+jmh-generator-annprocess = { group = "org.openjdk.jmh", name="jmh-generator-annprocess", version.ref="jmh" }
+
 jna = { group = "net.java.dev.jna", name="jna", version.ref="jna" }
 joni = { group = "org.jruby.joni", name="joni", version="2.1.29" }
 jopt-simple = "net.sf.jopt-simple:jopt-simple:5.0.2"

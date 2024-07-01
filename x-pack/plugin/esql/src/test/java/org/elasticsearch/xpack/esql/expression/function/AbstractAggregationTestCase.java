@@ -53,13 +53,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      */
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
         // TODO: Add case with no input expecting null
-        return parameterSuppliersFromTypedData(withNoRowsCase(randomizeBytesRefsOffset(suppliers)));
+        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
 
     /**
      * Adds a test case with no rows, expecting null, to the list of suppliers.
      */
-    protected static List<TestCaseSupplier> withNoRowsCase(List<TestCaseSupplier> suppliers) {
+    protected static List<TestCaseSupplier> withNoRowsExpectingNull(List<TestCaseSupplier> suppliers) {
         List<TestCaseSupplier> newSuppliers = new ArrayList<>(suppliers);
         Set<List<DataType>> uniqueSignatures = new HashSet<>();
 

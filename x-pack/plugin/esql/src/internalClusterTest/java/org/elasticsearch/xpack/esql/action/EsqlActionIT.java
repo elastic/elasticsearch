@@ -213,9 +213,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             // assert column metadata
             assertEquals("avg(count)", results.columns().get(0).name());
-            assertEquals("double", results.columns().get(0).type());
+            assertEquals(DataType.DOUBLE, results.columns().get(0).type());
             assertEquals("time", results.columns().get(1).name());
-            assertEquals("long", results.columns().get(1).type());
+            assertEquals(DataType.LONG, results.columns().get(1).type());
 
             // assert column values
             List<Long> expectedValues = LongStream.range(0, 40).map(i -> epoch + i).sorted().boxed().toList();
@@ -245,9 +245,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             assertThat(results.columns(), hasSize(2));
             assertEquals("avg(count)", results.columns().get(0).name());
-            assertEquals("double", results.columns().get(0).type());
+            assertEquals(DataType.DOUBLE, results.columns().get(0).type());
             assertEquals("data", results.columns().get(1).name());
-            assertEquals("long", results.columns().get(1).type());
+            assertEquals(DataType.LONG, results.columns().get(1).type());
 
             record Group(Long data, Double avg) {}
             List<Group> expectedGroups = List.of(new Group(1L, 42.0), new Group(2L, 44.0), new Group(99L, null), new Group(null, 12.0));
@@ -264,9 +264,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             // assert column metadata
             assertEquals("avg(count)", results.columns().get(0).name());
-            assertEquals("double", results.columns().get(0).type());
+            assertEquals(DataType.DOUBLE, results.columns().get(0).type());
             assertEquals("color", results.columns().get(1).name());
-            assertEquals("keyword", results.columns().get(1).type());
+            assertEquals(DataType.KEYWORD, results.columns().get(1).type());
             record Group(String color, double avg) {
 
             }
@@ -299,9 +299,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
                 // assert column metadata
                 assertEquals("avg", results.columns().get(0).name());
-                assertEquals("double", results.columns().get(0).type());
+                assertEquals(DataType.DOUBLE, results.columns().get(0).type());
                 assertEquals("color", results.columns().get(1).name());
-                assertEquals("keyword", results.columns().get(1).type());
+                assertEquals(DataType.KEYWORD, results.columns().get(1).type());
                 record Group(String color, Double avg) {
 
                 }
@@ -333,17 +333,17 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             // assert column metadata
             assertEquals("a", results.columns().get(0).name());
-            assertEquals("double", results.columns().get(0).type());
+            assertEquals(DataType.DOUBLE, results.columns().get(0).type());
             assertEquals("mi", results.columns().get(1).name());
-            assertEquals("long", results.columns().get(1).type());
+            assertEquals(DataType.LONG, results.columns().get(1).type());
             assertEquals("ma", results.columns().get(2).name());
-            assertEquals("long", results.columns().get(2).type());
+            assertEquals(DataType.LONG, results.columns().get(2).type());
             assertEquals("s", results.columns().get(3).name());
-            assertEquals("long", results.columns().get(3).type());
+            assertEquals(DataType.LONG, results.columns().get(3).type());
             assertEquals("c", results.columns().get(4).name());
-            assertEquals("long", results.columns().get(4).type());
+            assertEquals(DataType.LONG, results.columns().get(4).type());
             assertEquals("color", results.columns().get(5).name());
-            assertEquals("keyword", results.columns().get(5).type());
+            assertEquals(DataType.KEYWORD, results.columns().get(5).type());
             record Group(double avg, long mi, long ma, long s, long c, String color) {}
             List<Group> expectedGroups = List.of(
                 new Group(42, 42, 42, 420, 10, "blue"),
@@ -483,7 +483,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(1, results.columns().size());
             assertEquals(1, getValuesList(results).size());
             assertEquals("avg(ratio)", results.columns().get(0).name());
-            assertEquals("double", results.columns().get(0).type());
+            assertEquals(DataType.DOUBLE, results.columns().get(0).type());
             assertEquals(1, getValuesList(results).get(0).size());
             assertEquals(0.034d, (double) getValuesList(results).get(0).get(0), 0.001d);
         }
@@ -495,7 +495,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(1, results.columns().size());
             assertEquals(1, getValuesList(results).size());
             assertEquals("count(*)", results.columns().get(0).name());
-            assertEquals("long", results.columns().get(0).type());
+            assertEquals(DataType.LONG, results.columns().get(0).type());
             var values = getValuesList(results).get(0);
             assertEquals(1, values.size());
             assertEquals(40, (long) values.get(0));
@@ -508,7 +508,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(1, results.columns().size());
             assertEquals(1, getValuesList(results).size());
             assertEquals("count(*)", results.columns().get(0).name());
-            assertEquals("long", results.columns().get(0).type());
+            assertEquals(DataType.LONG, results.columns().get(0).type());
             var values = getValuesList(results).get(0);
             assertEquals(1, values.size());
             assertEquals(20, (long) values.get(0));
@@ -521,9 +521,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(2, results.columns().size());
             assertEquals(1, getValuesList(results).size());
             assertEquals("count(*)", results.columns().get(0).name());
-            assertEquals("long", results.columns().get(0).type());
+            assertEquals(DataType.LONG, results.columns().get(0).type());
             assertEquals("data", results.columns().get(1).name());
-            assertEquals("long", results.columns().get(1).type());
+            assertEquals(DataType.LONG, results.columns().get(1).type());
             var values = getValuesList(results).get(0);
             assertEquals(2, values.size());
             assertEquals(20, (long) values.get(0));
@@ -869,7 +869,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(1, results.columns().size());
             assertEquals(1, getValuesList(results).size());
             assertEquals("avg(nullsum)", results.columns().get(0).name());
-            assertEquals("double", results.columns().get(0).type());
+            assertEquals(DataType.DOUBLE, results.columns().get(0).type());
             assertEquals(1, getValuesList(results).get(0).size());
             assertNull(getValuesList(results).get(0).get(0));
         }
@@ -1098,11 +1098,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             // assert column metadata
             assertEquals("data", results.columns().get(0).name());
-            assertEquals("long", results.columns().get(0).type());
+            assertEquals(DataType.LONG, results.columns().get(0).type());
             assertEquals("count", results.columns().get(1).name());
-            assertEquals("long", results.columns().get(1).type());
+            assertEquals(DataType.LONG, results.columns().get(1).type());
             assertEquals("color", results.columns().get(2).name());
-            assertEquals("keyword", results.columns().get(2).type());
+            assertEquals(DataType.KEYWORD, results.columns().get(2).type());
             record Group(Long data, Long count, String color) {
                 Group(Long data, Long count) {
                     this(data, count, "yellow");
@@ -1149,7 +1149,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             // assert column metadata
             assertEquals("time", results.columns().get(0).name());
-            assertEquals("long", results.columns().get(0).type());
+            assertEquals(DataType.LONG, results.columns().get(0).type());
 
             boolean sortedDesc = "desc".equals(sortOrder);
             var expected = LongStream.range(0, 40)

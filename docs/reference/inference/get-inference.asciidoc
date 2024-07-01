@@ -65,7 +65,7 @@ The type of {infer} task that the model performs.
 [[get-inference-api-example]]
 ==== {api-examples-title}
 
-The following API call retrives information about the `my-elser-model` {infer}
+The following API call retrieves information about the `my-elser-model` {infer}
 model that can perform `sparse_embedding` tasks.
 
 

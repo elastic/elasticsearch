@@ -17,6 +17,7 @@ public class MapperBuilderContextTests extends ESTestCase {
         assertFalse(root.isSourceSynthetic());
         assertFalse(root.isDataStream());
         assertEquals(MapperService.MergeReason.MAPPING_UPDATE, root.getMergeReason());
+        assertFalse(root.isInNestedContext());
     }
 
     public void testRootWithMergeReason() {
@@ -25,6 +26,14 @@ public class MapperBuilderContextTests extends ESTestCase {
         assertFalse(root.isSourceSynthetic());
         assertFalse(root.isDataStream());
         assertEquals(mergeReason, root.getMergeReason());
+        assertFalse(root.isInNestedContext());
     }
 
+    public void testNestedContexts() {
+        MapperBuilderContext root = MapperBuilderContext.root(true, false);
+        assertTrue(root.isSourceSynthetic());
+        assertFalse(root.isDataStream());
+        assertEquals(MapperService.MergeReason.MAPPING_UPDATE, root.getMergeReason());
+        assertFalse(root.isInNestedContext());
+    }
 }

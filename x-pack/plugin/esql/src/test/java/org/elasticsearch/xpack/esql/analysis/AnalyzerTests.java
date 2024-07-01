@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -44,7 +43,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -60,7 +58,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -2071,50 +2068,18 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[+] has arguments with incompatible types [datetime] and [datetime]"));
     }
 
-    public void testRate() {
+    public void testRateRequiresCounterTypes() {
         assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
-        {
-            var query = "FROM test | STATS rate(network.bytes_in)";
-            LogicalPlan plan = analyze(query, analyzer);
-            var limit = as(plan, Limit.class);
-            var stats = as(limit.child(), Aggregate.class);
-            var rate = as(as(stats.aggregates().get(0), Alias.class).child(), Rate.class);
-            FieldAttribute field = as(rate.field(), FieldAttribute.class);
-            assertThat(field.name(), equalTo("network.bytes_in"));
-            assertThat(rate.parameters(), hasSize(1));
-            FieldAttribute timestamp = as(rate.parameters().get(0), FieldAttribute.class);
-            assertThat(timestamp.name(), equalTo("@timestamp"));
-            assertThat(rate.typeResolved(), equalTo(Expression.TypeResolution.TYPE_RESOLVED));
-        }
-        {
-            var query = "FROM test | STATS rate(network.bytes_out, 1minute)";
-            LogicalPlan plan = analyze(query, analyzer);
-            var limit = as(plan, Limit.class);
-            var stats = as(limit.child(), Aggregate.class);
-            var rate = as(as(stats.aggregates().get(0), Alias.class).child(), Rate.class);
-            FieldAttribute field = as(rate.field(), FieldAttribute.class);
-            assertThat(field.name(), equalTo("network.bytes_out"));
-            assertThat(rate.parameters(), hasSize(2));
-            FieldAttribute timestamp = as(rate.parameters().get(0), FieldAttribute.class);
-            assertThat(timestamp.name(), equalTo("@timestamp"));
-            Expression unit = as(rate.parameters().get(1), Expression.class);
-            assertTrue(unit.foldable());
-            Duration duration = as(unit.fold(), Duration.class);
-            assertThat(duration.toMillis(), equalTo(60 * 1000L));
-            assertThat(rate.typeResolved(), equalTo(Expression.TypeResolution.TYPE_RESOLVED));
-        }
-        {
-            var query = "FROM test | STATS rate(network.connections)";
-            VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
-            assertThat(
-                error.getMessage(),
-                containsString(
-                    "first argument of [rate(network.connections)] must be"
-                        + " [counter_long, counter_integer or counter_double], found value [network.connections] type [long]"
-                )
-            );
-        }
+        var query = "METRICS test avg(rate(network.connections))";
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "first argument of [rate(network.connections)] must be"
+                    + " [counter_long, counter_integer or counter_double], found value [network.connections] type [long]"
+            )
+        );
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

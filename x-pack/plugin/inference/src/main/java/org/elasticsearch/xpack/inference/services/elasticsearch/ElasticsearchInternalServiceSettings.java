@@ -12,14 +12,14 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class ElasticsearchInternalServiceSettings extends InternalServiceSettings {
 
@@ -27,16 +27,14 @@ public class ElasticsearchInternalServiceSettings extends InternalServiceSetting
     private static final int FAILED_INT_PARSE_VALUE = -1;
 
     public static ElasticsearchInternalServiceSettings fromMap(Map<String, Object> map, ValidationException validationException) {
-        Integer numAllocations = extractOptionalPositiveInteger(
+        Integer numAllocations = extractRequiredPositiveInteger(
             map,
             NUM_ALLOCATIONS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        Integer numThreads = extractOptionalPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        validateParameters(numAllocations, validationException, numThreads);
-
-        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         // if an error occurred while parsing, we'll set these to an invalid value so we don't accidentally get a
         // null pointer when doing unboxing

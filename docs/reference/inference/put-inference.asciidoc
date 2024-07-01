@@ -261,7 +261,7 @@ The total number of allocations this model is assigned across machine learning n
 
 `num_threads`:::
 (Required, integer)
-Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node. 
+Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node.
 Must be a power of 2. Max allowed value is 32.
 
 =====
@@ -276,7 +276,7 @@ The total number of allocations this model is assigned across machine learning n
 
 `num_threads`:::
 (Required, integer)
-Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node. 
+Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node.
 Must be a power of 2. Max allowed value is 32.
 
 =====
@@ -447,7 +447,7 @@ These settings are specific to the
 (Optional, float)
 For the `azureaistudio` service only.
 Instructs the inference process to perform sampling or not.
-Has not affect unless `temperature` or `top_p` is specified.
+Has no effect unless `temperature` or `top_p` is specified.
 
 `max_new_tokens`:::
 (Optional, integer)

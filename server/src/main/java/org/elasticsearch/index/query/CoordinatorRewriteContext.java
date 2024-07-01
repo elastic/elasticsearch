@@ -75,14 +75,15 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         );
         this.timestampInfo = timestampRange;
         this.eventIngestedInfo = eventIngestedRange;
-        // TODO: do we need an assert here to ensure neither range arg is null? Or are they @Nullable?
+        assert timestampInfo != null : "timestampRange was null";
+        assert eventIngestedInfo != null : "event.ingested range was null";
     }
 
     long getMinTimestamp(String fieldName) {
         if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
             return timestampInfo.fieldRange().getMin();
         } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
-            return eventIngestedInfo.fieldRange().getMin(); // TODO: can this throw NPE
+            return eventIngestedInfo.fieldRange().getMin();
         } else {
             throw new IllegalArgumentException(
                 Strings.format(
@@ -99,7 +100,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
             return timestampInfo.fieldRange().getMax();
         } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
-            return eventIngestedInfo.fieldRange().getMax(); // TODO: can this throw NPE
+            return eventIngestedInfo.fieldRange().getMax();
         } else {
             throw new IllegalArgumentException(
                 Strings.format(
@@ -114,10 +115,8 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
     boolean hasTimestampData(String fieldName) {
         if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
-            // TODO: again possible NPE here?
             return timestampInfo.fieldRange().isComplete() && timestampInfo.fieldRange() != IndexLongFieldRange.EMPTY;
         } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
-            // TODO: again possible NPE here?
             return eventIngestedInfo.fieldRange().isComplete() && eventIngestedInfo.fieldRange() != IndexLongFieldRange.EMPTY;
         } else {
             throw new IllegalArgumentException(

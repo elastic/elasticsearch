@@ -63,22 +63,16 @@ public class CoordinatorRewriteContextProvider {
         DateFieldMapper.DateFieldType eventIngestedFieldType = dateFieldMap.get(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
         IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
 
-        /// MP TODO: should we also check eventIngestedRange.containsAllShardRanges() == false ??
         if (timestampRange.containsAllShardRanges() == false && eventIngestedRange.containsAllShardRanges() == false) {
             timestampRange = indexMetadata.getTimeSeriesTimestampRange(timestampFieldType);
-            // MP TODO: explain what the hell is going on here
+            // return null (meaning don't do any coordinator rewrites) when:
+            // 1) there was not a completed timestamp range the cluster state (where the mapplierSupplier above pulls info from), AND
+            // 2) there was not a completed event.ingested range the cluster state, AND
+            // 3) there is no time series timestamp range present
             if (timestampRange == null) {
                 return null;
             }
         }
-
-        // IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
-        // if (timestampRange.containsAllShardRanges() == false) {
-        // timestampRange = indexMetadata.getTimeSeriesTimestampRange(dateFieldType);
-        // if (timestampRange == null) {
-        // return null;
-        // }
-        // }
 
         var timestampRangeInfo = new CoordinatorRewriteContext.DateFieldRange(timestampFieldType, timestampRange);
         var eventIngestedRangeInfo = new CoordinatorRewriteContext.DateFieldRange(eventIngestedFieldType, eventIngestedRange);

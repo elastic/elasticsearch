@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 
 import java.io.IOException;
 
@@ -59,30 +58,30 @@ abstract class PositionToXContent {
     protected abstract XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
         throws IOException;
 
-    public static PositionToXContent positionToXContent(ColumnInfo columnInfo, Block block, BytesRef scratch) {
+    public static PositionToXContent positionToXContent(ColumnInfoImpl columnInfo, Block block, BytesRef scratch) {
         return switch (columnInfo.type()) {
-            case "long", "counter_long" -> new PositionToXContent(block) {
+            case LONG, COUNTER_LONG -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((LongBlock) block).getLong(valueIndex));
                 }
             };
-            case "integer", "counter_integer" -> new PositionToXContent(block) {
+            case INTEGER, COUNTER_INTEGER -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((IntBlock) block).getInt(valueIndex));
                 }
             };
-            case "double", "counter_double" -> new PositionToXContent(block) {
+            case DOUBLE, COUNTER_DOUBLE -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((DoubleBlock) block).getDouble(valueIndex));
                 }
             };
-            case "unsigned_long" -> new PositionToXContent(block) {
+            case UNSIGNED_LONG -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
@@ -90,7 +89,7 @@ abstract class PositionToXContent {
                     return builder.value(unsignedLongAsNumber(l));
                 }
             };
-            case "keyword", "text" -> new PositionToXContent(block) {
+            case KEYWORD, TEXT -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
@@ -103,7 +102,7 @@ abstract class PositionToXContent {
                     return builder.utf8Value(val.bytes, val.offset, val.length);
                 }
             };
-            case "ip" -> new PositionToXContent(block) {
+            case IP -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
@@ -111,7 +110,7 @@ abstract class PositionToXContent {
                     return builder.value(ipToString(val));
                 }
             };
-            case "date" -> new PositionToXContent(block) {
+            case DATETIME -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
@@ -119,21 +118,21 @@ abstract class PositionToXContent {
                     return builder.value(dateTimeToString(longVal));
                 }
             };
-            case "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" -> new PositionToXContent(block) {
+            case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(spatialToString(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
                 }
             };
-            case "boolean" -> new PositionToXContent(block) {
+            case BOOLEAN -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((BooleanBlock) block).getBoolean(valueIndex));
                 }
             };
-            case "version" -> new PositionToXContent(block) {
+            case VERSION -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
@@ -141,21 +140,21 @@ abstract class PositionToXContent {
                     return builder.value(versionToString(val));
                 }
             };
-            case "null" -> new PositionToXContent(block) {
+            case NULL -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.nullValue();
                 }
             };
-            case "unsupported" -> new PositionToXContent(block) {
+            case UNSUPPORTED -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(UnsupportedValueSource.UNSUPPORTED_OUTPUT);
                 }
             };
-            case "_source" -> new PositionToXContent(block) {
+            case SOURCE -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
@@ -166,7 +165,8 @@ abstract class PositionToXContent {
                     }
                 }
             };
-            default -> throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
+            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, SHORT, BYTE, OBJECT, NESTED, FLOAT, HALF_FLOAT, SCALED_FLOAT,
+                PARTIAL_AGG -> throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
         };
     }
 }

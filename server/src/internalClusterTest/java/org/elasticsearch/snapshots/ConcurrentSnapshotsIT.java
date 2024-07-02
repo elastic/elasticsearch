@@ -46,7 +46,6 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteTransportException;
 
@@ -675,13 +674,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/108237",
-        value = "org.elasticsearch.snapshots.SnapshotsService:DEBUG,"
-            + "org.elasticsearch.cluster.service.MasterService:DEBUG,"
-            + "org.elasticsearch.repositories.blobstore.BlobStoreRepository:DEBUG,"
-            + "org.elasticsearch.snapshots.mockstore.MockRepository:DEBUG"
-    )
     public void testQueuedOperationsOnMasterDisconnect() throws Exception {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();

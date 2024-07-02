@@ -68,9 +68,6 @@ tests:
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testPreload
   issue: https://github.com/elastic/elasticsearch/issues/110211
-- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
-  method: testUpdateRuleWithMaxSynonyms
-  issue: https://github.com/elastic/elasticsearch/issues/110212
 - class: "org.elasticsearch.rest.RestControllerIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110225"
 - class: "org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests"
@@ -109,6 +106,9 @@ tests:
 - class: org.elasticsearch.search.vectors.ExactKnnQueryBuilderTests
   method: testToQuery
   issue: https://github.com/elastic/elasticsearch/issues/110357
+- class: org.elasticsearch.search.aggregations.bucket.terms.RareTermsIT
+  method: testSingleValuedString
+  issue: https://github.com/elastic/elasticsearch/issues/110388
 
 # Examples:
 #

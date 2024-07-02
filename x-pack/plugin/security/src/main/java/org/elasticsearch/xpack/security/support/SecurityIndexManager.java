@@ -187,6 +187,14 @@ public class SecurityIndexManager implements ClusterStateListener {
         return this.state != State.UNRECOVERED_STATE;
     }
 
+    public boolean isMigrationsVersionAtLeast(Integer expectedMigrationsVersion) {
+        return indexExists() && this.state.migrationsVersion.compareTo(expectedMigrationsVersion) >= 0;
+    }
+
+    public boolean isCreatedOnLatestVersion() {
+        return this.state.createdOnLatestVersion;
+    }
+
     public ElasticsearchException getUnavailableReason(Availability availability) {
         // ensure usage of a local copy so all checks execute against the same state!
         if (defensiveCopy == false) {

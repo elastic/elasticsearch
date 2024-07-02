@@ -201,7 +201,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Sum.class, Sum::new, "sum"),
                 def(Top.class, Top::new, "top"),
                 def(Values.class, Values::new, "values"),
-                def(WeightedAvg.class, WeightedAvg::new, "weighted_avg"), },
+                def(WeightedAvg.class, WeightedAvg::new, "weighted_avg") },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),

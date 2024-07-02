@@ -34,10 +34,10 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
 
   public LessThanOrEqualIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -89,9 +89,9 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
   }
 
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(LessThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+        result.appendBoolean(p, LessThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
       }
       return result.build();
     }

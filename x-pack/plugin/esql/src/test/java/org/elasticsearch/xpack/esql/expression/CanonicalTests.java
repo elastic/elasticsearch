@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.TestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -42,13 +41,13 @@ import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.TestUtils.equalsOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.fieldAttribute;
-import static org.elasticsearch.xpack.esql.core.TestUtils.greaterThanOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.greaterThanOrEqualOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.lessThanOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.notEqualsOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.notEqualsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class CanonicalTests extends ESTestCase {
@@ -115,7 +114,7 @@ public class CanonicalTests extends ESTestCase {
     }
 
     private void testBinaryLogic(Function<List<Expression>, Expression> combiner) {
-        List<Expression> children = randomList(2, 128, TestUtils::fieldAttribute);
+        List<Expression> children = randomList(2, 128, EsqlTestUtils::fieldAttribute);
         Expression expression = combiner.apply(children);
         Collections.shuffle(children, random());
         Expression shuffledExpression = combiner.apply(children);
@@ -167,7 +166,7 @@ public class CanonicalTests extends ESTestCase {
     }
 
     public void testLiteralHashSorting() throws Exception {
-        DataType type = randomFrom(DataTypes.types());
+        DataType type = randomFrom(DataType.types());
         List<Expression> list = randomList(10, 1024, () -> new Literal(EMPTY, randomInt(), type));
         List<Expression> shuffle = new ArrayList<>(list);
         Collections.shuffle(shuffle, random());
@@ -183,9 +182,9 @@ public class CanonicalTests extends ESTestCase {
     public void testInManual() throws Exception {
         FieldAttribute value = fieldAttribute();
 
-        Literal a = new Literal(EMPTY, 1, DataTypes.INTEGER);
-        Literal b = new Literal(EMPTY, 2, DataTypes.INTEGER);
-        Literal c = new Literal(EMPTY, 3, DataTypes.INTEGER);
+        Literal a = new Literal(EMPTY, 1, DataType.INTEGER);
+        Literal b = new Literal(EMPTY, 2, DataType.INTEGER);
+        Literal c = new Literal(EMPTY, 3, DataType.INTEGER);
 
         In in = new In(EMPTY, value, asList(a, b, c));
         In anotherIn = new In(EMPTY, value, asList(b, a, c));
@@ -196,7 +195,7 @@ public class CanonicalTests extends ESTestCase {
 
     public void testIn() throws Exception {
         FieldAttribute value = fieldAttribute();
-        List<Expression> list = randomList(randomInt(1024), () -> new Literal(EMPTY, randomInt(), DataTypes.INTEGER));
+        List<Expression> list = randomList(randomInt(1024), () -> new Literal(EMPTY, randomInt(), DataType.INTEGER));
         In in = new In(EMPTY, value, list);
         List<Expression> shuffledList = new ArrayList<>(list);
         Collections.shuffle(shuffledList, random());

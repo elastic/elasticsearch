@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Period;
@@ -28,6 +31,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSu
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
 
 public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sub", Sub::new);
 
     public Sub(Source source, Expression left, Expression right) {
         super(
@@ -38,16 +42,33 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubIntsEvaluator.Factory::new,
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
-            (s, lhs, rhs) -> new SubDoublesEvaluator.Factory(source, lhs, rhs),
+            SubDoublesEvaluator.Factory::new,
             SubDatetimesEvaluator.Factory::new
         );
+    }
+
+    private Sub(StreamInput in) throws IOException {
+        super(
+            in,
+            SUB,
+            SubIntsEvaluator.Factory::new,
+            SubLongsEvaluator.Factory::new,
+            SubUnsignedLongsEvaluator.Factory::new,
+            SubDoublesEvaluator.Factory::new,
+            SubDatetimesEvaluator.Factory::new
+        );
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
     protected TypeResolution resolveType() {
         TypeResolution resolution = super.resolveType();
         // As opposed to general date time arithmetics, we cannot subtract a datetime from something else.
-        if (resolution.resolved() && EsqlDataTypes.isDateTimeOrTemporal(dataType()) && DataTypes.isDateTime(right().dataType())) {
+        if (resolution.resolved() && EsqlDataTypes.isDateTimeOrTemporal(dataType()) && DataType.isDateTime(right().dataType())) {
             return new TypeResolution(
                 format(
                     null,

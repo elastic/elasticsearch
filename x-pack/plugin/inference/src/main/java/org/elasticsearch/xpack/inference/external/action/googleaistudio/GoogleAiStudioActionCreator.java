@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModel;
 
 import java.util.Map;
 import java.util.Objects;
@@ -30,5 +31,10 @@ public class GoogleAiStudioActionCreator implements GoogleAiStudioActionVisitor 
     public ExecutableAction create(GoogleAiStudioCompletionModel model, Map<String, Object> taskSettings) {
         // no overridden model as task settings are always empty for Google AI Studio completion model
         return new GoogleAiStudioCompletionAction(sender, model, serviceComponents.threadPool());
+    }
+
+    @Override
+    public ExecutableAction create(GoogleAiStudioEmbeddingsModel model, Map<String, Object> taskSettings) {
+        return new GoogleAiStudioEmbeddingsAction(sender, model, serviceComponents);
     }
 }

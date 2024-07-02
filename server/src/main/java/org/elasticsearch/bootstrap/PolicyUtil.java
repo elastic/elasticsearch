@@ -8,7 +8,8 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.SecuredFileAccessPermission;
+import org.elasticsearch.SecuredConfigFileAccessPermission;
+import org.elasticsearch.SecuredConfigFileSettingAccessPermission;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -169,7 +170,8 @@ public class PolicyUtil {
             entry(PrivateCredentialPermission.class, ALLOW_ALL_NAMES),
             entry(SQLPermission.class, List.of("callAbort", "setNetworkTimeout")),
             entry(ClassPermission.class, ALLOW_ALL_NAMES),
-            entry(SecuredFileAccessPermission.class, ALLOW_ALL_NAMES)
+            entry(SecuredConfigFileAccessPermission.class, ALLOW_ALL_NAMES),
+            entry(SecuredConfigFileSettingAccessPermission.class, ALLOW_ALL_NAMES)
         ).collect(Collectors.toMap(e -> e.getKey().getCanonicalName(), Map.Entry::getValue));
         PermissionCollection pluginPermissionCollection = new Permissions();
         namedPermissions.forEach(pluginPermissionCollection::add);

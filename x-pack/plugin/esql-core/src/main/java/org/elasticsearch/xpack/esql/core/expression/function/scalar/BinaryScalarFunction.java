@@ -6,9 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.function.scalar;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -20,6 +25,21 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
         super(source, Arrays.asList(left, right));
         this.left = left;
         this.right = right;
+    }
+
+    protected BinaryScalarFunction(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((StreamInput & PlanStreamInput) in),
+            ((PlanStreamInput) in).readExpression(),
+            ((PlanStreamInput) in).readExpression()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(left());
+        ((PlanStreamOutput) out).writeExpression(right());
     }
 
     @Override

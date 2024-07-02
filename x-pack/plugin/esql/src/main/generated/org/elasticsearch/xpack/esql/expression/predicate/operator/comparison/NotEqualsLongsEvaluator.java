@@ -34,10 +34,10 @@ public final class NotEqualsLongsEvaluator implements EvalOperator.ExpressionEva
 
   public NotEqualsLongsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -89,9 +89,9 @@ public final class NotEqualsLongsEvaluator implements EvalOperator.ExpressionEva
   }
 
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(NotEquals.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+        result.appendBoolean(p, NotEquals.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
       }
       return result.build();
     }

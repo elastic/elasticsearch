@@ -24,7 +24,7 @@ import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
 
-public class QueryStringQuery extends LeafQuery {
+public class QueryStringQuery extends Query {
 
     // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
     private static final Map<String, BiConsumer<QueryStringQueryBuilder, String>> BUILDER_APPLIERS = Map.ofEntries(

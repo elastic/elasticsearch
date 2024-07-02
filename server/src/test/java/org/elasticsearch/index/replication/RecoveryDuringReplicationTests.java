@@ -50,6 +50,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
@@ -67,6 +68,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -897,6 +899,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         safeAwait(block);
                     }
                     return super.addDocument(doc);
+                }
+
+                @Override
+                public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
+                    @SuppressWarnings("unchecked")
+                    Collection<Iterable<? extends IndexableField>> col = asInstanceOf(Collection.class, docs);
+                    assertThat(col, hasSize(1));
+                    return addDocument(col.iterator().next());
                 }
             }, null, null, config);
         }

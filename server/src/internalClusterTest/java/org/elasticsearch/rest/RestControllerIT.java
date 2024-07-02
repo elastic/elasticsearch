@@ -9,6 +9,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -18,18 +19,28 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numClientNodes = 1, numDataNodes = 0)
 public class RestControllerIT extends ESIntegTestCase {
     @Override
     protected boolean addMockHttpTransport() {
@@ -43,9 +54,117 @@ public class RestControllerIT extends ESIntegTestCase {
         assertEquals(ChunkedResponseWithHeadersPlugin.HEADER_VALUE, response.getHeader(ChunkedResponseWithHeadersPlugin.HEADER_NAME));
     }
 
+    public void testMetricsEmittedOnSuccess() throws IOException {
+        final var client = getRestClient();
+        final var request = new Request("GET", TestEchoStatusCodePlugin.ROUTE);
+        request.addParameter("status_code", "200");
+        final var response = client.performRequest(request);
+
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        assertMeasurement(metric -> {
+            assertThat(metric.getLong(), is(1L));
+            assertThat(metric.attributes(), hasEntry(RestController.HANDLER_NAME_KEY, TestEchoStatusCodePlugin.NAME));
+            assertThat(metric.attributes(), hasEntry(RestController.REQUEST_METHOD_KEY, "GET"));
+            assertThat(metric.attributes(), hasEntry(RestController.STATUS_CODE_KEY, 200));
+        });
+    }
+
+    public void testMetricsEmittedOnRestError() throws IOException {
+        final var client = getRestClient();
+        final var request = new Request("GET", TestEchoStatusCodePlugin.ROUTE);
+        request.addParameter("status_code", "503");
+        final var response = expectThrows(ResponseException.class, () -> client.performRequest(request));
+
+        assertEquals(503, response.getResponse().getStatusLine().getStatusCode());
+        assertMeasurement(metric -> {
+            assertThat(metric.getLong(), is(1L));
+            assertThat(metric.attributes(), hasEntry(RestController.HANDLER_NAME_KEY, TestEchoStatusCodePlugin.NAME));
+            assertThat(metric.attributes(), hasEntry(RestController.REQUEST_METHOD_KEY, "GET"));
+            assertThat(metric.attributes(), hasEntry(RestController.STATUS_CODE_KEY, 503));
+        });
+    }
+
+    public void testMetricsEmittedOnWrongMethod() throws IOException {
+        final var client = getRestClient();
+        final var request = new Request("DELETE", TestEchoStatusCodePlugin.ROUTE);
+        final var response = expectThrows(ResponseException.class, () -> client.performRequest(request));
+
+        assertEquals(405, response.getResponse().getStatusLine().getStatusCode());
+        assertMeasurement(metric -> {
+            assertThat(metric.getLong(), is(1L));
+            assertThat(metric.attributes(), hasEntry(RestController.STATUS_CODE_KEY, RestStatus.METHOD_NOT_ALLOWED.getStatus()));
+        });
+    }
+
+    private static void assertMeasurement(Consumer<Measurement> measurementConsumer) {
+        var measurements = new ArrayList<Measurement>();
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
+            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
+            telemetryPlugin.collect();
+
+            final var metrics = telemetryPlugin.getLongCounterMeasurement(RestController.METRIC_REQUESTS_TOTAL);
+            measurements.addAll(metrics);
+        }
+        assertThat(measurements, hasSize(1));
+        measurementConsumer.accept(measurements.get(0));
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), ChunkedResponseWithHeadersPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(ChunkedResponseWithHeadersPlugin.class, TestEchoStatusCodePlugin.class, TestTelemetryPlugin.class)
+        ).toList();
+    }
+
+    public static class TestEchoStatusCodePlugin extends Plugin implements ActionPlugin {
+        static final String ROUTE = "/_test/echo_status_code";
+        static final String NAME = "test_echo_status_code";
+
+        @Override
+        public Collection<RestHandler> getRestHandlers(
+            Settings settings,
+            NamedWriteableRegistry namedWriteableRegistry,
+            RestController restController,
+            ClusterSettings clusterSettings,
+            IndexScopedSettings indexScopedSettings,
+            SettingsFilter settingsFilter,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<DiscoveryNodes> nodesInCluster,
+            Predicate<NodeFeature> clusterSupportsFeature
+        ) {
+            return List.of(new BaseRestHandler() {
+                @Override
+                public String getName() {
+                    return NAME;
+                }
+
+                @Override
+                public List<Route> routes() {
+                    return List.of(new Route(RestRequest.Method.GET, ROUTE), new Route(RestRequest.Method.POST, ROUTE));
+                }
+
+                @Override
+                protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                    var statusCode = request.param("status_code");
+                    client.getLocalNodeId();
+                    var restStatus = RestStatus.fromCode(Integer.parseInt(statusCode));
+                    return channel -> {
+                        final var response = RestResponse.chunked(
+                            restStatus,
+                            ChunkedRestResponseBodyPart.fromXContent(
+                                params -> Iterators.single((b, p) -> b.startObject().endObject()),
+                                request,
+                                channel
+                            ),
+                            null
+                        );
+                        channel.sendResponse(response);
+                    };
+                }
+            });
+        }
     }
 
     public static class ChunkedResponseWithHeadersPlugin extends Plugin implements ActionPlugin {

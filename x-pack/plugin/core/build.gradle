@@ -176,7 +176,27 @@ testClusters.configureEach {
   requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.15.0")
 }
 
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.withType(Test).configureEach {
+    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
+  }
+}
+
 if (BuildParams.inFipsJvm) {
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure { enabled = false }
 }
+
+//this specific test requires a test only system property to be set, so we run it in a different JVM via a separate task
+tasks.register('testAutomatonPatterns', Test) {
+  include '**/AutomatonPatternsTests.class'
+  systemProperty 'tests.automaton.record.patterns', 'true'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+}
+
+tasks.named('test').configure {
+  exclude '**/AutomatonPatternsTests.class'
+}
+
+tasks.named("check").configure { dependsOn "testAutomatonPatterns" }

@@ -9,9 +9,9 @@
 package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -21,7 +21,7 @@ import java.util.Objects;
  * Subclasses should extend this with additional information
  * required for their global ranking method.
  */
-public abstract class RankDoc extends ScoreDoc implements Writeable {
+public abstract class RankDoc extends ScoreDoc implements NamedWriteable {
 
     public static final int NO_RANK = -1;
 
@@ -37,7 +37,7 @@ public abstract class RankDoc extends ScoreDoc implements Writeable {
         super(doc, score, shardIndex);
     }
 
-    protected RankDoc(StreamInput in) throws IOException {
+    public RankDoc(StreamInput in) throws IOException {
         super(in.readVInt(), in.readFloat(), in.readVInt());
         rank = in.readVInt();
     }

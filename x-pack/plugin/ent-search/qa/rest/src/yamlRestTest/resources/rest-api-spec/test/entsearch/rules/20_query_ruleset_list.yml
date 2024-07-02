@@ -1,9 +1,9 @@
 setup:
   - requires:
-      cluster_features: ["gte_v8.10.0"]
+      cluster_features: [ "gte_v8.10.0" ]
       reason: Introduced in 8.10.0
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-3
         body:
           rules:
@@ -12,7 +12,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [elastic]
+                  values: [ elastic ]
               actions:
                 ids:
                   - 'id1'
@@ -22,14 +22,14 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [kibana]
+                  values: [ kibana ]
               actions:
                 ids:
                   - 'id3'
                   - 'id4'
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-1
         body:
           rules:
@@ -38,7 +38,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [elastic]
+                  values: [ elastic ]
               actions:
                 ids:
                   - 'id1'
@@ -48,7 +48,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [kibana]
+                  values: [ kibana ]
               actions:
                 ids:
                   - 'id3'
@@ -58,14 +58,14 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [logstash]
+                  values: [ logstash ]
               actions:
                 ids:
                   - 'id5'
                   - 'id6'
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-2
         body:
           rules:
@@ -74,7 +74,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [elastic]
+                  values: [ elastic ]
               actions:
                 ids:
                   - 'id1'
@@ -84,7 +84,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [kibana]
+                  values: [ kibana ]
               actions:
                 ids:
                   - 'id3'
@@ -94,7 +94,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [logstash]
+                  values: [ logstash ]
               actions:
                 ids:
                   - 'id5'
@@ -104,16 +104,37 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [beats]
+                  values: [ beats ]
               actions:
                 ids:
                   - 'id7'
                   - 'id8'
+---
+teardown:
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: test-query-ruleset-1
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: test-query-ruleset-2
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: test-query-ruleset-3
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: a-test-query-ruleset-with-lots-of-criteria
+        ignore: 404
 
 ---
 "List Query Rulesets":
   - do:
-      query_ruleset.list: { }
+      query_rules.list_rulesets: { }
 
   - match: { count: 3 }
 
@@ -133,7 +154,7 @@ setup:
 ---
 "List Query Rulesets - with from":
   - do:
-      query_ruleset.list:
+      query_rules.list_rulesets:
         from: 1
 
   - match: { count: 3 }
@@ -150,7 +171,7 @@ setup:
 ---
 "List Query Rulesets - with size":
   - do:
-      query_ruleset.list:
+      query_rules.list_rulesets:
         size: 2
 
   - match: { count: 3 }
@@ -167,26 +188,26 @@ setup:
 ---
 "List Query Rulesets - empty":
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-1
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-2
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-3
 
   - do:
-      query_ruleset.list: { }
+      query_rules.list_rulesets: { }
 
   - match: { count: 0 }
 
 ---
 "List Query Rulesets with multiple rules":
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: a-test-query-ruleset-with-lots-of-criteria
         body:
           rules:
@@ -246,7 +267,7 @@ setup:
                   - 'id10'
 
   - do:
-      query_ruleset.list:
+      query_rules.list_rulesets:
         from: 0
         size: 1
 
@@ -263,3 +284,16 @@ setup:
         prefix: 1
         suffix: 1
         always: 1
+
+---
+'List Query Rulesets - Insufficient privilege':
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      query_rules.list_rulesets: { }
+
+  - match: { error.type: 'security_exception' }
+

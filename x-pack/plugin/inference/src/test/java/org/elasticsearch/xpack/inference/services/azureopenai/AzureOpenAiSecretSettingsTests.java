@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -26,7 +27,7 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestCase<AzureOpenAiSecretSettings> {
+public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiSecretSettings> {
 
     public static AzureOpenAiSecretSettings createRandom() {
         return new AzureOpenAiSecretSettings(randomSecureStringOfLength(15), randomSecureStringOfLength(15));
@@ -143,6 +144,11 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
         return randomValueOtherThan(instance, AzureOpenAiSecretSettingsTests::createRandom);
     }
 
+    @Override
+    protected AzureOpenAiSecretSettings mutateInstanceForVersion(AzureOpenAiSecretSettings instance, TransportVersion version) {
+        return instance;
+    }
+
     public static Map<String, Object> getAzureOpenAiSecretSettingsMap(@Nullable String apiKey, @Nullable String entraId) {
         var map = new HashMap<String, Object>();
         if (apiKey != null) {
@@ -153,4 +159,5 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
         }
         return map;
     }
+
 }

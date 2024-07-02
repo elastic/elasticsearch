@@ -96,9 +96,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
-
 /**
  * {@link EnrichLookupService} performs enrich lookup for a given input page. The lookup process consists of three stages:
  * - Stage 1: Finding matching document IDs for the input page. This stage is done by the {@link EnrichQuerySourceOperator} or its variants.
@@ -302,7 +299,7 @@ public class EnrichLookupService {
                 );
                 BlockLoader loader = ctx.blockLoader(
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
-                    EsqlDataTypes.isUnsupported(extractField.dataType()),
+                    extractField.dataType() == DataType.UNSUPPORTED,
                     MappedFieldType.FieldExtractPreference.NONE
                 );
                 fields.add(
@@ -460,7 +457,7 @@ public class EnrichLookupService {
             }
             this.toRelease = inputPage;
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
-            this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
+            this.extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
         }
 
         @Override
@@ -475,7 +472,7 @@ public class EnrichLookupService {
             out.writeString(matchField);
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, null);
-            planOut.writeCollection(extractFields, writerFromPlanWriter(PlanStreamOutput::writeNamedExpression));
+            planOut.writeNamedWriteableCollection(extractFields);
         }
 
         @Override

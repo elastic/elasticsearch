@@ -34,10 +34,10 @@ public final class LessThanDoublesEvaluator implements EvalOperator.ExpressionEv
 
   public LessThanDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -89,9 +89,9 @@ public final class LessThanDoublesEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BooleanVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(LessThan.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        result.appendBoolean(p, LessThan.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
       }
       return result.build();
     }

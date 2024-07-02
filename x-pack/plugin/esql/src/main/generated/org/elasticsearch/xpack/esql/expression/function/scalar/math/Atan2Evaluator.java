@@ -32,10 +32,10 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
 
   public Atan2Evaluator(Source source, EvalOperator.ExpressionEvaluator y,
       EvalOperator.ExpressionEvaluator x, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.y = y;
     this.x = x;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -87,9 +87,9 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector yVector, DoubleVector xVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Atan2.process(yVector.getDouble(p), xVector.getDouble(p)));
+        result.appendDouble(p, Atan2.process(yVector.getDouble(p), xVector.getDouble(p)));
       }
       return result.build();
     }

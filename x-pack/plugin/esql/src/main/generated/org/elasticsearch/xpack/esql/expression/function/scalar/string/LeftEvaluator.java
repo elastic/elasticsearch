@@ -42,12 +42,12 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
   public LeftEvaluator(Source source, BytesRef out, UnicodeUtil.UTF8CodePoint cp,
       EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator length,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.out = out;
     this.cp = cp;
     this.str = str;
     this.length = length;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

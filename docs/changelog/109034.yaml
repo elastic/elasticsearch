@@ -1,5 +1,0 @@
-pr: 109034
-summary: Fix IOOBE in TTest aggregation when using filters
-area: Aggregations
-type: bug
-issues: []

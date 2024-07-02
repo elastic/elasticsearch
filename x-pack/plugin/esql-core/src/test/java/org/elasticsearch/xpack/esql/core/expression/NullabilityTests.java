@@ -10,7 +10,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.Nullability.FALSE;
@@ -36,7 +35,7 @@ public class NullabilityTests extends ESTestCase {
 
         @Override
         public DataType dataType() {
-            return DataTypes.BOOLEAN;
+            return DataType.BOOLEAN;
         }
 
         @Override

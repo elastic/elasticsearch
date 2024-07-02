@@ -14,6 +14,8 @@ Connectors are {es} integrations that bring content from third-party data source
 
 Find a list of all supported service types in the {enterprise-search-ref}/connectors.html[connectors documentation^].
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [source,console]
 --------------------------------------------------
 PUT _connector/my-connector

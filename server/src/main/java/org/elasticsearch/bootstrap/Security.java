@@ -9,13 +9,16 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.SecuredFileAccessPermission;
+import org.elasticsearch.SecuredConfigFileAccessPermission;
+import org.elasticsearch.SecuredConfigFileSettingAccessPermission;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.PluginsUtils;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
@@ -46,7 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
+import java.util.regex.Pattern;
 
 import static java.lang.invoke.MethodType.methodType;
 import static org.elasticsearch.bootstrap.ESPolicy.POLICY_RESOURCE;
@@ -104,6 +107,8 @@ import static org.elasticsearch.reservedstate.service.FileSettingsService.SETTIN
  */
 final class Security {
 
+    private static Logger logger;  // not init'd until configure call below
+
     static {
         prepopulateSecurityCaller();
     }
@@ -122,6 +127,8 @@ final class Security {
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
     static void configure(Environment environment, boolean filterBadDefaults, Path pidFile) throws IOException {
+        logger = LogManager.getLogger(Security.class);
+
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
         Policy mainPolicy = PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), codebases);
@@ -133,7 +140,7 @@ final class Security {
                 pluginPolicies,
                 filterBadDefaults,
                 createRecursiveDataPathPermission(environment),
-                readSecuredFiles(environment, mainPolicy, codebases.values(), pluginPolicies)
+                readSecuredConfigFiles(environment, mainPolicy, codebases.values(), pluginPolicies)
             )
         );
 
@@ -196,55 +203,101 @@ final class Security {
         return toFilePermissions(policy);
     }
 
-    private static Map<String, Set<URL>> readSecuredFiles(
+    private static Map<String, Set<URL>> readSecuredConfigFiles(
         Environment environment,
         Policy template,
         Collection<URL> mainCodebases,
         Map<URL, Policy> pluginPolicies
     ) throws IOException {
-        Map<String, Set<URL>> securedFiles = new HashMap<>();
+        Map<String, Set<URL>> securedConfigFiles = new HashMap<>();
+        Map<String, Set<URL>> securedSettingKeys = new HashMap<>();
 
         for (URL url : mainCodebases) {
-            PolicyUtil.getPolicyPermissions(url, template, environment.tmpFile())
-                .stream()
-                .flatMap(Security::extractSecuredFileName)
-                .map(environment.configFile()::resolve)
-                .forEach(f -> securedFiles.computeIfAbsent(f.toString(), k -> new HashSet<>()).add(url));
+            for (Permission p : PolicyUtil.getPolicyPermissions(url, template, environment.tmpFile())) {
+                readSecuredConfigFilePermissions(environment, url, p, securedConfigFiles, securedSettingKeys);
+            }
         }
 
         for (var pp : pluginPolicies.entrySet()) {
-            PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpFile())
-                .stream()
-                .flatMap(Security::extractSecuredFileName)
-                .map(environment.configFile()::resolve)
-                .forEach(f -> securedFiles.computeIfAbsent(f.toString(), k -> new HashSet<>()).add(pp.getKey()));
+            for (Permission p : PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpFile())) {
+                readSecuredConfigFilePermissions(environment, pp.getKey(), p, securedConfigFiles, securedSettingKeys);
+            }
+        }
+
+        // compile a Pattern for each setting key we'll be looking for
+        // the key could include a * wildcard
+        List<Map.Entry<Pattern, Set<URL>>> settingPatterns = securedSettingKeys.entrySet()
+            .stream()
+            .map(e -> Map.entry(Pattern.compile(e.getKey()), e.getValue()))
+            .toList();
+
+        for (String setting : environment.settings().keySet()) {
+            for (Map.Entry<Pattern, Set<URL>> ps : settingPatterns) {
+                if (ps.getKey().matcher(setting).matches()) {
+                    // add the setting value to the secured files for these codebase URLs
+                    Path file = environment.configFile().resolve(environment.settings().get(setting));
+                    if (file.startsWith(environment.configFile()) == false) {
+                        throw new IllegalStateException(ps.getValue() + " tried to grant access to file outside config directory " + file);
+                    }
+                    if (logger.isDebugEnabled()) {
+                        ps.getValue()
+                            .forEach(
+                                url -> logger.debug("Jar {} securing access to config file {} through setting {}", url, file, setting)
+                            );
+                    }
+                    securedConfigFiles.computeIfAbsent(file.toString(), k -> new HashSet<>()).addAll(ps.getValue());
+                }
+            }
         }
 
         // always add some config files as exclusive files that no one can access
         // there's no reason for anyone to read these once the security manager is initialized
         // so if something has tried to grant itself access, crash out with an error
-        addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("elasticsearch.yml").toString());
-        addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("jvm.options").toString());
-        addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("jvm.options.d/-").toString());
+        addSpeciallySecuredConfigFile(securedConfigFiles, environment.configFile().resolve("elasticsearch.yml").toString());
+        addSpeciallySecuredConfigFile(securedConfigFiles, environment.configFile().resolve("jvm.options").toString());
+        addSpeciallySecuredConfigFile(securedConfigFiles, environment.configFile().resolve("jvm.options.d/-").toString());
 
-        return Collections.unmodifiableMap(securedFiles);
+        return Collections.unmodifiableMap(securedConfigFiles);
     }
 
-    private static void addSpeciallySecuredFile(Map<String, Set<URL>> securedFiles, String path) {
+    private static void readSecuredConfigFilePermissions(
+        Environment environment,
+        URL url,
+        Permission p,
+        Map<String, Set<URL>> securedFiles,
+        Map<String, Set<URL>> securedSettingKeys
+    ) {
+        String securedFileName = extractSecuredName(p, SecuredConfigFileAccessPermission.class);
+        if (securedFileName != null) {
+            Path securedFile = environment.configFile().resolve(securedFileName);
+            if (securedFile.startsWith(environment.configFile()) == false) {
+                throw new IllegalStateException("[" + url + "] tried to grant access to file outside config directory " + securedFile);
+            }
+            logger.debug("Jar {} securing access to config file {}", url, securedFile);
+            securedFiles.computeIfAbsent(securedFile.toString(), k -> new HashSet<>()).add(url);
+        }
+
+        String securedKey = extractSecuredName(p, SecuredConfigFileSettingAccessPermission.class);
+        if (securedKey != null) {
+            securedSettingKeys.computeIfAbsent(securedKey, k -> new HashSet<>()).add(url);
+        }
+    }
+
+    private static String extractSecuredName(Permission p, Class<? extends Permission> permissionType) {
+        if (permissionType.isInstance(p)) {
+            return p.getName();
+        } else if (p instanceof UnresolvedPermission up && up.getUnresolvedType().equals(permissionType.getCanonicalName())) {
+            return up.getUnresolvedName();
+        } else {
+            return null;
+        }
+    }
+
+    private static void addSpeciallySecuredConfigFile(Map<String, Set<URL>> securedFiles, String path) {
         Set<URL> attemptedToGrant = securedFiles.put(path, Set.of());
         if (attemptedToGrant != null) {
             throw new IllegalStateException(attemptedToGrant + " tried to grant access to special config file " + path);
         }
-    }
-
-    private static Stream<String> extractSecuredFileName(Permission p) {
-        if (p instanceof SecuredFileAccessPermission) {
-            return Stream.of(p.getName());
-        }
-        if (p instanceof UnresolvedPermission up && up.getUnresolvedType().equals(SecuredFileAccessPermission.class.getCanonicalName())) {
-            return Stream.of(up.getUnresolvedName());
-        }
-        return Stream.empty();
     }
 
     /** Adds access to classpath jars/classes for jar hell scan, etc */

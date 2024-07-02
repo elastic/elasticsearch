@@ -12,7 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -28,7 +28,7 @@ public class GoogleAiStudioRequestTests extends ESTestCase {
         var uriString = "https://localhost:3000";
         var secureApiKey = new SecureString("api_key".toCharArray());
         var httpPost = new HttpPost(uriString);
-        var secretSettings = new GoogleAiStudioSecretSettings(secureApiKey);
+        var secretSettings = new DefaultSecretSettings(secureApiKey);
 
         GoogleAiStudioRequest.decorateWithApiKeyParameter(httpPost, secretSettings);
 
@@ -45,7 +45,7 @@ public class GoogleAiStudioRequestTests extends ESTestCase {
             ValidationException.class,
             () -> GoogleAiStudioRequest.decorateWithApiKeyParameter(
                 httpPost,
-                new GoogleAiStudioSecretSettings(new SecureString("abc".toCharArray()))
+                new DefaultSecretSettings(new SecureString("abc".toCharArray()))
             )
         );
         assertThat(validationException.getCause(), is(cause));

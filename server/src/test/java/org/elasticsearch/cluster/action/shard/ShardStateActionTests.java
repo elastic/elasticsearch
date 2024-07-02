@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.action.shard;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -61,6 +62,8 @@ import java.util.function.LongConsumer;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
+import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.TransportVersionUtils.randomCompatibleVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -391,17 +394,24 @@ public class ShardStateActionTests extends ESTestCase {
                 expectedRequests++;
                 shardStateAction.clearRemoteShardRequestDeduplicator();
             }
-            shardStateAction.shardStarted(startedShard, primaryTerm, "started", ShardLongFieldRange.EMPTY, new ActionListener<>() {
-                @Override
-                public void onResponse(Void aVoid) {
-                    latch.countDown();
-                }
+            shardStateAction.shardStarted(
+                startedShard,
+                primaryTerm,
+                "started",
+                ShardLongFieldRange.EMPTY,
+                ShardLongFieldRange.EMPTY,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        latch.countDown();
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    latch.countDown();
+                    @Override
+                    public void onFailure(Exception e) {
+                        latch.countDown();
+                    }
                 }
-            });
+            );
         }
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests, arrayWithSize(expectedRequests));
@@ -482,7 +492,14 @@ public class ShardStateActionTests extends ESTestCase {
         final ShardRouting shardRouting = getRandomShardRouting(index);
         final long primaryTerm = clusterService.state().metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
         final TestListener listener = new TestListener();
-        shardStateAction.shardStarted(shardRouting, primaryTerm, "testShardStarted", ShardLongFieldRange.UNKNOWN, listener);
+        shardStateAction.shardStarted(
+            shardRouting,
+            primaryTerm,
+            "testShardStarted",
+            ShardLongFieldRange.UNKNOWN,
+            ShardLongFieldRange.UNKNOWN,
+            listener
+        );
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests[0].request(), instanceOf(ShardStateAction.StartedShardEntry.class));
@@ -578,7 +595,8 @@ public class ShardStateActionTests extends ESTestCase {
 
         final TransportVersion version = randomFrom(randomCompatibleVersion(random()));
         final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
-        final StartedShardEntry startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange);
+        final ShardLongFieldRange eventIngestedRange = ShardLongFieldRangeWireTests.randomRange();
+        var startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);
         try (StreamInput in = serialize(startedShardEntry, version).streamInput()) {
             in.setTransportVersion(version);
             final StartedShardEntry deserialized = new StartedShardEntry(in);
@@ -587,6 +605,36 @@ public class ShardStateActionTests extends ESTestCase {
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
             assertThat(deserialized.timestampRange, equalTo(timestampRange));
+            if (version.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+                assertThat(deserialized.eventIngestedRange, equalTo(ShardLongFieldRange.UNKNOWN));
+            } else {
+                assertThat(deserialized.eventIngestedRange, equalTo(eventIngestedRange));
+            }
+        }
+    }
+
+    public void testStartedShardEntrySerializationWithOlderTransportVersion() throws Exception {
+        final ShardId shardId = new ShardId(randomRealisticUnicodeOfLengthBetween(10, 100), UUID.randomUUID().toString(), between(0, 1000));
+        final String allocationId = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
+        final long primaryTerm = randomIntBetween(0, 100);
+        final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
+        final TransportVersion version = randomFrom(
+            getFirstVersion(),
+            getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE),
+            getPreviousVersion(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
+        );
+        final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
+        final ShardLongFieldRange eventIngestedRange = ShardLongFieldRangeWireTests.randomRange();
+        var startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);
+        try (StreamInput in = serialize(startedShardEntry, version).streamInput()) {
+            in.setTransportVersion(version);
+            final StartedShardEntry deserialized = new StartedShardEntry(in);
+            assertThat(deserialized.shardId, equalTo(shardId));
+            assertThat(deserialized.allocationId, equalTo(allocationId));
+            assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
+            assertThat(deserialized.message, equalTo(message));
+            assertThat(deserialized.timestampRange, equalTo(timestampRange));
+            assertThat(deserialized.eventIngestedRange, equalTo(ShardLongFieldRange.UNKNOWN));
         }
     }
 

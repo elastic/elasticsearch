@@ -40,11 +40,11 @@ public final class DateDiffEvaluator implements EvalOperator.ExpressionEvaluator
   public DateDiffEvaluator(Source source, EvalOperator.ExpressionEvaluator unit,
       EvalOperator.ExpressionEvaluator startTimestamp,
       EvalOperator.ExpressionEvaluator endTimestamp, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.unit = unit;
     this.startTimestamp = startTimestamp;
     this.endTimestamp = endTimestamp;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

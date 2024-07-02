@@ -102,6 +102,22 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         }
     }
 
+    public FeatureEnabled getDocumentLevelSecurityEnabled() {
+        return documentLevelSecurityEnabled;
+    }
+
+    public FeatureEnabled getIncrementalSyncEnabled() {
+        return incrementalSyncEnabled;
+    }
+
+    public FeatureEnabled getNativeConnectorAPIKeysEnabled() {
+        return nativeConnectorAPIKeysEnabled;
+    }
+
+    public SyncRulesFeatures getSyncRulesFeatures() {
+        return syncRulesFeatures;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

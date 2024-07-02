@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -22,36 +23,109 @@ import java.util.Set;
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
  */
 public class EsqlCapabilities {
-    /**
-     * Support for function {@code CBRT}. Done in #108574.
-     */
-    private static final String FN_CBRT = "fn_cbrt";
+    public enum Cap {
+        /**
+         * Support for function {@code CBRT}. Done in #108574.
+         */
+        FN_CBRT,
 
-    /**
-     * Optimization for ST_CENTROID changed some results in cartesian data. #108713
-     */
-    private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
+        /**
+         * Support for {@code MV_APPEND} function. #107001
+         */
+        FN_MV_APPEND,
 
-    /**
-     * Support for requesting the "_ignored" metadata field.
-     */
-    private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
+        /**
+         * Support for function {@code IP_PREFIX}.
+         */
+        FN_IP_PREFIX,
 
-    /**
-     * Support for requesting the "LOOKUP" command.
-     */
-    private static final String LOOKUP = "lookup";
+        /**
+         * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
+         */
+        FN_SUBSTRING_EMPTY_NULL,
+
+        /**
+         * Support for aggregation function {@code TOP}.
+         */
+        AGG_TOP,
+
+        /**
+         * Optimization for ST_CENTROID changed some results in cartesian data. #108713
+         */
+        ST_CENTROID_AGG_OPTIMIZED,
+
+        /**
+         * Support for requesting the "_ignored" metadata field.
+         */
+        METADATA_IGNORED_FIELD,
+
+        /**
+         * LOOKUP command with
+         * - tables using syntax {@code "tables": {"type": [<values>]}}
+         * - fixed variable shadowing
+         * - fixed Join.references(), requiring breaking change to Join serialization
+         */
+        LOOKUP_V4(true),
+
+        /**
+         * Support for requesting the "REPEAT" command.
+         */
+        REPEAT,
+
+        /**
+         * Cast string literals to datetime in addition and subtraction when the other side is a date or time interval.
+         */
+        STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB,
+
+        /**
+         * Support for named or positional parameters in EsqlQueryRequest.
+         */
+        NAMED_POSITIONAL_PARAMETER,
+
+        /**
+         * Support multiple field mappings if appropriate conversion function is used (union types)
+         */
+        UNION_TYPES,
+
+        /**
+         * Support for function {@code ST_DISTANCE}. Done in #108764.
+         */
+        ST_DISTANCE,
+
+        /**
+         * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
+         * https://github.com/elastic/elasticsearch/issues/110184
+         */
+        GROK_DISSECT_MASKING,
+
+        /**
+         * Support for quoting index sources in double quotes.
+         */
+        DOUBLE_QUOTES_SOURCE_ENCLOSING;
+
+        Cap() {
+            snapshotOnly = false;
+        };
+
+        Cap(boolean snapshotOnly) {
+            this.snapshotOnly = snapshotOnly;
+        };
+
+        public String capabilityName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        private final boolean snapshotOnly;
+    }
 
     public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
-        caps.add(FN_CBRT);
-        caps.add(ST_CENTROID_AGG_OPTIMIZED);
-        caps.add(METADATA_IGNORED_FIELD);
-
-        if (Build.current().isSnapshot()) {
-            caps.add(LOOKUP);
+        for (Cap cap : Cap.values()) {
+            if (Build.current().isSnapshot() || cap.snapshotOnly == false) {
+                caps.add(cap.capabilityName());
+            }
         }
 
         /*

@@ -30,9 +30,9 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
 
   public AbsDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.fieldVal = fieldVal;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -67,9 +67,9 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public DoubleVector eval(int positionCount, DoubleVector fieldValVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Abs.process(fieldValVector.getDouble(p)));
+        result.appendDouble(p, Abs.process(fieldValVector.getDouble(p)));
       }
       return result.build();
     }

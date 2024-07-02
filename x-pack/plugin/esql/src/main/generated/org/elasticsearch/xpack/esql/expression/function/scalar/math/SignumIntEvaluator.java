@@ -32,9 +32,9 @@ public final class SignumIntEvaluator implements EvalOperator.ExpressionEvaluato
 
   public SignumIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -69,9 +69,9 @@ public final class SignumIntEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public DoubleVector eval(int positionCount, IntVector valVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Signum.process(valVector.getInt(p)));
+        result.appendDouble(p, Signum.process(valVector.getInt(p)));
       }
       return result.build();
     }

@@ -36,6 +36,7 @@ GET _search
 ----
 // TEST[skip: Requires inference]
 
+[discrete]
 === Example request using precomputed vectors
 
 [source,console]

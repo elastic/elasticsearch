@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -54,7 +53,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
     }
 
     private WeightedAvg(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression(), ((PlanStreamInput) in).readExpression());
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
@@ -62,8 +61,8 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         source().writeTo(out);
         List<Expression> fields = children();
         assert fields.size() == 2;
-        ((PlanStreamOutput) out).writeExpression(fields.get(0));
-        ((PlanStreamOutput) out).writeExpression(fields.get(1));
+        out.writeNamedWriteable(fields.get(0));
+        out.writeNamedWriteable(fields.get(1));
     }
 
     @Override

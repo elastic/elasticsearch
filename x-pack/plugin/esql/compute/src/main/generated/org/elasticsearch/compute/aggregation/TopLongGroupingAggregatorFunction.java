@@ -24,7 +24,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class TopLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("topList", ElementType.LONG)  );
+      new IntermediateStateDesc("top", ElementType.LONG)  );
 
   private final TopLongAggregator.GroupingState state;
 
@@ -37,8 +37,8 @@ public final class TopLongGroupingAggregatorFunction implements GroupingAggregat
   private final boolean ascending;
 
   public TopLongGroupingAggregatorFunction(List<Integer> channels,
-                                           TopLongAggregator.GroupingState state, DriverContext driverContext, int limit,
-                                           boolean ascending) {
+      TopLongAggregator.GroupingState state, DriverContext driverContext, int limit,
+      boolean ascending) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -47,7 +47,7 @@ public final class TopLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   public static TopLongGroupingAggregatorFunction create(List<Integer> channels,
-                                                         DriverContext driverContext, int limit, boolean ascending) {
+      DriverContext driverContext, int limit, boolean ascending) {
     return new TopLongGroupingAggregatorFunction(channels, TopLongAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
   }
 
@@ -154,14 +154,14 @@ public final class TopLongGroupingAggregatorFunction implements GroupingAggregat
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block topListUncast = page.getBlock(channels.get(0));
-    if (topListUncast.areAllValuesNull()) {
+    Block topUncast = page.getBlock(channels.get(0));
+    if (topUncast.areAllValuesNull()) {
       return;
     }
-    LongBlock topList = (LongBlock) topListUncast;
+    LongBlock top = (LongBlock) topUncast;
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      TopLongAggregator.combineIntermediate(state, groupId, topList, groupPosition + positionOffset);
+      TopLongAggregator.combineIntermediate(state, groupId, top, groupPosition + positionOffset);
     }
   }
 

@@ -545,12 +545,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
 
         public RoleDescriptor parse(String name, XContentParser parser) throws IOException {
-            // validate name
-            Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
-            if (validationError != null) {
-                ValidationException ve = new ValidationException();
-                ve.addValidationError(validationError.toString());
-                throw ve;
+            return parse(name, parser, true);
+        }
+
+        public RoleDescriptor parse(String name, XContentParser parser, boolean validate) throws IOException {
+            if (validate) {
+                Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
+                if (validationError != null) {
+                    ValidationException ve = new ValidationException();
+                    ve.addValidationError(validationError.toString());
+                    throw ve;
+                }
             }
 
             // advance to the START_OBJECT token if needed

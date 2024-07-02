@@ -121,6 +121,15 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         this.atLeastOneGeoipProcessorSupplier = atLeastOneGeoipProcessorSupplier;
     }
 
+    void setState(GeoIpTaskState state) {
+        // this is for injecting the state in GeoIpDownloaderTaskExecutor#nodeOperation just after the task instance has been created
+        // by the PersistentTasksNodeService -- since the GeoIpDownloader is newly created, the state will be null, and the passed-in
+        // state cannot be null
+        assert this.state == null;
+        assert state != null;
+        this.state = state;
+    }
+
     // visible for testing
     void updateDatabases() throws IOException {
         var clusterState = clusterService.state();
@@ -264,14 +273,13 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         return buf;
     }
 
-    void setState(GeoIpTaskState state) {
-        this.state = state;
-    }
-
     /**
      * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
      */
     void runDownloader() {
+        // by the time we reach here, the state will never be null
+        assert state != null;
+
         if (isCancelled() || isCompleted()) {
             return;
         }

@@ -1,7 +1,7 @@
 pr: 110395
 summary: Remove the experimental section from the redact docs
 area: Ingest Node
-type: docs
+type: feature
 issues: []
 highlight:
   title: Remove the experimental section from the redact docs

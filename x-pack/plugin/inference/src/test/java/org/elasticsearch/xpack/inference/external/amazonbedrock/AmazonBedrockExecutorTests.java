@@ -161,7 +161,9 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
 
     public static final String TEST_COHERE_EMBEDDINGS_RESULT = """
         {
-            "embeddings": [0.123, 0.456, 0.678, 0.789],
+            "embeddings": [
+                [0.123, 0.456, 0.678, 0.789]
+            ],
             "id": string,
             "response_type" : "embeddings_floats",
             "texts": [string]

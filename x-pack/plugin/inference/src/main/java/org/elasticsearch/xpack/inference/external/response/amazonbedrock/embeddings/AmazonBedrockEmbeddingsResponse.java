@@ -115,7 +115,6 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
             parser,
             AmazonBedrockEmbeddingsResponse::parseCohereEmbeddingsListItem
         );
-        consumeUntilObjectEnd(parser);
 
         return embeddingList;
     }

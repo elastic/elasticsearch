@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpHandler;
 
+import com.azure.storage.blob.models.BlobStorageException;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.common.Strings;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
@@ -48,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -70,6 +73,47 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
             }
         });
         assertThat(exception.toString(), exception.getMessage().toLowerCase(Locale.ROOT), containsString("not found"));
+    }
+
+    public void testReadBlobBeyondRangeThrowsRequestedRangeNotSatisfiedException() throws IOException {
+        final int maxRetries = randomIntBetween(1, 5);
+        final byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 512));
+        httpServer.createContext("/account/container/read_blob_beyond_range", exchange -> {
+            try {
+                int rangeStart = getRangeStart(exchange);
+                if (rangeStart >= bytes.length) {
+                    exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                } else {
+                    // unexpected call
+                    AzureHttpHandler.sendError(exchange, RestStatus.INTERNAL_SERVER_ERROR);
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+        final BlobContainer blobContainer = createBlobContainer(maxRetries);
+        int position = bytes.length + randomIntBetween(0, 100);
+        int length = randomIntBetween(1, 100);
+        var exception = expectThrows(RequestedRangeNotSatisfiedException.class, () -> {
+            try (var ignored = blobContainer.readBlob(randomPurpose(), "read_blob_beyond_range", position, length)) {
+                fail();
+            }
+        });
+        assertThat(exception.getResource(), equalTo("read_blob_beyond_range"));
+        assertThat(exception.getPosition(), equalTo((long) position));
+        assertThat(exception.getLength(), equalTo((long) length));
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                String.format(Locale.ROOT,
+                    "Requested range [position=%d, length=%d] cannot be satisfied for [%s]",
+                    position,
+                    length,
+                    "read_blob_beyond_range"
+                )
+            )
+        );
+        assertThat(exception.getCause(), instanceOf(BlobStorageException.class));
     }
 
     public void testReadBlobWithRetries() throws Exception {

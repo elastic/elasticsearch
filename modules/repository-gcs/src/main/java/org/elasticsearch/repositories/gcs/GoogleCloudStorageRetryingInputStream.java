@@ -21,6 +21,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -84,6 +86,30 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         currentStream = openStream();
     }
 
+    // Used for testing only
+    GoogleCloudStorageRetryingInputStream(
+        com.google.cloud.storage.Storage client,
+        com.google.api.services.storage.Storage storage,
+        BlobId blobId,
+        long start,
+        long end
+    ) throws IOException {
+        if (start < 0L) {
+            throw new IllegalArgumentException("start must be non-negative");
+        }
+        if (end < start || end == Long.MAX_VALUE) {
+            throw new IllegalArgumentException("end must be >= start and not Long.MAX_VALUE");
+        }
+        this.blobId = blobId;
+        this.start = start;
+        this.end = end;
+        this.client = client;
+        this.maxAttempts = client.getOptions().getRetrySettings().getMaxAttempts();
+        this.storage = storage; // bypass static initialization
+        SpecialPermission.check();
+        this.currentStream = openStream();
+    }
+
     @SuppressForbidden(reason = "need access to storage client")
     private static com.google.api.services.storage.Storage getStorage(Storage client) {
         return AccessController.doPrivileged((PrivilegedAction<com.google.api.services.storage.Storage>) () -> {
@@ -109,7 +135,9 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
                             get.setReturnRawInputStream(true);
 
                             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
-                                get.getRequestHeaders().setRange("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
+                                if (get.getRequestHeaders() != null) {
+                                    get.getRequestHeaders().setRange("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
+                                }
                             }
                             final HttpResponse resp = get.executeMedia();
                             final Long contentLength = resp.getHeaders().getContentLength();
@@ -126,13 +154,23 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
             } catch (RetryHelper.RetryHelperException e) {
                 throw StorageException.translateAndThrow(e);
             }
-        } catch (StorageException e) {
-            if (e.getCode() == 404) {
+        } catch (StorageException storageException) {
+            if (storageException.getCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw addSuppressedExceptions(
-                    new NoSuchFileException("Blob object [" + blobId.getName() + "] not found: " + e.getMessage())
+                    new NoSuchFileException("Blob object [" + blobId.getName() + "] not found: " + storageException.getMessage())
                 );
             }
-            throw addSuppressedExceptions(e);
+            if (storageException.getCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                throw addSuppressedExceptions(
+                    new RequestedRangeNotSatisfiedException(
+                        blobId.getName(),
+                        start,
+                        (end < Long.MAX_VALUE - 1) ? end - start + 1 : end,
+                        storageException
+                    )
+                );
+            }
+            throw addSuppressedExceptions(storageException);
         }
     }
 

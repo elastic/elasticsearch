@@ -291,7 +291,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             try {
                 retrieveAndUpdateDatabase(name, metadata);
             } catch (Exception ex) {
-                logger.error(() -> "attempt to download database [" + name + "] failed", ex);
+                logger.error(() -> "failed to retrieve database [" + name + "]", ex);
             }
         });
 

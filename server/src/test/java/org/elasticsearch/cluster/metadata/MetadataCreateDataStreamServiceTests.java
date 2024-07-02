@@ -255,6 +255,12 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().index(backingIndexName).isSystem(), is(false));
         assertThat(newState.metadata().index(failureStoreIndexName), notNullValue());
         assertThat(newState.metadata().index(failureStoreIndexName).getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(
+            DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING.get(
+                newState.metadata().index(failureStoreIndexName).getSettings()
+            ),
+            equalTo(DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION)
+        );
         assertThat(newState.metadata().index(failureStoreIndexName).isSystem(), is(false));
     }
 

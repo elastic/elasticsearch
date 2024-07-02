@@ -35,7 +35,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -82,14 +81,13 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
             final long originalTerm = internalCluster().masterClient().admin().cluster().prepareState().get().getState().term();
             final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatch(newMaster, cleanupTasks);
 
+            final var reroutedMessageReceived = new AtomicBoolean(false);
             for (final var transportService : internalCluster().getInstances(TransportService.class)) {
                 if (transportService.getLocalNode().getName().equals(newMaster)) {
                     continue;
                 }
 
-                /*
-                 * Disable every other nodes' ability to send pre-vote and publish requests
-                 */
+                // Disable every other node's ability to send pre-vote and publish requests
                 final var mockTransportService = asInstanceOf(MockTransportService.class, transportService);
                 mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                     if (action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)
@@ -100,11 +98,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
                     }
                 });
 
-                /*
-                 * Assert that no other node receives the re-routed message more than once, and only
-                 * from a node in the original term
-                 */
-                final var reroutedMessageReceived = new AtomicBoolean(false);
+                // Assert that no other node receives the re-routed message more than once, and only from a node in the original term.
                 mockTransportService.addRequestHandlingBehavior(TEST_ACTION_TYPE.name(), (handler, request, channel, task) -> {
                     assertThat(asInstanceOf(MasterNodeRequest.class, request).masterTerm(), equalTo(originalTerm));
                     assertTrue("rerouted message received exactly once", reroutedMessageReceived.compareAndSet(false, true));
@@ -112,10 +106,8 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
                 });
             }
 
-            /*
-             * Complete listener when the new master receives the re-routed message, ensure it only receives it once, and only from a node
-             *  in the newMaster term.
-             */
+            // Complete listener when the new master receives the re-routed message, ensure it only receives it once, and only from a node
+            // in the newMaster term.
             final var newMasterReceivedReroutedMessageFuture = new PlainActionFuture<>();
             final var newMasterReceivedReroutedMessageListener = ActionListener.assertOnce(newMasterReceivedReroutedMessageFuture);
             MockTransportService.getInstance(newMaster)

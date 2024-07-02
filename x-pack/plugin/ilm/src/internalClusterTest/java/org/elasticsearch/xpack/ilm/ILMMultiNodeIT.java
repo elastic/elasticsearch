@@ -76,7 +76,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         phases.put(hotPhase.getName(), hotPhase);
         phases.put(warmPhase.getName(), warmPhase);
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", phases);
-        client().execute(ILMActions.PUT, new PutLifecycleRequest(lifecyclePolicy)).get();
+        client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy)).get();
 
         Template t = new Template(
             Settings.builder()

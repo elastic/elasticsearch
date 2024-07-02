@@ -35,10 +35,10 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
 
   public EndsWithEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator suffix, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.suffix = suffix;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -93,11 +93,11 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector suffixVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));
+        result.appendBoolean(p, EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));
       }
       return result.build();
     }

@@ -8,24 +8,10 @@
 package org.elasticsearch.xpack.esql.core.analyzer;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,47 +20,9 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
 
 public final class AnalyzerRules {
-
-    public static class AddMissingEqualsToBoolField extends AnalyzerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            if (filter.resolved() == false) {
-                return filter;
-            }
-            // check the condition itself
-            Expression condition = replaceRawBoolFieldWithEquals(filter.condition());
-            // otherwise look for binary logic
-            if (condition == filter.condition()) {
-                condition = condition.transformUp(
-                    BinaryLogic.class,
-                    b -> b.replaceChildren(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
-                );
-            }
-
-            if (condition != filter.condition()) {
-                filter = filter.with(condition);
-            }
-            return filter;
-        }
-
-        private static Expression replaceRawBoolFieldWithEquals(Expression e) {
-            if (e instanceof FieldAttribute && e.dataType() == BOOLEAN) {
-                e = new Equals(e.source(), e, Literal.of(e, Boolean.TRUE));
-            }
-            return e;
-        }
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
-    }
 
     public abstract static class AnalyzerRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 
@@ -121,24 +69,6 @@ public final class AnalyzerRules {
         }
 
         protected abstract LogicalPlan doRule(LogicalPlan plan);
-    }
-
-    public static Function resolveFunction(UnresolvedFunction uf, Configuration configuration, FunctionRegistry functionRegistry) {
-        Function f = null;
-        if (uf.analyzed()) {
-            f = uf;
-        } else if (uf.childrenResolved() == false) {
-            f = uf;
-        } else {
-            String functionName = functionRegistry.resolveAlias(uf.name());
-            if (functionRegistry.functionExists(functionName) == false) {
-                f = uf.missing(functionName, functionRegistry.listFunctions());
-            } else {
-                FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                f = uf.buildResolved(configuration, def);
-            }
-        }
-        return f;
     }
 
     public static List<Attribute> maybeResolveAgainstList(
@@ -217,43 +147,5 @@ public final class AnalyzerRules {
                     + refs
             )
         );
-    }
-
-    public static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
-        // if it's a object/compound type, keep it unresolved with a nice error message
-        if (named instanceof FieldAttribute fa) {
-
-            // incompatible mappings
-            if (fa.field() instanceof InvalidMappedField imf) {
-                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage());
-            }
-            // unsupported types
-            else if (DataTypes.isUnsupported(fa.dataType())) {
-                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
-                if (unsupportedField.hasInherited()) {
-                    named = u.withUnresolvedMessage(
-                        "Cannot use field ["
-                            + fa.name()
-                            + "] with unsupported type ["
-                            + unsupportedField.getOriginalType()
-                            + "] in hierarchy (field ["
-                            + unsupportedField.getInherited()
-                            + "])"
-                    );
-                } else {
-                    named = u.withUnresolvedMessage(
-                        "Cannot use field [" + fa.name() + "] with unsupported type [" + unsupportedField.getOriginalType() + "]"
-                    );
-                }
-            }
-            // compound fields
-            else if (allowCompound == false && DataTypes.isPrimitive(fa.dataType()) == false) {
-                named = u.withUnresolvedMessage(
-                    "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] only its subfields"
-                );
-            }
-        }
-        // make sure to copy the resolved attribute with the proper location
-        return named.withLocation(u.source());
     }
 }

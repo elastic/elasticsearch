@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.apmdata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamFeatures;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -88,7 +90,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
-        FeatureService featureService = new FeatureService(List.of());
+        FeatureService featureService = new FeatureService(List.of(new DataStreamFeatures()));
         stackTemplateRegistryAccessor = new StackTemplateRegistryAccessor(
             new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY, featureService)
         );
@@ -98,7 +100,8 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            featureService
         );
         apmIndexTemplateRegistry.setEnabled(true);
     }
@@ -353,6 +356,25 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
+        DiscoveryNode updatedNode = DiscoveryNodeUtils.create("updatedNode");
+        DiscoveryNode outdatedNode = DiscoveryNodeUtils.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_10_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .localNodeId("updatedNode")
+            .masterNodeId("updatedNode")
+            .add(updatedNode)
+            .add(outdatedNode)
+            .build();
+
+        client.setVerifier((a, r, l) -> {
+            fail("if some cluster mode are not updated to at least v.8.11.0 nothing should happen");
+            return null;
+        });
+
+        ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
+        apmIndexTemplateRegistry.clusterChanged(event);
     }
 
     private Map<String, ComponentTemplate> getIndependentComponentTemplateConfigs() {

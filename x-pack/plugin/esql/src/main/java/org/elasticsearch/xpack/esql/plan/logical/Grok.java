@@ -20,10 +20,8 @@ import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.Comparator;
 import java.util.List;
@@ -39,18 +37,18 @@ public class Grok extends RegexExtract {
                 .stream()
                 .sorted(Comparator.comparing(GrokCaptureConfig::name))
                 // promote small numeric types, since Grok can produce float values
-                .map(x -> new ReferenceAttribute(Source.EMPTY, x.name(), EsqlDataTypes.widenSmallNumericTypes(toDataType(x.type()))))
+                .map(x -> new ReferenceAttribute(Source.EMPTY, x.name(), toDataType(x.type()).widenSmallNumeric()))
                 .collect(Collectors.toList());
         }
 
         private static DataType toDataType(GrokCaptureType type) {
             return switch (type) {
-                case STRING -> DataTypes.KEYWORD;
-                case INTEGER -> DataTypes.INTEGER;
-                case LONG -> DataTypes.LONG;
-                case FLOAT -> DataTypes.FLOAT;
-                case DOUBLE -> DataTypes.DOUBLE;
-                case BOOLEAN -> DataTypes.BOOLEAN;
+                case STRING -> DataType.KEYWORD;
+                case INTEGER -> DataType.INTEGER;
+                case LONG -> DataType.LONG;
+                case FLOAT -> DataType.FLOAT;
+                case DOUBLE -> DataType.DOUBLE;
+                case BOOLEAN -> DataType.BOOLEAN;
             };
         }
 

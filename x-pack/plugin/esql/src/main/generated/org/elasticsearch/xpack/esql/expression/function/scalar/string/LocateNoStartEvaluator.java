@@ -35,10 +35,10 @@ public final class LocateNoStartEvaluator implements EvalOperator.ExpressionEval
 
   public LocateNoStartEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator substr, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.substr = substr;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -92,11 +92,11 @@ public final class LocateNoStartEvaluator implements EvalOperator.ExpressionEval
   }
 
   public IntVector eval(int positionCount, BytesRefVector strVector, BytesRefVector substrVector) {
-    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch)));
+        result.appendInt(p, Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch)));
       }
       return result.build();
     }

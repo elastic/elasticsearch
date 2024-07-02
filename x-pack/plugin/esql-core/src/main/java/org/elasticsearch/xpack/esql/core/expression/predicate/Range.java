@@ -7,18 +7,11 @@
 package org.elasticsearch.xpack.esql.core.expression.predicate;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogicPipe;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonPipe;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.DateUtils;
 
 import java.time.DateTimeException;
@@ -110,7 +103,7 @@ public class Range extends ScalarFunction {
     protected boolean areBoundariesInvalid() {
         Object lowerValue = lower.fold();
         Object upperValue = upper.fold();
-        if (DataTypes.isDateTime(value.dataType()) || DataTypes.isDateTime(lower.dataType()) || DataTypes.isDateTime(upper.dataType())) {
+        if (DataType.isDateTime(value.dataType()) || DataType.isDateTime(lower.dataType()) || DataType.isDateTime(upper.dataType())) {
             try {
                 if (upperValue instanceof String upperString) {
                     upperValue = DateUtils.asDateTime(upperString);
@@ -133,27 +126,7 @@ public class Range extends ScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        BinaryComparisonPipe lowerPipe = new BinaryComparisonPipe(
-            source(),
-            this,
-            Expressions.pipe(value()),
-            Expressions.pipe(lower()),
-            includeLower() ? BinaryComparisonOperation.GTE : BinaryComparisonOperation.GT
-        );
-        BinaryComparisonPipe upperPipe = new BinaryComparisonPipe(
-            source(),
-            this,
-            Expressions.pipe(value()),
-            Expressions.pipe(upper()),
-            includeUpper() ? BinaryComparisonOperation.LTE : BinaryComparisonOperation.LT
-        );
-        BinaryLogicPipe and = new BinaryLogicPipe(source(), this, lowerPipe, upperPipe, BinaryLogicOperation.AND);
-        return and;
+        return DataType.BOOLEAN;
     }
 
     @Override

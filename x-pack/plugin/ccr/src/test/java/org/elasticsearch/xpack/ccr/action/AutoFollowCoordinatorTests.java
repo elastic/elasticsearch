@@ -460,7 +460,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             final ClusterState nextLocalClusterState;
             if (nextClusterStateVersion == 1) {
                 // cluster state #1 : one pattern is active
-                PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+                PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT
+                );
                 request.setName("patternLogs");
                 request.setRemoteCluster(remoteCluster);
                 request.setLeaderIndexPatterns(singletonList("patternLogs-*"));
@@ -478,7 +481,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
             } else if (nextClusterStateVersion == 3) {
                 // cluster state #3 : add a new pattern, two patterns are active
-                PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+                PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT
+                );
                 request.setName("patternDocs");
                 request.setRemoteCluster(remoteCluster);
                 request.setLeaderIndexPatterns(singletonList("patternDocs-*"));
@@ -496,12 +502,22 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
             } else if (nextClusterStateVersion == 5) {
                 // cluster state #5 : first pattern is paused, second pattern is still active
-                ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request("patternLogs", false);
+                ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    "patternLogs",
+                    false
+                );
                 nextLocalClusterState = TransportActivateAutoFollowPatternAction.innerActivate(request, currentLocalState);
 
             } else if (nextClusterStateVersion == 6) {
                 // cluster state #5 : second pattern is paused, both patterns are inactive
-                ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request("patternDocs", false);
+                ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    "patternDocs",
+                    false
+                );
                 nextLocalClusterState = TransportActivateAutoFollowPatternAction.innerActivate(request, currentLocalState);
 
             } else {

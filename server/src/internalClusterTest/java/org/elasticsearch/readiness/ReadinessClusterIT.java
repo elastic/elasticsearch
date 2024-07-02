@@ -122,6 +122,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108613")
     public void testReadinessDuringRestarts() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         writeFileSettings(testJSON);

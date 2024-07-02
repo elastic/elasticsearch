@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.core.slm.SLMFeatureSetUsage;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
@@ -298,7 +299,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 XPackField.ENTERPRISE_SEARCH,
                 EnterpriseSearchFeatureSetUsage::new
             ),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new),
+            new NamedWriteableRegistry.Entry(
+                PersistentTaskParams.class,
+                SecurityMigrationTaskParams.TASK_NAME,
+                SecurityMigrationTaskParams::new
+            )
         ).filter(Objects::nonNull).toList();
     }
 
@@ -369,6 +375,17 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 Metadata.Custom.class,
                 new ParseField(TransformMetadata.TYPE),
                 parser -> TransformMetadata.LENIENT_PARSER.parse(parser, null).build()
+            ),
+            // security
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(SecurityMigrationTaskParams.TASK_NAME),
+                SecurityMigrationTaskParams::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(RoleMappingMetadata.TYPE),
+                RoleMappingMetadata::fromXContent
             )
         );
     }

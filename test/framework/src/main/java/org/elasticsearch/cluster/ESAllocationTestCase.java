@@ -423,10 +423,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             RoutingAllocation allocation,
             UnassignedAllocationHandler unassignedAllocationHandler
         ) {
-            if (shardRouting.primary() || shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+            if (shardRouting.primary() || shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED) {
                 return;
             }
-            if (shardRouting.unassignedInfo().isDelayed()) {
+            if (shardRouting.unassignedInfo().delayed()) {
                 unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
             }
         }

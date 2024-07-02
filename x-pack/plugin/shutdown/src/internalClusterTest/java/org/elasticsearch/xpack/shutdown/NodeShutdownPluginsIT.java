@@ -73,13 +73,16 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
 
         GetShutdownStatusAction.Response getResp = client().execute(
             GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(remainNode)
+            new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, remainNode)
         ).get();
 
         assertTrue(getResp.getShutdownStatuses().isEmpty());
 
         // The plugin should be in progress
-        getResp = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request(shutdownNode)).get();
+        getResp = client().execute(
+            GetShutdownStatusAction.INSTANCE,
+            new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, shutdownNode)
+        ).get();
         assertThat(
             getResp.getShutdownStatuses().get(0).pluginsStatus().getStatus(),
             equalTo(SingleNodeShutdownMetadata.Status.IN_PROGRESS)
@@ -89,7 +92,10 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
         safe.set(true);
 
         // The plugin should be complete
-        getResp = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request(shutdownNode)).get();
+        getResp = client().execute(
+            GetShutdownStatusAction.INSTANCE,
+            new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, shutdownNode)
+        ).get();
         assertThat(getResp.getShutdownStatuses().get(0).pluginsStatus().getStatus(), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
 
         // The shutdown node should be in the triggered list

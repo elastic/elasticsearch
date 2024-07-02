@@ -30,12 +30,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
@@ -48,7 +48,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests<T, B> {
-
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class);
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
@@ -84,6 +83,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return new Stat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
         } else if (argClass == Integer.class) {
             return randomInt();
+        } else if (argClass == JoinType.class) {
+            return JoinType.LEFT;
         }
 
         return null;
@@ -119,7 +120,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     /** Scans the {@code .class} files to identify all classes and checks if they are subclasses of {@link Node}. */
-    @ParametersFactory
+    @ParametersFactory(argumentFormatting = "%1s")
     @SuppressWarnings("rawtypes")
     public static List<Object[]> nodeSubclasses() throws IOException {
         return subclassesOf(Node.class, CLASSNAME_FILTER).stream()
@@ -158,7 +159,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         );
     }
 
-    static List<DataType> DATA_TYPES = EsqlDataTypes.types().stream().toList();
+    static List<DataType> DATA_TYPES = DataType.types().stream().toList();
 
     static EsQueryExec.FieldSort randomFieldSort() {
         return new EsQueryExec.FieldSort(

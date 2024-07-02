@@ -57,6 +57,13 @@ public class FunctionRegistry {
         register(groupFunctions);
     }
 
+    /**
+     * Returns a function registry that includes functions available exclusively in the snapshot build.
+     */
+    public FunctionRegistry snapshotRegistry() {
+        return this;
+    }
+
     protected void register(FunctionDefinition[]... groupFunctions) {
         for (FunctionDefinition[] group : groupFunctions) {
             register(group);
@@ -113,8 +120,8 @@ public class FunctionRegistry {
         return def;
     }
 
-    protected String normalize(String name) {
-        return name.toUpperCase(Locale.ROOT);
+    private String normalize(String name) {
+        return name.toLowerCase(Locale.ROOT);
     }
 
     public String resolveAlias(String alias) {
@@ -383,7 +390,7 @@ public class FunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for a one-argument function that is configuration aware.
      */
     @SuppressWarnings("overloads")
-    protected static <T extends Function> FunctionDefinition def(
+    public static <T extends Function> FunctionDefinition def(
         Class<T> function,
         UnaryConfigurationAwareBuilder<T> ctorRef,
         String... names
@@ -398,7 +405,7 @@ public class FunctionRegistry {
         return def(function, builder, names);
     }
 
-    protected interface UnaryConfigurationAwareBuilder<T> {
+    public interface UnaryConfigurationAwareBuilder<T> {
         T build(Source source, Expression exp, Configuration configuration);
     }
 

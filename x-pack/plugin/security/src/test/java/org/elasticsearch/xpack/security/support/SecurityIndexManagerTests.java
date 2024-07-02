@@ -39,6 +39,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -50,6 +52,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.hamcrest.Matchers;
@@ -58,10 +61,13 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,6 +114,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             }
         };
 
+        final FeatureService featureService = new FeatureService(List.of(new SecurityFeatures()));
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         final SystemIndexDescriptor descriptor = new SecuritySystemIndices(clusterService.getSettings()).getSystemIndexDescriptors()
@@ -116,7 +123,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .findFirst()
             .get();
         descriptorSpy = spy(descriptor);
-        manager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, descriptorSpy);
+        manager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, featureService, descriptorSpy);
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() {
@@ -561,6 +568,90 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertTrue(listenerCalled.get());
         assertFalse(upToDateChanged.get());
         assertTrue(manager.isIndexUpToDate());
+    }
+
+    public void testReadyForMigration() {
+        final ClusterState.Builder clusterStateBuilder = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
+            IndexMetadata.State.OPEN
+        );
+        clusterStateBuilder.nodeFeatures(
+            Map.of("1", new SecurityFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet()))
+        );
+        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
+        assertTrue(manager.isReadyForSecurityMigration(new SecurityMigrations.SecurityMigration() {
+            @Override
+            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            public Set<NodeFeature> nodeFeaturesRequired() {
+                return Set.of();
+            }
+
+            @Override
+            public int minMappingVersion() {
+                return 0;
+            }
+        }));
+    }
+
+    public void testNotReadyForMigrationBecauseOfFeature() {
+        final ClusterState.Builder clusterStateBuilder = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
+            IndexMetadata.State.OPEN
+        );
+        clusterStateBuilder.nodeFeatures(
+            Map.of("1", new SecurityFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet()))
+        );
+        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
+        assertFalse(manager.isReadyForSecurityMigration(new SecurityMigrations.SecurityMigration() {
+            @Override
+            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            public Set<NodeFeature> nodeFeaturesRequired() {
+                return Set.of(new NodeFeature("not a real feature"));
+            }
+
+            @Override
+            public int minMappingVersion() {
+                return 0;
+            }
+        }));
+    }
+
+    public void testNotReadyForMigrationBecauseOfMappingVersion() {
+        final ClusterState.Builder clusterStateBuilder = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
+            IndexMetadata.State.OPEN
+        );
+        clusterStateBuilder.nodeFeatures(
+            Map.of("1", new SecurityFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet()))
+        );
+        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
+        assertFalse(manager.isReadyForSecurityMigration(new SecurityMigrations.SecurityMigration() {
+            @Override
+            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            public Set<NodeFeature> nodeFeaturesRequired() {
+                return Set.of();
+            }
+
+            @Override
+            public int minMappingVersion() {
+                return 1000;
+            }
+        }));
     }
 
     public void testProcessClosedIndexState() {

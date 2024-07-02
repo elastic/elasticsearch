@@ -157,3 +157,23 @@ Also, when using this model the recommended similarity measure to use in the
 `dense_vector` field mapping is `dot_product`.
 
 // end::azure-ai-studio[]
+
+// tag::mistral[]
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/mistral_embeddings <1>
+{
+    "service": "mistral",
+    "service_settings": {
+        "api_key": "<api_key>", <2>
+        "model": "<model_id>" <3>
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The task type is `text_embedding` in the path and the `inference_id` which is the unique identifier of the {infer} endpoint is `mistral_embeddings`.
+<2> The API key for accessing the Mistral API. You can find this in your Mistral account's API Keys page.
+<3> The Mistral embeddings model name, for example `mistral-embed`.
+
+// end::mistral[]

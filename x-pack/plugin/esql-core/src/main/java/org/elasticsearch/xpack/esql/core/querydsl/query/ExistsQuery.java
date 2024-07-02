@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 
-public class ExistsQuery extends LeafQuery {
+public class ExistsQuery extends Query {
 
     private final String name;
 

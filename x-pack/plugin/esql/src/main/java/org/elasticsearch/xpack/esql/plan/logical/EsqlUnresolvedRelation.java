@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -42,6 +45,16 @@ public class EsqlUnresolvedRelation extends UnresolvedRelation {
 
     public IndexMode indexMode() {
         return indexMode;
+    }
+
+    @Override
+    public AttributeSet references() {
+        AttributeSet refs = super.references();
+        if (indexMode == IndexMode.TIME_SERIES) {
+            refs = new AttributeSet(refs);
+            refs.add(new UnresolvedAttribute(source(), MetadataAttribute.TIMESTAMP_FIELD));
+        }
+        return refs;
     }
 
     @Override

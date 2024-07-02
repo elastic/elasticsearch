@@ -36,9 +36,7 @@ public class RestExecuteSnapshotRetentionAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        ExecuteSnapshotRetentionAction.Request req = new ExecuteSnapshotRetentionAction.Request();
-        req.ackTimeout(getAckTimeout(request));
-        req.masterNodeTimeout(getMasterNodeTimeout(request));
+        final var req = new ExecuteSnapshotRetentionAction.Request(getMasterNodeTimeout(request), getAckTimeout(request));
         return channel -> client.execute(ExecuteSnapshotRetentionAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 }

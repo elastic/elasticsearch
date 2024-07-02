@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.esql.core.querydsl.query;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -42,35 +40,6 @@ public class BoolQuery extends Query {
         }
         this.isAnd = isAnd;
         this.queries = queries;
-    }
-
-    @Override
-    public boolean containsNestedField(String path, String field) {
-        for (Query query : queries) {
-            if (query.containsNestedField(path, field)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Override
-    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
-        boolean unchanged = true;
-        List<Query> rewritten = new ArrayList<>(queries.size());
-        for (Query query : queries) {
-            var rewrittenQuery = query.addNestedField(path, field, format, hasDocValues);
-            unchanged &= rewrittenQuery == query;
-            rewritten.add(rewrittenQuery);
-        }
-        return unchanged ? this : new BoolQuery(source(), isAnd, rewritten);
-    }
-
-    @Override
-    public void enrichNestedSort(NestedSortBuilder sort) {
-        for (Query query : queries) {
-            query.enrichNestedSort(sort);
-        }
     }
 
     @Override

@@ -118,11 +118,9 @@ public class BigArrays {
         }
 
         @Override
-        public byte set(long index, byte value) {
+        public void set(long index, byte value) {
             assert indexIsInt(index);
-            final byte ret = array[(int) index];
             array[(int) index] = value;
-            return ret;
         }
 
         @Override
@@ -215,11 +213,17 @@ public class BigArrays {
         }
 
         @Override
-        public int set(long index, int value) {
+        public int getAndSet(long index, int value) {
             assert index >= 0 && index < size();
             final int ret = (int) VH_PLATFORM_NATIVE_INT.get(array, (int) index << 2);
             VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, value);
             return ret;
+        }
+
+        @Override
+        public void set(long index, int value) {
+            assert index >= 0 && index < size();
+            VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, value);
         }
 
         @Override
@@ -272,11 +276,17 @@ public class BigArrays {
         }
 
         @Override
-        public long set(long index, long value) {
+        public long getAndSet(long index, long value) {
             assert index >= 0 && index < size();
             final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << 3);
             VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, value);
             return ret;
+        }
+
+        @Override
+        public void set(long index, long value) {
+            assert index >= 0 && index < size();
+            VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, value);
         }
 
         @Override
@@ -336,11 +346,9 @@ public class BigArrays {
         }
 
         @Override
-        public double set(long index, double value) {
+        public void set(long index, double value) {
             assert index >= 0 && index < size();
-            final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) index << 3);
             VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) index << 3, value);
-            return ret;
         }
 
         @Override
@@ -400,11 +408,9 @@ public class BigArrays {
         }
 
         @Override
-        public float set(long index, float value) {
+        public void set(long index, float value) {
             assert index >= 0 && index < size();
-            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2);
             VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, value);
-            return ret;
         }
 
         @Override

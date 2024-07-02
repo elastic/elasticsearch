@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -69,6 +70,94 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             var request = InferenceAction.Request.parseRequest("model_id", TaskType.ANY, parser).build();
             assertThat(request.getInput(), contains("an array", "of", "inputs"));
         }
+    }
+
+    public void testValidation_TextEmbedding() {
+        InferenceAction.Request request = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            null,
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNull(e);
+    }
+
+    public void testValidation_Rerank() {
+        InferenceAction.Request request = new InferenceAction.Request(
+            TaskType.RERANK,
+            "model",
+            "query",
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNull(e);
+    }
+
+    public void testValidation_TextEmbedding_Null() {
+        InferenceAction.Request inputNullRequest = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException inputNullError = inputNullRequest.validate();
+        assertNotNull(inputNullError);
+        assertThat(inputNullError.getMessage(), is("Validation Failed: 1: Field [input] cannot be null;"));
+    }
+
+    public void testValidation_TextEmbedding_Empty() {
+        InferenceAction.Request inputEmptyRequest = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            null,
+            List.of(),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException inputEmptyError = inputEmptyRequest.validate();
+        assertNotNull(inputEmptyError);
+        assertThat(inputEmptyError.getMessage(), is("Validation Failed: 1: Field [input] cannot be an empty array;"));
+    }
+
+    public void testValidation_Rerank_Null() {
+        InferenceAction.Request queryNullRequest = new InferenceAction.Request(
+            TaskType.RERANK,
+            "model",
+            null,
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException queryNullError = queryNullRequest.validate();
+        assertNotNull(queryNullError);
+        assertThat(queryNullError.getMessage(), is("Validation Failed: 1: Field [query] cannot be null for task type [rerank];"));
+    }
+
+    public void testValidation_Rerank_Empty() {
+        InferenceAction.Request queryEmptyRequest = new InferenceAction.Request(
+            TaskType.RERANK,
+            "model",
+            "",
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException queryEmptyError = queryEmptyRequest.validate();
+        assertNotNull(queryEmptyError);
+        assertThat(queryEmptyError.getMessage(), is("Validation Failed: 1: Field [query] cannot be empty for task type [rerank];"));
     }
 
     public void testParseRequest_DefaultsInputTypeToIngest() throws IOException {

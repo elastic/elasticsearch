@@ -9,8 +9,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
-import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -33,7 +31,7 @@ public class TransportLoggerTests extends ESTestCase {
             + ", type: request"
             + ", version: .*"
             + ", header size: \\d+B"
-            + ", action: cluster:monitor/stats]"
+            + ", action: internal:test]"
             + " WRITE: \\d+B";
         final MockLog.LoggingExpectation writeExpectation = new MockLog.PatternSeenEventExpectation(
             "hot threads request",
@@ -47,11 +45,11 @@ public class TransportLoggerTests extends ESTestCase {
             + ", type: request"
             + ", version: .*"
             + ", header size: \\d+B"
-            + ", action: cluster:monitor/stats]"
+            + ", action: internal:test]"
             + " READ: \\d+B";
 
         final MockLog.LoggingExpectation readExpectation = new MockLog.PatternSeenEventExpectation(
-            "cluster monitor request",
+            "cluster state request",
             TransportLogger.class.getCanonicalName(),
             Level.TRACE,
             readPattern
@@ -73,9 +71,9 @@ public class TransportLoggerTests extends ESTestCase {
         try (RecyclerBytesStreamOutput bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
             OutboundMessage.Request request = new OutboundMessage.Request(
                 new ThreadContext(Settings.EMPTY),
-                new ClusterStatsRequest(),
+                new EmptyRequest(),
                 TransportVersion.current(),
-                TransportClusterStatsAction.TYPE.name(),
+                "internal:test",
                 randomInt(30),
                 false,
                 compress

@@ -123,7 +123,8 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         for (int i = 0; i < randomIntBetween(4, 8); i++) {
             DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).add(createNode()).build();
             state = ClusterState.builder(state).nodes(newNodes).build();
-            state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after adding node
+            // always reroute after adding node
+            state = cluster.reroute(state, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT));
         }
 
         // Log the node versions (for debugging if necessary)

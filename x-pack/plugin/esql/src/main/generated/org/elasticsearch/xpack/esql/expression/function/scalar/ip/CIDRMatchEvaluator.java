@@ -37,10 +37,10 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
   public CIDRMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator ip,
       EvalOperator.ExpressionEvaluator[] cidrs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.ip = ip;
     this.cidrs = cidrs;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -113,7 +113,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
   public BooleanVector eval(int positionCount, BytesRefVector ipVector,
       BytesRefVector[] cidrsVectors) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       BytesRef[] cidrsValues = new BytesRef[cidrs.length];
       BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
@@ -125,7 +125,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
         for (int i = 0; i < cidrsVectors.length; i++) {
           cidrsValues[i] = cidrsVectors[i].getBytesRef(p, cidrsScratch[i]);
         }
-        result.appendBoolean(CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues));
+        result.appendBoolean(p, CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues));
       }
       return result.build();
     }

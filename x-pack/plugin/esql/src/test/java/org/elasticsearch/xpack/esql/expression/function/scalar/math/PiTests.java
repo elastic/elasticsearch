@@ -14,8 +14,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PiTests extends AbstractFunctionTestCase {
+public class PiTests extends AbstractScalarFunctionTestCase {
     public PiTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -33,9 +33,9 @@ public class PiTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Pi Test", () -> {
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "foo")),
+                List.of(new TestCaseSupplier.TypedData(1, DataType.INTEGER, "foo")),
                 "LiteralsEvaluator[lit=3.141592653589793]",
-                DataTypes.DOUBLE,
+                DataType.DOUBLE,
                 equalTo(Math.PI)
             );
         })));

@@ -19,6 +19,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -31,7 +32,6 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.core.TestUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -47,6 +47,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
     private static final int BULK_DATA_SIZE = 100_000;
@@ -56,6 +57,16 @@ public class CsvTestsDataLoader {
     private static final TestsDataset LANGUAGES = new TestsDataset("languages", "mapping-languages.json", "languages.csv");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs", "mapping-ul_logs.json", "ul_logs.csv");
     private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data", "mapping-sample_data.json", "sample_data.csv");
+    private static final TestsDataset SAMPLE_DATA_STR = new TestsDataset(
+        "sample_data_str",
+        "mapping-sample_data_str.json",
+        "sample_data_str.csv"
+    );
+    private static final TestsDataset SAMPLE_DATA_TS_LONG = new TestsDataset(
+        "sample_data_ts_long",
+        "mapping-sample_data_ts_long.json",
+        "sample_data_ts_long.csv"
+    );
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips", "mapping-clientips.json", "clientips.csv");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr", "mapping-client_cidr.json", "client_cidr.csv");
     private static final TestsDataset AGES = new TestsDataset("ages", "mapping-ages.json", "ages.csv");
@@ -94,6 +105,8 @@ public class CsvTestsDataLoader {
         Map.entry(LANGUAGES.indexName, LANGUAGES),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
+        Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
+        Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
         Map.entry(AGES.indexName, AGES),
@@ -195,7 +208,20 @@ public class CsvTestsDataLoader {
 
         try (RestClient client = builder.build()) {
             loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
-                ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
+                // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                StringBuilder jsonBody = new StringBuilder("{");
+                if (indexSettings != null && indexSettings.isEmpty() == false) {
+                    jsonBody.append("\"settings\":");
+                    jsonBody.append(Strings.toString(indexSettings));
+                    jsonBody.append(",");
+                }
+                jsonBody.append("\"mappings\":");
+                jsonBody.append(indexMapping);
+                jsonBody.append("}");
+
+                Request request = new Request("PUT", "/" + indexName);
+                request.setJsonEntity(jsonBody.toString());
+                restClient.performRequest(request);
             });
         }
     }
@@ -279,7 +305,7 @@ public class CsvTestsDataLoader {
     }
 
     public static String readTextFile(URL resource) throws IOException {
-        try (BufferedReader reader = TestUtils.reader(resource)) {
+        try (BufferedReader reader = reader(resource)) {
             StringBuilder b = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
@@ -314,7 +340,7 @@ public class CsvTestsDataLoader {
     ) throws IOException {
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = org.elasticsearch.xpack.esql.core.TestUtils.reader(resource)) {
+        try (BufferedReader reader = reader(resource)) {
             String line;
             int lineNumber = 1;
             String[] columns = null; // list of column names. If one column name contains dot, it is a subfield and its value will be null

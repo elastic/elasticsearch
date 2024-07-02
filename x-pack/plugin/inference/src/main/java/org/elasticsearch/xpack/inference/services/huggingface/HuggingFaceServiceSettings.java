@@ -18,6 +18,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -43,14 +44,20 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
     // 3000 requests per minute
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
-    public static HuggingFaceServiceSettings fromMap(Map<String, Object> map) {
+    public static HuggingFaceServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var uri = extractUri(map, URL, validationException);
 
         SimilarityMeasure similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            HuggingFaceService.NAME,
+            context
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -119,7 +126,6 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         toXContentFragmentOfExposedFields(builder, params);
-        rateLimitSettings.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -136,6 +142,7 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
+        rateLimitSettings.toXContent(builder, params);
 
         return builder;
     }

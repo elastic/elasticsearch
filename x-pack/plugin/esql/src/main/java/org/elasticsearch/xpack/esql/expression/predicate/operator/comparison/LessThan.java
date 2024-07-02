@@ -7,30 +7,35 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 
 import java.time.ZoneId;
 import java.util.Map;
 
 public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "LessThan",
+        EsqlBinaryComparison::readFrom
+    );
 
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
-        Map.entry(DataTypes.INTEGER, LessThanIntsEvaluator.Factory::new),
-        Map.entry(DataTypes.DOUBLE, LessThanDoublesEvaluator.Factory::new),
-        Map.entry(DataTypes.LONG, LessThanLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.UNSIGNED_LONG, LessThanLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.DATETIME, LessThanLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.KEYWORD, LessThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.TEXT, LessThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.VERSION, LessThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.IP, LessThanKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.INTEGER, LessThanIntsEvaluator.Factory::new),
+        Map.entry(DataType.DOUBLE, LessThanDoublesEvaluator.Factory::new),
+        Map.entry(DataType.LONG, LessThanLongsEvaluator.Factory::new),
+        Map.entry(DataType.UNSIGNED_LONG, LessThanLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATETIME, LessThanLongsEvaluator.Factory::new),
+        Map.entry(DataType.KEYWORD, LessThanKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, LessThanKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, LessThanKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.IP, LessThanKeywordsEvaluator.Factory::new)
     );
 
     public LessThan(Source source, Expression left, Expression right) {
@@ -39,6 +44,11 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
 
     public LessThan(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonOperation.LT, zoneId, evaluatorMap);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

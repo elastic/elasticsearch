@@ -17,20 +17,42 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     public static final String TYPE = "role_mappings";
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<RoleMappingMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE,
+        // serialization tests rely on the order of the ExpressionRoleMapping
+        args -> new RoleMappingMetadata(new LinkedHashSet<>((Collection<ExpressionRoleMapping>) args[0]))
+    );
+
+    static {
+        PARSER.declareObjectArray(
+            constructorArg(),
+            // role mapping names are lost when the role mapping metadata is serialized
+            (p, c) -> ExpressionRoleMapping.parse("name_not_available_after_deserialization", p),
+            new ParseField(TYPE)
+        );
+    }
 
     private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
 
@@ -71,7 +93,12 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        // role mappings are serialized without their names
         return Iterators.concat(ChunkedToXContentHelper.startArray(TYPE), roleMappings.iterator(), ChunkedToXContentHelper.endArray());
+    }
+
+    public static RoleMappingMetadata fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 
     @Override

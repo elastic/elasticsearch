@@ -36,10 +36,10 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
 
   public ToBase64Evaluator(Source source, EvalOperator.ExpressionEvaluator field,
       BytesRefBuilder oScratch, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.field = field;
     this.oScratch = oScratch;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

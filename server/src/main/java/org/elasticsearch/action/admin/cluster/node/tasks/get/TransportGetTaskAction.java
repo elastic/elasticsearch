@@ -141,9 +141,17 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         } else {
             if (request.getWaitForCompletion()) {
                 final ListenableActionFuture<Void> future = new ListenableActionFuture<>();
-                RemovedTaskListener removedTaskListener = task -> {
-                    if (task.equals(runningTask)) {
-                        future.onResponse(null);
+                RemovedTaskListener removedTaskListener = new RemovedTaskListener() {
+                    @Override
+                    public void onRemoved(Task task) {
+                        if (task.equals(runningTask)) {
+                            future.onResponse(null);
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "Waiting for task completion " + runningTask;
                     }
                 };
                 taskManager.registerRemovedTaskListener(removedTaskListener);

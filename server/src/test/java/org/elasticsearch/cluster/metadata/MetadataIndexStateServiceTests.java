@@ -457,7 +457,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             assertThat(
                 RoutingNodesHelper.asStream(shardRoutingTable)
                     .map(ShardRouting::unassignedInfo)
-                    .map(UnassignedInfo::getReason)
+                    .map(UnassignedInfo::reason)
                     .allMatch(info -> info == UnassignedInfo.Reason.INDEX_CLOSED),
                 is(true)
             );

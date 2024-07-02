@@ -13,8 +13,10 @@ import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
+import com.sun.jna.WString;
 import com.sun.jna.win32.StdCallLibrary;
 
+import org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
 import java.util.List;
@@ -96,6 +98,22 @@ class JnaKernel32Library implements Kernel32Library {
         }
     }
 
+    /**
+     * JNA adaptation of {@link ConsoleCtrlHandler}
+     */
+    public static class NativeHandlerCallback implements StdCallLibrary.StdCallCallback {
+
+        private final ConsoleCtrlHandler handler;
+
+        public NativeHandlerCallback(ConsoleCtrlHandler handler) {
+            this.handler = handler;
+        }
+
+        public boolean callback(long dwCtrlType) {
+            return handler.handle((int) dwCtrlType);
+        }
+    }
+
     private interface NativeFunctions extends StdCallLibrary {
         Pointer GetCurrentProcess();
 
@@ -106,9 +124,14 @@ class JnaKernel32Library implements Kernel32Library {
         int VirtualQueryEx(Pointer handle, Pointer address, JnaMemoryBasicInformation memoryInfo, int length);
 
         boolean SetProcessWorkingSetSize(Pointer handle, SizeT minSize, SizeT maxSize);
+
+        int GetShortPathNameW(WString lpszLongPath, char[] lpszShortPath, int cchBuffer);
+
+        boolean SetConsoleCtrlHandler(StdCallLibrary.StdCallCallback handler, boolean add);
     }
 
     private final NativeFunctions functions;
+    private NativeHandlerCallback consoleCtrlHandlerCallback = null;
 
     JnaKernel32Library() {
         this.functions = Native.load("kernel32", NativeFunctions.class);
@@ -160,5 +183,18 @@ class JnaKernel32Library implements Kernel32Library {
         assert handle instanceof JnaHandle;
         var jnaHandle = (JnaHandle) handle;
         return functions.SetProcessWorkingSetSize(jnaHandle.pointer, new SizeT(minSize), new SizeT(maxSize));
+    }
+
+    @Override
+    public int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer) {
+        var wideFileName = new WString(lpszLongPath);
+        return functions.GetShortPathNameW(wideFileName, lpszShortPath, cchBuffer);
+    }
+
+    @Override
+    public boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add) {
+        assert consoleCtrlHandlerCallback == null;
+        consoleCtrlHandlerCallback = new NativeHandlerCallback(handler);
+        return functions.SetConsoleCtrlHandler(consoleCtrlHandlerCallback, true);
     }
 }

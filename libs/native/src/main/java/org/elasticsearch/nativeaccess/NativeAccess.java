@@ -52,6 +52,13 @@ public interface NativeAccess {
      */
     Zstd getZstd();
 
+    /**
+     * Returns an accessor for native functions only available on Windows, or {@code null} if not on Windows.
+     */
+    default WindowsFunctions getWindowsFunctions() {
+        return null;
+    }
+
     /*
      * Returns the vector similarity functions, or an empty optional.
      */

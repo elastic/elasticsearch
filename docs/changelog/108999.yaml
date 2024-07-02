@@ -1,0 +1,5 @@
+pr: 108999
+summary: Use default translog durability on AD results index
+area: Machine Learning
+type: bug
+issues: []

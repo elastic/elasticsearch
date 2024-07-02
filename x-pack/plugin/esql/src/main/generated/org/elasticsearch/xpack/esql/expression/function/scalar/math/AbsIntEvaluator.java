@@ -30,9 +30,9 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public AbsIntEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.fieldVal = fieldVal;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -67,9 +67,9 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector fieldValVector) {
-    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(Abs.process(fieldValVector.getInt(p)));
+        result.appendInt(p, Abs.process(fieldValVector.getInt(p)));
       }
       return result.build();
     }

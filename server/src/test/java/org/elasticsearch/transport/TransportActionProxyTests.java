@@ -500,8 +500,8 @@ public class TransportActionProxyTests extends ESTestCase {
     }
 
     public void testIsProxyRequest() {
-        assertTrue(TransportActionProxy.isProxyRequest(new TransportActionProxy.ProxyRequest<>(TransportRequest.Empty.INSTANCE, null)));
-        assertFalse(TransportActionProxy.isProxyRequest(TransportRequest.Empty.INSTANCE));
+        assertTrue(TransportActionProxy.isProxyRequest(new TransportActionProxy.ProxyRequest<>(new EmptyRequest(), null)));
+        assertFalse(TransportActionProxy.isProxyRequest(new EmptyRequest()));
     }
 
     static class CapturingTransportChannel implements TransportChannel {

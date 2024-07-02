@@ -17,14 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.AggExtractorInput;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.BinaryPipesTests;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.esql.core.tree.NodeTests.ChildrenAreAProperty;
@@ -90,7 +84,7 @@ import static org.mockito.Mockito.mock;
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(In.class, InPipe.class);
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(In.class);
 
     private final Class<T> subclass;
 
@@ -132,7 +126,12 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             Object originalArgValue = nodeCtorArgs[changedArgOffset];
 
             Type changedArgType = argTypes[changedArgOffset];
-            Object changedArgValue = randomValueOtherThan(nodeCtorArgs[changedArgOffset], () -> makeArg(changedArgType));
+            Object changedArgValue = randomValueOtherThanMaxTries(
+                nodeCtorArgs[changedArgOffset],
+                () -> makeArg(changedArgType),
+                // JoinType has only 1 permitted enum element. Limit the number of retries.
+                3
+            );
 
             B transformed = node.transformNodeProps(Object.class, prop -> Objects.equals(prop, originalArgValue) ? changedArgValue : prop);
 
@@ -374,33 +373,6 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                 Enum enm = (Enum) makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
                 return EnumSet.of(enm);
             }
-            if (pt.getRawType() == Supplier.class) {
-                if (toBuildClass == AggExtractorInput.class) {
-                    // AggValueInput just needs a valid java type in a supplier
-                    Object o = randomBoolean() ? null : randomAlphaOfLength(5);
-                    // But the supplier has to implement equals for randomValueOtherThan
-                    return new Supplier<>() {
-                        @Override
-                        public Object get() {
-                            return o;
-                        }
-
-                        @Override
-                        public int hashCode() {
-                            return Objects.hash(o);
-                        }
-
-                        @Override
-                        public boolean equals(Object obj) {
-                            if (obj == null || obj.getClass() != getClass()) {
-                                return false;
-                            }
-                            Supplier<?> other = (Supplier<?>) obj;
-                            return Objects.equals(o, other.get());
-                        }
-                    };
-                }
-            }
             Object obj = pluggableMakeParameterizedArg(toBuildClass, pt);
             if (obj != null) {
                 return obj;
@@ -471,22 +443,6 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         if (EnrichPolicy.class == argClass) {
             List<String> enrichFields = randomSubsetOf(List.of("e1", "e2", "e3"));
             return new EnrichPolicy(randomFrom("match", "range"), null, List.of(), randomFrom("m1", "m2"), enrichFields);
-        }
-
-        if (Pipe.class == argClass) {
-            /*
-             * Similar to expressions, mock pipes to avoid
-             * stackoverflow errors while building the tree.
-             */
-            return BinaryPipesTests.randomUnaryPipe();
-        }
-
-        if (Processor.class == argClass) {
-            /*
-             * Similar to expressions, mock pipes to avoid
-             * stackoverflow errors while building the tree.
-             */
-            return new ConstantProcessor(randomAlphaOfLength(16));
         }
 
         if (Node.class.isAssignableFrom(argClass)) {
@@ -747,5 +703,16 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         } catch (ClassNotFoundException e) {
             return null;
         }
+    }
+
+    private static <T> T randomValueOtherThanManyMaxTries(Predicate<T> input, Supplier<T> randomSupplier, int maxTries) {
+        int[] maxTriesHolder = { maxTries };
+        Predicate<T> inputWithMaxTries = t -> input.test(t) && maxTriesHolder[0]-- > 0;
+
+        return ESTestCase.randomValueOtherThanMany(inputWithMaxTries, randomSupplier);
+    }
+
+    public static <T> T randomValueOtherThanMaxTries(T input, Supplier<T> randomSupplier, int maxTries) {
+        return randomValueOtherThanManyMaxTries(v -> Objects.equals(input, v), randomSupplier, maxTries);
     }
 }

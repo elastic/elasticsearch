@@ -202,7 +202,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             assertThat(response.getStatus(), equalTo(PostStartBasicResponse.Status.GENERATED_BASIC));
         };
         final PlainActionFuture<PostStartBasicResponse> future = new PlainActionFuture<>();
-        service.startBasicLicense(new PostStartBasicRequest(), future);
+        service.startBasicLicense(new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT), future);
 
         if (future.isDone()) {
             // If validation failed, the future might be done without calling the updater task.
@@ -289,7 +289,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             new FeatureService(List.of())
         );
 
-        final PutLicenseRequest request = new PutLicenseRequest();
+        final PutLicenseRequest request = new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.license(toSpec(license), XContentType.JSON);
         final PlainActionFuture<PutLicenseResponse> future = new PlainActionFuture<>();
         service.registerLicense(request, future);

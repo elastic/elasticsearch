@@ -17,23 +17,23 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.converterFor;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
 
 public class DataTypeConversionTests extends ESTestCase {
@@ -539,8 +539,8 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testEsDataTypes() {
-        for (DataType type : DataTypes.types()) {
-            assertEquals(type, DataTypes.fromTypeName(type.typeName()));
+        for (DataType type : DataType.types()) {
+            assertEquals(type, DataType.fromTypeName(type.typeName()));
         }
     }
 

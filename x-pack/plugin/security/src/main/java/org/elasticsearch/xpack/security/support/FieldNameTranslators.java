@@ -73,7 +73,6 @@ public final class FieldNameTranslators {
 
     public static final FieldNameTranslators ROLE_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
-            // idemFieldNameTranslator("name"),
             new SimpleFieldNameTranslator(ROLE_NAME_RUNTIME_MAPPING_FIELD, "name"),
             idemFieldNameTranslator("description"),
             idemFieldNameTranslator("applications.application"),

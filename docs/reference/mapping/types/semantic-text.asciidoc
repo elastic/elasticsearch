@@ -182,5 +182,3 @@ Notice that both the `semantic_text` field and the source field are updated in t
 
 * `semantic_text` fields are not currently supported as elements of <<nested,nested fields>>.
 * `semantic_text` fields can't be defined as <<multi-fields,multi-fields>> of another field, nor can they contain other fields as multi-fields.
-* When ingestion pipelines update an already existing `semantic_text` field value, inference won't be recalculated for the field automatically.
-The inference will only be recalculated when the document is reindexed.

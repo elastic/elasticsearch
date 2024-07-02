@@ -221,7 +221,7 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
 
     public void testLegacyFieldValueExtractorBuildContext() throws Exception {
         // Models created before 8.15 have been saved with input fields.
-        // We check the dedup is done correctly.
+        // We check field value extractors are created and the deduplication is done correctly.
         LocalModel localModel = mock(LocalModel.class);
         when(localModel.inputFields()).thenReturn(List.of("feature_1", "field_1", "field_2"));
 
@@ -255,7 +255,6 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
         assertThat(fieldValueExtractor.featureNames(), hasSize(2));
         assertThat(fieldValueExtractor.featureNames(), containsInAnyOrder("field_1", "field_2"));
     }
-
 
     private LearningToRankRescorerBuilder rewriteAndFetch(
         RescorerBuilder<LearningToRankRescorerBuilder> builder,

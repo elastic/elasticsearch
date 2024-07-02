@@ -45,9 +45,9 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
-         * Support for aggregation function {@code TOP_LIST}.
+         * Support for aggregation function {@code TOP}.
          */
-        AGG_TOP_LIST,
+        AGG_TOP,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -96,7 +96,12 @@ public class EsqlCapabilities {
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
-        GROK_DISSECT_MASKING;
+        GROK_DISSECT_MASKING,
+
+        /**
+         * Support for quoting index sources in double quotes.
+         */
+        DOUBLE_QUOTES_SOURCE_ENCLOSING;
 
         Cap() {
             snapshotOnly = false;

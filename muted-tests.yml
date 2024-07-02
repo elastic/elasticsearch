@@ -47,9 +47,6 @@ tests:
 - class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109687"
   method: "test {p0=sql/translate/Translate SQL}"
-- class: "org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109806"
-  method: "testInsufficientPrivilege"
 - class: org.elasticsearch.action.search.SearchProgressActionListenerIT
   method: testSearchProgressWithHits
   issue: https://github.com/elastic/elasticsearch/issues/109830
@@ -85,9 +82,6 @@ tests:
 - class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/110244
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec}
-  issue: https://github.com/elastic/elasticsearch/issues/110272
 - class: org.elasticsearch.painless.LangPainlessClientYamlTestSuiteIT
   method: test {yaml=painless/146_dense_vector_bit_basic/Cosine Similarity is not supported}
   issue: https://github.com/elastic/elasticsearch/issues/110290
@@ -107,11 +101,14 @@ tests:
   method: testMinVersionAsOldVersion
   issue: https://github.com/elastic/elasticsearch/issues/109454
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec}
-  issue: https://github.com/elastic/elasticsearch/issues/110292
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial}
+  issue: https://github.com/elastic/elasticsearch/issues/110310
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.physical.ExchangeExec}
-  issue: https://github.com/elastic/elasticsearch/issues/110293
+  method: testInfoParameters {class org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial}
+  issue: https://github.com/elastic/elasticsearch/issues/110310
+- class: org.elasticsearch.search.vectors.ExactKnnQueryBuilderTests
+  method: testToQuery
+  issue: https://github.com/elastic/elasticsearch/issues/110357
 
 # Examples:
 #

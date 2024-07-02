@@ -10,9 +10,10 @@ METRICS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,n
 2024-05-10T00:22:49.000Z | staging         | two         | 3                     | 1.75
 ;
 
-metricsWithAggs
+metricsWithAggsAndSourceQuoting
 required_capability: metrics_syntax
-METRICS k8s max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT max_bytes DESC;
+required_capability: double_quotes_source_enclosing
+METRICS "k8s" max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT max_bytes DESC;
 
 max_bytes:long | cluster: keyword
 10797          | qa        
@@ -20,9 +21,10 @@ max_bytes:long | cluster: keyword
 7403           | staging
 ;
 
-maxRate
+maxRateAndSourceTripleQuoting
 required_capability: metrics_syntax
-METRICS k8s max(rate(network.total_bytes_in, 1minute));
+required_capability: double_quotes_source_enclosing
+METRICS """k8s""" max(rate(network.total_bytes_in, 1minute));
 
 max(rate(network.total_bytes_in, 1minute)): double
 790.4235090751945

@@ -106,17 +106,24 @@ final class FieldTypeLookup {
                         if (conflict.priority() > passThroughMapper.priority()) {
                             // Keep the conflicting field if it has higher priority.
                             passThroughFieldAliases.put(name, conflict);
-                            continue;
                         }
-                    } else if (fullNameToFieldType.containsKey(name)) {
-                        // There's an existing field or alias for the same field.
-                        continue;
                     }
-                    MappedFieldType fieldType = fieldMapper.fieldType();
-                    fullNameToFieldType.put(name, fieldType);
-                    if (fieldType instanceof DynamicFieldType) {
-                        dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
-                    }
+                }
+            }
+        }
+
+        for (Map.Entry<String, PassThroughObjectMapper> entry : passThroughFieldAliases.entrySet()) {
+            String name = entry.getKey();
+            if (fullNameToFieldType.containsKey(name)) {
+                // There's an existing field or alias for the same field.
+                continue;
+            }
+            Mapper mapper = entry.getValue().getMapper(name);
+            if (mapper instanceof FieldMapper fieldMapper) {
+                MappedFieldType fieldType = fieldMapper.fieldType();
+                fullNameToFieldType.put(name, fieldType);
+                if (fieldType instanceof DynamicFieldType) {
+                    dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
                 }
             }
         }

@@ -5,11 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.common;
+package org.elasticsearch.xpack.inference.chunking;
+
+import com.ibm.icu.text.BreakIterator;
 
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -17,15 +20,17 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class WordBoundaryChunkerTests extends ESTestCase {
 
-    private final String TEST_TEXT = "Word segmentation is the problem of dividing a string of written language into its component words.\n"
-        + "In English and many other languages using some form of the Latin alphabet, the space is a good approximation of a word divider "
-        + "(word delimiter), although this concept has limits because of the variability with which languages emically regard collocations "
-        + "and compounds. Many English compound nouns are variably written (for example, ice box = ice-box = icebox; pig sty = pig-sty = "
-        + "pigsty) with a corresponding variation in whether speakers think of them as noun phrases or single nouns; there are trends in "
-        + "how norms are set, such as that open compounds often tend eventually to solidify by widespread convention, but variation remains"
-        + " systemic. In contrast, German compound nouns show less orthographic variation, with solidification being a stronger norm.";
+    @SuppressWarnings("checkstyle:linelength")
+    public static final String TEST_TEXT =
+        "Word segmentation is the problem of dividing a string of written language into its component words.\n"
+            + "In English and many other languages using some form of the Latin alphabet, the space is a good approximation of a word divider "
+            + "(word delimiter), although this concept has limits because of the variability with which languages emically regard collocations "
+            + "and compounds. Many English compound nouns are variably written (for example, ice box = ice-box = icebox; pig sty = pig-sty = "
+            + "pigsty) with a corresponding variation in whether speakers think of them as noun phrases or single nouns; there are trends in "
+            + "how norms are set, such as that open compounds often tend eventually to solidify by widespread convention, but variation remains"
+            + " systemic. In contrast, German compound nouns show less orthographic variation, with solidification being a stronger norm.";
 
-    private final String[] MULTI_LINGUAL = new String[] {
+    public static final String[] MULTI_LINGUAL = new String[] {
         "Građevne strukture Mesa Verde dokaz su akumuliranog znanja i vještina koje su se stoljećima prenosile generacijama civilizacije"
             + " Anasazi. Vrhunce svojih dosega ostvarili su u 12. i 13. stoljeću, kada su sagrađene danas najpoznatije građevine na "
             + "liticama. Zidali su obrađenim pješčenjakom, tvrđim kamenom oblikovanim do veličine štruce kruha. Kao žbuku između ciglā "
@@ -47,6 +52,17 @@ public class WordBoundaryChunkerTests extends ESTestCase {
             + " المومنين يا"
             + " خليفہ المومنين يا خليفہ المسلمين يا صحابی يا رضي الله عنه چئي۔ (ب) آنحضور ﷺ جي گھروارين کان علاوه ڪنھن کي ام المومنين "
             + "چئي۔ (ج) آنحضور ﷺ جي خاندان جي اھل بيت کان علاوہڍه ڪنھن کي اھل بيت چئي۔ (د) پنھنجي عبادت گاھ کي مسجد چئي۔" };
+
+    public static int NUM_WORDS_IN_TEST_TEXT;
+    static {
+        var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
+        wordIterator.setText(TEST_TEXT);
+        int wordCount = 0;
+        while (wordIterator.next() != BreakIterator.DONE) {
+            wordCount++;
+        }
+        NUM_WORDS_IN_TEST_TEXT = wordCount;
+    }
 
     public void testSingleSplit() {
         var chunker = new WordBoundaryChunker();

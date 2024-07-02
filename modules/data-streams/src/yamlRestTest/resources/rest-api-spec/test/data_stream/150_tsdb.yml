@@ -923,20 +923,38 @@ dimensions with ignore_malformed and ignore_above:
         refresh: true
         body:
           - '{ "create": { } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": "10", "attributes.keyword_dim": "foo", "attributes.keyword_dim_ignored": "ignored", "attributes.long_dim_ignored": "ignored" }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 10, "attributes.keyword_dim": "foo", "attributes.keyword_dim_ignored": "ignored", "attributes.long_dim_ignored": "ignored" }'
           - '{ "create": { } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": "20", "attributes.keyword_dim": "foo", "attributes.keyword_dim_ignored": "ignored too", "attributes.long_dim_ignored": "ignored" }'
-  - match: { errors: false }
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 20, "attributes.keyword_dim": "foo", "attributes.keyword_dim_ignored": "ignored too", "attributes.long_dim_ignored": "ignored" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 30, "attributes.keyword_dim_ignored": "ignored 3" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 40, "attributes.keyword_dim_ignored": "ignored 4" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 50, "attributes.keyword_dim_ignored": "duplicate" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 60, "attributes.keyword_dim_ignored": "duplicate" }'
+  - match: { errors: true }
+  - match: { items.0.create.result: created }
+  - match: { items.1.create.result: created }
+  - match: { items.2.create.result: created }
+  - match: { items.3.create.result: created }
+  - match: { items.4.create.result: created }
+  - match: { items.5.create.error.type: version_conflict_engine_exception }
 
   - do:
       search:
         index: k9s
         body:
-          size: 2
+          sort:
+            - data: asc
 
-  - match: { hits.total.value: 2 }
+  - match: { hits.total.value: 5 }
   - match: { hits.hits.0._ignored: ["attributes.keyword_dim_ignored", "attributes.long_dim_ignored"]}
   - match: { hits.hits.1._ignored: ["attributes.keyword_dim_ignored", "attributes.long_dim_ignored"]}
+  - match: { hits.hits.2._ignored: ["attributes.keyword_dim_ignored"]}
+  - match: { hits.hits.3._ignored: ["attributes.keyword_dim_ignored"]}
+  - match: { hits.hits.4._ignored: ["attributes.keyword_dim_ignored"]}
 
   - do:
       search:

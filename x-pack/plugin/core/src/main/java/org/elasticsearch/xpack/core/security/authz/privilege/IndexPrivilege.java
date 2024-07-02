@@ -317,8 +317,9 @@ public final class IndexPrivilege extends Privilege {
         if (actions.isEmpty() == false) {
             automata.add(patterns(actions));
         }
-        // The `isSupportedInServerlessMode` flag is only meaningful for the builtin privileges constants defined in `VALUE`.
-        // For privileges consisting of multiple names we default to `false`, and trip an assertion in `isSupportedInServerlessMode()`.
+        // The `isSupportedInServerlessMode` flag is only meaningful for the builtin privilege constants defined in `VALUE`.
+        // For constructed privileges that are the union of multiple names, we default the value to `false`, and prevent calls to
+        // `isSupportedInServerlessMode()` via assertion.
         return new IndexPrivilege(name, unionAndMinimize(automata), false);
     }
 

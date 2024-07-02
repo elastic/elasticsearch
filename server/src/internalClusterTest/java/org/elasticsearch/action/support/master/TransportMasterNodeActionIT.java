@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -45,11 +46,10 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
     @TestLogging(reason = "wip", value = "org.elasticsearch.action.support.master.TransportMasterNodeAction:DEBUG")
     public void testRoutingLoopProtection() {
 
-        final var newMaster = internalCluster().startMasterOnlyNode();
         final var cleanupTasks = new ArrayList<Runnable>();
 
         try {
-            createClusterOfSufficientSize();
+            final var newMaster = ensureSufficientMasterEligibleNodes();
             final long originalTerm = internalCluster().masterClient().admin().cluster().prepareState().get().getState().term();
             final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatch(newMaster, cleanupTasks);
 
@@ -193,20 +193,18 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
      * master accepts its own failed state update before standing down, we can still
      * establish a quorum without its (or our own) join.
      */
-    private static void createClusterOfSufficientSize() {
-        final var enoughVotingMastersLatch = new CountDownLatch(1);
-        ClusterStateApplier clusterFormationMonitor = event -> {
-            if (5 <= event.state().coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size()) {
-                enoughVotingMastersLatch.countDown();
-            }
-        };
-        ClusterService newMasterClusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
+    private static String ensureSufficientMasterEligibleNodes() {
+        final var votingConfigSizeListener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().getAnyMasterNodeInstance(ClusterService.class),
+            cs -> 5 <= cs.coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size()
+        );
+
         try {
-            newMasterClusterService.addStateApplier(clusterFormationMonitor);
-            internalCluster().startMasterOnlyNodes(3);
-            safeAwait(enoughVotingMastersLatch);
+            final var newNodeNames = internalCluster().startMasterOnlyNodes(Math.max(1, 5 - internalCluster().numMasterNodes()));
+            safeAwait(votingConfigSizeListener);
+            return newNodeNames.get(0);
         } finally {
-            newMasterClusterService.removeApplier(clusterFormationMonitor);
+            votingConfigSizeListener.onResponse(null);
         }
     }
 }

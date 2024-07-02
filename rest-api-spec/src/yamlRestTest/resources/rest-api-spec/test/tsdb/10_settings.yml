@@ -337,8 +337,8 @@ set start_time and end_time without timeseries mode:
 ---
 set start_time, end_time and routing_path via put settings api without time_series mode:
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: bug fixed in 8.15.0
+      cluster_features: [ "gte_v8.14.2" ]
+      reason: bug fixed in 8.14.2
 
   - do:
       indices.create:

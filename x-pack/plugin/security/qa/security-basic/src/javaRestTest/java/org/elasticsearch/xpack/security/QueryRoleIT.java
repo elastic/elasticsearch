@@ -127,14 +127,14 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
         for (int i = 0; i < nroles; i++) {
             createRandomRole();
         }
-        RoleDescriptor matchThisRole = createRole(
-            "match_this",
+        RoleDescriptor matchesOnMetadataValue = createRole(
+            "matchesOnMetadataValue",
             randomBoolean() ? null : randomAlphaOfLength(8),
             Map.of("matchSimpleKey", "matchSimpleValue"),
             randomApplicationPrivileges()
         );
-        RoleDescriptor other = createRole(
-            "other",
+        RoleDescriptor matchesOnMetadataKey = createRole(
+            "matchesOnMetadataKey",
             randomBoolean() ? null : randomAlphaOfLength(8),
             Map.of("matchSimpleKey", "other"),
             randomApplicationPrivileges()
@@ -149,14 +149,14 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
         assertQuery("""
             {"query":{"term":{"metadata.matchSimpleKey":"matchSimpleValue"}}}""", 1, roles -> {
             assertThat(roles, iterableWithSize(1));
-            assertRoleMap(roles.get(0), matchThisRole);
+            assertRoleMap(roles.get(0), matchesOnMetadataValue);
         });
         assertQuery("""
             {"query":{"exists":{"field":"metadata.matchSimpleKey"}}}""", 2, roles -> {
             assertThat(roles, iterableWithSize(2));
             roles.sort(Comparator.comparing(o -> ((String) o.get("name"))));
-            assertRoleMap(roles.get(0), matchThisRole);
-            assertRoleMap(roles.get(1), other);
+            assertRoleMap(roles.get(0), matchesOnMetadataKey);
+            assertRoleMap(roles.get(1), matchesOnMetadataValue);
         });
     }
 
@@ -301,15 +301,12 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
                 for (int i = 0; i < nMatchingRoles; i++) {
                     assertThat(roles.get(i).get("_sort"), instanceOf(List.class));
                     assertThat(((List<String>) roles.get(i).get("_sort")), iterableWithSize(1));
-                    assertThat(
-                        ((List<String>) roles.get(i).get("_sort")).get(0),
-                        equalTo(bestPrivilegeName(roles.get(i), String::compareTo))
-                    );
+                    assertThat(((List<String>) roles.get(i).get("_sort")).get(0), equalTo(getPrivilegeNameUsedForSorting(roles.get(i))));
                 }
                 // assert the ascending sort order
                 for (int i = 1; i < nMatchingRoles; i++) {
-                    int comparePrivileges = bestPrivilegeName(roles.get(i - 1), String::compareTo).compareTo(
-                        bestPrivilegeName(roles.get(i), String::compareTo)
+                    int comparePrivileges = getPrivilegeNameUsedForSorting(roles.get(i - 1)).compareTo(
+                        getPrivilegeNameUsedForSorting(roles.get(i))
                     );
                     assertThat(comparePrivileges < 0, is(true));
                 }
@@ -419,7 +416,7 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private String bestPrivilegeName(Map<String, Object> roleMap, Comparator<String> comparator) {
+    private String getPrivilegeNameUsedForSorting(Map<String, Object> roleMap) {
         String bestPrivilege = null;
         List<Map<String, Object>> applications = (List<Map<String, Object>>) roleMap.get("applications");
         if (applications == null) {
@@ -431,7 +428,7 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
                 for (String privilege : privileges) {
                     if (bestPrivilege == null) {
                         bestPrivilege = privilege;
-                    } else if (comparator.compare(privilege, bestPrivilege) < 0) {
+                    } else if (privilege.compareTo(bestPrivilege) < 0) {
                         bestPrivilege = privilege;
                     }
                 }

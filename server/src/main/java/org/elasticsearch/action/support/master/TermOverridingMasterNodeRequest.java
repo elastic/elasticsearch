@@ -23,8 +23,15 @@ import java.util.Map;
 /**
  * Wrapper around a {@link MasterNodeRequest} for use when sending the request to another node, overriding the {@link
  * MasterNodeRequest#masterTerm()} sent out over the wire.
+ * <p>
+ * Note that in production this is <i>only</i> used for sending the request out, so there's no need to preserve other marker interfaces such
+ * as {@link org.elasticsearch.action.IndicesRequest} or {@link org.elasticsearch.action.IndicesRequest.Replaceable} on the wrapped request.
+ * The receiving node will deserialize a request without a wrapper, with the correct interfaces and the appropriate master term stored
+ * directly in {@link MasterNodeRequest#masterTerm()}. However in tests sometimes we want to intercept the request as it's being sent, for
+ * which it may be necessary to use the test utility {@code MasterNodeRequestHelper#unwrapTermOverride} to remove the wrapper and access the
+ * inner request.
  */
-public class TermOverridingMasterNodeRequest extends TransportRequest {
+class TermOverridingMasterNodeRequest extends TransportRequest {
 
     private static final Logger logger = LogManager.getLogger(TermOverridingMasterNodeRequest.class);
 

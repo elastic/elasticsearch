@@ -1,0 +1,9 @@
+pr: 110395
+summary: Remove the experimental section from the redact docs
+area: Ingest Node
+type: docs
+issues: []
+highlight:
+  title: Remove the experimental section from the redact docs
+  body: This removes the `experimental` label from the redact docs page
+  notable: true

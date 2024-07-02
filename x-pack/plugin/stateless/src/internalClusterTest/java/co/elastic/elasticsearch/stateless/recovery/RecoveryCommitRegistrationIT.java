@@ -18,11 +18,18 @@
 package co.elastic.elasticsearch.stateless.recovery;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.IndexingDiskController;
+import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.TestStateless;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.commits.TestStatelessCommitService;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
@@ -39,8 +46,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TestTransportChannel;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -48,7 +60,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
+import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -57,6 +71,14 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class RecoveryCommitRegistrationIT extends AbstractStatelessIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        final var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(Stateless.class);
+        plugins.add(TestStateless.class);
+        return List.copyOf(plugins);
+    }
 
     public void testSearchShardRecoveryRegistersCommit() {
         startMasterOnlyNode();
@@ -328,6 +350,107 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessIntegTestCase
         }
 
         logger.info("--> waiting for index to be green");
+        ensureGreen(indexName);
+    }
+
+    public void testSearchShardWillNotRegisterWithOldPrimaryAfterItIsRelocated() throws Exception {
+        final Settings nodeSettings = Settings.builder()
+            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), -1)
+            .build();
+        startMasterOnlyNode(nodeSettings);
+        final String indexNode = startIndexNode(nodeSettings);
+        final String searchNode = startSearchNode(nodeSettings);
+        ensureStableCluster(3);
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final int numIndexingBatches = between(1, 10);
+        for (int i = 0; i < numIndexingBatches; i++) {
+            indexDocs(indexName, between(1, 50));
+            if (randomBoolean()) {
+                refresh(indexName);
+            }
+        }
+
+        // Set up a countdown to notify markRelocated is called on the source primary
+        final IndexShard indexShard = findIndexShard(indexName);
+        final IndexEngine indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        final var statelessCommitService = (TestStatelessCommitService) indexEngine.getStatelessCommitService();
+        final var markRelocatedLatch = new CountDownLatch(1);
+        statelessCommitService.setStrategy(new TestStatelessCommitService.Strategy() {
+            @Override
+            public ActionListener<Void> markRelocating(
+                Supplier<ActionListener<Void>> originalSupplier,
+                ShardId shardId,
+                long minRelocatedGeneration,
+                ActionListener<Void> listener
+            ) {
+                return originalSupplier.get().delegateFailure((l, ignore) -> {
+                    l.onResponse(null); // mark relocated
+                    markRelocatedLatch.countDown();
+                });
+            }
+        });
+
+        final String newIndexNode = startIndexNode(nodeSettings);
+        ensureStableCluster(4);
+        final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        final var newIndexNodeTransportService = MockTransportService.getInstance(newIndexNode);
+
+        final var startPrimaryRelocationLatch = new CountDownLatch(1);
+        final var continuePrimaryRelocationLatch = new CountDownLatch(1);
+        indexNodeTransportService.addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+            startPrimaryRelocationLatch.countDown();
+            safeAwait(continuePrimaryRelocationLatch);
+            handler.messageReceived(request, channel, task);
+        });
+        logger.info("--> start indexing shard relocating and wait for it to block at the start action");
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNode));
+        safeAwait(startPrimaryRelocationLatch);
+
+        final var startRegistrationLatch = new CountDownLatch(1);
+        final var continueRegistrationLatch = new CountDownLatch(1);
+        indexNodeTransportService.addRequestHandlingBehavior(
+            TransportRegisterCommitForRecoveryAction.NAME,
+            (handler, request, channel, task) -> {
+                startRegistrationLatch.countDown();
+                safeAwait(continueRegistrationLatch);
+                handler.messageReceived(
+                    request,
+                    new TestTransportChannel(
+                        new ChannelActionListener<>(channel).delegateFailure(
+                            (l, r) -> fail("commit registration with old primary should have failed")
+                        )
+                    ),
+                    task
+                );
+            }
+        );
+        logger.info("--> start search shard recovery and wait for it to block at sending commit registration");
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        safeAwait(startRegistrationLatch);
+
+        // Registration should retry with the new primary eventually
+        final CountDownLatch registeredWithNewPrimaryLatch = new CountDownLatch(1);
+        newIndexNodeTransportService.addRequestHandlingBehavior(
+            TransportRegisterCommitForRecoveryAction.NAME,
+            (handler, request, channel, task) -> {
+                handler.messageReceived(request, new TestTransportChannel(new ChannelActionListener<>(channel).delegateFailure((l, r) -> {
+                    l.onResponse(r);
+                    registeredWithNewPrimaryLatch.countDown();
+                })), task);
+            }
+        );
+
+        logger.info("--> continue primary relocation and wait for old primary to be marked as relocated");
+        continuePrimaryRelocationLatch.countDown();
+        safeAwait(markRelocatedLatch);
+
+        logger.info("--> let search shard commit registration continue and it should succeed by retry with new primary");
+        continueRegistrationLatch.countDown();
+        safeAwait(registeredWithNewPrimaryLatch);
+
         ensureGreen(indexName);
     }
 }

@@ -9,24 +9,24 @@ package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
 import com.amazonaws.http.IdleConnectionReaper;
 
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
+import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
-
-import static java.util.Collections.emptyMap;
 
 public final class AmazonBedrockInferenceClientCache implements AmazonBedrockClientCache {
 
     private final BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator;
-    private volatile Map<Integer, AmazonBedrockBaseClient> clientsCache = emptyMap();
+    private volatile Map<Integer, AmazonBedrockBaseClient> clientsCache = new ConcurrentHashMap<>();
 
     public AmazonBedrockInferenceClientCache(BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator) {
-        this.creator = creator;
+        this.creator = Objects.requireNonNull(creator);
     }
 
     public AmazonBedrockBaseClient getOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) throws IOException {
@@ -53,14 +53,14 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
             final AmazonBedrockBaseClient builtClient = creator.apply(model, timeout);
 
             builtClient.mustIncRef();
-            clientsCache = Maps.copyMapWithAddedEntry(clientsCache, builtClient.hashCode(), builtClient);
+            clientsCache.put(modelHash, builtClient);
 
             return builtClient;
         }
     }
 
     private synchronized void flushExpiredClients() {
-        var currentTimestampMs = System.currentTimeMillis();
+        var currentTimestampMs = new Instant();
         for (final AmazonBedrockBaseClient client : clientsCache.values()) {
             if (client.isExpired(currentTimestampMs)) {
                 client.decRef();
@@ -80,7 +80,7 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
         }
 
         // clear previously cached clients, they will be build lazily
-        clientsCache = emptyMap();
+        clientsCache.clear();
 
         // shutdown IdleConnectionReaper background thread
         // it will be restarted on new client usage

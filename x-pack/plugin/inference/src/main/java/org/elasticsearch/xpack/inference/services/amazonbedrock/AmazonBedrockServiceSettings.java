@@ -93,9 +93,9 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         AmazonBedrockProvider provider,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this.region = region;
-        this.model = model;
-        this.provider = provider;
+        this.region = Objects.requireNonNull(region);
+        this.model = Objects.requireNonNull(model);
+        this.provider = Objects.requireNonNull(provider);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 

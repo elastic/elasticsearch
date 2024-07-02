@@ -59,8 +59,8 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
     }
 
     public AmazonBedrockSecretSettings(SecureString accessKey, SecureString secretKey) {
-        this.accessKey = accessKey;
-        this.secretKey = secretKey;
+        this.accessKey = Objects.requireNonNull(accessKey);
+        this.secretKey = Objects.requireNonNull(secretKey);
     }
 
     public AmazonBedrockSecretSettings(StreamInput in) throws IOException {

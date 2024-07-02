@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
 
@@ -276,7 +275,7 @@ public class AmazonBedrockService extends SenderService {
     }
 
     private AmazonBedrockEmbeddingsModel updateModelWithEmbeddingDetails(AmazonBedrockEmbeddingsModel model, int embeddingSize) {
-        AmazonBedrockEmbeddingsServiceSettings serviceSettings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
+        AmazonBedrockEmbeddingsServiceSettings serviceSettings = model.getServiceSettings();
         if (serviceSettings.dimensionsSetByUser()
             && serviceSettings.dimensions() != null
             && serviceSettings.dimensions() != embeddingSize) {
@@ -319,7 +318,7 @@ public class AmazonBedrockService extends SenderService {
     }
 
     private static void checkChatCompletionProviderForTopKParameter(AmazonBedrockChatCompletionModel model) {
-        var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
+        var taskSettings = model.getTaskSettings();
         if (taskSettings.topK() != null) {
             if (chatCompletionProviderHasTopKParameter(model.provider()) == false) {
                 throw new ElasticsearchStatusException(

@@ -11,11 +11,15 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonWriter;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
+
+import java.util.Objects;
 
 public final class AmazonBedrockEmbeddingsEntityFactory {
     public static AmazonBedrockJsonWriter createEntity(AmazonBedrockEmbeddingsModel model, Truncator.TruncationResult truncationResult) {
-        var serviceSettings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
+        Objects.requireNonNull(model);
+        Objects.requireNonNull(truncationResult);
+
+        var serviceSettings = model.getServiceSettings();
 
         var truncatedInput = truncationResult.input();
         if (truncatedInput == null || truncatedInput.isEmpty()) {

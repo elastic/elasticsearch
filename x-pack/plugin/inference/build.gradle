@@ -34,16 +34,16 @@ versions << [
 ]
 
 dependencies {
-  api "com.amazonaws:aws-java-sdk-bedrockruntime:${versions.awsbedrockruntime}"
-  api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  api "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
-  api "com.amazonaws:jmespath-java:${versions.aws}"
-  api "joda-time:joda-time:2.10.10"
-  api 'javax.xml.bind:jaxb-api:2.2.2'
+  implementation "com.amazonaws:aws-java-sdk-bedrockruntime:${versions.awsbedrockruntime}"
+  implementation "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  implementation "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
+  implementation "com.amazonaws:jmespath-java:${versions.aws}"
+  implementation "joda-time:joda-time:2.10.10"
+  implementation 'javax.xml.bind:jaxb-api:2.2.2'
 
   implementation project(path: ':libs:elasticsearch-logging')
   compileOnly project(":server")

@@ -11,7 +11,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Objects;
@@ -23,8 +22,8 @@ public abstract class AmazonBedrockRequestManager implements RequestManager {
     private final AmazonBedrockModel baseModel;
 
     protected AmazonBedrockRequestManager(AmazonBedrockModel baseModel, ThreadPool threadPool, @Nullable TimeValue timeout) {
-        this.baseModel = baseModel;
-        this.threadPool = threadPool;
+        this.baseModel = Objects.requireNonNull(baseModel);
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.timeout = timeout;
     }
 
@@ -42,7 +41,7 @@ public abstract class AmazonBedrockRequestManager implements RequestManager {
         public static AmazonBedrockRequestManager.RateLimitGrouping of(AmazonBedrockModel model) {
             Objects.requireNonNull(model);
 
-            var awsSecretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
+            var awsSecretSettings = model.getSecretSettings();
 
             return new RateLimitGrouping(Objects.hash(awsSecretSettings.accessKey, awsSecretSettings.secretKey));
         }

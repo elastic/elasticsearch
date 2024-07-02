@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBe
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     public static final String USER_ROLE = "user";
@@ -30,7 +31,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         @Nullable TimeValue timeout
     ) {
         super(model, timeout);
-        this.requestEntity = requestEntity;
+        this.requestEntity = Objects.requireNonNull(requestEntity);
     }
 
     public ConverseResult result() {
@@ -41,8 +42,8 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     public void executeRequest(AmazonBedrockBaseClient client) {
         var converseRequest = getConverseRequest();
 
-        try {
-            result = SocketAccess.doPrivileged(() -> client.converse(converseRequest));
+        try (var requestClient = client) {
+            result = SocketAccess.doPrivileged(() -> requestClient.converse(converseRequest));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

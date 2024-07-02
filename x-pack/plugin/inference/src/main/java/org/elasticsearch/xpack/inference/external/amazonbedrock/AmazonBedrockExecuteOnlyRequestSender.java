@@ -50,6 +50,7 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
 
                 // the run method will call the listener to return the proper value
                 executor.run();
+                return;
             } catch (Exception e) {
                 logException(logger, request, e);
                 listener.onFailure(wrapWithElasticsearchException(e, request.getInferenceEntityId()));

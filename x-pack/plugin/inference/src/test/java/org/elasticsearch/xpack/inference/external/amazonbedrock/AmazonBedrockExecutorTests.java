@@ -58,7 +58,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         var clientCache = new AmazonBedrockMockClientCache(null, getTestInvokeResult(TEST_AMAZON_TITAN_EMBEDDINGS_RESULT), null);
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
-        var executor = new AmazonBedrockExecutor(model, request, responseHandler, logger, null, listener, clientCache);
+        var executor = new AmazonBedrockExecutor(model, request, responseHandler, logger, () -> false, listener, clientCache);
         executor.run();
         var result = listener.actionGet(new TimeValue(30000));
         assertNotNull(result);
@@ -83,7 +83,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         var clientCache = new AmazonBedrockMockClientCache(null, getTestInvokeResult(TEST_COHERE_EMBEDDINGS_RESULT), null);
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
-        var executor = new AmazonBedrockExecutor(model, request, responseHandler, logger, null, listener, clientCache);
+        var executor = new AmazonBedrockExecutor(model, request, responseHandler, logger, () -> false, listener, clientCache);
         executor.run();
         var result = listener.actionGet(new TimeValue(30000));
         assertNotNull(result);
@@ -107,7 +107,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         var clientCache = new AmazonBedrockMockClientCache(getTestConverseResult("converse result"), null, null);
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
-        var executor = new AmazonBedrockExecutor(model, request, responseHandler, logger, null, listener, clientCache);
+        var executor = new AmazonBedrockExecutor(model, request, responseHandler, logger, () -> false, listener, clientCache);
         executor.run();
         var result = listener.actionGet(new TimeValue(30000));
         assertNotNull(result);
@@ -131,7 +131,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         var clientCache = new AmazonBedrockMockClientCache(null, null, new ElasticsearchException("test exception"));
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
-        var executor = new AmazonBedrockExecutor(model, request, responseHandler, logger, null, listener, clientCache);
+        var executor = new AmazonBedrockExecutor(model, request, responseHandler, logger, () -> false, listener, clientCache);
         executor.run();
 
         var exceptionThrown = assertThrows(ElasticsearchException.class, () -> listener.actionGet(new TimeValue(30000)));

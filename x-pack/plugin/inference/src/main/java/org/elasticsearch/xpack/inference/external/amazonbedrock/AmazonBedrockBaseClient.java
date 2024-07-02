@@ -11,8 +11,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings;
 
 import java.util.Objects;
 
@@ -20,12 +18,13 @@ public abstract class AmazonBedrockBaseClient extends AbstractRefCounted impleme
     protected final Integer modelKeysAndRegionHashcode;
 
     protected AmazonBedrockBaseClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+        Objects.requireNonNull(model);
         this.modelKeysAndRegionHashcode = getModelKeysAndRegionHashcode(model, timeout);
     }
 
     public static Integer getModelKeysAndRegionHashcode(AmazonBedrockModel model, @Nullable TimeValue timeout) {
-        var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-        var serviceSettings = (AmazonBedrockServiceSettings) model.getServiceSettings();
+        var secretSettings = model.getSecretSettings();
+        var serviceSettings = model.getServiceSettings();
         return Objects.hash(secretSettings.accessKey, secretSettings.secretKey, serviceSettings.region(), timeout);
     }
 }

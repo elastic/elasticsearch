@@ -34,7 +34,7 @@ public abstract class AmazonBedrockModel extends Model {
         super(model, taskSettings);
 
         if (model instanceof AmazonBedrockModel bedrockModel) {
-            setPropertiesFromServiceSettings((AmazonBedrockServiceSettings) bedrockModel.getServiceSettings());
+            setPropertiesFromServiceSettings(bedrockModel.getServiceSettings());
         }
     }
 
@@ -74,4 +74,15 @@ public abstract class AmazonBedrockModel extends Model {
     }
 
     public abstract ExecutableAction accept(AmazonBedrockActionVisitor creator, Map<String, Object> taskSettings);
+
+    @Override
+    public AmazonBedrockServiceSettings getServiceSettings() {
+        return (AmazonBedrockServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
+    public AmazonBedrockSecretSettings getSecretSettings() {
+        return (AmazonBedrockSecretSettings) super.getSecretSettings();
+    }
+
 }

@@ -25,8 +25,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings;
+import org.joda.time.Instant;
 
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
@@ -37,12 +36,12 @@ import java.util.Objects;
  */
 public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
 
-    public static final int CLIENT_CACHE_EXPIRY_MINUTES = 5;
+    private static final int CLIENT_CACHE_EXPIRY_MINUTES = 5;
     private static final long CACHE_EXPIRY_ADD_MS = (1000 * 60 * CLIENT_CACHE_EXPIRY_MINUTES);
     private static final int DEFAULT_CLIENT_TIMEOUT_MS = 10000;
 
     private final AmazonBedrockRuntime internalClient;
-    private volatile long expiryTimestamp;
+    private volatile Instant expiryTimestamp;
 
     public static AmazonBedrockBaseClient create(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         try {
@@ -93,14 +92,14 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     }
 
     protected AmazonBedrockRuntime createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
-        var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
+        var secretSettings = model.getSecretSettings();
         var credentials = new BasicAWSCredentials(secretSettings.accessKey.toString(), secretSettings.secretKey.toString());
         var credentialsProvider = new AWSStaticCredentialsProvider(credentials);
         var clientConfig = timeout == null
             ? new ClientConfiguration().withConnectionTimeout(DEFAULT_CLIENT_TIMEOUT_MS)
             : new ClientConfiguration().withConnectionTimeout((int) timeout.millis());
 
-        var serviceSettings = (AmazonBedrockServiceSettings) model.getServiceSettings();
+        var serviceSettings = model.getServiceSettings();
 
         try {
             SpecialPermission.check();
@@ -123,12 +122,13 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     }
 
     private synchronized void setExpiryTimestamp() {
-        this.expiryTimestamp = System.currentTimeMillis() + CACHE_EXPIRY_ADD_MS;
+        this.expiryTimestamp = (new Instant()).withDurationAdded(CACHE_EXPIRY_ADD_MS, 1);
     }
 
     @Override
-    public boolean isExpired(long currentTimestampMs) {
-        return this.expiryTimestamp < currentTimestampMs;
+    public boolean isExpired(Instant currentTimestampMs) {
+        Objects.requireNonNull(currentTimestampMs);
+        return (this.expiryTimestamp.compareTo(currentTimestampMs) < 0);
     }
 
     @Override

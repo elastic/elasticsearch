@@ -11,12 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
+import java.util.Objects;
 import java.util.function.Supplier;
 
 public class AmazonBedrockExecutor implements Runnable {
@@ -35,20 +35,20 @@ public class AmazonBedrockExecutor implements Runnable {
         Logger logger,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener,
-        @Nullable AmazonBedrockClientCache clientCache
+        AmazonBedrockClientCache clientCache
     ) {
-        this.baseModel = model;
-        this.responseHandler = responseHandler;
-        this.logger = logger;
-        this.request = request;
-        this.hasRequestCompletedFunction = hasRequestCompletedFunction;
-        this.listener = listener;
-        this.clientCache = clientCache;
+        this.baseModel = Objects.requireNonNull(model);
+        this.responseHandler = Objects.requireNonNull(responseHandler);
+        this.logger = Objects.requireNonNull(logger);
+        this.request = Objects.requireNonNull(request);
+        this.hasRequestCompletedFunction = Objects.requireNonNull(hasRequestCompletedFunction);
+        this.listener = Objects.requireNonNull(listener);
+        this.clientCache = Objects.requireNonNull(clientCache);
     }
 
     @Override
     public void run() {
-        if (hasRequestCompletedFunction != null && hasRequestCompletedFunction.get()) {
+        if (hasRequestCompletedFunction.get()) {
             // has already been run
             return;
         }

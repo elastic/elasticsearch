@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
+import java.util.Objects;
+
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
@@ -25,9 +27,9 @@ public class AmazonBedrockChatCompletionAction implements ExecutableAction {
     private final String errorMessage;
 
     public AmazonBedrockChatCompletionAction(Sender sender, RequestManager requestManager, String errorMessage) {
-        this.sender = sender;
-        this.requestManager = requestManager;
-        this.errorMessage = errorMessage;
+        this.sender = Objects.requireNonNull(sender);
+        this.requestManager = Objects.requireNonNull(requestManager);
+        this.errorMessage = Objects.requireNonNull(errorMessage);
     }
 
     @Override

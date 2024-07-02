@@ -8,15 +8,16 @@
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion;
 
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
 
 import java.util.List;
+import java.util.Objects;
 
 public final class AmazonBedrockChatCompletionEntityFactory {
     public static AmazonBedrockConverseRequestEntity createEntity(AmazonBedrockChatCompletionModel model, List<String> messages) {
-        var serviceSettings = (AmazonBedrockChatCompletionServiceSettings) model.getServiceSettings();
-        var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
+        Objects.requireNonNull(model);
+        Objects.requireNonNull(messages);
+        var serviceSettings = model.getServiceSettings();
+        var taskSettings = model.getTaskSettings();
         switch (serviceSettings.provider()) {
             case AI21LABS -> {
                 return new AmazonBedrockAI21LabsCompletionRequestEntity(

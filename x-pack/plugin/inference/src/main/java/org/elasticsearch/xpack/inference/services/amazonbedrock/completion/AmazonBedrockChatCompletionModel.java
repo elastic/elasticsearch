@@ -28,10 +28,7 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
         }
 
         var requestTaskSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(taskSettings);
-        var taskSettingsToUse = AmazonBedrockChatCompletionTaskSettings.of(
-            (AmazonBedrockChatCompletionTaskSettings) completionModel.getTaskSettings(),
-            requestTaskSettings
-        );
+        var taskSettingsToUse = AmazonBedrockChatCompletionTaskSettings.of(completionModel.getTaskSettings(), requestTaskSettings);
         return new AmazonBedrockChatCompletionModel(completionModel, taskSettingsToUse);
     }
 
@@ -72,5 +69,15 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
     @Override
     public ExecutableAction accept(AmazonBedrockActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
+    }
+
+    @Override
+    public AmazonBedrockChatCompletionServiceSettings getServiceSettings() {
+        return (AmazonBedrockChatCompletionServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
+    public AmazonBedrockChatCompletionTaskSettings getTaskSettings() {
+        return (AmazonBedrockChatCompletionTaskSettings) super.getTaskSettings();
     }
 }

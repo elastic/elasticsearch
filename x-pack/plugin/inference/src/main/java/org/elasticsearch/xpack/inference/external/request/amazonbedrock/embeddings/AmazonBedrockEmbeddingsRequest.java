@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.Amazo
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     private final AmazonBedrockEmbeddingsModel embeddingsModel;
@@ -41,11 +42,11 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
         @Nullable TimeValue timeout
     ) {
         super(model, timeout);
-        this.truncator = truncator;
-        this.truncationResult = input;
+        this.truncator = Objects.requireNonNull(truncator);
+        this.truncationResult = Objects.requireNonNull(input);
+        this.requestEntity = Objects.requireNonNull(requestEntity);
         this.embeddingsModel = model;
         this.provider = model.provider();
-        this.requestEntity = requestEntity;
     }
 
     public InvokeModelResult result() {
@@ -58,7 +59,7 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
 
     @Override
     public void executeRequest(AmazonBedrockBaseClient client) {
-        try {
+        try (var requestClient = client) {
             var jsonBuilder = new AmazonBedrockJsonBuilder(requestEntity);
             var bodyAsString = jsonBuilder.getStringContent();
 
@@ -67,7 +68,7 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
 
             var invokeModelRequest = new InvokeModelRequest().withModelId(embeddingsModel.model()).withBody(bodyBuffer);
 
-            result = SocketAccess.doPrivileged(() -> client.invokeModel(invokeModelRequest));
+            result = SocketAccess.doPrivileged(() -> requestClient.invokeModel(invokeModelRequest));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

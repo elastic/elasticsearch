@@ -77,4 +77,9 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
     public ExecutableAction accept(AmazonBedrockActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
     }
+
+    @Override
+    public AmazonBedrockEmbeddingsServiceSettings getServiceSettings() {
+        return (AmazonBedrockEmbeddingsServiceSettings) super.getServiceSettings();
+    }
 }

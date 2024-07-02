@@ -20,9 +20,9 @@ import org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddin
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings.AmazonBedrockEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.embeddings.AmazonBedrockEmbeddingsResponseHandler;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
@@ -41,7 +41,7 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
     ) {
         super(model, threadPool, timeout);
         this.embeddingsModel = model;
-        this.truncator = truncator;
+        this.truncator = Objects.requireNonNull(truncator);
     }
 
     @Override
@@ -52,7 +52,7 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var serviceSettings = (AmazonBedrockEmbeddingsServiceSettings) embeddingsModel.getServiceSettings();
+        var serviceSettings = embeddingsModel.getServiceSettings();
         var truncatedInput = truncate(input, serviceSettings.maxInputTokens());
         var requestEntity = AmazonBedrockEmbeddingsEntityFactory.createEntity(embeddingsModel, truncatedInput);
         var request = new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, embeddingsModel, requestEntity, timeout);

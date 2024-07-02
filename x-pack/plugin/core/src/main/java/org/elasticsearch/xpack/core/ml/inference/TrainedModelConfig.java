@@ -255,8 +255,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.prefixStrings = prefixStrings;
     }
 
-    private static TrainedModelInput handleDefaultInput(TrainedModelInput input, InferenceConfig inferenceConfig, TrainedModelType modelType) {
-        return input == null ? inferenceConfig.getDefaultInput(modelType) : input;
+    private static TrainedModelInput handleDefaultInput(
+        TrainedModelInput input,
+        InferenceConfig inferenceConfig,
+        TrainedModelType modelType
+    ) {
+        return input == null && inferenceConfig != null ? inferenceConfig.getDefaultInput(modelType) : input;
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {

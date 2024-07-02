@@ -250,7 +250,11 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
     }
 
     @Override
-    public ActionRequestValidationException validateTrainedModelInput(TrainedModelInput input, boolean forCreation, ActionRequestValidationException validationException) {
+    public ActionRequestValidationException validateTrainedModelInput(
+        TrainedModelInput input,
+        boolean forCreation,
+        ActionRequestValidationException validationException
+    ) {
         if (input != null && input.getFieldNames().isEmpty() == false) {
             return addValidationError("cannot specify [input.field_names] for a model of type [learning_to_rank]", validationException);
         }

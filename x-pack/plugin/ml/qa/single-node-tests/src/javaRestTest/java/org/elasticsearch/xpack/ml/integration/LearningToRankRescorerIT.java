@@ -31,10 +31,33 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
         putRegressionModel(MODEL_ID, """
             {
               "description": "super complex model for tests",
-              "input": {"field_names": ["cost", "product"]},
               "inference_config": {
                 "learning_to_rank": {
                   "feature_extractors": [
+                    {
+                      "query_extractor": {
+                        "feature_name": "cost",
+                        "query": {"script_score": {"query": {"match_all":{}}, "script": {"source": "return doc['cost'].value;"}}}
+                      }
+                    },
+                    {
+                      "query_extractor": {
+                        "feature_name": "type_tv",
+                        "query": {"term": {"product":  "TV"}}
+                      }
+                    },
+                    {
+                      "query_extractor": {
+                        "feature_name": "type_vcr",
+                        "query": {"term": {"product":  "VCR"}}
+                      }
+                    },
+                    {
+                      "query_extractor": {
+                        "feature_name": "type_laptop",
+                        "query": {"term": {"product":  "Laptop"}}
+                      }
+                    },
                     {
                       "query_extractor": {
                         "feature_name": "two",
@@ -51,16 +74,6 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
                 }
               },
               "definition": {
-                "preprocessors" : [{
-                  "one_hot_encoding": {
-                    "field": "product",
-                    "hot_map": {
-                      "TV": "type_tv",
-                      "VCR": "type_vcr",
-                      "Laptop": "type_laptop"
-                    }
-                  }
-                }],
                 "trained_model": {
                   "ensemble": {
                     "feature_names": ["cost", "type_tv", "type_vcr", "type_laptop", "two", "product_bm25"],

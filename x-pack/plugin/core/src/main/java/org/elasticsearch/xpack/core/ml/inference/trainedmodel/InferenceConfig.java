@@ -82,7 +82,11 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
         return modelType.getDefaultInput();
     }
 
-    default ActionRequestValidationException validateTrainedModelInput(TrainedModelInput input, boolean forCreation, ActionRequestValidationException validationException) {
+    default ActionRequestValidationException validateTrainedModelInput(
+        TrainedModelInput input,
+        boolean forCreation,
+        ActionRequestValidationException validationException
+    ) {
 
         if (input != null && input.getFieldNames().isEmpty()) {
             validationException = addValidationError("[input.field_names] must not be empty", validationException);
@@ -90,10 +94,10 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
 
         if (input != null
             && input.getFieldNames()
-            .stream()
-            .filter(s -> s.contains("."))
-            .flatMap(s -> Arrays.stream(Strings.delimitedListToStringArray(s, ".")))
-            .anyMatch(String::isEmpty)) {
+                .stream()
+                .filter(s -> s.contains("."))
+                .flatMap(s -> Arrays.stream(Strings.delimitedListToStringArray(s, ".")))
+                .anyMatch(String::isEmpty)) {
             validationException = addValidationError(
                 "[input.field_names] must only contain valid dot delimited field names",
                 validationException

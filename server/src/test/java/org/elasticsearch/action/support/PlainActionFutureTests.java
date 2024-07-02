@@ -164,7 +164,7 @@ public class PlainActionFutureTests extends ESTestCase {
             }
             startBarrier.countDown();
             safeAwait(startBarrier);
-            cs.poll(250, TimeUnit.MILLISECONDS);
+            cs.poll(20, TimeUnit.MILLISECONDS);
             running.set(false);
             futures.forEach(ESTestCase::safeGet);
         }

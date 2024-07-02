@@ -297,6 +297,7 @@ public class PrivilegeTests extends ESTestCase {
             PutUserAction.NAME,
             DeleteUserAction.NAME,
             PutRoleAction.NAME,
+            ActionTypes.BULK_PUT_ROLES.name(),
             DeleteRoleAction.NAME,
             PutRoleMappingAction.NAME,
             DeleteRoleMappingAction.NAME,

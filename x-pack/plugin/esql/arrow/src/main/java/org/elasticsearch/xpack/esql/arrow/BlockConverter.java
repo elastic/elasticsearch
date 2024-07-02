@@ -325,8 +325,9 @@ public abstract class BlockConverter {
         @Override
         public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
             BytesRefBlock block = (BytesRefBlock) b;
-            BytesRefBlock transformed = transformValues(block);
-            super.convert(transformed, bufs, bufWriters);
+            try (BytesRefBlock transformed = transformValues(block)) {
+                super.convert(transformed, bufs, bufWriters);
+            }
         }
 
         /**

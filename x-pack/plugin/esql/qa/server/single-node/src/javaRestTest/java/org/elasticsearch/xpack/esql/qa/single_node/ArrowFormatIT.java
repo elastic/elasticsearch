@@ -22,7 +22,10 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -47,8 +50,14 @@ public class ArrowFormatIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public void testArrowFormat() throws Exception {
+    @Before
+    @After
+    public void assertRequestBreakerEmpty() throws Exception {
+        EsqlSpecTestCase.assertRequestBreakerEmpty();
+    }
 
+    @Before
+    public void initIndex() throws IOException {
         Request request = new Request("PUT", "/arrow-test");
         request.setJsonEntity("""
             {
@@ -73,7 +82,6 @@ public class ArrowFormatIT extends ESRestTestCase {
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
 
         request = new Request("POST", "/_bulk?index=arrow-test&refresh=true");
-
         // 4 documents with a null in the middle, leading to 3 ESQL pages and 3 Arrow batches
         request.setJsonEntity("""
             {"index": {"_id": "1"}}
@@ -86,70 +94,77 @@ public class ArrowFormatIT extends ESRestTestCase {
             {"value": 4, "ip": "::afff:4567:890a", "v": "1.0.4", "description": "number four"}
             """);
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+    }
 
-        request = new Request("POST", "/_query?format=arrow");
-        request.setJsonEntity("""
-            {
-                "query": "from arrow-test | sort value | limit 100"
-            }
-            """);
-
+    private VectorSchemaRoot esql(String query) throws IOException {
+        Request request = new Request("POST", "/_query?format=arrow");
+        request.setJsonEntity(query);
         Response response = client().performRequest(request);
 
         assertEquals("application/vnd.apache.arrow.stream", response.getEntity().getContentType().getValue());
+        return readArrow(response.getEntity().getContent());
+    }
 
-        try (VectorSchemaRoot root = readArrow(response.getEntity().getContent())) {
+    public void testInteger() throws Exception {
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-test | SORT value | LIMIT 100 | KEEP value"
+            }""")) {
+            List<Field> fields = root.getSchema().getFields();
+            assertEquals(1, fields.size());
 
+            assertValues(root);
+        }
+    }
+
+    public void testString() throws Exception {
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-test | SORT value | LIMIT 100 | KEEP description"
+            }""")) {
+            List<Field> fields = root.getSchema().getFields();
+            assertEquals(1, fields.size());
+
+            assertDescription(root);
+        }
+    }
+
+    public void testIp() throws Exception {
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-test | SORT value | LIMIT 100 | KEEP ip"
+            }""")) {
+            List<Field> fields = root.getSchema().getFields();
+            assertEquals(1, fields.size());
+
+            assertIp(root);
+        }
+    }
+
+    public void testVersion() throws Exception {
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-test | SORT value | LIMIT 100 | KEEP v"
+            }""")) {
+            List<Field> fields = root.getSchema().getFields();
+            assertEquals(1, fields.size());
+
+            assertVersion(root);
+        }
+    }
+
+    public void testEverything() throws Exception {
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-test | SORT value | LIMIT 100"
+            }""")) {
             List<Field> fields = root.getSchema().getFields();
             assertEquals(4, fields.size());
 
-            var descVector = (VarCharVector) root.getVector("description");
-            assertEquals("number one", descVector.getObject(0).toString());
-            assertEquals("number two", descVector.getObject(1).toString());
-            assertTrue(descVector.isNull(2));
-            assertEquals("number four", descVector.getObject(3).toString());
-
-            var valueVector = (IntVector) root.getVector("value");
-            assertEquals(1, valueVector.get(0));
-            assertEquals(2, valueVector.get(1));
-            assertEquals(3, valueVector.get(2));
-            assertEquals(4, valueVector.get(3));
-
-            // Test data that has been transformed during output (ipV4 truncated to 32bits)
-            var ipVector = (VarBinaryVector) root.getVector("ip");
-            assertArrayEquals(new byte[] { (byte) 192, (byte) 168, 0, 1 }, ipVector.getObject(0));
-            assertArrayEquals(new byte[] { (byte) 192, (byte) 168, 0, 2 }, ipVector.getObject(1));
-            assertArrayEquals(
-                new byte[] { 0x20, 0x01, 0x0d, (byte) 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 },
-                ipVector.getObject(2)
-            );
-            assertArrayEquals(
-                new byte[] {
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x00,
-                    (byte) 0xaf,
-                    (byte) 0xff,
-                    0x45,
-                    0x67,
-                    (byte) 0x89,
-                    0x0A },
-                ipVector.getObject(3)
-            );
-
-            // Version is binary-encoded in ESQL vectors, turned into a string in arrow output
-            var versionVector = (VarCharVector) root.getVector("v");
-            assertEquals("1.0.1", versionVector.getObject(0).toString());
-            assertEquals("1.0.2", versionVector.getObject(1).toString());
-            assertTrue(versionVector.isNull(2));
-            assertEquals("1.0.4", versionVector.getObject(3).toString());
+            assertDescription(root);
+            assertValues(root);
+            assertIp(root);
+            assertVersion(root);
         }
     }
 
@@ -167,5 +182,61 @@ public class ArrowFormatIT extends ESRestTestCase {
 
             return root;
         }
+    }
+
+    private void assertValues(VectorSchemaRoot root) {
+        var valueVector = (IntVector) root.getVector("value");
+        assertEquals(1, valueVector.get(0));
+        assertEquals(2, valueVector.get(1));
+        assertEquals(3, valueVector.get(2));
+        assertEquals(4, valueVector.get(3));
+    }
+
+    private void assertDescription(VectorSchemaRoot root) {
+        var descVector = (VarCharVector) root.getVector("description");
+        assertEquals("number one", descVector.getObject(0).toString());
+        assertEquals("number two", descVector.getObject(1).toString());
+        assertTrue(descVector.isNull(2));
+        assertEquals("number four", descVector.getObject(3).toString());
+    }
+
+    private void assertIp(VectorSchemaRoot root) {
+        // Test data that has been transformed during output (ipV4 truncated to 32bits)
+        var ipVector = (VarBinaryVector) root.getVector("ip");
+        assertArrayEquals(new byte[] { (byte) 192, (byte) 168, 0, 1 }, ipVector.getObject(0));
+        assertArrayEquals(new byte[] { (byte) 192, (byte) 168, 0, 2 }, ipVector.getObject(1));
+        assertArrayEquals(
+            new byte[] { 0x20, 0x01, 0x0d, (byte) 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 },
+            ipVector.getObject(2)
+        );
+        assertArrayEquals(
+            new byte[] {
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                (byte) 0xaf,
+                (byte) 0xff,
+                0x45,
+                0x67,
+                (byte) 0x89,
+                0x0A },
+            ipVector.getObject(3)
+        );
+    }
+
+    private void assertVersion(VectorSchemaRoot root) {
+        // Version is binary-encoded in ESQL vectors, turned into a string in arrow output
+        var versionVector = (VarCharVector) root.getVector("v");
+        assertEquals("1.0.1", versionVector.getObject(0).toString());
+        assertEquals("1.0.2", versionVector.getObject(1).toString());
+        assertTrue(versionVector.isNull(2));
+        assertEquals("1.0.4", versionVector.getObject(3).toString());
     }
 }

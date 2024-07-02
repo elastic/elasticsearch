@@ -155,7 +155,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, GeoIpTaskParams params, PersistentTaskState state) {
         GeoIpDownloader downloader = (GeoIpDownloader) task;
-        GeoIpTaskState geoIpTaskState = state == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
+        GeoIpTaskState geoIpTaskState = (state == null) ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
         currentTask.set(downloader);
         if (ENABLED_SETTING.get(clusterService.state().metadata().settings(), settings)) {

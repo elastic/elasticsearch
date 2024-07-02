@@ -141,7 +141,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
             } else if (mediaType == ArrowFormat.INSTANCE) {
                 ArrowResponse arrowResponse = new ArrowResponse(
                     // Map here to avoid cyclic dependencies between the arrow subproject and its parent
-                    esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.type(), c.name())).toList(),
+                    esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.outputType(), c.name())).toList(),
                     esqlResponse.pages()
                 );
                 restResponse = RestResponse.chunked(RestStatus.OK, arrowResponse, Releasables.wrap(arrowResponse, releasable));

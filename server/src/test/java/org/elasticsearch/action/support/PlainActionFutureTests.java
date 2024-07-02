@@ -164,7 +164,7 @@ public class PlainActionFutureTests extends ESTestCase {
             }
             startBarrier.countDown();
             safeAwait(startBarrier);
-            cs.poll(500, TimeUnit.MILLISECONDS);
+            cs.poll(250, TimeUnit.MILLISECONDS);
             running.set(false);
             futures.forEach(ESTestCase::safeGet);
         }
@@ -175,7 +175,6 @@ public class PlainActionFutureTests extends ESTestCase {
         private final AtomicReference<PlainActionFuture<?>> future;
         private final AtomicBoolean running;
         private final CountDownLatch startBarrier;
-        private volatile boolean failed = false;
 
         private FutureCompleter(
             int number,
@@ -201,10 +200,7 @@ public class PlainActionFutureTests extends ESTestCase {
                     future.get().onResponse(null);
                 }
             } finally {
-                if (running.get()) {
-                    // We failed
-                    failed = true;
-                }
+                // In the event we failed, stop all the other FutureCompleter instances
                 running.set(false);
             }
         }

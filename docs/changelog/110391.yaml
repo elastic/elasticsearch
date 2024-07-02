@@ -1,0 +1,6 @@
+pr: 110391
+summary: Fix missing cases for ST_DISTANCE Lucene pushdown
+area: "ES|QL, Geo"
+type: bug
+issues:
+ - 110349

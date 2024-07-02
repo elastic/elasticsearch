@@ -17,7 +17,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;

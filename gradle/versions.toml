@@ -6,6 +6,7 @@ httpcore = "4.4.13"
 jackson = "2.15.0"
 jmh = "1.26"
 jna = "5.12.1"
+jts = "1.15.0"
 ecsLogging = "1.2.0"
 log4j = "2.19.0"
 mockito = "5.11.0"
@@ -14,6 +15,7 @@ lucene = "9.11.1"
 objenesis = "3.3"
 opentelemetry = "1.31.0"
 randomizedrunner = "2.8.0"
+spatial4j = "0.7"
 
 [libraries]
 antlr4-runtime = { group = "org.antlr", name = "antlr4-runtime", version.ref = "antlr4" }
@@ -87,6 +89,11 @@ randomizedtesting-runner = { group = "com.carrotsearch.randomizedtesting", name 
 snakeyaml = "org.yaml:snakeyaml:2.0"
 
 mustache-compiler = "com.github.spullara.mustache.java:compiler:0.9.10"
+lucene-spatial-extras = { group = "org.apache.lucene", name = "lucene-spatial-extras", version.ref = "lucene" }
+spatial4j = { group = "org.locationtech.spatial4j", name = "spatial4j", version.ref = "spatial4j" }
+jts-core = { group = "org.locationtech.jts", name = "jts-core", version.ref = "jts" }
+lucene-spatial3d = { group = "org.apache.lucene", name = "lucene-spatial3d", version.ref = "lucene" }
+s2-geometry-library-java = { group = "io.sgr", name = "s2-geometry-library-java", version = "1.0.1" }
 opentelemetry-api = { group = "io.opentelemetry", name = "opentelemetry-api", version.ref = "opentelemetry" }
 opentelemetry-context = { group = "io.opentelemetry", name = "opentelemetry-context", version.ref = "opentelemetry" }
 opentelemetry-semconv = { group = "io.opentelemetry", name = "opentelemetry-semconv", version = "1.21.0-alpha" }

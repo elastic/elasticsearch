@@ -388,7 +388,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         */
         protected boolean rankAlreadyPushedToQuery(EsQueryExec queryExec) {
             var query = queryExec.query();
-            return query != null && query instanceof BoolQueryBuilder && !((BoolQueryBuilder) query).should().isEmpty();
+            return query != null && query instanceof BoolQueryBuilder && ((BoolQueryBuilder) query).should().isEmpty() == false;
         }
 
         private PhysicalPlan pushRankToRescorers(EsQueryExec queryExec, RankExec rankExec) {

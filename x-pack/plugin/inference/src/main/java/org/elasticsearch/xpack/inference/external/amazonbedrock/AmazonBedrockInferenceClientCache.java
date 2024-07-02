@@ -18,12 +18,14 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
 
 public final class AmazonBedrockInferenceClientCache implements AmazonBedrockClientCache {
 
     private final BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator;
-    private volatile Map<Integer, AmazonBedrockBaseClient> clientsCache = new ConcurrentHashMap<>();
+    private final Map<Integer, AmazonBedrockBaseClient> clientsCache = new ConcurrentHashMap<>();
+    private final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
 
     public AmazonBedrockInferenceClientCache(BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator) {
         this.creator = Objects.requireNonNull(creator);
@@ -44,18 +46,29 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
             }
         }
 
-        synchronized (this) {
+        cacheLock.readLock().lock();
+        try {
             final AmazonBedrockBaseClient existing = clientsCache.get(modelHash);
             if (existing != null && existing.tryIncRef()) {
                 return existing;
             }
 
-            final AmazonBedrockBaseClient builtClient = creator.apply(model, timeout);
+            cacheLock.readLock().unlock();
+            cacheLock.writeLock().lock();
+            try {
+                final AmazonBedrockBaseClient builtClient = creator.apply(model, timeout);
 
-            builtClient.mustIncRef();
-            clientsCache.put(modelHash, builtClient);
-
-            return builtClient;
+                builtClient.mustIncRef();
+                clientsCache.put(modelHash, builtClient);
+                return builtClient;
+            } finally {
+                // Downgrade by acquiring read lock before releasing write lock
+                // see : https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/locks/ReentrantReadWriteLock.html
+                cacheLock.readLock().lock();
+                cacheLock.writeLock().unlock();
+            }
+        } finally {
+            cacheLock.readLock().unlock();
         }
     }
 

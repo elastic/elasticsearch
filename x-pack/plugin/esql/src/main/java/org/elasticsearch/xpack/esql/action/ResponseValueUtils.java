@@ -152,7 +152,7 @@ public final class ResponseValueUtils {
                 }
             }
             case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, NESTED, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE,
-                NULL -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
+                NULL, PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 

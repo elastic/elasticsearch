@@ -54,7 +54,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * This means that any API that is publicly available in serverless mode but has partial restrictions (e.g., on the request or the
      * response) should enforce these.
      *
-     * If this poram is not set, the request is either made not in serverless, or by an operator user, and no partial restrictions are
+     * If this param is not set, the request is either made not in serverless, or by an operator user, and no partial restrictions are
      * necessary.
      *
      * Note that {@link Scope#INTERNAL} APIs do not need to check this parameter since they are only accessible to operator users

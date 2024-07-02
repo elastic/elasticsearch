@@ -32,7 +32,7 @@ public interface OperatorOnlyRegistry {
      * A partially restricted REST API mandates that the {@link RestRequest} is marked as restricted so that the downstream handler can
      * behave appropriately.
      * For example, to restrict the REST response the implementation
-     * should call {@link RestRequest#markAsServerlessNonOperatorRequest(String)} so that the downstream handler can properly restrict the response
+     * should call {@link RestRequest#markAsRestrictForServerless()} so that the downstream handler can properly restrict the response
      * before returning to the client. Note - a partial restriction should not throw an exception.
      *
      * @param restHandler The {@link RestHandler} to check for any restrictions

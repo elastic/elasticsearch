@@ -55,7 +55,7 @@ public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        CreateApiKeyRequestBuilder builder = builderFactory.create(client, request.restrictForServerless())
+        CreateApiKeyRequestBuilder builder = builderFactory.create(client, request.shouldRestrictForServerless())
             .source(request.requiredContent(), request.getXContentType());
         String refresh = request.param("refresh");
         if (refresh != null) {

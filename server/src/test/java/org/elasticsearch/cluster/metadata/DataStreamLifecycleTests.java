@@ -354,13 +354,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
         {
             ToXContent.Params params = DataStreamLifecycle.maybeAddEffectiveRetentionParams(
-                new ToXContent.MapParams(Map.of(RESTRICT_FOR_SERVERLESS, "not-serverless"))
-            );
-            assertThat(params.paramAsBoolean(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false), equalTo(false));
-        }
-        {
-            ToXContent.Params params = DataStreamLifecycle.maybeAddEffectiveRetentionParams(
-                new ToXContent.MapParams(Map.of(RESTRICT_FOR_SERVERLESS, "serverless"))
+                new ToXContent.MapParams(Map.of(RESTRICT_FOR_SERVERLESS, randomAlphaOfLength(10)))
             );
             assertThat(params.paramAsBoolean(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false), equalTo(true));
         }

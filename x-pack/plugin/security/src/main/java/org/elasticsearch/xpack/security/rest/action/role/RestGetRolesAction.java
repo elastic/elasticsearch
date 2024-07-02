@@ -54,9 +54,9 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
-        final boolean restrictForServerless = restrictForServerless(request);
+        final boolean shouldRestrictForServerless = shouldRestrictForServerless(request);
         return channel -> new GetRolesRequestBuilder(client).names(roles)
-            .nativeOnly(restrictForServerless)
+            .nativeOnly(shouldRestrictForServerless)
             .execute(new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetRolesResponse response, XContentBuilder builder) throws Exception {
@@ -84,7 +84,7 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
         // Note: For non-restricted requests this action handles both reserved roles and native
         // roles, and should still be available even if native role management is disabled.
         // For restricted requests it should only be available if native role management is enabled
-        final boolean restrictForServerless = restrictForServerless(request);
+        final boolean restrictForServerless = shouldRestrictForServerless(request);
         if (false == restrictForServerless) {
             return null;
         } else {
@@ -92,8 +92,8 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
         }
     }
 
-    private boolean restrictForServerless(RestRequest request) {
-        final boolean restrictForServerless = request.restrictForServerless();
+    private boolean shouldRestrictForServerless(RestRequest request) {
+        final boolean restrictForServerless = request.shouldRestrictForServerless();
         assert false == restrictForServerless || DiscoveryNode.isStateless(settings);
         return restrictForServerless;
     }

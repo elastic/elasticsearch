@@ -392,6 +392,7 @@ override sort mode settings:
 ---
 override sort field using nested field type in sorting:
   - requires:
+      cluster_features: ["mapper.index_sorting_on_nested"]
       test_runner_features: [ capabilities ]
       capabilities:
         - method: PUT
@@ -433,11 +434,12 @@ override sort field using nested field type in sorting:
 
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "cannot have nested fields when index sort is activated" }
+  - match: { error.reason: "cannot apply index sort to field [nested] under nested object [nested]" }
 
 ---
 override sort field using nested field type:
   - requires:
+      cluster_features: ["mapper.index_sorting_on_nested"]
       test_runner_features: [ capabilities ]
       capabilities:
         - method: PUT
@@ -446,7 +448,6 @@ override sort field using nested field type:
       reason: "Support for 'logs' index mode capability required"
 
   - do:
-      catch: bad_request
       indices.create:
         index: test-nested
         body:
@@ -474,10 +475,7 @@ override sort field using nested field type:
                 properties:
                   keywords:
                     type: keyword
-
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "cannot have nested fields when index sort is activated" }
+  - is_false: error
 
 ---
 routing path not allowed in logs mode:

@@ -140,7 +140,7 @@ public class SumIT extends AbstractNumericTestCase {
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo(10L));
                 assertThat(global.getAggregations(), notNullValue());
-                assertThat(global.getAggregations().asMap().size(), equalTo(1));
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 Sum sum = global.getAggregations().get("sum");
                 assertThat(sum, notNullValue());

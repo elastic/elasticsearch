@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
+import static org.elasticsearch.rest.RestRequest.RESTRICT_FOR_SERVERLESS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -249,16 +249,16 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("unknown content type", e.getMessage());
     }
 
-    public void testMarkPathRestricted() {
+    public void testMarkAsServerlessNonOperatorRequest() {
         RestRequest request1 = contentRestRequest("content", new HashMap<>());
-        request1.markPathRestricted("foo");
-        assertEquals(request1.param(PATH_RESTRICTED), "foo");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request1.markPathRestricted("foo"));
-        assertThat(exception.getMessage(), is("The parameter [" + PATH_RESTRICTED + "] is already defined."));
+        request1.markAsRestrictForServerless();
+        assertEquals(request1.param(RESTRICT_FOR_SERVERLESS), "serverless");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::markAsRestrictForServerless);
+        assertThat(exception.getMessage(), is("The parameter [" + RESTRICT_FOR_SERVERLESS + "] is already defined."));
 
-        RestRequest request2 = contentRestRequest("content", Map.of(PATH_RESTRICTED, "foo"));
-        exception = expectThrows(IllegalArgumentException.class, () -> request2.markPathRestricted("bar"));
-        assertThat(exception.getMessage(), is("The parameter [" + PATH_RESTRICTED + "] is already defined."));
+        RestRequest request2 = contentRestRequest("content", Map.of(RESTRICT_FOR_SERVERLESS, "serverless"));
+        exception = expectThrows(IllegalArgumentException.class, request2::markAsRestrictForServerless);
+        assertThat(exception.getMessage(), is("The parameter [" + RESTRICT_FOR_SERVERLESS + "] is already defined."));
     }
 
     public static RestRequest contentRestRequest(String content, Map<String, String> params) {

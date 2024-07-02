@@ -39,7 +39,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DATA_STREAM_CONFIGURATION;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION;
-import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
+import static org.elasticsearch.rest.RestRequest.RESTRICT_FOR_SERVERLESS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -354,13 +354,13 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
         {
             ToXContent.Params params = DataStreamLifecycle.maybeAddEffectiveRetentionParams(
-                new ToXContent.MapParams(Map.of(PATH_RESTRICTED, "not-serverless"))
+                new ToXContent.MapParams(Map.of(RESTRICT_FOR_SERVERLESS, "not-serverless"))
             );
             assertThat(params.paramAsBoolean(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false), equalTo(false));
         }
         {
             ToXContent.Params params = DataStreamLifecycle.maybeAddEffectiveRetentionParams(
-                new ToXContent.MapParams(Map.of(PATH_RESTRICTED, "serverless"))
+                new ToXContent.MapParams(Map.of(RESTRICT_FOR_SERVERLESS, "serverless"))
             );
             assertThat(params.paramAsBoolean(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false), equalTo(true));
         }

@@ -48,7 +48,19 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params, Traceable {
 
-    public static final String PATH_RESTRICTED = "pathRestricted";
+    /**
+     * This internal request parameter indicates that the request was made in serverless mode, by a non-operator user.
+     *
+     * This means that any API that is publicly available in serverless mode but has partial restrictions (e.g., on the request or the
+     * response) should enforce these.
+     *
+     * If this poram is not set, the request is either made not in serverless, or by an operator user, and no partial restrictions are
+     * necessary.
+     *
+     * Note that {@link Scope#INTERNAL} APIs do not need to check this parameter since they are only accessible to operator users
+     * and no partial restrictions apply.
+     */
+    public static final String RESTRICT_FOR_SERVERLESS = "restrictForServerless";
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -616,13 +628,19 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return restApiVersion.isPresent();
     }
 
-    public void markPathRestricted(String restriction) {
-        if (params.containsKey(PATH_RESTRICTED)) {
-            throw new IllegalArgumentException("The parameter [" + PATH_RESTRICTED + "] is already defined.");
+    public void markAsRestrictForServerless() {
+        if (params.containsKey(RESTRICT_FOR_SERVERLESS)) {
+            throw new IllegalArgumentException("The parameter [" + RESTRICT_FOR_SERVERLESS + "] is already defined.");
         }
-        params.put(PATH_RESTRICTED, restriction);
+        params.put(RESTRICT_FOR_SERVERLESS, "serverless");
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
-        consumedParams.add(PATH_RESTRICTED);
+        consumedParams.add(RESTRICT_FOR_SERVERLESS);
+    }
+
+    public boolean restrictForServerless() {
+        final boolean hasParam = hasParam(RESTRICT_FOR_SERVERLESS);
+        assert false == hasParam || params.get(RESTRICT_FOR_SERVERLESS).equals("serverless");
+        return hasParam;
     }
 
     @Override

@@ -29,7 +29,6 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
 public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {

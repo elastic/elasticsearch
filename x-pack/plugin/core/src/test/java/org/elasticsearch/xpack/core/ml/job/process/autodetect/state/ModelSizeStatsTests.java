@@ -156,6 +156,17 @@ public class ModelSizeStatsTests extends AbstractXContentSerializingTestCase<Mod
         }
     }
 
+    public void testParser_IngoresMemoryAllocatorBytes() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"output_memory_allocator_bytes\":500}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            ModelSizeStats.STRICT_PARSER.apply(parser, null);
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            ModelSizeStats.LENIENT_PARSER.apply(parser, null);
+        }
+    }
+
     public void testLenientParser() throws IOException {
         String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {

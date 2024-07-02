@@ -230,8 +230,14 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                 if (rewritesToMatchNone != YesNoSometimes.SOMETIMES) {
                     assertThat(builder.stats().noNextScorer(), equalTo(0));
                 }
+                assertEqualsAndHashcodeStable(query, rewritten.toQuery(ctx));
             }
         }
+    }
+
+    private void assertEqualsAndHashcodeStable(Query query1, Query query2) {
+        assertEquals(query1, query2);
+        assertEquals(query1.hashCode(), query2.hashCode());
     }
 
     private record StandardSetup(String fieldType, boolean multivaluedField, boolean empty, int count) implements Setup {

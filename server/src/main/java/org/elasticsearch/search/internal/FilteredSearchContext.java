@@ -34,7 +34,7 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -140,13 +140,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public RankShardContext rankShardContext() {
-        return in.rankShardContext();
+    public QueryPhaseRankShardContext queryPhaseRankShardContext() {
+        return in.queryPhaseRankShardContext();
     }
 
     @Override
-    public void rankShardContext(RankShardContext rankShardContext) {
-        in.rankShardContext(rankShardContext);
+    public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {
+        in.queryPhaseRankShardContext(queryPhaseRankShardContext);
     }
 
     @Override

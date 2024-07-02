@@ -16,8 +16,6 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 
-testFixtures.useFixture()
-
 dockerCompose {
   environment.put 'STACK_VERSION', BuildParams.snapshotBuild ? VersionProperties.elasticsearch : VersionProperties.elasticsearch + "-SNAPSHOT"
 }

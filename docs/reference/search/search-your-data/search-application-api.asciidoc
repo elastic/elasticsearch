@@ -422,7 +422,7 @@ PUT _application/search_application/my-search-app
               },
               {{/elser_fields}}
             ],
-            "rank_window_size": {{rrf.rank_window_size}},
+            "window_size": {{rrf.window_size}},
             "rank_constant": {{rrf.rank_constant}}
           }
         }
@@ -433,7 +433,7 @@ PUT _application/search_application/my-search-app
         "text_fields": ["title", "meta_description"],
         "query_string": "",
         "rrf": {
-          "rank_window_size": 100,
+          "window_size": 100,
           "rank_constant": 60
         }
       }
@@ -455,7 +455,7 @@ POST _application/search_application/my-search-app/_search
     "elser_fields": ["title", "meta_description"],
     "text_fields": ["title", "meta_description"],
     "rrf": {
-      "rank_window_size": 50,
+      "window_size": 50,
       "rank_constant": 25
     }
   }

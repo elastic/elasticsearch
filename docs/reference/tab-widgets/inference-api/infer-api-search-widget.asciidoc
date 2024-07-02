@@ -8,7 +8,7 @@
       Cohere
     </button>
     <button role="tab"
-            aria-selected="true"
+            aria-selected="false"
             aria-controls="infer-api-search-hf-tab"
             id="infer-api-search-hf">
       HuggingFace

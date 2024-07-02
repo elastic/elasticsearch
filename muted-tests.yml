@@ -7,6 +7,12 @@ tests:
   method: test {p0=ml/inference_crud/Test force delete given model with alias referenced
     by pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/107505
+- class: "org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109806"
+  method: "testInsufficientPrivilege"
+- class: "org.elasticsearch.action.admin.indices.rollover.RolloverIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/110034"
+  method: "testRolloverWithClosedWriteIndex"
 
 # Examples:
 #

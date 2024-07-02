@@ -48,6 +48,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public static final ParseField BUCKET_ALLOCATION_FAILURES_COUNT_FIELD = new ParseField("bucket_allocation_failures_count");
     public static final ParseField MEMORY_STATUS_FIELD = new ParseField("memory_status");
     public static final ParseField ASSIGNMENT_MEMORY_BASIS_FIELD = new ParseField("assignment_memory_basis");
+    public static final ParseField OUTPUT_MEMORY_ALLOCATOR_BYTES_FIELD = new ParseField("output_memory_allocator_bytes");
     public static final ParseField CATEGORIZED_DOC_COUNT_FIELD = new ParseField("categorized_doc_count");
     public static final ParseField TOTAL_CATEGORY_COUNT_FIELD = new ParseField("total_category_count");
     public static final ParseField FREQUENT_CATEGORY_COUNT_FIELD = new ParseField("frequent_category_count");
@@ -85,6 +86,9 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             ASSIGNMENT_MEMORY_BASIS_FIELD,
             ValueType.STRING
         );
+        // The anomaly detection process will write this field in 8.14 but it is not handled
+        // in Elasticsearch. Accept and discard the field to satisfy the strict parser.
+        parser.declareLong(((builder, aLong) -> { ; }), OUTPUT_MEMORY_ALLOCATOR_BYTES_FIELD);
         parser.declareLong(Builder::setCategorizedDocCount, CATEGORIZED_DOC_COUNT_FIELD);
         parser.declareLong(Builder::setTotalCategoryCount, TOTAL_CATEGORY_COUNT_FIELD);
         parser.declareLong(Builder::setFrequentCategoryCount, FREQUENT_CATEGORY_COUNT_FIELD);

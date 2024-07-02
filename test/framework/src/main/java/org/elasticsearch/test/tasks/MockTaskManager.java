@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
@@ -89,5 +90,17 @@ public class MockTaskManager extends TaskManager {
 
     public void removeListener(MockTaskManagerListener listener) {
         listeners.remove(listener);
+    }
+
+    @Override
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        super.registerRemovedTaskListener(removedTaskListener);
+        for (MockTaskManagerListener listener : listeners) {
+            try {
+                listener.onRemovedTaskListenerRegistered(removedTaskListener);
+            } catch (Exception e) {
+                logger.warn("failed to notify task manager listener about a registered removed task listener", e);
+            }
+        }
     }
 }

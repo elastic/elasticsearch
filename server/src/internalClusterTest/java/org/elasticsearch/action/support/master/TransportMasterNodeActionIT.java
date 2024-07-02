@@ -15,10 +15,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -26,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -58,6 +61,16 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
             MockTransportService.TestPlugin.class,
             TestActionPlugin.class
         );
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // detect leader failover quickly
+            .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
+            .put(LeaderChecker.LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .build();
     }
 
     @TestLogging(reason = "wip", value = "org.elasticsearch.action.support.master.TransportMasterNodeAction:DEBUG")
@@ -101,15 +114,15 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
             }
 
             /*
-             * Count down latch when the new master receives the re-routed message, ensure it only receives it once, and
-             * only from a node in the newMaster term
+             * Complete listener when the new master receives the re-routed message, ensure it only receives it once, and only from a node
+             *  in the newMaster term.
              */
-            final var newMasterReceivedReroutedMessageLatch = new CountDownLatch(1);
+            final var newMasterReceivedReroutedMessageFuture = new PlainActionFuture<>();
+            final var newMasterReceivedReroutedMessageListener = ActionListener.assertOnce(newMasterReceivedReroutedMessageFuture);
             MockTransportService.getInstance(newMaster)
                 .addRequestHandlingBehavior(TEST_ACTION_TYPE.name(), (handler, request, channel, task) -> {
                     assertThat(asInstanceOf(MasterNodeRequest.class, request).masterTerm(), greaterThan(originalTerm));
-                    assertThat(newMasterReceivedReroutedMessageLatch.getCount(), greaterThan(0L));
-                    newMasterReceivedReroutedMessageLatch.countDown();
+                    newMasterReceivedReroutedMessageListener.onResponse(null);
                     handler.messageReceived(request, channel, task);
                 });
 
@@ -137,7 +150,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
             final var testActionFuture = client(newMaster).execute(TEST_ACTION_TYPE, new TestRequest());
 
             // wait for the request to come back to the new master
-            safeAwait(newMasterReceivedReroutedMessageLatch);
+            safeGet(newMasterReceivedReroutedMessageFuture);
 
             // Unblock state application on new master, allow it to know of its election win
             safeAwait(stateApplierBarrier);

@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -413,10 +414,10 @@ public class CsvTests extends ESTestCase {
         }
 
         List<String> columnNames = Expressions.names(coordinatorPlan.output());
-        List<String> dataTypes = new ArrayList<>(columnNames.size());
+        List<DataType> dataTypes = new ArrayList<>(columnNames.size());
         List<Type> columnTypes = coordinatorPlan.output()
             .stream()
-            .peek(o -> dataTypes.add(o.dataType().outputType()))
+            .peek(o -> dataTypes.add(o.dataType()))
             .map(o -> Type.asType(o.dataType().nameUpper()))
             .toList();
 

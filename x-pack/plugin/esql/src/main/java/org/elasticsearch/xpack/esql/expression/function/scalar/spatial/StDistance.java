@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SloppyMath;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -60,8 +61,12 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
 
         @Override
         protected double distance(Point left, Point right) {
-            // TODO: investigate if we need to use the more complex validation in Lucenes Circle2D::HaversinDistance class
-            return SloppyMath.haversinMeters(left.getY(), left.getX(), right.getY(), right.getX());
+            return SloppyMath.haversinMeters(
+                GeoUtils.quantizeLat(left.getY()),
+                GeoUtils.quantizeLon(left.getX()),
+                GeoUtils.quantizeLat(right.getY()),
+                GeoUtils.quantizeLon(right.getX())
+            );
         }
     }
 

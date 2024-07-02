@@ -625,15 +625,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
 
         private boolean rewriteComparison(List<Expression> rewritten, StDistance dist, Expression literal, ComparisonType comparisonType) {
-            // Currently we do not support Equals
-            if (comparisonType.lt || comparisonType.gt) {
-                Object value = literal.fold();
-                if (value instanceof Number number) {
-                    if (dist.right().foldable()) {
-                        return rewriteDistanceFilter(rewritten, dist.source(), dist.left(), dist.right(), number, comparisonType);
-                    } else if (dist.left().foldable()) {
-                        return rewriteDistanceFilter(rewritten, dist.source(), dist.right(), dist.left(), number, comparisonType);
-                    }
+            Object value = literal.fold();
+            if (value instanceof Number number) {
+                if (dist.right().foldable()) {
+                    return rewriteDistanceFilter(rewritten, dist.source(), dist.left(), dist.right(), number, comparisonType);
+                } else if (dist.left().foldable()) {
+                    return rewriteDistanceFilter(rewritten, dist.source(), dist.right(), dist.left(), number, comparisonType);
                 }
             }
             return false;
@@ -642,28 +639,33 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         private boolean rewriteDistanceFilter(
             List<Expression> rewritten,
             Source source,
-            Expression spatialExpression,
-            Expression literalExpression,
+            Expression spatialExp,
+            Expression literalExp,
             Number number,
             ComparisonType comparisonType
         ) {
-            Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literalExpression);
+            Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literalExp);
             if (geometry instanceof Point point) {
                 double distance = number.doubleValue();
-                if (comparisonType.eq == false) {
-                    distance = comparisonType.lt ? Math.nextDown(distance) : Math.nextUp(distance);
+                if (comparisonType.lt) {
+                    distance = comparisonType.eq ? distance : Math.nextDown(distance);
+                    rewritten.add(new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp)));
+                } else if (comparisonType.gt) {
+                    distance = comparisonType.eq ? distance : Math.nextUp(distance);
+                    rewritten.add(new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, distance, literalExp)));
+                } else if (comparisonType.eq) {
+                    rewritten.add(new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp)));
+                    rewritten.add(new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, Math.nextDown(distance), literalExp)));
                 }
-                var circle = new Circle(point.getX(), point.getY(), distance);
-                var wkb = WellKnownBinary.toWKB(circle, ByteOrder.LITTLE_ENDIAN);
-                var cExp = new Literal(literalExpression.source(), new BytesRef(wkb), DataType.GEO_SHAPE);
-                rewritten.add(
-                    comparisonType.lt
-                        ? new SpatialIntersects(source, spatialExpression, cExp)
-                        : new SpatialDisjoint(source, spatialExpression, cExp)
-                );
                 return true;
             }
             return false;
+        }
+
+        private Literal makeCircleLiteral(Point point, double distance, Expression literalExpression) {
+            var circle = new Circle(point.getX(), point.getY(), distance);
+            var wkb = WellKnownBinary.toWKB(circle, ByteOrder.LITTLE_ENDIAN);
+            return new Literal(literalExpression.source(), new BytesRef(wkb), DataType.GEO_SHAPE);
         }
 
         /**

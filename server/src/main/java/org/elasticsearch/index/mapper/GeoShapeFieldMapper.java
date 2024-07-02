@@ -99,18 +99,18 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             );
             GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeFieldType ft = new GeoShapeFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 indexed.get(),
                 orientation.get().value(),
                 geoShapeParser,
                 meta.get()
             );
             return new GeoShapeFieldMapper(
-                name(),
+                leafName(),
                 ft,
                 multiFieldsBuilder.build(this, context),
                 copyTo,
-                new GeoShapeIndexer(orientation.get().value(), context.buildFullName(name())),
+                new GeoShapeIndexer(orientation.get().value(), context.buildFullName(leafName())),
                 geoShapeParser,
                 this
             );
@@ -184,7 +184,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value()).init(
+        return new Builder(leafName(), builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value()).init(
             this
         );
     }

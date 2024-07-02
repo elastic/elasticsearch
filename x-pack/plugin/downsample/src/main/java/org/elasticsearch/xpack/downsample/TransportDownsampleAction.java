@@ -310,7 +310,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 request.getDownsampleConfig().getTimestampField()
             );
             MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-                if (helper.isTimeSeriesDimension(field, mapping)) {
+                var flattenedDimensions = helper.extractFlattenedDimensions(field, mapping);
+                if (flattenedDimensions != null) {
+                    dimensionFields.addAll(flattenedDimensions);
+                } else if (helper.isTimeSeriesDimension(field, mapping)) {
                     dimensionFields.add(field);
                 } else if (helper.isTimeSeriesMetric(field, mapping)) {
                     metricFields.add(field);

@@ -57,6 +57,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.inference.Utils.PersistedConfig;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -963,7 +964,4 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             null
         );
     }
-
-    private record PersistedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
-
 }

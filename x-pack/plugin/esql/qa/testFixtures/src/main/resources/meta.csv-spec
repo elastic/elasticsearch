@@ -73,6 +73,7 @@ double pi()
 "geo_point|cartesian_point st_centroid_agg(field:geo_point|cartesian_point)"
 "boolean st_contains(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
 "boolean st_disjoint(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
+"double st_distance(geomA:geo_point|cartesian_point, geomB:geo_point|cartesian_point)"
 "boolean st_intersects(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
 "boolean st_within(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
 "double st_x(point:geo_point|cartesian_point)"
@@ -191,6 +192,7 @@ sqrt          |number                              |"double|integer|long|unsigne
 st_centroid_ag|field                               |"geo_point|cartesian_point"                                                                                                       |[""]
 st_contains   |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Expression of type `geo_point`\, `cartesian_point`\, `geo_shape` or `cartesian_shape`. If `null`\, the function returns `null`., Expression of type `geo_point`\, `cartesian_point`\, `geo_shape` or `cartesian_shape`. If `null`\, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters.]
 st_disjoint   |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Expression of type `geo_point`\, `cartesian_point`\, `geo_shape` or `cartesian_shape`. If `null`\, the function returns `null`., Expression of type `geo_point`\, `cartesian_point`\, `geo_shape` or `cartesian_shape`. If `null`\, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters.]
+st_distance   |[geomA, geomB]                      |["geo_point|cartesian_point", "geo_point|cartesian_point"]                                                                        |[Expression of type `geo_point` or `cartesian_point`. If `null`\, the function returns `null`., Expression of type `geo_point` or `cartesian_point`. If `null`\, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_point` and `cartesian_point` parameters.]
 st_intersects |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Expression of type `geo_point`\, `cartesian_point`\, `geo_shape` or `cartesian_shape`. If `null`\, the function returns `null`., Expression of type `geo_point`\, `cartesian_point`\, `geo_shape` or `cartesian_shape`. If `null`\, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters.]
 st_within     |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Expression of type `geo_point`\, `cartesian_point`\, `geo_shape` or `cartesian_shape`. If `null`\, the function returns `null`., Expression of type `geo_point`\, `cartesian_point`\, `geo_shape` or `cartesian_shape`. If `null`\, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters.]
 st_x          |point                               |"geo_point|cartesian_point"                                                                                                       |Expression of type `geo_point` or `cartesian_point`. If `null`, the function returns `null`.
@@ -310,6 +312,7 @@ sqrt          |Returns the square root of a number. The input can be any numeric
 st_centroid_ag|The centroid of a spatial field.
 st_contains   |Returns whether the first geometry contains the second geometry. This is the inverse of the <<esql-st_within,ST_WITHIN>> function.
 st_disjoint   |Returns whether the two geometries or geometry columns are disjoint. This is the inverse of the <<esql-st_intersects,ST_INTERSECTS>> function. In mathematical terms: ST_Disjoint(A, B) ⇔ A ⋂ B = ∅
+st_distance   |Computes the distance between two points. For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates. For geographic geometries, this is the circular distance along the great circle in meters.
 st_intersects |Returns true if two geometries intersect. They intersect if they have any point in common, including their interior points (points along lines or within polygons). This is the inverse of the <<esql-st_disjoint,ST_DISJOINT>> function. In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅
 st_within     |Returns whether the first geometry is within the second geometry. This is the inverse of the <<esql-st_contains,ST_CONTAINS>> function.
 st_x          |Extracts the `x` coordinate from the supplied point. If the points is of type `geo_point` this is equivalent to extracting the `longitude` value.
@@ -430,6 +433,7 @@ sqrt          |double                                                           
 st_centroid_ag|"geo_point|cartesian_point"                                                                                                 |false                       |false           |true
 st_contains   |boolean                                                                                                                     |[false, false]              |false           |false
 st_disjoint   |boolean                                                                                                                     |[false, false]              |false           |false
+st_distance   |double                                                                                                                      |[false, false]              |false           |false
 st_intersects |boolean                                                                                                                     |[false, false]              |false           |false
 st_within     |boolean                                                                                                                     |[false, false]              |false           |false
 st_x          |double                                                                                                                      |false                       |false           |false
@@ -487,5 +491,5 @@ countFunctions#[skip:-8.14.99, reason:BIN added]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-110    | 110    | 110
+111    | 111    | 111
 ;

@@ -10,43 +10,54 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.Token;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class QueryParams {
 
-    public static final QueryParams EMPTY = new QueryParams();
+    private final List<QueryParam> params; // This matches the named or unnamed parameters specified in an EsqlQueryRequest.params
+    private final Map<String, QueryParam> nameToParam; // This matches the named parameters specified in an EsqlQueryRequest.params
+    private Map<Token, QueryParam> tokenToParam; // This is populated by EsqlParser, each parameter marker has an entry
+    private List<ParsingException> parsingErrors;
+    private final int paramsCount;
 
-    // This matches the named or unnamed parameters specified in an EsqlQueryRequest.params.
-    private List<QueryParam> params = new ArrayList<>();
-
-    // This matches the named parameters specified in an EsqlQueryRequest.params.
-    private Map<String, QueryParam> nameToParam = new HashMap<>();
-
-    // This is populated by EsqlParser, each parameter marker has an entry.
-    private Map<Token, QueryParam> tokenToParam = new HashMap<>();
-
-    private List<ParsingException> parsingErrors = new ArrayList<>();
-
-    public QueryParams() {}
+    public QueryParams() {
+        this(null);
+    }
 
     public QueryParams(List<QueryParam> params) {
-        for (QueryParam p : params) {
-            this.params.add(p);
-            String name = p.name();
-            if (name != null) {
-                nameToParam.put(name, p);
+        this.tokenToParam = new HashMap<>();
+        this.parsingErrors = new ArrayList<>();
+
+        if (params == null || params.isEmpty()) {
+            this.params = List.of();
+            this.nameToParam = Map.of();
+            this.paramsCount = 0;
+        } else {
+            this.paramsCount = params.size();
+            this.params = new ArrayList<>(paramsCount);
+            Map<String, QueryParam> tempNameToParam = new HashMap<>(paramsCount);
+            for (QueryParam p : params) {
+                this.params.add(p);
+                String name = p.name();
+                if (name != null) {
+                    tempNameToParam.put(name, p);
+                }
             }
+            this.nameToParam = Collections.unmodifiableMap(tempNameToParam);
         }
     }
 
-    public List<QueryParam> positionalParams() {
-        return this.params;
+    public int size() {
+        return this.paramsCount;
     }
 
     public QueryParam get(int index) {
-        return (index <= 0 || index > params.size()) ? null : params.get(index - 1);
+        return (index <= 0 || index > this.paramsCount) ? null : params.get(index - 1);
     }
 
     public Map<String, QueryParam> namedParams() {
@@ -61,10 +72,6 @@ public class QueryParams {
         return nameToParam.get(paramName);
     }
 
-    public Map<Token, QueryParam> positionalParamTokens() {
-        return this.tokenToParam;
-    }
-
     public boolean contains(Token token) {
         return this.tokenToParam.containsKey(token);
     }
@@ -73,11 +80,32 @@ public class QueryParams {
         return this.tokenToParam.get(tokenLocation);
     }
 
-    public List<ParsingException> parsingErrors() {
-        return this.parsingErrors;
+    public void addTokenParam(Token token, QueryParam param) {
+        this.tokenToParam.put(token, param);
+    }
+
+    public Iterator<ParsingException> parsingErrors() {
+        return this.parsingErrors.iterator();
     }
 
     public void addParsingError(ParsingException e) {
         this.parsingErrors.add(e);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        QueryParams that = (QueryParams) o;
+        return paramsCount == that.paramsCount
+            && params.equals(that.params)
+            && nameToParam.equals(that.nameToParam)
+            && tokenToParam.equals(that.tokenToParam)
+            && parsingErrors.equals(that.parsingErrors);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(params, nameToParam, tokenToParam, parsingErrors, paramsCount);
     }
 }

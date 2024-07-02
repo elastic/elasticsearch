@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -15,11 +16,18 @@ import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistryTests;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy;
+import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.core.session.Configuration;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry.def;
@@ -78,6 +86,19 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
+    public void testConfigurationOptionalFunction() {
+        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
+        FunctionDefinition def;
+        FunctionRegistry r = new EsqlFunctionRegistry(
+            EsqlFunctionRegistry.def(DummyConfigurationOptionalArgumentFunction.class, (Source l, Expression e, Configuration c) -> {
+                assertSame(e, ur.children().get(0));
+                return new DummyConfigurationOptionalArgumentFunction(l, List.of(ur), c);
+            }, "dummy")
+        );
+        def = r.resolveFunction(r.resolveAlias("DUMMY"));
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
+    }
+
     private static UnresolvedFunction uf(FunctionResolutionStrategy resolutionStrategy, Expression... children) {
         return new UnresolvedFunction(SourceTests.randomSource(), "dummyFunction", resolutionStrategy, Arrays.asList(children));
     }
@@ -103,5 +124,34 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
             }
         }
         return output.toString();
+    }
+
+    public static class DummyConfigurationOptionalArgumentFunction extends EsqlConfigurationFunction implements OptionalArgument {
+
+        public DummyConfigurationOptionalArgumentFunction(Source source, List<Expression> fields, Configuration configuration) {
+            super(source, fields, configuration);
+        }
+
+        @Override
+        public DataType dataType() {
+            return null;
+        }
+
+        @Override
+        public Expression replaceChildren(List<Expression> newChildren) {
+            return new DummyConfigurationOptionalArgumentFunction(source(), newChildren, configuration());
+        }
+
+        @Override
+        protected NodeInfo<? extends Expression> info() {
+            return NodeInfo.create(this, DummyConfigurationOptionalArgumentFunction::new, children(), configuration());
+        }
+
+        @Override
+        public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
+            Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
+        ) {
+            return null;
+        }
     }
 }

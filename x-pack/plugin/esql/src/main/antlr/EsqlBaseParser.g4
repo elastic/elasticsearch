@@ -299,15 +299,11 @@ searchSubCommand
     ;
 
 searchFilterCommand
-    : WHERE searchQueryOrReference
+    : WHERE searchFilterExpression
     ;
 
-searchQueryOrReference
+searchFilterExpression
     : searchQueryExpression
-    ;
-
-searchQueryIdentifier
-    : identifier
     ;
 
 searchLimitCommand
@@ -318,23 +314,19 @@ searchRankCommand
     : RANK searchRankExpression
     ;
 
+searchRankExpression
+    : searchQueryExpression
+    ;
+
 searchSortCommmand
     : sortCommand
     ;
 
 searchQueryExpression
-    : searchMatchingExpression
-    ;
-
-searchMatchingExpression
-    : booleanExpression
-    ;
-
-searchRankExpression
-    : NOT searchRankExpression                                                    #searchLogicalNot
-    | valueExpression                                                             #searchBooleanDefault
-    | LP searchRankExpression RP                                                  #searchParenthesizedExpression
-    | SEARCH_EXPR_MATCH LP singleField=qualifiedName COMMA queryString=string RP  #searchMatchQuery
-    | left=searchRankExpression operator=AND right=searchRankExpression           #searchLogicalBinary
-    | left=searchRankExpression operator=OR right=searchRankExpression            #searchLogicalBinary
+    : NOT searchQueryExpression                                                     #searchLogicalNot
+    | valueExpression                                                               #searchBooleanDefault
+    | LP searchQueryExpression RP                                                   #searchParenthesizedExpression
+    | SEARCH_EXPR_MATCH LP singleField=qualifiedName COMMA queryString=string RP    #searchMatchQuery
+    | left=searchQueryExpression operator=AND right=searchQueryExpression           #searchLogicalBinary
+    | left=searchQueryExpression operator=OR right=searchQueryExpression            #searchLogicalBinary
     ;

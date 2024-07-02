@@ -91,7 +91,10 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         assertAcked(
-            clusterAdmin().preparePutRepository("test-repo").setVerify(false).setType(TestPlugin.ASSERTING_REPO_TYPE).setSettings(settings)
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo")
+                .setVerify(false)
+                .setType(TestPlugin.ASSERTING_REPO_TYPE)
+                .setSettings(settings)
         );
 
         final AssertingBlobStore blobStore = new AssertingBlobStore(settings.get(BASE_PATH_SETTING_KEY));

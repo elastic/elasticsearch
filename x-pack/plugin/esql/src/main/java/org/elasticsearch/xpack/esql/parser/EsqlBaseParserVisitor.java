@@ -542,17 +542,11 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSearchFilterCommand(EsqlBaseParser.SearchFilterCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#searchQueryOrReference}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#searchFilterExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitSearchQueryOrReference(EsqlBaseParser.SearchQueryOrReferenceContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#searchQueryIdentifier}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSearchQueryIdentifier(EsqlBaseParser.SearchQueryIdentifierContext ctx);
+  T visitSearchFilterExpression(EsqlBaseParser.SearchFilterExpressionContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#searchLimitCommand}.
    * @param ctx the parse tree
@@ -566,54 +560,48 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSearchRankCommand(EsqlBaseParser.SearchRankCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#searchRankExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSearchRankExpression(EsqlBaseParser.SearchRankExpressionContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#searchSortCommmand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitSearchSortCommmand(EsqlBaseParser.SearchSortCommmandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#searchQueryExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSearchQueryExpression(EsqlBaseParser.SearchQueryExpressionContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#searchMatchingExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSearchMatchingExpression(EsqlBaseParser.SearchMatchingExpressionContext ctx);
-  /**
    * Visit a parse tree produced by the {@code searchLogicalBinary}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitSearchLogicalBinary(EsqlBaseParser.SearchLogicalBinaryContext ctx);
   /**
    * Visit a parse tree produced by the {@code searchParenthesizedExpression}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitSearchParenthesizedExpression(EsqlBaseParser.SearchParenthesizedExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code searchMatchQuery}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitSearchMatchQuery(EsqlBaseParser.SearchMatchQueryContext ctx);
   /**
    * Visit a parse tree produced by the {@code searchBooleanDefault}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitSearchBooleanDefault(EsqlBaseParser.SearchBooleanDefaultContext ctx);
   /**
    * Visit a parse tree produced by the {@code searchLogicalNot}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */

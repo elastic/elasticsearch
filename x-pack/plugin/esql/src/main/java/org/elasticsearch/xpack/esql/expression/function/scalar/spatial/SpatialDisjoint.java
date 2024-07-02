@@ -11,6 +11,8 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.geometry.Geometry;
@@ -48,6 +50,12 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  * Here we simply wire the rules together specific to ST_DISJOINT and QueryRelation.DISJOINT.
  */
 public class SpatialDisjoint extends SpatialRelatesFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "SpatialDisjoint",
+        SpatialDisjoint::new
+    );
+
     // public for test access with reflection
     public static final SpatialRelations GEO = new SpatialRelations(
         ShapeField.QueryRelation.DISJOINT,
@@ -73,26 +81,29 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     )
     public SpatialDisjoint(
         Source source,
-        @Param(
-            name = "geomA",
-            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
-                + "If `null`, the function returns `null`."
-        ) Expression left,
-        @Param(
-            name = "geomB",
-            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
-                + "If `null`, the function returns `null`.\n"
-                + "The second parameter must also have the same coordinate system as the first.\n"
-                + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
-        ) Expression right
+        @Param(name = "geomA", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
+            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
+            If `null`, the function returns `null`.""") Expression left,
+        @Param(name = "geomB", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
+            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
+            If `null`, the function returns `null`.
+            The second parameter must also have the same coordinate system as the first.
+            This means it is not possible to combine `geo_*` and `cartesian_*` parameters.""") Expression right
     ) {
         this(source, left, right, false, false);
     }
 
     private SpatialDisjoint(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues);
+    }
+
+    private SpatialDisjoint(StreamInput in) throws IOException {
+        super(in, false, false);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

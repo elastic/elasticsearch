@@ -33,19 +33,11 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
 
     public void testRoleMigration() throws Exception {
         String oldTestRole = "old-test-role";
-        String oldMetaKey = "old-meta-test-key";
-        String oldMetaValue = "old-meta-test-value";
         String mixed1TestRole = "mixed1-test-role";
-        String mixed1MetaKey = "mixed1-meta-test-key";
-        String mixed1MetaValue = "mixed1-meta-test-value";
         String mixed2TestRole = "mixed2-test-role";
-        String mixed2MetaKey = "mixed2-meta-test-key";
-        String mixed2MetaValue = "mixed2-meta-test-value";
         String upgradedTestRole = "upgraded-test-role";
-        String upgradedMetaKey = "upgraded-meta-test-key";
-        String upgradedMetaValue = "upgraded-meta-test-value";
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createRoleWithMetadata(oldTestRole, Map.of(oldMetaKey, oldMetaValue, "meta", "test"));
+            createRoleWithMetadata(oldTestRole, Map.of("meta", "test"));
             assertDocInSecurityIndex(oldTestRole);
             if (canRolesBeMigrated() == false) {
                 assertNoMigration(adminClient());
@@ -53,10 +45,10 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
             }
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             if (FIRST_MIXED_ROUND) {
-                createRoleWithMetadata(mixed1TestRole, Map.of(mixed1MetaKey, mixed1MetaValue, "meta", "test"));
+                createRoleWithMetadata(mixed1TestRole, Map.of("meta", "test"));
                 assertDocInSecurityIndex(mixed1TestRole);
             } else {
-                createRoleWithMetadata(mixed2TestRole, Map.of(mixed2MetaKey, mixed2MetaValue, "meta", "test"));
+                createRoleWithMetadata(mixed2TestRole, Map.of("meta", "test"));
                 assertDocInSecurityIndex(mixed2TestRole);
             }
             if (canRolesBeMigrated() == false) {
@@ -64,13 +56,13 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
                 assertCannotQueryRolesByMetadata(client());
             }
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            createRoleWithMetadata(upgradedTestRole, Map.of(upgradedMetaKey, upgradedMetaValue, "meta", "test"));
+            createRoleWithMetadata(upgradedTestRole, Map.of("meta", "test"));
             assertTrue(canRolesBeMigrated());
-            waitForMigrationCompletion(adminClient(), null);
-            assertMigratedDocInSecurityIndex(oldTestRole, oldMetaKey, oldMetaValue);
-            assertMigratedDocInSecurityIndex(mixed1TestRole, mixed1MetaKey, mixed1MetaValue);
-            assertMigratedDocInSecurityIndex(mixed2TestRole, mixed2MetaKey, mixed2MetaValue);
-            assertMigratedDocInSecurityIndex(upgradedTestRole, upgradedMetaKey, upgradedMetaValue);
+            waitForMigrationCompletion(adminClient());
+            assertMigratedDocInSecurityIndex(oldTestRole, "meta", "test");
+            assertMigratedDocInSecurityIndex(mixed1TestRole, "meta", "test");
+            assertMigratedDocInSecurityIndex(mixed2TestRole, "meta", "test");
+            assertMigratedDocInSecurityIndex(upgradedTestRole, "meta", "test");
             // queries all roles by metadata
             assertAllRoles(client(), "mixed1-test-role", "mixed2-test-role", "old-test-role", "upgraded-test-role");
         }

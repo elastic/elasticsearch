@@ -605,13 +605,10 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                             );
                         } else if (stage == Stage.PAUSED) {
                             // but we think the shard has paused - we need to make new master know that
-                            logger.debug(
-                                "new master thinks that shard [{}] snapshot [{}], with shard generation [{}], is still running, but the "
-                                    + "shard snapshot is paused locally, updating status on master",
-                                shardId,
-                                snapshot.snapshot(),
-                                localShard.getValue().generation()
-                            );
+                            logger.debug("""
+                                new master thinks that shard [{}] snapshot [{}], with shard generation [{}], is still running, but the \
+                                shard snapshot is paused locally, updating status on master
+                                """, shardId, snapshot.snapshot(), localShard.getValue().generation());
                             notifyUnsuccessfulSnapshotShard(
                                 snapshot.snapshot(),
                                 shardId,

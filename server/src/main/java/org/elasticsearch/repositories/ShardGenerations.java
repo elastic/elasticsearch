@@ -92,7 +92,7 @@ public final class ShardGenerations {
     }
 
     /**
-     * Computes the obsolete shard index generations that can be deleted once this instance was written to the repository.
+     * Computes the obsolete shard index generations that can be deleted once this instance is written to the repository.
      * Note: This method should only be used when finalizing a snapshot and we can safely assume that data has only been added but not
      *       removed from shard paths.
      *
@@ -114,9 +114,11 @@ public final class ShardGenerations {
                 if (updatedGeneration != null && oldGeneration != null && oldGeneration.equals(updatedGeneration) == false) {
                     obsoleteShardIndices.put(i, oldGeneration);
                     logger.debug(
-                        "Marking snapshot generation [{}] for cleanup. The new generation is [{}]",
+                        "Marking snapshot generation [{}] for cleanup. The new generation is [{}]. Index [{}], shard ID [{}]",
                         oldGeneration,
-                        updatedGeneration
+                        updatedGeneration,
+                        indexId,
+                        i
                     );
                 }
             }

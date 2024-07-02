@@ -212,10 +212,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     // so the original generation is clearly obsolete because it was in-flight before and is now unreferenced everywhere.
                     obsoleteGenerations.computeIfAbsent(repositoryShardId, ignored -> new HashSet<>()).add(oldStatus.generation());
                     logger.debug(
-                        "Marking shard generation [{}] file for cleanup. The finalized shard generation is now [{}] for shard snapshot [{}]",
+                        """
+                            Marking shard generation [{}] file for cleanup. The finalized shard generation is now [{}], for shard \
+                            snapshot [{}] with repository shard ID [{}] on node [{}]
+                            """,
                         oldStatus.generation(),
                         newStatus.generation(),
-                        entry.snapshot()
+                        entry.snapshot(),
+                        repositoryShardId.shardId(),
+                        oldStatus.nodeId()
                     );
                 }
             }
@@ -451,7 +456,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         updatedNodeIdsForRemoval.addAll(nodeIdsMarkedForRemoval);
 
         // remove any nodes which are no longer marked for shutdown if they have no running shard snapshots
-        updatedNodeIdsForRemoval.removeAll(getObsoleteNodeIdsForRemoval(nodeIdsMarkedForRemoval));
         var restoredNodeIds = getObsoleteNodeIdsForRemoval(nodeIdsMarkedForRemoval);
         updatedNodeIdsForRemoval.removeAll(restoredNodeIds);
         logger.debug("Resuming shard snapshots on nodes [{}]", restoredNodeIds);

@@ -392,4 +392,26 @@ public final class StringUtils {
     public static boolean isQualified(String indexWildcard) {
         return indexWildcard.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) > 0;
     }
+
+    public static boolean isInteger(String value) {
+        for (char c : value.trim().toCharArray()) {
+            if (Character.isDigit(c) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean isValidParamName(String value) {
+        // A valid name starts with a letter and contain only letter, digit or _
+        if (Character.isLetter(value.charAt(0)) == false) {
+            return false;
+        }
+        for (char c : value.trim().toCharArray()) {
+            if (Character.isLetterOrDigit(c) == false && c != '_') {
+                return false;
+            }
+        }
+        return true;
+    }
 }

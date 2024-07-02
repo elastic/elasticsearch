@@ -198,7 +198,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 + ", docCount="
                 + serializableCategory.getNumMatches()
                 + ", aggregations="
-                + aggregations.asMap()
+                + aggregations.asList()
                 + "}\n";
         }
 

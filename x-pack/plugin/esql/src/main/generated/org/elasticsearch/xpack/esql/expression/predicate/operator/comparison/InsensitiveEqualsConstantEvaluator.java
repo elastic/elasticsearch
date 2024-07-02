@@ -36,10 +36,10 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
 
   public InsensitiveEqualsConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       ByteRunAutomaton rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -75,10 +75,10 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector lhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef lhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(InsensitiveEquals.processConstant(lhsVector.getBytesRef(p, lhsScratch), rhs));
+        result.appendBoolean(p, InsensitiveEquals.processConstant(lhsVector.getBytesRef(p, lhsScratch), rhs));
       }
       return result.build();
     }

@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.core.expression.function;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.ConstantInput;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
@@ -25,8 +23,6 @@ import java.util.StringJoiner;
 public abstract class Function extends Expression {
 
     private final String functionName = getClass().getSimpleName().toUpperCase(Locale.ROOT);
-
-    private Pipe lazyPipe = null;
 
     // TODO: Functions supporting distinct should add a dedicated constructor Location, List<Expression>, boolean
     protected Function(Source source, List<Expression> children) {
@@ -63,17 +59,6 @@ public abstract class Function extends Expression {
 
         Function other = (Function) obj;
         return Objects.equals(children(), other.children());
-    }
-
-    public Pipe asPipe() {
-        if (lazyPipe == null) {
-            lazyPipe = foldable() ? new ConstantInput(source(), this, fold()) : makePipe();
-        }
-        return lazyPipe;
-    }
-
-    protected Pipe makePipe() {
-        throw new UnsupportedOperationException();
     }
 
     @Override

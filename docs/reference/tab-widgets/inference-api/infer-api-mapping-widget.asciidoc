@@ -31,6 +31,12 @@
             id="infer-api-mapping-azure-ai-studio">
       Azure AI Studio
     </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-mapping-mistral-tab"
+            id="infer-api-mapping-mistral">
+      Mistral
+    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -45,7 +51,8 @@ include::infer-api-mapping.asciidoc[tag=cohere]
   <div tabindex="0"
        role="tabpanel"
        id="infer-api-mapping-hf-tab"
-       aria-labelledby="infer-api-mapping-hf">
+       aria-labelledby="infer-api-mapping-hf"
+       hidden="">
 ++++
 
 include::infer-api-mapping.asciidoc[tag=hugging-face]
@@ -82,6 +89,17 @@ include::infer-api-mapping.asciidoc[tag=azure-openai]
 ++++
 
 include::infer-api-mapping.asciidoc[tag=azure-ai-studio]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-mapping-mistral-tab"
+       aria-labelledby="infer-api-mapping-mistral"
+       hidden="">
+++++
+
+include::infer-api-mapping.asciidoc[tag=mistral]
 
 ++++
   </div>

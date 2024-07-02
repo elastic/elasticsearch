@@ -8,12 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.dangling.find;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
 
 public class FindDanglingIndexRequest extends BaseNodesRequest<FindDanglingIndexRequest> {
     private final String indexUUID;
@@ -30,10 +26,5 @@ public class FindDanglingIndexRequest extends BaseNodesRequest<FindDanglingIndex
     @Override
     public String toString() {
         return "FindDanglingIndicesRequest{indexUUID='" + indexUUID + "'}";
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
     }
 }

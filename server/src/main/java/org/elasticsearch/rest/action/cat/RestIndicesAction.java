@@ -514,6 +514,12 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.dense_vector.value_count", "default:false;text-align:right;desc:total count of indexed dense vector");
 
+        table.addCell(
+            "sparse_vector.value_count",
+            "sibling:pri;alias:svc,sparseVectorCount;default:false;text-align:right;desc:total count of indexed sparse vectors"
+        );
+        table.addCell("pri.sparse_vector.value_count", "default:false;text-align:right;desc:total count of indexed sparse vectors");
+
         table.endHeaders();
         return table;
     }
@@ -790,6 +796,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getDenseVectorStats() == null ? null : totalStats.getDenseVectorStats().getValueCount());
             table.addCell(primaryStats.getDenseVectorStats() == null ? null : primaryStats.getDenseVectorStats().getValueCount());
+
+            table.addCell(totalStats.getSparseVectorStats() == null ? null : totalStats.getSparseVectorStats().getValueCount());
+            table.addCell(primaryStats.getSparseVectorStats() == null ? null : primaryStats.getSparseVectorStats().getValueCount());
 
             table.endRow();
         });

@@ -84,6 +84,16 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
+    public int hamming(byte[] queryVector) {
+        throw new UnsupportedOperationException("hamming distance is not supported for float vectors");
+    }
+
+    @Override
+    public int hamming(List<Number> queryVector) {
+        throw new UnsupportedOperationException("hamming distance is not supported for float vectors");
+    }
+
+    @Override
     public double l2Norm(byte[] queryVector) {
         throw new UnsupportedOperationException("use [double l2Norm(float[] queryVector)] instead");
     }

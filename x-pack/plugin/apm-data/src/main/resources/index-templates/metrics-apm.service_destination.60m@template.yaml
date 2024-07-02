@@ -27,3 +27,8 @@ template:
     index:
       default_pipeline: metrics-apm.service_destination@default-pipeline
       final_pipeline: metrics-apm@pipeline
+  mappings:
+    properties:
+      metricset.interval:
+        type: constant_keyword
+        value: 60m

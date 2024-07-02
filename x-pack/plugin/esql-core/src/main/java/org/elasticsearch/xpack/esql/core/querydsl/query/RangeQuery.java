@@ -16,7 +16,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 
-public class RangeQuery extends LeafQuery {
+public class RangeQuery extends Query {
 
     private final String field;
     private final Object lower, upper;

@@ -38,6 +38,7 @@ import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -212,6 +213,11 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     @Nullable
     public DenseVectorStats getDenseVectorStats() {
         return stats.getDenseVectorStats();
+    }
+
+    @Nullable
+    public SparseVectorStats getSparseVectorStats() {
+        return stats.getSparseVectorStats();
     }
 
     @Override

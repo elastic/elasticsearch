@@ -10,6 +10,8 @@ Updates the draft `filtering` configuration of a connector and marks the draft v
 
 The filtering property is used to configure sync rules (both basic and advanced) for a connector. Learn more in the {enterprise-search-ref}/sync-rules.html[sync rules documentation].
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [[update-connector-filtering-api-request]]
 ==== {api-request-title}
 

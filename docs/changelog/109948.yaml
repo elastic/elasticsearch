@@ -1,0 +1,5 @@
+pr: 109948
+summary: Automatically adjust `ignore_malformed` only for the @timestamp
+area: Mapping
+type: bug
+issues: []

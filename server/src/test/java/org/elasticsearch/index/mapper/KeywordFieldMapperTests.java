@@ -320,15 +320,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertDimension(false, KeywordFieldMapper.KeywordFieldType::isDimension);
     }
 
-    public void testDimensionAndIgnoreAbove() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+    public void testDimensionAndIgnoreAbove() throws IOException {
+        DocumentMapper documentMapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true).field("ignore_above", 2048);
-        })));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Field [ignore_above] cannot be set in conjunction with field [time_series_dimension]")
-        );
+        }));
+        KeywordFieldMapper field = (KeywordFieldMapper) documentMapper.mappers().getMapper("field");
+        assertEquals(2048, field.fieldType().ignoreAbove());
     }
 
     public void testDimensionAndNormalizer() {
@@ -644,6 +642,12 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsIgnoreMalformed() {
         return false;
+    }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
+        return new BlockReaderSupport(ft.hasDocValues(), ft.hasDocValues() || ft.isStored(), mapper, loaderFieldName);
     }
 
     @Override

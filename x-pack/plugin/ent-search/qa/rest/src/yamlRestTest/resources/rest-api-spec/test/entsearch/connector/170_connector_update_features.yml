@@ -1,0 +1,108 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: Introduced in 8.15.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+---
+"Update Connector Features":
+  - do:
+      connector.update_features:
+        connector_id: test-connector
+        body:
+          features:
+            document_level_security: { enabled: true }
+            native_connector_api_keys: { enabled: true }
+            incremental_sync: { enabled: false }
+            sync_rules:
+              basic: { enabled: true }
+              advanced: { enabled: false }
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { features.document_level_security.enabled: true }
+  - match: { features.native_connector_api_keys.enabled: true }
+  - match: { features.incremental_sync.enabled: false }
+  - match: { features.sync_rules.basic.enabled: true }
+  - match: { features.sync_rules.advanced.enabled: false }
+
+---
+"Update Connector Features - Partial Update":
+  - do:
+      connector.update_features:
+        connector_id: test-connector
+        body:
+          features:
+            document_level_security: { enabled: true }
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { features.document_level_security.enabled: true }
+
+
+  - do:
+      connector.update_features:
+        connector_id: test-connector
+        body:
+          features:
+            native_connector_api_keys: { enabled: true }
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  # Assert that existing feature remains unchanged
+  - match: { features.document_level_security.enabled: true }
+  - match: { features.native_connector_api_keys.enabled: true }
+
+---
+"Update Connector Features - 404 when connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_features:
+        connector_id: test-non-existent-connector
+        body:
+          features:
+            native_connector_api_keys: { enabled: true }
+
+---
+"Update Connector Features - 400 status code when connector_id is empty":
+  - do:
+      catch: "bad_request"
+      connector.update_features:
+        connector_id: ""
+        body:
+          features:
+            native_connector_api_keys: { enabled: true }
+
+---
+"Update Connector Features - 400 status code when payload unknown":
+  - do:
+      catch: "bad_request"
+      connector.update_features:
+        connector_id: test-connector
+        body:
+          featuresss:
+            not_a_feature: 12423

@@ -7,7 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -18,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
@@ -34,15 +41,21 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.core.util.Queries.Clause;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -52,7 +65,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
-import org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -65,6 +77,7 @@ import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -85,11 +98,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
-    private final boolean timeSeriesMode;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
-        this.timeSeriesMode = context.configuration().pragmas().timeSeriesMode();
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
@@ -106,13 +117,14 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     protected List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(4);
-        esSourceRules.add(new ReplaceAttributeSourceWithDocId(timeSeriesMode));
+        esSourceRules.add(new ReplaceSourceAttributes());
 
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushStatsToSource());
+            esSourceRules.add(new EnableSpatialDistancePushdown());
         }
 
         // execute the rules multiple times to improve the chances of things being pushed down
@@ -129,21 +141,31 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return rules(true);
     }
 
-    private static class ReplaceAttributeSourceWithDocId extends OptimizerRule<EsSourceExec> {
+    private static class ReplaceSourceAttributes extends OptimizerRule<EsSourceExec> {
 
-        private final boolean timeSeriesMode;
-
-        ReplaceAttributeSourceWithDocId(boolean timeSeriesMode) {
+        ReplaceSourceAttributes() {
             super(UP);
-            this.timeSeriesMode = timeSeriesMode;
         }
 
         @Override
         protected PhysicalPlan rule(EsSourceExec plan) {
-            if (timeSeriesMode) {
-                return new EsTimeseriesQueryExec(plan.source(), plan.index(), plan.query());
+            var docId = new FieldAttribute(plan.source(), EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+            if (plan.indexMode() == IndexMode.TIME_SERIES) {
+                Attribute tsid = null, timestamp = null;
+                for (Attribute attr : plan.output()) {
+                    String name = attr.name();
+                    if (name.equals(MetadataAttribute.TSID_FIELD)) {
+                        tsid = attr;
+                    } else if (name.equals(MetadataAttribute.TIMESTAMP_FIELD)) {
+                        timestamp = attr;
+                    }
+                }
+                if (tsid == null || timestamp == null) {
+                    throw new IllegalStateException("_tsid or @timestamp are missing from the time-series source");
+                }
+                return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), List.of(docId, tsid, timestamp), plan.query());
             } else {
-                return new EsQueryExec(plan.source(), plan.index(), plan.query());
+                return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), List.of(docId), plan.query());
             }
         }
     }
@@ -230,6 +252,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     queryExec = new EsQueryExec(
                         queryExec.source(),
                         queryExec.index(),
+                        queryExec.indexMode(),
                         queryExec.output(),
                         query,
                         queryExec.limit(),
@@ -261,7 +284,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             } else if (exp instanceof UnaryScalarFunction usf) {
                 if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
                     if (usf instanceof IsNull || usf instanceof IsNotNull) {
-                        if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataTypes.TEXT)) {
+                        if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
                             return true;
                         }
                     }
@@ -325,10 +348,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
             PhysicalPlan plan = topNExec;
             PhysicalPlan child = topNExec.child();
-
-            boolean canPushDownTopN = child instanceof EsQueryExec
-                || (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec);
-            if (canPushDownTopN && canPushDownOrders(topNExec.order(), x -> hasIdenticalDelegate(x, ctx.searchStats()))) {
+            if (canPushSorts(child) && canPushDownOrders(topNExec.order(), x -> hasIdenticalDelegate(x, ctx.searchStats()))) {
                 var sorts = buildFieldSorts(topNExec.order());
                 var limit = topNExec.limit();
 
@@ -353,6 +373,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             }
             return sorts;
         }
+    }
+
+    private static boolean canPushSorts(PhysicalPlan plan) {
+        if (plan instanceof EsQueryExec queryExec) {
+            return queryExec.canPushSorts();
+        }
+        if (plan instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec queryExec) {
+            return queryExec.canPushSorts();
+        }
+        return false;
     }
 
     /**
@@ -446,7 +476,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     public static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
-            return fa.dataType() != DataTypes.TEXT || hasIdenticalDelegate.test(fa);
+            return fa.dataType() != DataType.TEXT || hasIdenticalDelegate.test(fa);
         }
         return false;
     }
@@ -551,6 +581,133 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             });
             // Disallow more than one spatial field to be extracted using doc-values (for now)
             return spatialRelatesAttributes.size() < 2;
+        }
+    }
+
+    /**
+     * When a spatial distance predicate can be pushed down to lucene, this is done by capturing the distance within the same function.
+     * In principle this is like re-writing the predicate:
+     * <pre>WHERE ST_DISTANCE(field, TO_GEOPOINT("POINT(0 0)")) &lt;= 10000</pre>
+     * as:
+     * <pre>WHERE ST_INTERSECTS(field, TO_GEOSHAPE("CIRCLE(0,0,10000)"))</pre>
+     */
+    public static class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+        FilterExec,
+        LocalPhysicalOptimizerContext> {
+
+        @Override
+        protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
+            PhysicalPlan plan = filterExec;
+            if (filterExec.child() instanceof EsQueryExec) {
+                List<Expression> rewritten = new ArrayList<>();
+                List<Expression> notRewritten = new ArrayList<>();
+                for (Expression exp : splitAnd(filterExec.condition())) {
+                    boolean didRewrite = false;
+                    if (exp instanceof EsqlBinaryComparison comparison) {
+                        ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
+                        if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
+                            didRewrite = rewriteComparison(rewritten, dist, comparison.right(), comparisonType);
+                        } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
+                            didRewrite = rewriteComparison(rewritten, dist, comparison.left(), ComparisonType.invert(comparisonType));
+                        }
+                    }
+                    if (didRewrite == false) {
+                        notRewritten.add(exp);
+                    }
+                }
+                if (rewritten.isEmpty() == false) {
+                    rewritten.addAll(notRewritten);
+                    plan = new FilterExec(filterExec.source(), filterExec.child(), Predicates.combineAnd(rewritten));
+                }
+            }
+
+            return plan;
+        }
+
+        private boolean rewriteComparison(List<Expression> rewritten, StDistance dist, Expression literal, ComparisonType comparisonType) {
+            // Currently we do not support Equals
+            if (comparisonType.lt || comparisonType.gt) {
+                Object value = literal.fold();
+                if (value instanceof Number number) {
+                    if (dist.right().foldable()) {
+                        return rewriteDistanceFilter(rewritten, dist.source(), dist.left(), dist.right(), number, comparisonType);
+                    } else if (dist.left().foldable()) {
+                        return rewriteDistanceFilter(rewritten, dist.source(), dist.right(), dist.left(), number, comparisonType);
+                    }
+                }
+            }
+            return false;
+        }
+
+        private boolean rewriteDistanceFilter(
+            List<Expression> rewritten,
+            Source source,
+            Expression spatialExpression,
+            Expression literalExpression,
+            Number number,
+            ComparisonType comparisonType
+        ) {
+            Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literalExpression);
+            if (geometry instanceof Point point) {
+                double distance = number.doubleValue();
+                if (comparisonType.eq == false) {
+                    distance = comparisonType.lt ? Math.nextDown(distance) : Math.nextUp(distance);
+                }
+                var circle = new Circle(point.getX(), point.getY(), distance);
+                var wkb = WellKnownBinary.toWKB(circle, ByteOrder.LITTLE_ENDIAN);
+                var cExp = new Literal(literalExpression.source(), new BytesRef(wkb), DataType.GEO_SHAPE);
+                rewritten.add(
+                    comparisonType.lt
+                        ? new SpatialIntersects(source, spatialExpression, cExp)
+                        : new SpatialDisjoint(source, spatialExpression, cExp)
+                );
+                return true;
+            }
+            return false;
+        }
+
+        /**
+         * This enum captures the key differences between various inequalities as perceived from the spatial distance function.
+         * In particular, we need to know which direction the inequality points, with lt=true meaning the left is expected to be smaller
+         * than the right. And eq=true meaning we expect euality as well. We currently don't support Equals and NotEquals, so the third
+         * field disables those.
+         */
+        enum ComparisonType {
+            LTE(true, false, true),
+            LT(true, false, false),
+            GTE(false, true, true),
+            GT(false, true, false),
+            EQ(false, false, true);
+
+            private final boolean lt;
+            private final boolean gt;
+            private final boolean eq;
+
+            ComparisonType(boolean lt, boolean gt, boolean eq) {
+                this.lt = lt;
+                this.gt = gt;
+                this.eq = eq;
+            }
+
+            static ComparisonType from(EsqlBinaryComparison.BinaryComparisonOperation op) {
+                return switch (op) {
+                    case LT -> LT;
+                    case LTE -> LTE;
+                    case GT -> GT;
+                    case GTE -> GTE;
+                    default -> EQ;
+                };
+            }
+
+            static ComparisonType invert(ComparisonType comparisonType) {
+                return switch (comparisonType) {
+                    case LT -> GT;
+                    case LTE -> GTE;
+                    case GT -> LT;
+                    case GTE -> LTE;
+                    default -> EQ;
+                };
+            }
         }
     }
 }

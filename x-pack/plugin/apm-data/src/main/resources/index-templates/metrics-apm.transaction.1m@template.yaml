@@ -26,3 +26,8 @@ template:
     index:
       default_pipeline: metrics-apm.transaction@default-pipeline
       final_pipeline: metrics-apm@pipeline
+  mappings:
+    properties:
+      metricset.interval:
+        type: constant_keyword
+        value: 1m

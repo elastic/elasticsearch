@@ -46,6 +46,7 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     public static final String CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN = ".elastic-connectors-sync-jobs-v1";
     public static final String CONNECTOR_SYNC_JOBS_TEMPLATE_NAME = "elastic-connectors-sync-jobs";
 
+    public static final String ACCESS_CONTROL_INDEX_PREFIX = ".search-acl-filter-";
     public static final String ACCESS_CONTROL_INDEX_NAME_PATTERN = ".search-acl-filter-*";
     public static final String ACCESS_CONTROL_TEMPLATE_NAME = "search-acl-filter";
 

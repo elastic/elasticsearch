@@ -22,7 +22,7 @@ import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
 
-public class MatchQuery extends LeafQuery {
+public class MatchQuery extends Query {
 
     private static final Map<String, BiConsumer<MatchQueryBuilder, String>> BUILDER_APPLIERS;
 

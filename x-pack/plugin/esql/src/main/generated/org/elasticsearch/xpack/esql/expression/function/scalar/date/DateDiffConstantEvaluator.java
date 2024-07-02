@@ -37,11 +37,11 @@ public final class DateDiffConstantEvaluator implements EvalOperator.ExpressionE
   public DateDiffConstantEvaluator(Source source, DateDiff.Part datePartFieldUnit,
       EvalOperator.ExpressionEvaluator startTimestamp,
       EvalOperator.ExpressionEvaluator endTimestamp, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.datePartFieldUnit = datePartFieldUnit;
     this.startTimestamp = startTimestamp;
     this.endTimestamp = endTimestamp;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

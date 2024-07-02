@@ -138,3 +138,29 @@ PUT _ingest/pipeline/azure_ai_studio_embeddings
 and the `output_field` that will contain the {infer} results.
 
 // end::azure-ai-studio[]
+
+// tag::mistral[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/mistral_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "mistral_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::mistral[]

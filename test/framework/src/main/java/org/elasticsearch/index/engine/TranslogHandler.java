@@ -55,6 +55,9 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             () -> null,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             null,
+            query -> {
+                throw new UnsupportedOperationException("The bitset filter cache is not available in translog operations");
+            },
             MapperMetrics.NOOP
         );
     }

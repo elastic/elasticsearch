@@ -37,11 +37,10 @@ import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolver;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
@@ -359,29 +358,22 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(
-                            indexName,
-                            IndexResolver.ALL_FIELDS,
-                            false,
-                            Map.of(),
-                            refs.acquire(indexResult -> {
-                                if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
-                                    EsIndex esIndex = indexResult.get();
-                                    var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
-                                    var resolved = new ResolvedEnrichPolicy(
-                                        p.getMatchField(),
-                                        p.getType(),
-                                        p.getEnrichFields(),
-                                        concreteIndices,
-                                        esIndex.mapping()
-                                    );
-                                    resolvedPolices.put(policyName, resolved);
-                                } else {
-                                    failures.put(policyName, indexResult.toString());
-                                }
-                            }),
-                            EsqlSession::specificValidity
-                        );
+                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, refs.acquire(indexResult -> {
+                            if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
+                                EsIndex esIndex = indexResult.get();
+                                var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
+                                var resolved = new ResolvedEnrichPolicy(
+                                    p.getMatchField(),
+                                    p.getType(),
+                                    p.getEnrichFields(),
+                                    concreteIndices,
+                                    esIndex.mapping()
+                                );
+                                resolvedPolices.put(policyName, resolved);
+                            } else {
+                                failures.put(policyName, indexResult.toString());
+                            }
+                        }));
                     }
                 }
             }

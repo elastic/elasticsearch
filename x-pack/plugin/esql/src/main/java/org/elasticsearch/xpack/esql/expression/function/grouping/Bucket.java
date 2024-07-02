@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -22,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.expression.function.TwoOptionalArgument
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -30,8 +32,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -54,6 +59,8 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * In the former case, two parameters will be provided, in the latter four.
  */
 public class Bucket extends GroupingFunction implements Validatable, TwoOptionalArguments {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
+
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
     private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
@@ -194,6 +201,31 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         this.to = to;
     }
 
+    private Bucket(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            ((PlanStreamInput) in).readExpression(),
+            ((PlanStreamInput) in).readExpression(),
+            ((PlanStreamInput) in).readOptionalNamed(Expression.class),
+            ((PlanStreamInput) in).readOptionalNamed(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(field);
+        ((PlanStreamOutput) out).writeExpression(buckets);
+        ((PlanStreamOutput) out).writeOptionalExpression(from);
+        ((PlanStreamOutput) out).writeOptionalExpression(to);
+
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     public boolean foldable() {
         return field.foldable() && buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable());
@@ -201,7 +233,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        if (field.dataType() == DataTypes.DATETIME) {
+        if (field.dataType() == DataType.DATETIME) {
             Rounding.Prepared preparedRounding;
             if (buckets.dataType().isInteger()) {
                 int b = ((Number) buckets.fold()).intValue();
@@ -225,7 +257,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 assert buckets.dataType().isRational() : "Unexpected rounding data type [" + buckets.dataType() + "]";
                 roundTo = ((Number) buckets.fold()).doubleValue();
             }
-            Literal rounding = new Literal(source(), roundTo, DataTypes.DOUBLE);
+            Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
             Div div = new Div(source(), field, rounding);
@@ -286,11 +318,11 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         }
         var fieldType = field.dataType();
         var bucketsType = buckets.dataType();
-        if (fieldType == DataTypes.NULL || bucketsType == DataTypes.NULL) {
+        if (fieldType == DataType.NULL || bucketsType == DataType.NULL) {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        if (fieldType == DataTypes.DATETIME) {
+        if (fieldType == DataType.DATETIME) {
             TypeResolution resolution = isType(
                 buckets,
                 dt -> dt.isInteger() || EsqlDataTypes.isTemporalAmount(dt),
@@ -340,7 +372,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     private static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         return TypeResolutions.isType(
             e,
-            exp -> DataTypes.isString(exp) || DataTypes.isDateTime(exp),
+            exp -> DataType.isString(exp) || DataType.isDateTime(exp),
             operationName,
             paramOrd,
             "datetime",
@@ -359,13 +391,13 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     private long foldToLong(Expression e) {
         Object value = Foldables.valueOf(e);
-        return DataTypes.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
+        return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 
     @Override
     public DataType dataType() {
         if (field.dataType().isNumeric()) {
-            return DataTypes.DOUBLE;
+            return DataType.DOUBLE;
         }
         return field.dataType();
     }

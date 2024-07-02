@@ -13,7 +13,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -179,7 +178,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     }
 
     private Map<String, Object> runEsql(String query, Mode mode) throws IOException {
-        var requestObject = new RestEsqlTestCase.RequestObjectBuilder().query(query).version(EsqlTestUtils.latestEsqlVersionOrSnapshot());
+        var requestObject = new RestEsqlTestCase.RequestObjectBuilder().query(query);
         if (mode == Mode.ASYNC) {
             return RestEsqlTestCase.runEsqlAsync(requestObject);
         } else {

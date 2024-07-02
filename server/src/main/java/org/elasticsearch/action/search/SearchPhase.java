@@ -9,6 +9,9 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -59,6 +62,37 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
                     + missingShards
                     + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
                 throw new SearchPhaseExecutionException(phaseName, msg, null, ShardSearchFailure.EMPTY_ARRAY);
+            }
+        }
+    }
+
+    /**
+     * Releases shard targets that are not used in the docsIdsToLoad.
+     */
+    protected void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, SearchPhaseContext context) {
+        // we only release search context that we did not fetch from, if we are not scrolling
+        // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
+        if (searchPhaseResult == null) {
+            return;
+        }
+        // phaseResult.getContextId() is the same for query & rank feature results
+        SearchPhaseResult phaseResult = searchPhaseResult.queryResult() != null
+            ? searchPhaseResult.queryResult()
+            : searchPhaseResult.rankFeatureResult();
+        if (phaseResult != null
+            && phaseResult.hasSearchContext()
+            && context.getRequest().scroll() == null
+            && (context.isPartOfPointInTime(phaseResult.getContextId()) == false)) {
+            try {
+                SearchShardTarget shardTarget = phaseResult.getSearchShardTarget();
+                Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+                context.sendReleaseSearchContext(
+                    phaseResult.getContextId(),
+                    connection,
+                    context.getOriginalIndices(phaseResult.getShardIndex())
+                );
+            } catch (Exception e) {
+                context.getLogger().trace("failed to release context", e);
             }
         }
     }

@@ -8,7 +8,7 @@
       Cohere
     </button>
     <button role="tab"
-            aria-selected="true"
+            aria-selected="false"
             aria-controls="infer-api-reindex-hf-tab"
             id="infer-api-reindex-hf">
       HuggingFace
@@ -27,9 +27,15 @@
     </button>
     <button role="tab"
             aria-selected="false"
-            aria-controls="infer-api-reindex-azure-openai-tab"
-            id="infer-api-reindex-azure-openai">
+            aria-controls="infer-api-reindex-azure-ai-studio-tab"
+            id="infer-api-reindex-azure-ai-studio">
       Azure AI Studio
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-reindex-mistral-tab"
+            id="infer-api-reindex-mistral">
+      Mistral
     </button>
   </div>
   <div tabindex="0"
@@ -83,6 +89,17 @@ include::infer-api-reindex.asciidoc[tag=azure-openai]
 ++++
 
 include::infer-api-reindex.asciidoc[tag=azure-ai-studio]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-reindex-mistral-tab"
+       aria-labelledby="infer-api-reindex-mistral"
+       hidden="">
+++++
+
+include::infer-api-reindex.asciidoc[tag=mistral]
 
 ++++
   </div>

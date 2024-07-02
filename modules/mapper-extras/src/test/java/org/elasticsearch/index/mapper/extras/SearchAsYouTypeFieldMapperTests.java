@@ -690,7 +690,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertSearchAsYouTypeFieldType(mapper, mapper.fieldType(), maxShingleSize, analyzerName, mapper.prefixField().fieldType());
 
         assertThat(mapper.prefixField(), notNullValue());
-        assertThat(mapper.prefixField().fieldType().parentField, equalTo(mapper.name()));
+        assertThat(mapper.prefixField().fieldType().parentField, equalTo(mapper.fullPath()));
         assertPrefixFieldType(mapper.prefixField(), mapper.indexAnalyzers(), maxShingleSize, analyzerName);
 
         for (int shingleSize = 2; shingleSize <= maxShingleSize; shingleSize++) {
@@ -709,7 +709,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertThat(mapper.shingleFields().length, equalTo(numberOfShingleSubfields));
 
         final Set<String> fieldsUsingSourcePath = new HashSet<>();
-        mapper.sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.name()));
+        mapper.sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.fullPath()));
         int multiFields = 0;
         for (FieldMapper ignored : mapper.multiFields()) {
             multiFields++;
@@ -717,12 +717,12 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertThat(fieldsUsingSourcePath.size(), equalTo(numberOfShingleSubfields + 1 + multiFields));
 
         final Set<String> expectedFieldsUsingSourcePath = new HashSet<>();
-        expectedFieldsUsingSourcePath.add(mapper.prefixField().name());
+        expectedFieldsUsingSourcePath.add(mapper.prefixField().fullPath());
         for (ShingleFieldMapper shingleFieldMapper : mapper.shingleFields()) {
-            expectedFieldsUsingSourcePath.add(shingleFieldMapper.name());
+            expectedFieldsUsingSourcePath.add(shingleFieldMapper.fullPath());
         }
         for (FieldMapper multiField : mapper.multiFields()) {
-            expectedFieldsUsingSourcePath.add(multiField.name());
+            expectedFieldsUsingSourcePath.add(multiField.fullPath());
         }
         assertThat(fieldsUsingSourcePath, equalTo(expectedFieldsUsingSourcePath));
     }
@@ -827,12 +827,25 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
         return new SyntheticSourceSupport() {
+            @Override
+            public boolean preservesExactSource() {
+                return true;
+            }
+
             public SyntheticSourceExample example(int maxValues) {
-                String value = rarely()
+                if (randomBoolean()) {
+                    var value = generateValue();
+                    return new SyntheticSourceExample(value, value, this::mapping);
+                }
+
+                var array = randomList(1, 5, this::generateValue);
+                return new SyntheticSourceExample(array, array, this::mapping);
+            }
+
+            private Object generateValue() {
+                return rarely()
                     ? null
                     : randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));
-
-                return new SyntheticSourceExample(value, value, this::mapping);
             }
 
             private void mapping(XContentBuilder b) throws IOException {

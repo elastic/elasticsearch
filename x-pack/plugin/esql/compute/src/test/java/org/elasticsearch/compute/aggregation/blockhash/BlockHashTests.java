@@ -1305,7 +1305,9 @@ public class BlockHashTests extends ESTestCase {
             try (ReleasableIterator<IntBlock> lookup = blockHash.lookup(new Page(keys), ByteSizeValue.ofKb(between(1, 100)))) {
                 while (lookup.hasNext()) {
                     try (IntBlock ords = lookup.next()) {
-                        assertThat(ords.nullValuesCount(), equalTo(0));
+                        for (int p = 0; p < ords.getPositionCount(); p++) {
+                            assertFalse(ords.isNull(p));
+                        }
                     }
                 }
             } finally {

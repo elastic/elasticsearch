@@ -105,7 +105,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.settings = clusterService.getSettings();
-        persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+        this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
     }

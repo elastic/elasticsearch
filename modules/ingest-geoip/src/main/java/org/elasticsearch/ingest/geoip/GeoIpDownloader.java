@@ -111,11 +111,11 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Supplier<Boolean> atLeastOneGeoipProcessorSupplier
     ) {
         super(id, type, action, description, parentTask, headers);
-        this.httpClient = httpClient;
         this.client = client;
+        this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        endpoint = ENDPOINT_SETTING.get(settings);
+        this.endpoint = ENDPOINT_SETTING.get(settings);
         this.pollIntervalSupplier = pollIntervalSupplier;
         this.eagerDownloadSupplier = eagerDownloadSupplier;
         this.atLeastOneGeoipProcessorSupplier = atLeastOneGeoipProcessorSupplier;

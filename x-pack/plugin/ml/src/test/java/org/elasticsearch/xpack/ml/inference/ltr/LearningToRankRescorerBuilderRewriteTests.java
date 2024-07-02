@@ -240,7 +240,6 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
         assertNotNull(rescoreContext);
         assertThat(rescoreContext.getWindowSize(), equalTo(20));
         List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher());
-        assertThat(featureExtractors, hasSize(1));
 
         assertThat(featureExtractors, hasSize(2));
 

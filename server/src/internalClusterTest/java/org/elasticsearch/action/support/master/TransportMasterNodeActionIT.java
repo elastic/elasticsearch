@@ -73,7 +73,6 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
             .build();
     }
 
-    @TestLogging(reason = "wip", value = "org.elasticsearch.action.support.master.TransportMasterNodeAction:DEBUG")
     public void testRoutingLoopProtection() {
 
         final var cleanupTasks = new ArrayList<Runnable>();

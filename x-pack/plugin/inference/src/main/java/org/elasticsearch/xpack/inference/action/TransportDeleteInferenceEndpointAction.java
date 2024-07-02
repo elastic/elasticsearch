@@ -89,21 +89,17 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
                 listener.onFailure(InferenceExceptions.mismatchedTaskTypeException(request.getTaskType(), unparsedModel.taskType()));
                 return;
             }
-            logger.error("Stopping inference endpoint {}", request.getInferenceEndpointId());
             if (request.isDryRun()) {
-                logger.error("Stopping inference endpoint {} with dry run 1", request.getInferenceEndpointId());
 
                 Set<String> pipelines = InferenceProcessorInfoExtractor.pipelineIdsForResource(
                     state,
                     Set.of(request.getInferenceEndpointId())
                 );
-                logger.error("Stopping inference endpoint {} with dry run 2", request.getInferenceEndpointId());
 
                 Set<String> indexesReferencedBySemanticText = extractSemanticTextFields(
                     state.getMetadata(),
                     Set.of(request.getInferenceEndpointId())
                 );
-                logger.error("Stopping inference endpoint {} with dry run 3", request.getInferenceEndpointId());
 
                 masterListener.onResponse(new DeleteInferenceEndpointAction.Response(false, pipelines, indexesReferencedBySemanticText));
                 return;
@@ -111,8 +107,6 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
                 && endpointIsReferenceInPipelinesOrSemanticText(state, request.getInferenceEndpointId(), listener)) {
                     return;
                 }
-
-            logger.error("Stopping inference endpoint {} after check", request.getInferenceEndpointId());
 
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
@@ -151,7 +145,6 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         final String inferenceEndpointId,
         ActionListener<Boolean> listener
     ) {
-        logger.error("Stopping inference endpoint -- check");
         return endpointIsReferencedInPipelines(state, inferenceEndpointId, listener)
             || endpointIsReferenceInSemanticText(state, inferenceEndpointId, listener);
     }

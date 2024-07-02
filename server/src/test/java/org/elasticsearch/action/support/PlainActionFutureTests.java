@@ -150,7 +150,7 @@ public class PlainActionFutureTests extends ESTestCase {
         assertPropagatesInterrupt(() -> future.actionGet(10, TimeUnit.SECONDS));
     }
 
-    public void testAssertCompleteAllowedAllowsConcurrentCompletes() throws InterruptedException {
+    public void testAssertCompleteAllowedAllowsConcurrentCompletesFromSamePool() throws InterruptedException {
         assumeTrue("Assertions need to be enabled for assertCompleteAllowed to be invoked", Assertions.ENABLED);
         try (TestThreadPool threadPool = new TestThreadPool(getTestName())) {
             final AtomicReference<PlainActionFuture<?>> futureReference = new AtomicReference<>(new PlainActionFuture<>());

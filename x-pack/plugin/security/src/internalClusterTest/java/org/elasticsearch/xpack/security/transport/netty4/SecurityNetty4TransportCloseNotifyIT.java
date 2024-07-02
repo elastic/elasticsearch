@@ -25,18 +25,15 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import io.netty.handler.ssl.util.SelfSignedCertificate;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.CancellableActionTestPlugin;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
 import java.util.Collection;
@@ -45,12 +42,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.rest.ESRestTestCase.basicAuthHeaderValue;
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
-@ESTestCase.WithoutSecurityManager
-@SuppressForbidden(reason = "requires java.io.File for netty self-signed certificate")
 public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase {
 
     @Override
@@ -60,17 +56,9 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        try {
-            var ssc = new SelfSignedCertificate();
-            return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put("xpack.security.http.ssl.enabled", true)
-                .put("xpack.security.http.ssl.key", ssc.privateKey().getPath())
-                .put("xpack.security.http.ssl.certificate", ssc.certificate().getPath())
-                .build();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", randomBoolean());
+        return builder.put("xpack.security.http.ssl.enabled", true).build();
     }
 
     @Override

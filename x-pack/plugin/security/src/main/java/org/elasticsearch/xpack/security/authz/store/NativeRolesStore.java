@@ -371,7 +371,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         final WriteRequest.RefreshPolicy refreshPolicy,
         final List<RoleDescriptor> roles,
         final ActionListener<BulkPutRolesResponse> listener
-    ) throws IOException {
+    ) {
         if (enabled == false) {
             listener.onFailure(new IllegalStateException("Native role management is disabled"));
             return;
@@ -390,14 +390,19 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             if (validationException != null) {
                 validationErrorByRoleName.put(role.getName(), validationException);
             } else {
-                bulkRequest.add(createRoleUpsertRequest(role));
+                try {
+                    bulkRequest.add(createRoleUpsertRequest(role));
+                } catch (IOException ioException) {
+                    listener.onFailure(ioException);
+                }
             }
         }
 
+        List<String> roleNames = roles.stream().map(RoleDescriptor::getName).toList();
+
         if (bulkRequest.numberOfActions() == 0) {
             BulkPutRolesResponse.Builder bulkPutRolesResponseBuilder = new BulkPutRolesResponse.Builder();
-            roles.stream()
-                .map(RoleDescriptor::getName)
+            roleNames.stream()
                 .map(roleName -> BulkPutRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName)))
                 .forEach(bulkPutRolesResponseBuilder::addItem);
 
@@ -413,12 +418,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse bulkResponse) {
-                        List<String> rolesToRefreshInCache = new ArrayList<>(roles.size());
+                        List<String> rolesToRefreshInCache = new ArrayList<>(roleNames.size());
 
                         Iterator<BulkItemResponse> bulkItemResponses = bulkResponse.iterator();
                         BulkPutRolesResponse.Builder bulkPutRolesResponseBuilder = new BulkPutRolesResponse.Builder();
 
-                        roles.stream().map(RoleDescriptor::getName).map(roleName -> {
+                        roleNames.stream().map(roleName -> {
                             if (validationErrorByRoleName.containsKey(roleName)) {
                                 return BulkPutRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName));
                             }

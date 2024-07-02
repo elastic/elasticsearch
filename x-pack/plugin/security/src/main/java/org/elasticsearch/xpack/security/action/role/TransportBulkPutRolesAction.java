@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesResponse;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
-import java.io.IOException;
-
 public class TransportBulkPutRolesAction extends TransportAction<BulkPutRolesRequest, BulkPutRolesResponse> {
 
     private final NativeRolesStore rolesStore;
@@ -31,10 +29,6 @@ public class TransportBulkPutRolesAction extends TransportAction<BulkPutRolesReq
 
     @Override
     protected void doExecute(Task task, final BulkPutRolesRequest request, final ActionListener<BulkPutRolesResponse> listener) {
-        try {
-            rolesStore.putRoles(request.getRefreshPolicy(), request.getRoles(), listener);
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
+        rolesStore.putRoles(request.getRefreshPolicy(), request.getRoles(), listener);
     }
 }

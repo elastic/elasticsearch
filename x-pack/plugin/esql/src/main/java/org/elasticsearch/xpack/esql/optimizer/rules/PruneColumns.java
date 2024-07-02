@@ -69,10 +69,22 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                             } else {
                                 // Aggs cannot produce pages with 0 columns, so retain one grouping.
                                 remaining = List.of(Expressions.attribute(aggregate.groupings().get(0)));
-                                p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
+                                p = new Aggregate(
+                                    aggregate.source(),
+                                    aggregate.child(),
+                                    aggregate.aggregateType(),
+                                    aggregate.groupings(),
+                                    remaining
+                                );
                             }
                         } else {
-                            p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
+                            p = new Aggregate(
+                                aggregate.source(),
+                                aggregate.child(),
+                                aggregate.aggregateType(),
+                                aggregate.groupings(),
+                                remaining
+                            );
                         }
                     }
 

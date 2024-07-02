@@ -58,7 +58,10 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
     }
 
     public void testModeSnapshotRestore() throws Exception {
-        clusterAdmin().preparePutRepository("repo").setType("fs").setSettings(Settings.builder().put("location", "repo").build()).get();
+        clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repo")
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", "repo").build())
+            .get();
 
         client().execute(
             PutSnapshotLifecycleAction.INSTANCE,
@@ -104,7 +107,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
             try {
                 GetSnapshotsResponse getResp = client().execute(
                     TransportGetSnapshotsAction.TYPE,
-                    new GetSnapshotsRequest(new String[] { "repo" }, new String[] { snapshotName })
+                    new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, new String[] { "repo" }, new String[] { snapshotName })
                 ).get();
                 assertThat(getResp.getSnapshots().size(), equalTo(1));
                 assertThat(getResp.getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
@@ -121,7 +124,9 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
         // Restore snapshot
         client().execute(
             TransportRestoreSnapshotAction.TYPE,
-            new RestoreSnapshotRequest("repo", snapshotName).includeGlobalState(true).indices(Strings.EMPTY_ARRAY).waitForCompletion(true)
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", snapshotName).includeGlobalState(true)
+                .indices(Strings.EMPTY_ARRAY)
+                .waitForCompletion(true)
         ).get();
 
         assertBusy(() -> assertThat(ilmMode(), equalTo(OperationMode.STOPPED)));

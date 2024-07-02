@@ -16,6 +16,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.is;
+
 public class ReservedClusterStateHandlerTests extends ESTestCase {
     public void testValidation() {
         ReservedClusterStateHandler<ValidRequest> handler = new ReservedClusterStateHandler<>() {
@@ -36,9 +38,9 @@ public class ReservedClusterStateHandlerTests extends ESTestCase {
         };
 
         handler.validate(new ValidRequest());
-        assertEquals(
-            "Validation error",
-            expectThrows(IllegalStateException.class, () -> handler.validate(new InvalidRequest())).getMessage()
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> handler.validate(new InvalidRequest())).getMessage(),
+            is("Validation error")
         );
     }
 

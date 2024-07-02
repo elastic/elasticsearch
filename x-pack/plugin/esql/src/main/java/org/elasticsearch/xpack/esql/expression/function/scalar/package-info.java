@@ -110,7 +110,9 @@
  *         Register your function for serialization. We're in the process of migrating this serialization
  *         from an older way to the more common, {@link org.elasticsearch.common.io.stream.NamedWriteable}.
  *         <p>
- *             All subclasses of {@link org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction}
+ *             All subclasses of {@link org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction},
+ *             {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison},
+ *             and {@link org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation}
  *             are migrated and should include a "getWriteableName", "writeTo", and a deserializing constructor.
  *             They should also include a {@link org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry}
  *             and it should be linked in {@link org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction}.

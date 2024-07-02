@@ -40,7 +40,7 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     LogicalPlan statement(String e) {
-        return statement(e, QueryParams.EMPTY);
+        return statement(e, new QueryParams());
     }
 
     LogicalPlan statement(String e, QueryParams params) {

@@ -422,7 +422,7 @@ public class IndexNameExpressionResolver {
                 }
             }
         }
-        if (shouldIncludeFailureIndices(context.getOptions(), dataStream)) {
+        if (shouldIncludeFailureIndices(context.getOptions())) {
             // We short-circuit here, if failure indices are not allowed and they can be skipped
             if (context.getOptions().allowFailureIndices() || context.getOptions().ignoreUnavailable() == false) {
                 for (Index index : dataStream.getFailureIndices().getIndices()) {
@@ -441,7 +441,7 @@ public class IndexNameExpressionResolver {
                 concreteIndicesResult.add(writeIndex);
             }
         }
-        if (shouldIncludeFailureIndices(context.getOptions(), dataStream)) {
+        if (shouldIncludeFailureIndices(context.getOptions())) {
             Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
             if (failureStoreWriteIndex != null && addIndex(failureStoreWriteIndex, null, context)) {
                 if (context.options.allowFailureIndices() == false) {
@@ -456,10 +456,9 @@ public class IndexNameExpressionResolver {
         return DataStream.isFailureStoreFeatureFlagEnabled() == false || indicesOptions.includeRegularIndices();
     }
 
-    private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, DataStream dataStream) {
-        return DataStream.isFailureStoreFeatureFlagEnabled()
-            && indicesOptions.includeFailureIndices()
-            && dataStream.isFailureStoreEnabled();
+    private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions) {
+        // We return failure indices regardless of whether the data stream actually has the `failureStoreEnabled` flag set to true.
+        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.includeFailureIndices();
     }
 
     private static boolean resolvesToMoreThanOneIndex(IndexAbstraction indexAbstraction, Context context) {
@@ -469,7 +468,7 @@ public class IndexNameExpressionResolver {
             if (shouldIncludeRegularIndices(context.getOptions())) {
                 count += dataStream.getIndices().size();
             }
-            if (shouldIncludeFailureIndices(context.getOptions(), dataStream)) {
+            if (shouldIncludeFailureIndices(context.getOptions())) {
                 count += dataStream.getFailureIndices().getIndices().size();
             }
             return count > 1;
@@ -1426,8 +1425,7 @@ public class IndexNameExpressionResolver {
                     if (shouldIncludeRegularIndices(context.getOptions())) {
                         indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata()::index);
                     }
-                    if (indexAbstraction.getType() == Type.DATA_STREAM
-                        && shouldIncludeFailureIndices(context.getOptions(), (DataStream) indexAbstraction)) {
+                    if (indexAbstraction.getType() == Type.DATA_STREAM && shouldIncludeFailureIndices(context.getOptions())) {
                         DataStream dataStream = (DataStream) indexAbstraction;
                         indicesStateStream = Stream.concat(
                             indicesStateStream,

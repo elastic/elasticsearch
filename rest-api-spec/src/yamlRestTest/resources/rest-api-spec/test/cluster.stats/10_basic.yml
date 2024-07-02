@@ -258,14 +258,12 @@
 ---
 "Dense vector stats":
   - requires:
-      cluster_features: [ "gte_v8.10.0" ]
-      reason: "dense vector stats added in 8.10"
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: "dense vector stats reports from primary indices in 8.15"
   - do:
       indices.create:
         index: test1
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               vector:
@@ -283,8 +281,6 @@
       indices.create:
         index: test2
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               vector:

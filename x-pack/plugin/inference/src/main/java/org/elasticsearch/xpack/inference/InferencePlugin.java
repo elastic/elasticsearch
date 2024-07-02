@@ -294,25 +294,16 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        if (SemanticTextFeature.isEnabled()) {
-            return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
-        }
-        return Map.of();
+        return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
     }
 
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
-        if (SemanticTextFeature.isEnabled()) {
-            return singletonList(shardBulkInferenceActionFilter.get());
-        }
-        return List.of();
+        return singletonList(shardBulkInferenceActionFilter.get());
     }
 
     public List<QuerySpec<?>> getQueries() {
-        if (SemanticTextFeature.isEnabled()) {
-            return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
-        }
-        return List.of();
+        return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
     }
 
     @Override

@@ -29,6 +29,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
@@ -139,6 +141,44 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             containsString(
                 Strings.format("Validation Failed: 1: [service_settings] does not allow the setting [%s];", DIMENSIONS_SET_BY_USER)
             )
+        );
+    }
+
+    public void testFromMap_Request_DimensionsShouldBePositiveInteger() {
+        var region = "region";
+        var model = "model-id";
+        var provider = "amazontitan";
+        var dims = -128;
+
+        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, dims, null, null, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        MatcherAssert.assertThat(
+            thrownException.getMessage(),
+            containsString(Strings.format("[%s] must be a positive integer", DIMENSIONS))
+        );
+    }
+
+    public void testFromMap_Request_MaxTokensShouldBePositiveInteger() {
+        var region = "region";
+        var model = "model-id";
+        var provider = "amazontitan";
+        var maxInputTokens = -128;
+
+        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, null, maxInputTokens, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        MatcherAssert.assertThat(
+            thrownException.getMessage(),
+            containsString(Strings.format("[%s] must be a positive integer", MAX_INPUT_TOKENS))
         );
     }
 

@@ -116,7 +116,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
                     handler.messageReceived(request, channel, task);
                 });
 
-            final var stateApplierBarrier = blockClusterStateApplier(newMaster, cleanupTasks);
+            final var newMasterStateApplierBlock = blockClusterStateApplier(newMaster, cleanupTasks);
 
             // trigger a cluster state update, which fails, causing a master failover
             internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
@@ -143,7 +143,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
             safeGet(newMasterReceivedReroutedMessageFuture);
 
             // Unblock state application on new master, allow it to know of its election win
-            safeAwait(stateApplierBarrier);
+            safeAwait(newMasterStateApplierBlock);
 
             safeGet(testActionFuture);
         } finally {

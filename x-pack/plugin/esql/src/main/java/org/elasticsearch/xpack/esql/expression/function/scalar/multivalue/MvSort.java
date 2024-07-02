@@ -29,6 +29,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.common.Failure;
 import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -141,17 +142,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
             return resolution;
         }
 
-        resolution = isString(order, sourceText(), SECOND);
-
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        if (isValidOrder() == false) {
-            return new TypeResolution(format(null, invalidOrderError, sourceText(), ASC.value(), DESC.value(), order.fold()));
-        }
-
-        return TypeResolution.TYPE_RESOLVED;
+        return isString(order, sourceText(), SECOND);
     }
 
     @Override
@@ -164,6 +155,14 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
         boolean ordering = true;
+        if (isValidOrder() == false) {
+            throw new InvalidArgumentException(
+                invalidOrderError,
+                sourceText(),
+                ASC.value(),
+                DESC.value(),
+                ((BytesRef) order.fold()).utf8ToString());
+        }
         if (order != null && order.foldable()) {
             ordering = ((BytesRef) order.fold()).utf8ToString().equalsIgnoreCase((String) ASC.value());
         }
@@ -258,9 +257,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
             } else if (obj instanceof String os) {
                 o = os;
             }
-            if (o == null) {
-                isValidOrder = false;
-            } else if (o.equalsIgnoreCase((String) ASC.value()) == false && o.equalsIgnoreCase((String) DESC.value()) == false) {
+            if (o == null || o.equalsIgnoreCase((String) ASC.value()) == false && o.equalsIgnoreCase((String) DESC.value()) == false) {
                 isValidOrder = false;
             }
         }

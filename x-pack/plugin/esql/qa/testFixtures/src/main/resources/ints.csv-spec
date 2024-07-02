@@ -453,6 +453,23 @@ emp_no:integer | salary_change.int:integer | sa:integer    | sd:integer
 10009          | null                      | null          | null
 ;
 
+mvSortEmpIntOrderExp
+required_capability: mv_sort
+
+FROM employees
+| eval x = concat("d", "sc") | eval sa = mv_sort(salary_change.int, x) 
+| sort emp_no
+| keep emp_no, salary_change.int, sa
+| limit 3
+;
+warning:line 2:12: Invalid order value in [mv_sort(salary_change.int, x)], expected one of [ASC, DESC] but got [dsc]
+
+emp_no:integer | salary_change.int:integer | sa:integer
+10001          | 1                         | 1
+10002          | [-7, 11]                  | [-7, 11]
+10003          | [12, 14]                  | [12, 14]
+;
+
 mvSortEmpLong
 required_capability: mv_sort
 

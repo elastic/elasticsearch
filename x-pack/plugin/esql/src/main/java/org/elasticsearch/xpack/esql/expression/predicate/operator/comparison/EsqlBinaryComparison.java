@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -51,24 +50,44 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
 
     public enum BinaryComparisonOperation implements Writeable {
 
-        EQ(0, "==", BinaryComparisonProcessor.BinaryComparisonOperation.EQ, Equals::new),
+        EQ(0, "==", org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.EQ, Equals::new),
         // id 1 reserved for NullEquals
-        NEQ(2, "!=", BinaryComparisonProcessor.BinaryComparisonOperation.NEQ, NotEquals::new),
-        GT(3, ">", BinaryComparisonProcessor.BinaryComparisonOperation.GT, GreaterThan::new),
-        GTE(4, ">=", BinaryComparisonProcessor.BinaryComparisonOperation.GTE, GreaterThanOrEqual::new),
-        LT(5, "<", BinaryComparisonProcessor.BinaryComparisonOperation.LT, LessThan::new),
-        LTE(6, "<=", BinaryComparisonProcessor.BinaryComparisonOperation.LTE, LessThanOrEqual::new);
+        NEQ(
+            2,
+            "!=",
+            org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.NEQ,
+            NotEquals::new
+        ),
+        GT(
+            3,
+            ">",
+            org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.GT,
+            GreaterThan::new
+        ),
+        GTE(
+            4,
+            ">=",
+            org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.GTE,
+            GreaterThanOrEqual::new
+        ),
+        LT(5, "<", org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.LT, LessThan::new),
+        LTE(
+            6,
+            "<=",
+            org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.LTE,
+            LessThanOrEqual::new
+        );
 
         private final int id;
         private final String symbol;
         // Temporary mapping to the old enum, to satisfy the superclass constructor signature.
-        private final BinaryComparisonProcessor.BinaryComparisonOperation shim;
+        private final org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation shim;
         private final BinaryOperatorConstructor constructor;
 
         BinaryComparisonOperation(
             int id,
             String symbol,
-            BinaryComparisonProcessor.BinaryComparisonOperation shim,
+            org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation shim,
             BinaryOperatorConstructor constructor
         ) {
             this.id = id;

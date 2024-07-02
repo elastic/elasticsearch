@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
@@ -135,6 +136,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC;
@@ -4231,10 +4233,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupSimple() {
-        PhysicalPlan plan = physicalPlan("""
-              FROM test |
-            RENAME languages AS int |
-            LOOKUP int_number_names ON int""");
+        String query = """
+            FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int""";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        PhysicalPlan plan = physicalPlan(query);
         var join = as(plan, HashJoinExec.class);
         assertMap(join.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertMap(
@@ -4270,14 +4278,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLookupThenProject() {
-        PhysicalPlan plan = optimizedPlan(physicalPlan("""
+        String query = """
             FROM employees
             | SORT emp_no
             | LIMIT 4
             | RENAME languages AS int
             | LOOKUP int_number_names ON int
             | RENAME int AS languages, name AS lang_name
-            | KEEP emp_no, languages, lang_name"""));
+            | KEEP emp_no, languages, lang_name""";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 5:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        PhysicalPlan plan = optimizedPlan(physicalPlan(query));
 
         var outerProject = as(plan, ProjectExec.class);
         assertThat(outerProject.projections().toString(), containsString("AS lang_name"));
@@ -4322,14 +4336,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }</pre>
      */
     public void testLookupThenTopN() {
-        var plan = physicalPlan("""
-                  FROM employees
-                | RENAME languages AS int
-                | LOOKUP int_number_names ON int
-                | RENAME name AS languages
-                | KEEP languages, emp_no
-                | SORT languages ASC, emp_no ASC
-            """);
+        String query = """
+            FROM employees
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            | RENAME name AS languages
+            | KEEP languages, emp_no
+            | SORT languages ASC, emp_no ASC""";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        var plan = physicalPlan(query);
 
         ProjectExec outerProject = as(plan, ProjectExec.class);
         TopNExec outerTopN = as(outerProject.child(), TopNExec.class);

@@ -8,15 +8,11 @@
 package org.elasticsearch.xpack.inference.services.settings;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -43,38 +39,6 @@ public abstract class InternalServiceSettings implements ServiceSettings {
         this.numThreads = numThreads;
         this.modelId = modelId;
         this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
-    }
-
-    protected static void validateParameters(
-        Integer numAllocations,
-        ValidationException validationException,
-        Integer numThreads,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings
-    ) {
-        if (numAllocations == null) {
-            validationException.addValidationError(
-                ServiceUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS)
-            );
-        } else if (numAllocations < 1) {
-            validationException.addValidationError(
-                ServiceUtils.mustBeAPositiveIntegerErrorMessage(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS, numAllocations)
-            );
-        }
-
-        if (numThreads == null) {
-            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS));
-        } else if (numThreads < 1) {
-            validationException.addValidationError(
-                ServiceUtils.mustBeAPositiveIntegerErrorMessage(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, numThreads)
-            );
-        }
-
-        if (adaptiveAllocationsSettings != null) {
-            ActionRequestValidationException exception = adaptiveAllocationsSettings.validate();
-            if (exception != null) {
-                validationException.addValidationErrors(exception.validationErrors());
-            }
-        }
     }
 
     public int getNumAllocations() {

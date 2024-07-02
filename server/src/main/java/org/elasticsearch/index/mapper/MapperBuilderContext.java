@@ -134,4 +134,8 @@ public class MapperBuilderContext {
     public MergeReason getMergeReason() {
         return mergeReason;
     }
+
+    public boolean isNested() {
+        return false;
+    }
 }

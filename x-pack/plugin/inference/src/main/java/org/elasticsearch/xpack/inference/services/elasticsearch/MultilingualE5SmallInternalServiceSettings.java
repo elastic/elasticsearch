@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -21,6 +23,8 @@ import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettin
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 
 public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
@@ -70,15 +74,23 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     }
 
     private static RequestFields extractRequestFields(Map<String, Object> map, ValidationException validationException) {
-        Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
-        Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
+        Integer numAllocations = extractRequiredPositiveInteger(
+            map,
+            NUM_ALLOCATIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
             map,
             ADAPTIVE_ALLOCATIONS
         );
-
-        validateParameters(numAllocations, validationException, numThreads, adaptiveAllocationsSettings);
-
+        if (adaptiveAllocationsSettings != null) {
+            ActionRequestValidationException exception = adaptiveAllocationsSettings.validate();
+            if (exception != null) {
+                validationException.addValidationErrors(exception.validationErrors());
+            }
+        }
         String modelId = ServiceUtils.removeAsType(map, MODEL_ID, String.class);
         if (modelId != null) {
             if (ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId) == false) {

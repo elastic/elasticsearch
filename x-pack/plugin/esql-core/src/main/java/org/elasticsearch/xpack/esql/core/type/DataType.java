@@ -68,7 +68,8 @@ public enum DataType {
     GEO_SHAPE(builder().esType("geo_shape").unknownSize().docValues()),
 
     DOC_DATA_TYPE(builder().esType("_doc").size(Integer.BYTES * 3)),
-    TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues());
+    TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues()),
+    PARTIAL_AGG(builder().esType("partial_agg").unknownSize());
 
     private final String typeName;
 

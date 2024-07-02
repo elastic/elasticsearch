@@ -15,15 +15,24 @@ import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery implements ProfilingQuery {
+    private final Integer kParam;
     private long vectorOpsCount;
 
-    public ESDiversifyingChildrenByteKnnVectorQuery(String field, byte[] query, Query childFilter, int k, BitSetProducer parentsFilter) {
-        super(field, query, childFilter, k, parentsFilter);
+    public ESDiversifyingChildrenByteKnnVectorQuery(
+        String field,
+        byte[] query,
+        Query childFilter,
+        Integer k,
+        int numCands,
+        BitSetProducer parentsFilter
+    ) {
+        super(field, query, childFilter, numCands, parentsFilter);
+        this.kParam = k;
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
-        TopDocs topK = super.mergeLeafResults(perLeafResults);
+        TopDocs topK = kParam == null ? super.mergeLeafResults(perLeafResults) : TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value;
         return topK;
     }

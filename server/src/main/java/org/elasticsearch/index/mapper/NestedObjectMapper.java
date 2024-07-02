@@ -182,6 +182,11 @@ public class NestedObjectMapper extends ObjectMapper {
                 getMergeReason()
             );
         }
+
+        @Override
+        public boolean isNested() {
+            return true;
+        }
     }
 
     private final Explicit<Boolean> includeInRoot;

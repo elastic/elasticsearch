@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -29,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
@@ -52,9 +51,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
@@ -278,19 +274,20 @@ public class Mapper {
     }
 
     private PhysicalPlan tryHashJoin(Join join, PhysicalPlan lhs, PhysicalPlan rhs) {
-        if (join.config().type() != JoinType.LEFT) {
+        JoinConfig config = join.config();
+        if (config.type() != JoinType.LEFT) {
             return null;
         }
-        List<Equals> conditions = new ArrayList<>(join.config().conditions().size());
-        for (Expression cond : join.config().conditions()) {
-            if (cond instanceof Equals eq) {
-                conditions.add(eq);
-            } else {
-                return null;
-            }
-        }
         if (rhs instanceof LocalSourceExec local) {
-            return new HashJoinExec(join.source(), lhs, local, join.config().matchFields(), conditions, join.output());
+            return new HashJoinExec(
+                join.source(),
+                lhs,
+                local,
+                config.matchFields(),
+                config.leftFields(),
+                config.rightFields(),
+                join.output()
+            );
         }
         return null;
     }

@@ -38,7 +38,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Rate extends AggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::new);
-
     private static final TimeValue DEFAULT_UNIT = TimeValue.timeValueSeconds(1);
 
     private final Expression timestamp;
@@ -49,7 +48,6 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         description = "compute the rate of a counter field. Available in METRICS command only",
         isAggregation = true
     )
-
     public Rate(
         Source source,
         @Param(name = "field", type = { "counter_long|counter_integer|counter_double" }, description = "counter field") Expression field,
@@ -150,6 +148,11 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
             return duration.toMillis();
         }
         throw new IllegalArgumentException("function [" + sourceText() + "] has invalid unit [" + unit.sourceText() + "]");
+    }
+
+    @Override
+    public List<Expression> inputExpressions() {
+        return List.of(field(), timestamp);
     }
 
     @Override

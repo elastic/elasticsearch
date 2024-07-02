@@ -38,6 +38,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -85,6 +86,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     private static final Logger logger = LogManager.getLogger(KeywordFieldMapper.class);
 
     public static final String CONTENT_TYPE = "keyword";
+
+    static final NodeFeature KEYWORD_DIMENSION_IGNORE_ABOVE = new NodeFeature("mapper.keyword_dimension_ignore_above");
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -210,7 +213,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             + "] are true"
                     );
                 }
-            }).precludesParameters(normalizer, ignoreAbove);
+            }).precludesParameters(normalizer);
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {
@@ -1022,7 +1025,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
+        if (fieldType.stored() || hasDocValues) {
+            return SyntheticSourceMode.NATIVE;
+        }
+
+        return SyntheticSourceMode.FALLBACK;
     }
 
     @Override
@@ -1044,6 +1051,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
             );
         }
+
         if (fieldType.stored()) {
             return new StringStoredFieldFieldLoader(
                 fullPath(),
@@ -1057,33 +1065,29 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             };
         }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + fullPath()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values and isn't stored"
-            );
+
+        if (hasDocValues) {
+            return new SortedSetDocValuesSyntheticFieldLoader(
+                fullPath(),
+                simpleName,
+                fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
+                false
+            ) {
+
+                @Override
+                protected BytesRef convert(BytesRef value) {
+                    return value;
+                }
+
+                @Override
+                protected BytesRef preserve(BytesRef value) {
+                    // Preserve must make a deep copy because convert gets a shallow copy from the iterator
+                    return BytesRef.deepCopyOf(value);
+                }
+            };
         }
-        return new SortedSetDocValuesSyntheticFieldLoader(
-            fullPath(),
-            simpleName,
-            fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
-            false
-        ) {
 
-            @Override
-            protected BytesRef convert(BytesRef value) {
-                return value;
-            }
-
-            @Override
-            protected BytesRef preserve(BytesRef value) {
-                // Preserve must make a deep copy because convert gets a shallow copy from the iterator
-                return BytesRef.deepCopyOf(value);
-            }
-        };
+        return super.syntheticFieldLoader();
     }
 
 }

@@ -594,7 +594,7 @@ end::knn-filter[]
 
 tag::knn-k[]
 Number of nearest neighbors to return as top hits. This value must be less than
-`num_candidates`. Defaults to `size`.
+or equal to `num_candidates`. Defaults to `size`.
 end::knn-k[]
 
 tag::knn-num-candidates[]

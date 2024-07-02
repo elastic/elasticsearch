@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -546,6 +547,52 @@ public class VerifierTests extends ESTestCase {
             error("FROM tests | STATS " + agg_func + "(x) by x = foobar"),
             matchesRegex("1:\\d+: Unknown column \\[foobar]\n" + "line 1:\\d+: Unknown column \\[x]")
         );
+    }
+
+    public void testNotAllowRateOutsideMetrics() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assertThat(
+            error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
+            equalTo("1:24: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("METRICS tests | STATS sum(rate(network.bytes_in))", tsdb),
+            equalTo("1:27: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("FROM tests | STATS rate(network.bytes_in)", tsdb),
+            equalTo("1:20: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("FROM tests | EVAL r = rate(network.bytes_in)", tsdb),
+            equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside METRICS command")
+        );
+    }
+
+    public void testRateNotEnclosedInAggregate() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assertThat(
+            error("METRICS tests rate(network.bytes_in)", tsdb),
+            equalTo(
+                "1:15: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+            )
+        );
+        assertThat(
+            error("METRICS tests avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
+            equalTo(
+                "1:44: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+            )
+        );
+        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+             [max(avg(rate(network.bytes_in)))]
+            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+             and inside another aggregate"""));
+        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+             [max(avg(rate(network.bytes_in)))]
+            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+             and inside another aggregate"""));
     }
 
     private String error(String query) {

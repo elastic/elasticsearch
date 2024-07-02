@@ -390,7 +390,7 @@ public class FunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for a one-argument function that is configuration aware.
      */
     @SuppressWarnings("overloads")
-    protected static <T extends Function> FunctionDefinition def(
+    public static <T extends Function> FunctionDefinition def(
         Class<T> function,
         UnaryConfigurationAwareBuilder<T> ctorRef,
         String... names
@@ -405,7 +405,7 @@ public class FunctionRegistry {
         return def(function, builder, names);
     }
 
-    protected interface UnaryConfigurationAwareBuilder<T> {
+    public interface UnaryConfigurationAwareBuilder<T> {
         T build(Source source, Expression exp, Configuration configuration);
     }
 

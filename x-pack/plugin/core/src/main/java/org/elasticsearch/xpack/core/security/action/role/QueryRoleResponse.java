@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -83,6 +84,7 @@ public final class QueryRoleResponse extends ActionResponse implements ToXConten
             // so the "toXContent" method doesn't include it.
             // But, for the query role API, we'd like to return the role name together with the
             // other details of the role descriptor (in the same object).
+            assert Strings.isNullOrEmpty(roleDescriptor.getName()) == false;
             builder.field("name", roleDescriptor.getName());
             roleDescriptor.innerToXContent(builder, params, false, false);
             if (sortValues != null && sortValues.length > 0) {

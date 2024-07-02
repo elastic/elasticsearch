@@ -43,32 +43,32 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
                     {
                       "query_extractor": {
                         "feature_name": "type_tv",
-                        "query": {"term": {"product":  "TV"}}
+                        "query": {"constant_score": {"filter": {"term": { "product": "TV" }}, "boost": 1.0}}
                       }
                     },
                     {
                       "query_extractor": {
                         "feature_name": "type_vcr",
-                        "query": {"term": {"product":  "VCR"}}
+                        "query": {"constant_score": {"filter": {"term": { "product": "VCR" }}, "boost": 1.0}}
                       }
                     },
                     {
                       "query_extractor": {
                         "feature_name": "type_laptop",
-                        "query": {"term": {"product":  "Laptop"}}
+                        "query": {"constant_score": {"filter": {"term": { "product": "Laptop" }}, "boost": 1.0}}
                       }
                     },
                     {
-                      "query_extractor": {
-                        "feature_name": "two",
-                        "query": {"script_score": {"query": {"match_all":{}}, "script": {"source": "return 2.0;"}}}
-                      }
+                        "query_extractor": {
+                            "feature_name": "two",
+                            "query": { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 2.0;" } } }
+                        }
                     },
                     {
-                      "query_extractor": {
-                        "feature_name": "product_bm25",
-                        "query": {"term": {"product": "{{keyword}}"}}
-                      }
+                        "query_extractor": {
+                            "feature_name": "product_bm25",
+                            "query": { "term": { "product": "{{keyword}}" } }
+                        }
                     }
                   ]
                 }
@@ -79,116 +79,118 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
                     "feature_names": ["cost", "type_tv", "type_vcr", "type_laptop", "two", "product_bm25"],
                     "target_type": "regression",
                     "trained_models": [
-                      {
-                        "tree": {
-                          "feature_names": ["cost"],
-                          "tree_structure": [
-                            {
-                              "node_index": 0,
-                              "split_feature": 0,
-                              "split_gain": 12,
-                              "threshold": 400,
-                              "decision_type": "lte",
-                              "default_left": true,
-                              "left_child": 1,
-                              "right_child": 2
-                            },
-                            {
-                              "node_index": 1,
-                              "leaf_value": 5.0
-                            },
-                            {
-                              "node_index": 2,
-                              "leaf_value": 2.0
-                            }
-                          ],
-                          "target_type": "regression"
+                    {
+                      "tree": {
+                        "feature_names": [
+                          "cost"
+                        ],
+                        "tree_structure": [
+                        {
+                          "node_index": 0,
+                          "split_feature": 0,
+                          "split_gain": 12,
+                          "threshold": 400,
+                          "decision_type": "lte",
+                          "default_left": true,
+                          "left_child": 1,
+                          "right_child": 2
+                        },
+                        {
+                          "node_index": 1,
+                          "leaf_value": 5.0
+                        },
+                        {
+                          "node_index": 2,
+                          "leaf_value": 2.0
                         }
-                      },
-                      {
-                        "tree": {
-                          "feature_names": [
-                            "type_tv"
-                          ],
-                          "tree_structure": [
-                            {
-                              "node_index": 0,
-                              "split_feature": 0,
-                              "split_gain": 12,
-                              "threshold": 1,
-                              "decision_type": "lt",
-                              "default_left": true,
-                              "left_child": 1,
-                              "right_child": 2
-                            },
-                            {
-                              "node_index": 1,
-                              "leaf_value": 1.0
-                            },
-                            {
-                              "node_index": 2,
-                              "leaf_value": 12.0
-                            }
-                          ],
-                          "target_type": "regression"
-                        }
-                      },
-                      {
-                        "tree": {
-                          "feature_names": [
-                            "two"
-                          ],
-                          "tree_structure": [
-                            {
-                              "node_index": 0,
-                              "split_feature": 0,
-                              "split_gain": 12,
-                              "threshold": 1,
-                              "decision_type": "lt",
-                              "default_left": true,
-                              "left_child": 1,
-                              "right_child": 2
-                            },
-                            {
-                              "node_index": 1,
-                              "leaf_value": 1.0
-                            },
-                            {
-                              "node_index": 2,
-                              "leaf_value": 2.0
-                            }
-                          ],
-                          "target_type": "regression"
-                        }
-                      },
-                      {
-                        "tree": {
-                          "feature_names": [
-                            "product_bm25"
-                          ],
-                          "tree_structure": [
-                            {
-                              "node_index": 0,
-                              "split_feature": 0,
-                              "split_gain": 12,
-                              "threshold": 1,
-                              "decision_type": "lt",
-                              "default_left": true,
-                              "left_child": 1,
-                              "right_child": 2
-                            },
-                            {
-                              "node_index": 1,
-                              "leaf_value": 1.0
-                            },
-                            {
-                              "node_index": 2,
-                              "leaf_value": 4.0
-                            }
-                          ],
-                          "target_type": "regression"
-                        }
+                        ],
+                        "target_type": "regression"
                       }
+                    },
+                    {
+                      "tree": {
+                        "feature_names": [
+                          "type_tv"
+                        ],
+                        "tree_structure": [
+                        {
+                          "node_index": 0,
+                          "split_feature": 0,
+                          "split_gain": 12,
+                          "threshold": 1,
+                          "decision_type": "lt",
+                          "default_left": true,
+                          "left_child": 1,
+                          "right_child": 2
+                        },
+                        {
+                          "node_index": 1,
+                          "leaf_value": 1.0
+                        },
+                        {
+                          "node_index": 2,
+                          "leaf_value": 12.0
+                        }
+                        ],
+                        "target_type": "regression"
+                      }
+                    },
+                     {
+                      "tree": {
+                        "feature_names": [
+                          "two"
+                        ],
+                        "tree_structure": [
+                        {
+                          "node_index": 0,
+                          "split_feature": 0,
+                          "split_gain": 12,
+                          "threshold": 1,
+                          "decision_type": "lt",
+                          "default_left": true,
+                          "left_child": 1,
+                          "right_child": 2
+                        },
+                        {
+                          "node_index": 1,
+                          "leaf_value": 1.0
+                        },
+                        {
+                          "node_index": 2,
+                          "leaf_value": 2.0
+                        }
+                        ],
+                        "target_type": "regression"
+                      }
+                    },
+                     {
+                      "tree": {
+                        "feature_names": [
+                          "product_bm25"
+                        ],
+                        "tree_structure": [
+                        {
+                          "node_index": 0,
+                          "split_feature": 0,
+                          "split_gain": 12,
+                          "threshold": 1,
+                          "decision_type": "lt",
+                          "default_left": true,
+                          "left_child": 1,
+                          "right_child": 2
+                        },
+                        {
+                          "node_index": 1,
+                          "leaf_value": 1.0
+                        },
+                        {
+                          "node_index": 2,
+                          "leaf_value": 4.0
+                        }
+                        ],
+                        "target_type": "regression"
+                      }
+                    }
                     ]
                   }
                 }

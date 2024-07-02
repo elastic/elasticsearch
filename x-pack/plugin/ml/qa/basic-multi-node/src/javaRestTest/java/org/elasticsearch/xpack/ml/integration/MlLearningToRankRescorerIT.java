@@ -43,19 +43,19 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
                     {
                       "query_extractor": {
                         "feature_name": "type_tv",
-                        "query": {"term": {"product":  "TV"}}
+                        "query": {"constant_score": {"filter": {"term": { "product": "TV" }}, "boost": 1.0}}
                       }
                     },
                     {
                       "query_extractor": {
                         "feature_name": "type_vcr",
-                        "query": {"term": {"product":  "VCR"}}
+                        "query": {"constant_score": {"filter": {"term": { "product": "VCR" }}, "boost": 1.0}}
                       }
                     },
                     {
                       "query_extractor": {
                         "feature_name": "type_laptop",
-                        "query": {"term": {"product":  "Laptop"}}
+                        "query": {"constant_score": {"filter": {"term": { "product": "Laptop" }}, "boost": 1.0}}
                       }
                     },
                     {

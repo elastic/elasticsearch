@@ -105,7 +105,8 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         assertThat(
             exception.getMessage(),
             equalTo(
-                String.format(Locale.ROOT,
+                String.format(
+                    Locale.ROOT,
                     "Requested range [position=%d, length=%d] cannot be satisfied for [%s]",
                     position,
                     length,

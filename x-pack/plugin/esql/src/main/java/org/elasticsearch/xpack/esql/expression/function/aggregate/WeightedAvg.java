@@ -101,7 +101,8 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             return resolution;
         }
 
-        if (weight.dataType() == DataType.NULL || (weight.foldable() && (weight.fold() == null || weight.fold().equals(0)))) {
+        if (weight.dataType() == DataType.NULL
+            || (weight.foldable() && (weight.fold() == null || weight.fold().equals(0) || weight.fold().equals(0.0)))) {
             return new TypeResolution(format(null, invalidWeightError, SECOND, sourceText(), weight.foldable() ? weight.fold() : null));
         }
 

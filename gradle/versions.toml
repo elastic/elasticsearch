@@ -1,4 +1,5 @@
 [versions]
+antlr4 = "4.13.1"
 asm = "9.7"
 bytebuddy = "1.14.12"
 httpcore = "4.4.13"
@@ -15,8 +16,13 @@ opentelemetry = "1.31.0"
 randomizedrunner = "2.8.0"
 
 [libraries]
+antlr4-runtime = { group = "org.antlr", name = "antlr4-runtime", version.ref = "antlr4" }
 asm = { group = "org.ow2.asm", name = "asm", version.ref = "asm" }
+asm-analysis = { group = "org.ow2.asm", name = "asm-analysis", version.ref = "asm" }
+asm-commons = { group = "org.ow2.asm", name = "asm-commons", version.ref = "asm" }
 asm-tree = { group = "org.ow2.asm", name = "asm-tree", version.ref = "asm" }
+asm-util = { group = "org.ow2.asm", name = "asm-util", version.ref = "asm" }
+
 bc-fips = "org.bouncycastle:bc-fips:1.0.2.4"
 bcpg-fips = "org.bouncycastle:bcpg-fips:1.0.7.1"
 byte-buddy = { group = "net.bytebuddy", name = "byte-buddy", version.ref = "bytebuddy" }
@@ -26,6 +32,8 @@ commons-logging = { group = "commons-logging", name = "commons-logging", version
 commons-math3 = "org.apache.commons:commons-math3:3.2"
 commons-io = "commons-io:commons-io:2.15.1"
 ecs-logging-core = { group = "co.elastic.logging", name = "ecs-logging-core", version.ref = "ecsLogging" }
+geoip2 = "com.maxmind.geoip2:geoip2:4.2.0"
+geolite2-datbase = "org.elasticsearch:geolite2-databases:20191119"
 hamcrest = "org.hamcrest:hamcrest:2.1"
 hppc = "com.carrotsearch:hppc:0.8.1"
 hdrhistogram = 'org.hdrhistogram:HdrHistogram:2.1.9'
@@ -57,6 +65,8 @@ log4j-core = { group = "org.apache.logging.log4j", name = "log4j-core", version.
 lucene-core = { group = "org.apache.lucene", name = "lucene-core", version.ref = "lucene" }
 lucene-analysis-common = { group = "org.apache.lucene", name = "lucene-analysis-common", version.ref = "lucene" }
 lucene-backward-codecs = { group = "org.apache.lucene", name = "lucene-backward-codecs", version.ref = "lucene" }
+lucene-codecs = { group = "org.apache.lucene", name = "lucene-codecs", version.ref = "lucene" }
+lucene-expressions = { group = "org.apache.lucene", name = "lucene-expressions", version.ref = "lucene" }
 lucene-highlighter = { group = "org.apache.lucene", name = "lucene-highlighter", version.ref = "lucene" }
 lucene-grouping = { group = "org.apache.lucene", name = "lucene-grouping", version.ref = "lucene" }
 lucene-join = { group = "org.apache.lucene", name = "lucene-join", version.ref = "lucene" }
@@ -68,6 +78,7 @@ lucene-sandbox = { group = "org.apache.lucene", name = "lucene-sandbox", version
 lucene-suggest = { group = "org.apache.lucene", name = "lucene-suggest", version.ref = "lucene" }
 lucene-spatial3d = { group = "org.apache.lucene", name = "lucene-spatial3d", version.ref = "lucene" }
 lz4-java = { group = "org.lz4", name = "lz4-java", version = "1.8.0" }
+maxmind-db = "com.maxmind.db:maxmind-db:3.1.0"
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 mockito-subclass = { group = "org.mockito", name = "mockito-subclass", version.ref = "mockito" }
 mocksocket = "org.elasticsearch:mocksocket:1.2"
@@ -75,6 +86,7 @@ objenesis = { group = "org.objenesis", name = "objenesis", version.ref = "objene
 randomizedtesting-runner = { group = "com.carrotsearch.randomizedtesting", name = "randomizedtesting-runner", version.ref = "randomizedrunner" }
 snakeyaml = "org.yaml:snakeyaml:2.0"
 
+mustache-compiler = "com.github.spullara.mustache.java:compiler:0.9.10"
 opentelemetry-api = { group = "io.opentelemetry", name = "opentelemetry-api", version.ref = "opentelemetry" }
 opentelemetry-context = { group = "io.opentelemetry", name = "opentelemetry-context", version.ref = "opentelemetry" }
 opentelemetry-semconv = { group = "io.opentelemetry", name = "opentelemetry-semconv", version = "1.21.0-alpha" }

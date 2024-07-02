@@ -27,17 +27,10 @@ import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public enum DataType {
+
     UNSUPPORTED(builder().typeName("UNSUPPORTED")),
     NULL(builder().esType("null")),
     BOOLEAN(builder().esType("boolean").size(1)),
-
-    /**
-     * These are numeric fields labeled as metric counters in time-series indices. Although stored
-     * internally as numeric fields, they represent cumulative metrics and must not be treated as regular
-     * numeric fields. Therefore, we define them differently and separately from their parent numeric field.
-     * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
-     * parent numeric type.
-     */
     COUNTER_LONG(builder().esType("counter_long").size(Long.BYTES).docValues().counter()),
     COUNTER_INTEGER(builder().esType("counter_integer").size(Integer.BYTES).docValues().counter()),
     COUNTER_DOUBLE(builder().esType("counter_double").size(Double.BYTES).docValues().counter()),
@@ -68,7 +61,17 @@ public enum DataType {
     GEO_SHAPE(builder().esType("geo_shape").unknownSize().docValues()),
 
     DOC_DATA_TYPE(builder().esType("_doc").size(Integer.BYTES * 3)),
-    TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues());
+    TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues()),
+    DENSE_VECTOR(builder().esType("dense_vector").unknownSize());
+
+    /**
+     * These are numeric fields labeled as metric counters in time-series indices. Although stored
+     * internally as numeric fields, they represent cumulative metrics and must not be treated as regular
+     * numeric fields. Therefore, we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
+     * parent numeric type.
+     */
+
 
     private final String typeName;
 

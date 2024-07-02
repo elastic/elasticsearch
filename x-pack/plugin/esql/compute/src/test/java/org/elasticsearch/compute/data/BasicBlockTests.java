@@ -69,6 +69,32 @@ public class BasicBlockTests extends ESTestCase {
         testEmpty(blockFactory);
     }
 
+    public void testMultipleDoubleVectorVector() {
+        var arr1 = new double[] { 0.1, 0.2, 0.3 };
+        var arr2 = new double[] { 0.4, 0.5, 0.6 };
+        var arr3 = new double[] { 0.7, 0.8, 0.9 };
+        var block = blockFactory.newDoubleVectorVectorBuilder(10)
+            .appendDoubles(arr1)
+            .appendDoubles(arr2)
+            .appendDoubles(arr3)
+            .build();
+        block.close();
+        assert block.isReleased();
+    }
+
+    public void testSingleDoubleVectorVector() {
+        var arr = new double[] { 0.1, 0.2, 0.3 };
+        var block = blockFactory.newDoubleVectorVectorBuilder(3).appendDoubles(arr).build();
+        block.close();
+        assert block.isReleased();
+    }
+
+    public void testEmptyDoubleVectorVector() {
+        var block = blockFactory.newDoubleVectorVectorBuilder(4001).build();
+        block.close();
+        assert block.isReleased();
+    }
+
     void testEmpty(BlockFactory bf) {
         assertZeroPositionsAndRelease(bf.newIntArrayBlock(new int[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
         assertZeroPositionsAndRelease(bf.newIntBlockBuilder(0).build());
@@ -96,6 +122,7 @@ public class BasicBlockTests extends ESTestCase {
         assertZeroPositionsAndRelease(bf.newBooleanBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newBooleanArrayVector(new boolean[] {}, 0));
         assertZeroPositionsAndRelease(bf.newBooleanVectorBuilder(0).build());
+        assertZeroPositionsAndRelease(bf.newDoubleVectorVectorBlockBuilder(0).build());
     }
 
     public void testSmallSingleValueDenseGrowthInt() {

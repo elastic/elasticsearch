@@ -438,4 +438,12 @@ public class BlockFactory {
     public long maxPrimitiveArrayBytes() {
         return maxPrimitiveArrayBytes;
     }
+
+    public Block.Builder newDoubleVectorVectorBlockBuilder(int estimatedSize) {
+        return DoubleVectorVectorBlock.newBlockBuilder(this, estimatedSize);
+    }
+
+    public DoubleVectorVector.Builder newDoubleVectorVectorBuilder(int estimatedSize) {
+        return new DoubleVectorVectorBuilder(estimatedSize, this);
+    }
 }

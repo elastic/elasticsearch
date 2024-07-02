@@ -240,7 +240,6 @@ public class PlannerUtils {
      * For example, spatial types can be extracted into doc-values under specific conditions, otherwise they extract as BytesRef.
      */
     public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
-
         return switch (dataType) {
             case LONG, DATETIME, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
             case INTEGER, FLOAT, COUNTER_INTEGER -> ElementType.INT;
@@ -255,6 +254,7 @@ public class PlannerUtils {
             case GEO_SHAPE, CARTESIAN_SHAPE -> ElementType.BYTES_REF;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, NESTED, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
+            case DENSE_VECTOR -> ElementType.DENSE_VECTOR;
         };
     }
 

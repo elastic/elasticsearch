@@ -79,6 +79,7 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.StringQueries(),
         new ExpressionTranslators.Matches(),
         new ExpressionTranslators.MultiMatches(),
+        new ExpressionTranslators.KnnQueryTranslator(),
         new Scalars()
     );
 

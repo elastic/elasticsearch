@@ -122,6 +122,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
             case FLOAT -> blockFactory.newFloatVectorFixedBuilder(size);
             case INT -> blockFactory.newIntVectorFixedBuilder(size);
             case LONG -> blockFactory.newLongVectorFixedBuilder(size);
+            case DENSE_VECTOR -> blockFactory.newDoubleVectorVectorBuilder(size);
         };
     }
 

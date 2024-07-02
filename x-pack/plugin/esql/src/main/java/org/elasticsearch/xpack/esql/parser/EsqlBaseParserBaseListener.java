@@ -869,6 +869,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterVectorString(EsqlBaseParser.VectorStringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitVectorString(EsqlBaseParser.VectorStringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterComparisonOperator(EsqlBaseParser.ComparisonOperatorContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1068,6 +1080,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitSearchSortCommmand(EsqlBaseParser.SearchSortCommmandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterSearchKnnQuery(EsqlBaseParser.SearchKnnQueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSearchKnnQuery(EsqlBaseParser.SearchKnnQueryContext ctx) { }
   /**
    * {@inheritDoc}
    *

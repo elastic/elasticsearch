@@ -504,6 +504,7 @@ public final class CsvTestUtils {
                 case NULL -> NULL;
                 case BYTES_REF -> bytesRefBlockType(actualType);
                 case BOOLEAN -> BOOLEAN;
+                case DENSE_VECTOR -> throw new IllegalArgumentException("can't assert on dense vector blocks");
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");

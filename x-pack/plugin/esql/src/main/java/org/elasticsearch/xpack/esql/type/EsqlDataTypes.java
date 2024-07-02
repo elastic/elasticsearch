@@ -12,6 +12,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -89,6 +90,7 @@ public final class EsqlDataTypes {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
+            && t != DENSE_VECTOR
             && t.isCounter() == false;
     }
 
@@ -99,4 +101,5 @@ public final class EsqlDataTypes {
             return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
         }
     }
+
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.core.planner;
 
+import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.search.DocValueFormat;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.esql.core.expression.predicate.knn.KnnQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.KnnQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
@@ -142,6 +145,15 @@ public final class ExpressionTranslators {
 
         public static Query doTranslate(MatchQueryPredicate q, TranslatorHandler handler) {
             return new MatchQuery(q.source(), handler.nameOf(q.field()), q.query(), q);
+        }
+    }
+
+    public static class KnnQueryTranslator extends ExpressionTranslator<KnnQueryPredicate> {
+
+        @Override
+        protected Query asQuery(KnnQueryPredicate knnQueryPredicate, TranslatorHandler handler) {
+            return new KnnQuery(knnQueryPredicate.source(), knnQueryPredicate.getField(), knnQueryPredicate.getVectorData(),
+                knnQueryPredicate.getOptions());
         }
     }
 

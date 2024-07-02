@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.xpack.core.security.action.role.QueryRoleResponse;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesResponse;
+import org.elasticsearch.xpack.core.security.action.role.QueryRoleResponse;
 import org.elasticsearch.xpack.core.security.action.user.QueryUserResponse;
 
 /**

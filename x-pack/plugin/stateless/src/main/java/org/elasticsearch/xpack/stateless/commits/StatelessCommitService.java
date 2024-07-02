@@ -1971,6 +1971,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             PrimaryTermAndGeneration compoundCommitGeneration,
             String nodeId
         ) {
+            if (isClosed()) {
+                // If the shard is concurrently relocated, throwing exception to make search node retry after getting a new cluster state
+                throw new ShardNotFoundException(shardId, "shard commit state is " + (relocated ? "relocated" : "closed"));
+            }
             // If the indexing shard is not finished initializing from the object store, we are not
             // able to register the commit for recovery. For now, fail the registration request.
             // TODO: we should be able to handle this case by either retrying the registration or keep the

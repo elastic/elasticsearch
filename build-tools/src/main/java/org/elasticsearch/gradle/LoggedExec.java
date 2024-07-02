@@ -98,7 +98,6 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
         this.fileSystemOperations = fileSystemOperations;
         getWorkingDir().convention(projectLayout.getProjectDirectory().getAsFile());
         // For now mimic default behaviour of Gradle Exec task here
-        getEnvironment().putAll(System.getenv());
         getCaptureOutput().convention(false);
         getSpoolOutput().convention(false);
     }

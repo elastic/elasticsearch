@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 
@@ -30,8 +29,8 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     protected BinaryLogic(StreamInput in, BinaryLogicOperation op) throws IOException {
         this(
             Source.readFrom((StreamInput & PlanStreamInput) in),
-            ((StreamInput & PlanStreamInput) in).readExpression(),
-            ((StreamInput & PlanStreamInput) in).readExpression(),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
             op
         );
     }
@@ -39,8 +38,8 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((StreamOutput & PlanStreamOutput) out).writeExpression(left());
-        ((StreamOutput & PlanStreamOutput) out).writeExpression(right());
+        out.writeNamedWriteable(left());
+        out.writeNamedWriteable(right());
     }
 
     @Override

@@ -417,13 +417,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         }
     }
 
-    static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
+    static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, IndexAbstraction indexAbstraction) {
         DocWriteRequest.OpType opType = writeRequest.opType();
         if ((opType == OpType.CREATE || opType == OpType.INDEX) == false) {
             // op type not create or index, then bail early
             return;
         }
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
         if (indexAbstraction == null) {
             return;
         }
@@ -452,9 +451,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                     + "] instead"
             );
         }
-        if (opType == DocWriteRequest.OpType.INDEX
-            && writeRequest.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM
-            && writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO) {
+        if (writeRequest.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM && writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException(
                 "index request with op_type=index and no if_primary_term and if_seq_no set "
                     + "targeting backing indices is disallowed, target corresponding data stream ["
@@ -464,8 +461,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         }
     }
 
-    static void prohibitCustomRoutingOnDataStream(DocWriteRequest<?> writeRequest, Metadata metadata) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
+    static void prohibitCustomRoutingOnDataStream(DocWriteRequest<?> writeRequest, IndexAbstraction indexAbstraction) {
         if (indexAbstraction == null) {
             return;
         }

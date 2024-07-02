@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.InProcessor;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -90,7 +90,20 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
         // QL's `In` fold() doesn't handle BytesRef and can't know if this is Keyword/Text, Version or IP anyway.
         // `In` allows comparisons of same type only (safe for numerics), so it's safe to apply InProcessor directly with no implicit
         // (non-numerical) conversions.
-        return InProcessor.apply(value().fold(), list().stream().map(Expression::fold).toList());
+        return apply(value().fold(), list().stream().map(Expression::fold).toList());
+    }
+
+    private static Boolean apply(Object input, List<Object> values) {
+        Boolean result = Boolean.FALSE;
+        for (Object v : values) {
+            Boolean compResult = Comparisons.eq(input, v);
+            if (compResult == null) {
+                result = null;
+            } else if (compResult == Boolean.TRUE) {
+                return Boolean.TRUE;
+            }
+        }
+        return result;
     }
 
     @Override

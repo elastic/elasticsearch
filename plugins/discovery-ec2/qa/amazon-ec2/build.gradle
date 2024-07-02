@@ -82,7 +82,7 @@ tasks.named("yamlRestTest").configure { enabled = false }
     setting 'network.host', '_ec2_'
     setting 'discovery.ec2.endpoint', { "http://${-> addressAndPort.get()}" }, IGNORE_VALUE
 
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${-> addressAndPort.get() }" }, IGNORE_VALUE
+    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${-> addressAndPort.get()}" }, IGNORE_VALUE
   }
 }
 
@@ -112,7 +112,7 @@ tasks.named("ec2FixtureContainerCredentials").configure {
 def addressAndPortProvider = tasks.findByName("ec2FixtureContainerCredentials").addressAndPortProvider
 testClusters.matching { it.name == "yamlRestTestContainerCredentials" }.configureEach {
   environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI',
-    () -> "http://" + addressAndPortProvider.get() + "/ecs_credentials_endpoint", IGNORE_VALUE
+    { "http://${-> addressAndPortProvider.get()}/ecs_credentials_endpoint" }, IGNORE_VALUE
 }
 
 // Extra config for InstanceProfile

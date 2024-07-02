@@ -1,0 +1,65 @@
+# this overwrites the 'versions' map from Elasticsearch itself, but indeed we want that -- we're interested in managing our dependencies
+# as we (and tika) demand, and are not interested in, say, having the same version of commons-codec as elasticsearch itself
+# when updating tika, please review it's parent pom : https://repo1.maven.org/maven2/org/apache/tika/tika-parent
+# and manually update the transitive dependencies here
+
+[versions]
+tika = "2.9.2"
+pdfbox = "2.0.31"
+poi = "5.2.5"
+sparsebitset = "1.3"
+mime4j = "0.8.11"
+commonsCodec = "1.16.1"
+slf4j = "2.0.10"
+xz = "1.9"
+commonsIo = "2.15.1"
+
+# intentionally using the elder "juniversalchardet:juniversalchardet" rather than
+# the newer "com.github.albfernandez:juniversalchardet"
+# since the "com.github.albfernandez" fork has some problems with Chinese.
+juniversalchardet = "1.0.3"
+tagsoup = "1.2.1"
+jempbox = "1.8.17"
+xmlbeans = "5.2.0" #poi-ooxml dependency: https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml/
+commonsCollections4 = "4.4"
+commonsCompress = "1.26.1"
+commonsLang3 = "3.14.0"
+commonsMath3 = "3.6.1"
+
+[libraries]
+slf4j-api = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
+jcl-over-slf4j = { group = "org.slf4j", name = "jcl-over-slf4j", version.ref = "slf4j" }
+
+slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4j" }
+tika-core = { group = "org.apache.tika", name = "tika-core", version.ref = "tika" }
+tika-langdetect = { group = "org.apache.tika", name = "tika-langdetect", version.ref = "tika" }
+tika-langdetect-tika = { group = "org.apache.tika", name = "tika-langdetect-tika", version.ref = "tika" }
+tika-parser-html-module = { group = "org.apache.tika", name = "tika-parser-html-module", version.ref = "tika" }
+tika-parser-microsoft-module = { group = "org.apache.tika", name = "tika-parser-microsoft-module", version.ref = "tika" }
+tika-parser-pdf-module = { group = "org.apache.tika", name = "tika-parser-pdf-module", version.ref = "tika" }
+tika-parser-xml-module = { group = "org.apache.tika", name = "tika-parser-xml-module", version.ref = "tika" }
+tika-parser-text-module = { group = "org.apache.tika", name = "tika-parser-text-module", version.ref = "tika" }
+tika-parser-miscoffice-module = { group = "org.apache.tika", name = "tika-parser-miscoffice-module", version.ref = "tika" }
+tika-parser-apple-module = { group = "org.apache.tika", name = "tika-parser-apple-module", version.ref = "tika" }
+tika-parser-xmp-commons = { group = "org.apache.tika", name = "tika-parser-xmp-commons", version.ref = "tika" }
+tika-parser-zip-commons = { group = "org.apache.tika", name = "tika-parser-zip-commons", version.ref = "tika" }
+xz = { group = "org.tukaani", name = "xz", version.ref = "xz" }
+commons-io = { group = "commons-io", name = "commons-io", version.ref = "commonsIo" }
+juniversalchardet = { group = "com.googlecode.juniversalchardet", name = "juniversalchardet", version.ref = "juniversalchardet" }
+tagsoup = { group = "org.ccil.cowan.tagsoup", name = "tagsoup", version.ref = "tagsoup" }
+pdfbox = { group = "org.apache.pdfbox", name = "pdfbox", version.ref = "pdfbox" }
+fontbox = { group = "org.apache.pdfbox", name = "fontbox", version.ref = "pdfbox" }
+jempbox = { group = "org.apache.pdfbox", name = "jempbox", version.ref = "jempbox" }
+poi-ooxml = { group = "org.apache.poi", name = "poi-ooxml", version.ref = "poi" }
+poi-ooxml-lite = { group = "org.apache.poi", name = "poi-ooxml-lite", version.ref = "poi" }
+poi = { group = "org.apache.poi", name = "poi", version.ref = "poi" }
+commons-codec = { group = "commons-codec", name = "commons-codec", version.ref = "commonsCodec" }
+xmlbeans = { group = "org.apache.xmlbeans", name = "xmlbeans", version.ref = "xmlbeans" }
+commons-collections4 = { group = "org.apache.commons", name = "commons-collections4", version.ref = "commonsCollections4" }
+poi-scratchpad = { group = "org.apache.poi", name = "poi-scratchpad", version.ref = "poi" }
+commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
+apache-mime4j-core = { group = "org.apache.james", name = "apache-mime4j-core", version.ref = "mime4j" }
+apache-mime4j-dom = { group = "org.apache.james", name = "apache-mime4j-dom", version.ref = "mime4j" }
+commons-lang3 = { group = "org.apache.commons", name = "commons-lang3", version.ref = "commonsLang3" }
+commons-math3 = { group = "org.apache.commons", name = "commons-math3", version.ref = "commonsMath3" }
+sparsebitset = { group = "com.zaxxer", name = "SparseBitSet", version.ref = "sparsebitset" }

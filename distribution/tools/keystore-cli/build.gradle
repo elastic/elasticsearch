@@ -12,6 +12,6 @@ dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
   testImplementation project(":test:framework")
-  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
-  testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
+  testImplementation libs.jimfs
+  testRuntimeOnly libs.jimfs.guava
 }

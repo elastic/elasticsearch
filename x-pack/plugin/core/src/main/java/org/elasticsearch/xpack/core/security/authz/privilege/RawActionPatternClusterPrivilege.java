@@ -12,8 +12,8 @@ import java.util.Set;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver.isClusterAction;
 
 /**
- * An {@link ActionClusterPrivilege} that defines access to a raw cluster action name,
- * instead of a predefined {@link BuiltinClusterPrivilege}.
+ * An {@link ActionClusterPrivilege} that defines access to a raw cluster action name or pattern, instead of a predefined
+ * {@link BuiltinClusterPrivilege}.
  */
 final class RawActionPatternClusterPrivilege extends ActionClusterPrivilege {
     RawActionPatternClusterPrivilege(String name) {

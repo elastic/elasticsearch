@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import java.util.Set;
 
 /**
- * Built-in named cluster privilege, like `manage`, `monitor`, etc.
+ * An {@link ActionClusterPrivilege} that defines a predefined, built-in cluster privilege, like "manage" or "monitor".
  */
 final class BuiltinClusterPrivilege extends ActionClusterPrivilege {
     private final boolean supportedInServerlessMode;

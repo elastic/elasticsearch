@@ -104,24 +104,18 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return rules();
     }
 
-    protected static Batch<LogicalPlan> transformStats() {
+    protected static Batch<LogicalPlan> substitutions() {
         return new Batch<>(
-            "Transform Stats",
+            "Substitutions",
+            Limiter.ONCE,
+            new ReplaceLookupWithJoin(),
             new RemoveStatsOverride(),
             // first extract nested expressions inside aggs
             new ReplaceStatsNestedExpressionWithEval(),
             // then extract nested aggs top-level
             new ReplaceStatsAggExpressionWithEval(),
             // lastly replace surrogate functions
-            new SubstituteSurrogates()
-        );
-    }
-
-    protected static Batch<LogicalPlan> substitutions() {
-        return new Batch<>(
-            "Substitutions",
-            Limiter.ONCE,
-            new ReplaceLookupWithJoin(),
+            new SubstituteSurrogates(),
             // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
             new TranslateMetricsAggregate(),
             new ReplaceStatsNestedExpressionWithEval(),
@@ -182,7 +176,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
-        return asList(transformStats(), substitutions(), operators(), skip, cleanup(), defaultTopN, label);
+        return asList(substitutions(), operators(), skip, cleanup(), defaultTopN, label);
     }
 
     public static LogicalPlan skipPlan(UnaryPlan plan) {

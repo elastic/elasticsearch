@@ -45,9 +45,9 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
-         * Support for aggregation function {@code TOP_LIST}.
+         * Support for aggregation function {@code TOP}.
          */
-        AGG_TOP_LIST,
+        AGG_TOP,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -99,7 +99,12 @@ public class EsqlCapabilities {
         GROK_DISSECT_MASKING,
 
         /**
-         * Support for weighted_avg function.
+         * Support for quoting index sources in double quotes.
+         */
+        DOUBLE_QUOTES_SOURCE_ENCLOSING,
+
+        /**
+         * Support for WEIGHTED_AVG function.
          */
         AGG_WEIGHTED_AVG;
 

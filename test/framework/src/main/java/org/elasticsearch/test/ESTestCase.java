@@ -649,7 +649,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
      * are assumed to be at WARNING level.
-     * @param expectedWarnings expected general deprecation warnings.
+     * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertWarnings(String... expectedWarnings) {
         assertWarnings(
@@ -663,7 +663,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
      * are assumed to be at CRITICAL level.
-     * @param expectedWarnings expected general deprecation warnings.
+     * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertCriticalWarnings(String... expectedWarnings) {
         assertWarnings(

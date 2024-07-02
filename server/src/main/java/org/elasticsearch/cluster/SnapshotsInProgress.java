@@ -214,7 +214,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     logger.debug(
                         """
                             Marking shard generation [{}] file for cleanup. The finalized shard generation is now [{}], for shard \
-                            snapshot [{}] with repository shard ID [{}] on node [{}]
+                            snapshot [{}] with shard ID [{}] on node [{}]
                             """,
                         oldStatus.generation(),
                         newStatus.generation(),
@@ -640,6 +640,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             "missing index"
         );
 
+        /**
+         * Initializes status with state {@link ShardState#INIT}.
+         */
         public ShardSnapshotStatus(String nodeId, ShardGeneration generation) {
             this(nodeId, ShardState.INIT, generation);
         }

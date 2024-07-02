@@ -171,7 +171,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         logger.debug("downloading geoip database [{}]", name);
         String url = databaseInfo.get("url").toString();
         if (url.startsWith("http") == false) {
-            // relative url, add it after last slash (i.e resolve sibling) or at the end if there's no slash after http[s]://
+            // relative url, add it after last slash (i.e. resolve sibling) or at the end if there's no slash after http[s]://
             int lastSlash = endpoint.substring(8).lastIndexOf('/');
             url = (lastSlash != -1 ? endpoint.substring(0, lastSlash + 8) : endpoint) + "/" + url;
         }

@@ -137,8 +137,8 @@ field to collect the values of other fields for semantic search. Each value has
 its embeddings calculated separately; each field value is a separate set of chunk(s) in
 the resulting embeddings.
 
-This imposes a restriction on bulk requests and ingestion pipelines that updates documents with `semantic_text` fields.
-In these cases, all fields that are copied to a `semantic_text` field, including the semantic_text field value, must have a value to ensure every embedding is calculated correctly.
+This imposes a restriction on bulk requests and ingestion pipelines that update documents with `semantic_text` fields.
+In these cases, all fields that are copied to a `semantic_text` field, including the `semantic_text` field value, must have a value to ensure every embedding is calculated correctly.
 
 For example, the following mapping:
 
@@ -162,7 +162,7 @@ PUT test-index
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-Will need the following bulk request update to ensure that `infer_field` is updated correctly:
+Will need the following bulk update request to ensure that `infer_field` is updated correctly:
 
 [source,console]
 ------------------------------------------------------------

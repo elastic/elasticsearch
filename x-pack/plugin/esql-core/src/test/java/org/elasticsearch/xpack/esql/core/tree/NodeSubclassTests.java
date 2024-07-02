@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Like;
@@ -52,6 +50,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
@@ -127,7 +126,12 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             Object originalArgValue = nodeCtorArgs[changedArgOffset];
 
             Type changedArgType = argTypes[changedArgOffset];
-            Object changedArgValue = randomValueOtherThan(nodeCtorArgs[changedArgOffset], () -> makeArg(changedArgType));
+            Object changedArgValue = randomValueOtherThanMaxTries(
+                nodeCtorArgs[changedArgOffset],
+                () -> makeArg(changedArgType),
+                // JoinType has only 1 permitted enum element. Limit the number of retries.
+                3
+            );
 
             B transformed = node.transformNodeProps(Object.class, prop -> Objects.equals(prop, originalArgValue) ? changedArgValue : prop);
 
@@ -441,14 +445,6 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             return new EnrichPolicy(randomFrom("match", "range"), null, List.of(), randomFrom("m1", "m2"), enrichFields);
         }
 
-        if (Processor.class == argClass) {
-            /*
-             * Similar to expressions, mock pipes to avoid
-             * stackoverflow errors while building the tree.
-             */
-            return new ConstantProcessor(randomAlphaOfLength(16));
-        }
-
         if (Node.class.isAssignableFrom(argClass)) {
             /*
              * Rather than attempting to mock subclasses of node
@@ -707,5 +703,16 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         } catch (ClassNotFoundException e) {
             return null;
         }
+    }
+
+    private static <T> T randomValueOtherThanManyMaxTries(Predicate<T> input, Supplier<T> randomSupplier, int maxTries) {
+        int[] maxTriesHolder = { maxTries };
+        Predicate<T> inputWithMaxTries = t -> input.test(t) && maxTriesHolder[0]-- > 0;
+
+        return ESTestCase.randomValueOtherThanMany(inputWithMaxTries, randomSupplier);
+    }
+
+    public static <T> T randomValueOtherThanMaxTries(T input, Supplier<T> randomSupplier, int maxTries) {
+        return randomValueOtherThanManyMaxTries(v -> Objects.equals(input, v), randomSupplier, maxTries);
     }
 }

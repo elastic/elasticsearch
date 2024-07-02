@@ -16,7 +16,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.role.QueryRoleAction;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.role.QueryRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.QueryRoleResponse;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
@@ -40,7 +40,7 @@ public class TransportQueryRoleAction extends TransportAction<QueryRoleRequest, 
 
     @Inject
     public TransportQueryRoleAction(ActionFilters actionFilters, NativeRolesStore nativeRolesStore, TransportService transportService) {
-        super(QueryRoleAction.NAME, actionFilters, transportService.getTaskManager());
+        super(ActionTypes.QUERY_ROLE_ACTION.name(), actionFilters, transportService.getTaskManager());
         this.nativeRolesStore = nativeRolesStore;
     }
 

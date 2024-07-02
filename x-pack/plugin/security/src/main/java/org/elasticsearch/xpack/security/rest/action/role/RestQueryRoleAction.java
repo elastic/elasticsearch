@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.action.role.QueryRoleAction;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.role.QueryRoleRequest;
 
 import java.io.IOException;
@@ -93,7 +93,7 @@ public final class RestQueryRoleAction extends NativeRoleBaseRestHandler {
         } else {
             queryRoleRequest = new QueryRoleRequest(null, null, null, null, null);
         }
-        return channel -> client.execute(QueryRoleAction.INSTANCE, queryRoleRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(ActionTypes.QUERY_ROLE_ACTION, queryRoleRequest, new RestToXContentListener<>(channel));
     }
 
     private record Payload(

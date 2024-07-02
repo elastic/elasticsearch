@@ -223,7 +223,13 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public boolean isMetadataSearchable() {
-        return securityIndex.isMigrationsVersionAtLeast(ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
+        SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        // the metadata is searchable if:
+        // * the security index has been created anew (using the latest index version),
+        // i.e. it is NOT created in a previous ES version that potentially didn't index the role metadata
+        // * or, the .security index has been migrated (using an internal update-by-query) such that the metadata is queryable
+        return frozenSecurityIndex.isCreatedOnLatestVersion()
+            || securityIndex.isMigrationsVersionAtLeast(ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
     }
 
     public void queryRoleDescriptors(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryRoleResult> listener) {

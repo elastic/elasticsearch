@@ -33,6 +33,7 @@ dependencies {
     compileOnly(xpackModule("core"))
     compileOnly(xpackModule("blob-cache"))
     compileOnly(project(":libs:serverless-shared-constants"))
+    implementation(project(":libs:serverless-stateless-api"))
     internalClusterTestImplementation(testArtifact(xpackModule("core")))
     internalClusterTestImplementation(xpackModule("shutdown"))
     internalClusterTestImplementation("org.elasticsearch.plugin:data-streams")

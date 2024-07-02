@@ -152,19 +152,19 @@ public class PlainActionFutureTests extends ESTestCase {
 
     public void testAssertCompleteAllowedAllowsConcurrentCompletes() throws InterruptedException {
         assumeTrue("Assertions need to be enabled for assertCompleteAllowed to be invoked", Assertions.ENABLED);
-        try (TestThreadPool tp = new TestThreadPool(getTestName())) {
+        try (TestThreadPool threadPool = new TestThreadPool(getTestName())) {
             final AtomicReference<PlainActionFuture<?>> futureReference = new AtomicReference<>(new PlainActionFuture<>());
             final int threads = 4;
             final AtomicBoolean running = new AtomicBoolean(true);
-            final CountDownLatch startBarrier = new CountDownLatch(threads + 1);
-            final CompletionService<?> cs = new ExecutorCompletionService<>(tp.generic());
+            final CountDownLatch startLatch = new CountDownLatch(threads + 1);
+            final CompletionService<?> completionService = new ExecutorCompletionService<>(threadPool.generic());
             final List<Future<?>> futures = new ArrayList<>();
             for (int i = 0; i < threads; i++) {
-                futures.add(cs.submit(new FutureCompleter(i, startBarrier, futureReference, running), null));
+                futures.add(completionService.submit(new FutureCompleter(i, startLatch, futureReference, running), null));
             }
-            startBarrier.countDown();
-            safeAwait(startBarrier);
-            cs.poll(20, TimeUnit.MILLISECONDS);
+            startLatch.countDown();
+            safeAwait(startLatch);
+            completionService.poll(20, TimeUnit.MILLISECONDS);
             running.set(false);
             futures.forEach(ESTestCase::safeGet);
         }

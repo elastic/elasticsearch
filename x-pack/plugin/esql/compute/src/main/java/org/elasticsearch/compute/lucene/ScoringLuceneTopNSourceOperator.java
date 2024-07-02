@@ -131,23 +131,26 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
 
         TopDocs rescoredTopDocs = topDocs;
         for(var rescoreQuerySupplier : rescoreQuerySuppliers) {
-           var query = rescoreQuerySupplier.apply(shardContext);
+            var query = rescoreQuerySupplier.apply(shardContext);
 
-           Rescorer rescorer = new QueryRescorer(query) {
-               @Override
-               protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
-                   return secondPassScore;
-               }
-           };
+            Rescorer rescorer = new QueryRescorer(query) {
+                @Override
+                protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
+                    if (firstPassScore == 0.0F) {
+                        return 0.0F;
+                    }
+                    return secondPassScore;
+                }
+            };
 
-           try {
-               rescoredTopDocs = rescorer.rescore(shardContext.searcher(), rescoredTopDocs, limit);
-           }  catch (IOException e) {
-               throw new UncheckedIOException(e);
-           }
+            try {
+                rescoredTopDocs = rescorer.rescore(shardContext.searcher(), rescoredTopDocs, limit);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
-        return rescoredTopDocs.scoreDocs;
+        return Arrays.stream(rescoredTopDocs.scoreDocs).filter(scoreDoc -> scoreDoc.score > 0.0F).toArray(ScoreDoc[]::new);
     }
 
     float getScore(ScoreDoc scoreDoc) {

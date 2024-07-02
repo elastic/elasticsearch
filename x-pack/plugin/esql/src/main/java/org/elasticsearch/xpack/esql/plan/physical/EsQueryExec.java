@@ -55,7 +55,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             return builder;
         }
     }
-    
+
     public EsQueryExec(Source source, EsIndex index, IndexMode indexMode, List<Attribute> attributes, QueryBuilder query) {
         this(source, index, indexMode, attributes, query, null, null, null, null);
     }

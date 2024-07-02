@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmet
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -49,10 +47,5 @@ public class Neg extends UnaryScalarFunction {
     @Override
     public DataType dataType() {
         return field().dataType();
-    }
-
-    @Override
-    protected Processor makeProcessor() {
-        return new UnaryArithmeticProcessor(UnaryArithmeticOperation.NEGATE);
     }
 }

@@ -41,7 +41,7 @@ For all other fields, the original value of the field is stored as is, in the sa
 [[synthetic-source-restrictions]]
 ===== Synthetic `_source` restrictions
 
-There are some restrictions with usage of synthetic `_source`. Synthetic `_source` can not be used together with field mappings that use <<copy-to,`copy_to`>>. There are additional restrictions specific to field types. They are documented in synthetic `_source` section of the respective field type documentation page.
+There are some restrictions with usage of synthetic `_source`. Synthetic `_source` cannot be used together with field mappings that use <<copy-to,`copy_to`>>. There are additional restrictions specific to field types. They are documented in the synthetic `_source` section of the respective field type documentation page.
 
 [[synthetic-source-modifications]]
 ===== Synthetic `_source` modifications

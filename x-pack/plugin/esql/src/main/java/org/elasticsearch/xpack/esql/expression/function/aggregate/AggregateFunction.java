@@ -45,7 +45,8 @@ public abstract class AggregateFunction extends Function {
             Values.ENTRY,
             // internal functions
             ToPartial.ENTRY,
-            FromPartial.ENTRY
+            FromPartial.ENTRY,
+            WeightedAvg.ENTRY
         );
     }
 

@@ -21,8 +21,7 @@ public final class TopDoubleAggregatorFunctionSupplier implements AggregatorFunc
 
   private final boolean ascending;
 
-  public TopDoubleAggregatorFunctionSupplier(List<Integer> channels, int limit,
-                                             boolean ascending) {
+  public TopDoubleAggregatorFunctionSupplier(List<Integer> channels, int limit, boolean ascending) {
     this.channels = channels;
     this.limit = limit;
     this.ascending = ascending;

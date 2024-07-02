@@ -23,9 +23,6 @@ import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.ChecksumIndexInput;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.elasticsearch.TransportVersion;
@@ -36,9 +33,7 @@ import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutp
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
@@ -53,7 +48,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -179,17 +173,6 @@ public record StatelessCompoundCommit(
         return internalFiles;
     }
 
-    static long writeInternalFilesToStore(OutputStream outputStream, List<InternalFile> internalFiles, Directory directory)
-        throws IOException {
-        long writtenBytes = 0L;
-        for (InternalFile internalFile : internalFiles) {
-            try (ChecksumIndexInput input = directory.openChecksumInput(internalFile.name(), IOContext.READONCE)) {
-                writtenBytes += Streams.copy(new InputStreamIndexInput(input, internalFile.length()), outputStream, false);
-            }
-        }
-        return writtenBytes;
-    }
-
     /**
      * Writes the StatelessCompoundCommit header to the given StreamOutput and returns the number of bytes written
      * @return the header size in bytes
@@ -202,7 +185,7 @@ public record StatelessCompoundCommit(
         String nodeEphemeralId,
         long translogRecoveryStartFile,
         Map<String, BlobLocation> referencedBlobFiles,
-        List<InternalFile> internalFiles,
+        Iterable<InternalFile> internalFiles,
         int version,
         PositionTrackingOutputStreamStreamOutput positionTracking
     ) throws IOException {

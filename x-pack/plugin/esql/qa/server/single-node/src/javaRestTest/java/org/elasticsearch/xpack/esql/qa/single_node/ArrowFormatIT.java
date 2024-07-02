@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
@@ -58,6 +59,12 @@ public class ArrowFormatIT extends ESRestTestCase {
                   },
                   "description": {
                     "type": "keyword"
+                  },
+                  "ip": {
+                    "type": "ip"
+                  },
+                  "v": {
+                    "type": "version"
                   }
                 }
               }
@@ -70,20 +77,20 @@ public class ArrowFormatIT extends ESRestTestCase {
         // 4 documents with a null in the middle, leading to 3 ESQL pages and 3 Arrow batches
         request.setJsonEntity("""
             {"index": {"_id": "1"}}
-            {"value": 1, "description": "number one"}
+            {"value": 1, "ip": "192.168.0.1", "v": "1.0.1", "description": "number one"}
             {"index": {"_id": "2"}}
-            {"value": 2, "description": "number two"}
+            {"value": 2, "ip": "192.168.0.2", "v": "1.0.2", "description": "number two"}
             {"index": {"_id": "3"}}
-            {"value": 3}
+            {"value": 3, "ip": "2001:db8::1:0:0:1"}
             {"index": {"_id": "4"}}
-            {"value": 4, "description": "number four"}
+            {"value": 4, "ip": "::afff:4567:890a", "v": "1.0.4", "description": "number four"}
             """);
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
 
         request = new Request("POST", "/_query?format=arrow");
         request.setJsonEntity("""
             {
-                "query": "from arrow-test | limit 100"
+                "query": "from arrow-test | sort value | limit 100"
             }
             """);
 
@@ -94,7 +101,7 @@ public class ArrowFormatIT extends ESRestTestCase {
         try (VectorSchemaRoot root = readArrow(response.getEntity().getContent())) {
 
             List<Field> fields = root.getSchema().getFields();
-            assertEquals(2, fields.size());
+            assertEquals(4, fields.size());
 
             var descVector = (VarCharVector) root.getVector("description");
             assertEquals("number one", descVector.getObject(0).toString());
@@ -107,6 +114,42 @@ public class ArrowFormatIT extends ESRestTestCase {
             assertEquals(2, valueVector.get(1));
             assertEquals(3, valueVector.get(2));
             assertEquals(4, valueVector.get(3));
+
+            // Test data that has been transformed during output (ipV4 truncated to 32bits)
+            var ipVector = (VarBinaryVector) root.getVector("ip");
+            assertArrayEquals(new byte[] { (byte) 192, (byte) 168, 0, 1 }, ipVector.getObject(0));
+            assertArrayEquals(new byte[] { (byte) 192, (byte) 168, 0, 2 }, ipVector.getObject(1));
+            assertArrayEquals(
+                new byte[] { 0x20, 0x01, 0x0d, (byte) 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 },
+                ipVector.getObject(2)
+            );
+            assertArrayEquals(
+                new byte[] {
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    (byte) 0xaf,
+                    (byte) 0xff,
+                    0x45,
+                    0x67,
+                    (byte) 0x89,
+                    0x0A },
+                ipVector.getObject(3)
+            );
+
+            // Version is binary-encoded in ESQL vectors, turned into a string in arrow output
+            var versionVector = (VarCharVector) root.getVector("v");
+            assertEquals("1.0.1", versionVector.getObject(0).toString());
+            assertEquals("1.0.2", versionVector.getObject(1).toString());
+            assertTrue(versionVector.isNull(2));
+            assertEquals("1.0.4", versionVector.getObject(3).toString());
         }
     }
 

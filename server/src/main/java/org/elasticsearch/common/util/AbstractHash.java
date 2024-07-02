@@ -32,7 +32,7 @@ abstract class AbstractHash extends AbstractPagedHashMap {
     }
 
     protected final long id(long index, long id) {
-        return ids.set(index, id + 1) - 1;
+        return ids.getAndSet(index, id + 1) - 1;
     }
 
     @Override

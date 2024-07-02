@@ -7,16 +7,21 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.io.IOException;
+
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongMultiplyExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
 
 public class Mul extends EsqlArithmeticOperation implements BinaryComparisonInversible {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mul", Mul::new);
 
     public Mul(Source source, Expression left, Expression right) {
         super(
@@ -27,8 +32,24 @@ public class Mul extends EsqlArithmeticOperation implements BinaryComparisonInve
             MulIntsEvaluator.Factory::new,
             MulLongsEvaluator.Factory::new,
             MulUnsignedLongsEvaluator.Factory::new,
-            (s, lhs, rhs) -> new MulDoublesEvaluator.Factory(source, lhs, rhs)
+            MulDoublesEvaluator.Factory::new
         );
+    }
+
+    private Mul(StreamInput in) throws IOException {
+        super(
+            in,
+            MUL,
+            MulIntsEvaluator.Factory::new,
+            MulLongsEvaluator.Factory::new,
+            MulUnsignedLongsEvaluator.Factory::new,
+            MulDoublesEvaluator.Factory::new
+        );
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

@@ -11,16 +11,19 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
-    private String getSyntheticSourceWithFieldLimit(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
-        DocumentMapper documentMapper = createMapperService(
+    private DocumentMapper getDocumentMapperWithFieldLimit() throws IOException {
+        return createMapperService(
             Settings.builder()
                 .put("index.mapping.total_fields.limit", 2)
                 .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
@@ -30,6 +33,15 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
                 b.startObject("bar").field("type", "object").endObject();
             })
         ).documentMapper();
+    }
+
+    private ParsedDocument getParsedDocumentWithFieldLimit(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        DocumentMapper mapper = getDocumentMapperWithFieldLimit();
+        return mapper.parse(source(build));
+    }
+
+    private String getSyntheticSourceWithFieldLimit(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        DocumentMapper documentMapper = getDocumentMapperWithFieldLimit();
         return syntheticSource(documentMapper, build);
     }
 
@@ -78,7 +90,54 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
     public void testIgnoredObjectBoolean() throws IOException {
         boolean value = randomBoolean();
-        assertEquals("{\"my_value\":" + value + "}", getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value)));
+        assertEquals("{\"my_object\":{\"my_value\":" + value + "}}", getSyntheticSourceWithFieldLimit(b -> {
+            b.startObject("my_object").field("my_value", value).endObject();
+        }));
+    }
+
+    public void testIgnoredArray() throws IOException {
+        assertEquals("{\"my_array\":[{\"int_value\":10},{\"int_value\":20}]}", getSyntheticSourceWithFieldLimit(b -> {
+            b.startArray("my_array");
+            b.startObject().field("int_value", 10).endObject();
+            b.startObject().field("int_value", 20).endObject();
+            b.endArray();
+        }));
+    }
+
+    public void testEncodeFieldToMap() throws IOException {
+        String value = randomAlphaOfLength(5);
+        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(b -> b.field("my_value", value));
+        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        assertEquals("my_value", mappedNameValue.nameValue().name());
+        assertEquals(value, mappedNameValue.map().get("my_value"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testEncodeObjectToMapAndDecode() throws IOException {
+        String value = randomAlphaOfLength(5);
+        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(
+            b -> { b.startObject("my_object").field("my_value", value).endObject(); }
+        );
+        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        assertEquals("my_object", mappedNameValue.nameValue().name());
+        assertEquals(value, ((Map<String, ?>) mappedNameValue.map().get("my_object")).get("my_value"));
+        assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, mappedNameValue.map()));
+    }
+
+    public void testEncodeArrayToMapAndDecode() throws IOException {
+        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(b -> {
+            b.startArray("my_array");
+            b.startObject().field("int_value", 10).endObject();
+            b.startObject().field("int_value", 20).endObject();
+            b.endArray();
+        });
+        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        assertEquals("my_array", mappedNameValue.nameValue().name());
+        assertThat((List<?>) mappedNameValue.map().get("my_array"), Matchers.contains(Map.of("int_value", 10), Map.of("int_value", 20)));
+        assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, mappedNameValue.map()));
     }
 
     public void testMultipleIgnoredFieldsRootObject() throws IOException {

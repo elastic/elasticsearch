@@ -38,6 +38,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -85,6 +86,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     private static final Logger logger = LogManager.getLogger(KeywordFieldMapper.class);
 
     public static final String CONTENT_TYPE = "keyword";
+
+    static final NodeFeature KEYWORD_DIMENSION_IGNORE_ABOVE = new NodeFeature("mapper.keyword_dimension_ignore_above");
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -210,7 +213,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             + "] are true"
                     );
                 }
-            }).precludesParameters(normalizer, ignoreAbove);
+            }).precludesParameters(normalizer);
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {
@@ -271,7 +274,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             StringFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), StringFieldScript.CONTEXT);
             return scriptFactory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -311,7 +314,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         );
                         normalizer = Lucene.KEYWORD_ANALYZER;
                     } else {
-                        throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name() + "]");
+                        throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + leafName() + "]");
                     }
                 }
                 searchAnalyzer = quoteAnalyzer = normalizer;
@@ -325,7 +328,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 dimension(true);
             }
             return new KeywordFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 fieldType,
                 normalizer,
                 searchAnalyzer,
@@ -347,7 +350,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 fieldtype = Defaults.FIELD_TYPE;
             }
             return new KeywordFieldMapper(
-                name(),
+                leafName(),
                 fieldtype,
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),
@@ -911,7 +914,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (value.length() > fieldType().ignoreAbove()) {
-            context.addIgnoredField(name());
+            context.addIgnoredField(fullPath());
             if (storeIgnored) {
                 // Save a copy of the field so synthetic source can load it
                 context.doc().add(new StoredField(originalName(), new BytesRef(value)));
@@ -919,7 +922,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        value = normalizeValue(fieldType().normalizer(), name(), value);
+        value = normalizeValue(fieldType().normalizer(), fullPath(), value);
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
@@ -995,15 +998,14 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers, scriptCompiler, indexCreatedVersion).dimension(fieldType().isDimension())
-            .init(this);
+        return new Builder(leafName(), indexAnalyzers, scriptCompiler, indexCreatedVersion).dimension(fieldType().isDimension()).init(this);
     }
 
     @Override
     public void doValidate(MappingLookup lookup) {
-        if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(name())) {
+        if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(fullPath())) {
             throw new IllegalArgumentException(
-                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + fullPath() + "]"
             );
         }
     }
@@ -1018,17 +1020,21 @@ public final class KeywordFieldMapper extends FieldMapper {
      * for synthetic source.
      */
     private String originalName() {
-        return name() + "._original";
+        return fullPath() + "._original";
     }
 
     @Override
     protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
+        if (fieldType.stored() || hasDocValues) {
+            return SyntheticSourceMode.NATIVE;
+        }
+
+        return SyntheticSourceMode.FALLBACK;
     }
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(simpleName());
+        return syntheticFieldLoader(leafName());
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
@@ -1037,17 +1043,18 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
         if (hasNormalizer()) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
             );
         }
+
         if (fieldType.stored()) {
             return new StringStoredFieldFieldLoader(
-                name(),
+                fullPath(),
                 simpleName,
                 fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
             ) {
@@ -1058,33 +1065,29 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             };
         }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + name()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values and isn't stored"
-            );
+
+        if (hasDocValues) {
+            return new SortedSetDocValuesSyntheticFieldLoader(
+                fullPath(),
+                simpleName,
+                fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
+                false
+            ) {
+
+                @Override
+                protected BytesRef convert(BytesRef value) {
+                    return value;
+                }
+
+                @Override
+                protected BytesRef preserve(BytesRef value) {
+                    // Preserve must make a deep copy because convert gets a shallow copy from the iterator
+                    return BytesRef.deepCopyOf(value);
+                }
+            };
         }
-        return new SortedSetDocValuesSyntheticFieldLoader(
-            name(),
-            simpleName,
-            fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
-            false
-        ) {
 
-            @Override
-            protected BytesRef convert(BytesRef value) {
-                return value;
-            }
-
-            @Override
-            protected BytesRef preserve(BytesRef value) {
-                // Preserve must make a deep copy because convert gets a shallow copy from the iterator
-                return BytesRef.deepCopyOf(value);
-            }
-        };
+        return super.syntheticFieldLoader();
     }
 
 }

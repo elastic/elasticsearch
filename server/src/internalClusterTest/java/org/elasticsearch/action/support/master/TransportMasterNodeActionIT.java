@@ -188,7 +188,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
 
     /**
      * Add some master-only nodes and block until they've joined the cluster
-     *
+     * <p>
      * Ensure that we've got 5 voting nodes in the cluster, this means even if the original
      * master accepts its own failed state update before standing down, we can still
      * establish a quorum without its (or our own) join.

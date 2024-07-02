@@ -254,8 +254,8 @@ tasks.register("regen") {
 tasks.named("spotlessJava") { dependsOn stringTemplates }
 tasks.named('checkstyleMain').configure {
   excludes = [ "**/*.java.st" ]
-  exclude { it.file.toString().startsWith("${projectDir}/src/main/generated-src/generated") }
-  exclude { it.file.toString().startsWith("${projectDir}/src/main/generated") }
+  exclude { it.file.toString().contains("src/main/generated-src/generated") }
+  exclude { it.file.toString().contains("src/main/generated") }
 }
 
 def prop(Type, type, TYPE, BYTES, Array) {

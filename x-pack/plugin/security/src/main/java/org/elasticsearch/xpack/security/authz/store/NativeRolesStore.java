@@ -25,8 +25,8 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -42,6 +42,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -52,6 +54,8 @@ import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.QueryRoleResponse;
+import org.elasticsearch.xpack.core.security.action.role.QueryRoleResponse.QueryRoleResult;
 import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -87,6 +91,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
 
@@ -241,6 +246,54 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     client::multiGet
                 );
             });
+        }
+    }
+
+    public boolean isMetadataSearchable() {
+        SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        // the metadata is searchable if:
+        // * the security index has been created anew (using the latest index version),
+        // i.e. it is NOT created in a previous ES version that potentially didn't index the role metadata
+        // * or, the .security index has been migrated (using an internal update-by-query) such that the metadata is queryable
+        return frozenSecurityIndex.isCreatedOnLatestVersion()
+            || securityIndex.isMigrationsVersionAtLeast(ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
+    }
+
+    public void queryRoleDescriptors(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryRoleResult> listener) {
+        SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
+        SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        if (frozenSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(QueryRoleResult.EMPTY);
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            securityIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportSearchAction.TYPE,
+                    searchRequest,
+                    ActionListener.wrap(searchResponse -> {
+                        long total = searchResponse.getHits().getTotalHits().value;
+                        if (total == 0) {
+                            logger.debug("No roles found for query [{}]", searchRequest.source().query());
+                            listener.onResponse(QueryRoleResult.EMPTY);
+                            return;
+                        }
+                        SearchHit[] hits = searchResponse.getHits().getHits();
+                        List<QueryRoleResponse.Item> items = Arrays.stream(hits).map(hit -> {
+                            RoleDescriptor roleDescriptor = transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState);
+                            if (roleDescriptor == null) {
+                                return null;
+                            }
+                            return new QueryRoleResponse.Item(roleDescriptor, hit.getSortValues());
+                        }).filter(Objects::nonNull).toList();
+                        listener.onResponse(new QueryRoleResult(total, items));
+                    }, listener::onFailure)
+                )
+            );
         }
     }
 
@@ -551,7 +604,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     new DelegatingActionListener<MultiSearchResponse, Map<String, Object>>(listener) {
                         @Override
                         public void onResponse(MultiSearchResponse items) {
-                            Item[] responses = items.getResponses();
+                            MultiSearchResponse.Item[] responses = items.getResponses();
                             if (responses[0].isFailure()) {
                                 usageStats.put("size", 0);
                             } else {

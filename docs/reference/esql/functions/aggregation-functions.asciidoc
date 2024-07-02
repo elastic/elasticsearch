@@ -20,7 +20,7 @@ The <<esql-stats-by>> command supports these aggregate functions:
 * <<esql-agg-sum>>
 * <<esql-top>>
 * <<esql-agg-values>>
-* <<esql-agg-weighted-avg>>
+* experimental:[] <<esql-agg-weighted-avg>>
 // end::agg_list[]
 
 include::avg.asciidoc[]

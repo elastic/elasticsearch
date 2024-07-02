@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,11 +27,12 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class WeightedAvg extends AggregateFunction implements SurrogateExpression {
+public class WeightedAvg extends AggregateFunction implements SurrogateExpression, Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WeightedAvg",
@@ -38,6 +40,8 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
     );
 
     private final Expression weight;
+
+    private static final String invalidWeightError = "{} argument of [{}] cannot be null or 0, received [{}]";
 
     @FunctionInfo(returnType = "double", description = "The weighted average of a numeric field.", isAggregation = true)
     public WeightedAvg(
@@ -85,13 +89,23 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             return resolution;
         }
 
-        return isType(
-            weight,
+        resolution = isType(
+            weight(),
             dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
             sourceText(),
             SECOND,
             "numeric except unsigned_long or counter types"
         );
+
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        if (weight.dataType() == DataType.NULL || (weight.foldable() && (weight.fold() == null || weight.fold().equals(0)))) {
+            return new TypeResolution(format(null, invalidWeightError, SECOND, sourceText(), weight.foldable() ? weight.fold() : null));
+        }
+
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

@@ -1761,8 +1761,8 @@ from employees
 | eval w = [1, 2, 3]
 | stats w_avg = weighted_avg(salary, w)
 ;
-warning:Line 2:17: evaluation of [weighted_avg(salary, w)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 3:17: evaluation of [weighted_avg(salary, w)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 w_avg:double
 null
@@ -1771,10 +1771,11 @@ null
 weightedAvgWeightMvWarning
 required_capability: agg_weighted_avg
 from employees
+| where emp_no == 10002 or emp_no == 10003
 | stats w_avg = weighted_avg(salary, salary_change.int)
 ;
-warning:Line 2:17: evaluation of [weighted_avg(salary, salary_change.int)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 3:17: evaluation of [weighted_avg(salary, salary_change.int)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 w_avg:double
 null
@@ -1783,34 +1784,37 @@ null
 weightedAvgFieldMvWarning
 required_capability: agg_weighted_avg
 from employees
+| where emp_no == 10002 or emp_no == 10003
 | stats w_avg = weighted_avg(salary_change.int, height)
 ;
-warning:Line 2:17: evaluation of [weighted_avg(salary_change.int, height)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 3:17: evaluation of [weighted_avg(salary_change.int, height)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 w_avg:double
 null
 ;
 
-weightedAvgFieldConstantWeightConstantNullWarning
-required_capability: agg_weighted_avg
-row v = [1, 2, 3]
-| stats w_avg = weighted_avg(v, null)
-;
-warning:Line 2:17: evaluation of [weighted_avg(salary, w)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
-
-w_avg:double
-null
-;
-
-weightedAvgConstantNullWarning
+weightedAvgWeightZero
 required_capability: agg_weighted_avg
 from employees
-| stats w_avg = weighted_avg(salary, null)
+| eval w = 0
+| stats w_avg = weighted_avg(salary, w)
 ;
-warning:Line 2:17: evaluation of [weighted_avg(salary, w)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 3:17: evaluation of [weighted_avg(salary, w)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.ArithmeticException: / by zero
+
+w_avg:double
+null
+;
+
+weightedAvgWeightZeroExp
+required_capability: agg_weighted_avg
+from employees
+| eval w = 0 + 0
+| stats w_avg = weighted_avg(salary, w)
+;
+warning:Line 3:17: evaluation of [weighted_avg(salary, w)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.ArithmeticException: / by zero
 
 w_avg:double
 null

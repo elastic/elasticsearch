@@ -108,6 +108,8 @@ public class EsqlCapabilities {
          */
         AGG_WEIGHTED_AVG;
 
+        private final boolean snapshotOnly;
+
         Cap() {
             snapshotOnly = false;
         };
@@ -120,7 +122,9 @@ public class EsqlCapabilities {
             return name().toLowerCase(Locale.ROOT);
         }
 
-        private final boolean snapshotOnly;
+        public boolean snapshotOnly() {
+            return snapshotOnly;
+        }
     }
 
     public static final Set<String> CAPABILITIES = capabilities();

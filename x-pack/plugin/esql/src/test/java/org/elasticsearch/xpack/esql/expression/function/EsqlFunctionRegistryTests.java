@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.ParsingException;
@@ -130,6 +131,16 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
 
         public DummyConfigurationOptionalArgumentFunction(Source source, List<Expression> fields, Configuration configuration) {
             super(source, fields, configuration);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
         }
 
         @Override

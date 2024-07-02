@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.common;
+package org.elasticsearch.xpack.inference.chunking;
 
 import com.ibm.icu.text.BreakIterator;
 
@@ -32,6 +32,8 @@ public class WordBoundaryChunker {
         wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
     }
 
+    record ChunkPosition(int start, int end, int wordCount) {}
+
     /**
      * Break the input text into small chunks as dictated
      * by the chunking parameters
@@ -42,6 +44,29 @@ public class WordBoundaryChunker {
      * @return List of chunked text
      */
     public List<String> chunk(String input, int chunkSize, int overlap) {
+
+        if (input.isEmpty()) {
+            return List.of("");
+        }
+
+        var chunkPositions = chunkPositions(input, chunkSize, overlap);
+        var chunks = new ArrayList<String>(chunkPositions.size());
+        for (var pos : chunkPositions) {
+            chunks.add(input.substring(pos.start, pos.end));
+        }
+        return chunks;
+    }
+
+    /**
+     * Chunk using the same strategy as {@link #chunk(String, int, int)}
+     * but return the chunk start and end offsets in the {@code input} string
+     * @param input Text to chunk
+     * @param chunkSize The number of words in each chunk
+     * @param overlap The number of words to overlap each chunk.
+     *                Can be 0 but must be non-negative.
+     * @return List of chunked text positions
+     */
+    List<ChunkPosition> chunkPositions(String input, int chunkSize, int overlap) {
         if (overlap > 0 && overlap > chunkSize / 2) {
             throw new IllegalArgumentException(
                 "Invalid chunking parameters, overlap ["
@@ -59,10 +84,10 @@ public class WordBoundaryChunker {
         }
 
         if (input.isEmpty()) {
-            return List.of("");
+            return List.of();
         }
 
-        var chunks = new ArrayList<String>();
+        var chunkPositions = new ArrayList<ChunkPosition>();
 
         // This position in the chunk is where the next overlapping chunk will start
         final int chunkSizeLessOverlap = chunkSize - overlap;
@@ -81,7 +106,7 @@ public class WordBoundaryChunker {
                 wordsSinceStartWindowWasMarked++;
 
                 if (wordsInChunkCountIncludingOverlap >= chunkSize) {
-                    chunks.add(input.substring(windowStart, boundary));
+                    chunkPositions.add(new ChunkPosition(windowStart, boundary, wordsInChunkCountIncludingOverlap));
                     wordsInChunkCountIncludingOverlap = overlap;
 
                     if (overlap == 0) {
@@ -102,10 +127,10 @@ public class WordBoundaryChunker {
         // Get the last chunk that was shorter than the required chunk size
         // if it ends on a boundary than the count should equal overlap in which case
         // we can ignore it, unless this is the first chunk in which case we want to add it
-        if (wordsInChunkCountIncludingOverlap > overlap || chunks.isEmpty()) {
-            chunks.add(input.substring(windowStart));
+        if (wordsInChunkCountIncludingOverlap > overlap || chunkPositions.isEmpty()) {
+            chunkPositions.add(new ChunkPosition(windowStart, input.length(), wordsInChunkCountIncludingOverlap));
         }
 
-        return chunks;
+        return chunkPositions;
     }
 }

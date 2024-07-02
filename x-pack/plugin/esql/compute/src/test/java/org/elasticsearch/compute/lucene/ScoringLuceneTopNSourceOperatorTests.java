@@ -94,7 +94,8 @@ public class ScoringLuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
             taskConcurrency,
             maxPageSize,
             limit,
-            List.of(SortBuilders.scoreSort())
+            List.of(SortBuilders.scoreSort()),
+            null
         );
     }
 

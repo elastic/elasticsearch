@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -107,7 +108,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
 
     private PerShardCollector perShardCollector;
     private final List<SortBuilder<?>> sorts;
-    private final int limit;
+    protected final int limit;
 
     public LuceneTopNSourceOperator(
         BlockFactory blockFactory,
@@ -186,7 +187,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             assert isEmitting() == false : "offset=" + offset + " score_docs=" + Arrays.toString(scoreDocs);
             offset = 0;
             if (perShardCollector != null) {
-                scoreDocs = perShardCollector.topFieldCollector.topDocs().scoreDocs;
+                scoreDocs = maybeRescoreDocuments(perShardCollector.shardContext, perShardCollector.topFieldCollector.topDocs());
             } else {
                 scoreDocs = new ScoreDoc[0];
             }
@@ -228,6 +229,10 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         }
         pagesEmitted++;
         return page;
+    }
+
+    protected ScoreDoc[] maybeRescoreDocuments(ShardContext shardContext, TopDocs topDocs) {
+        return topDocs.scoreDocs;
     }
 
     protected IntVector.Builder scoreVectorOrNull(int size) {

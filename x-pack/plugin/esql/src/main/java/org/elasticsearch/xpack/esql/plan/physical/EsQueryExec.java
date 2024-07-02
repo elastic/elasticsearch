@@ -38,6 +38,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     private final List<FieldSort> sorts;
     private final List<Attribute> attrs;
 
+    private final List<QueryBuilder> rescorers;
+
     /**
      * Estimate of the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
@@ -55,7 +57,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public EsQueryExec(Source source, EsIndex index, IndexMode indexMode, List<Attribute> attributes, QueryBuilder query) {
-        this(source, index, indexMode, attributes, query, null, null, null);
+        this(source, index, indexMode, attributes, query, null, null, null, null);
     }
 
     public EsQueryExec(
@@ -66,7 +68,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         QueryBuilder query,
         Expression limit,
         List<FieldSort> sorts,
-        Integer estimatedRowSize
+        Integer estimatedRowSize,
+        List<QueryBuilder> rescorers
     ) {
         super(source);
         this.index = index;
@@ -76,6 +79,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         this.limit = limit;
         this.sorts = sorts;
         this.estimatedRowSize = estimatedRowSize;
+        this.rescorers = rescorers;
     }
 
     static boolean hasScoreAttribute(List<Attribute> attrs) {
@@ -92,7 +96,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(this, EsQueryExec::new, index, indexMode, attrs, query, limit, sorts, estimatedRowSize);
+        return NodeInfo.create(this, EsQueryExec::new, index, indexMode, attrs, query, limit, sorts, estimatedRowSize, rescorers);
     }
 
     public EsIndex index() {
@@ -128,6 +132,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return attrs;
     }
 
+    public List<QueryBuilder> rescorers() {
+        return rescorers;
+    }
+
     /**
      * Estimate of the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
@@ -150,13 +158,13 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, size);
+            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, size, rescorers);
     }
 
     public EsQueryExec withLimit(Expression limit) {
         return Objects.equals(this.limit, limit)
             ? this
-            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, estimatedRowSize);
+            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, estimatedRowSize, rescorers);
     }
 
     public boolean canPushSorts() {
@@ -170,7 +178,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.sorts, sorts)
             ? this
-            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, estimatedRowSize);
+            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, estimatedRowSize, rescorers);
     }
 
     @Override
@@ -195,7 +203,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             && Objects.equals(query, other.query)
             && Objects.equals(limit, other.limit)
             && Objects.equals(sorts, other.sorts)
-            && Objects.equals(estimatedRowSize, other.estimatedRowSize);
+            && Objects.equals(estimatedRowSize, other.estimatedRowSize)
+            && Objects.equals(rescorers, other.rescorers);
     }
 
     @Override
@@ -217,6 +226,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             + (sorts != null ? sorts.toString() : "")
             + "] estimatedRowSize["
             + estimatedRowSize
+            + "], rescorers["
+            + (rescorers != null ? rescorers.toString() : "")
             + "]";
     }
 

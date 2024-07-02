@@ -150,10 +150,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     public void testDeleteEndpointWhileReferencedBySemanticText() throws IOException {
         String endpointId = "endpoint_referenced_by_pipeline";
         putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        putSemanticText(endpointId, randomAlphaOfLength(10));
-        var pipelineId = "pipeline_referencing_model";
-        putPipeline(pipelineId, endpointId);
-
+        String indexName = randomAlphaOfLength(10).toLowerCase();
+        putSemanticText(endpointId, indexName);
         {
             var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
             assertThat(
@@ -167,14 +165,13 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         {
             var response = deleteModel(endpointId, "dry_run=true");
             var entityString = EntityUtils.toString(response.getEntity());
-            assertThat(entityString, containsString(pipelineId));
             assertThat(entityString, containsString("\"acknowledged\":false"));
+            assertThat(entityString, containsString(indexName));
         }
         {
             var response = deleteModel(endpointId, "force=true");
             var entityString = EntityUtils.toString(response.getEntity());
             assertThat(entityString, containsString("\"acknowledged\":true"));
         }
-        deletePipeline(pipelineId);
     }
 }

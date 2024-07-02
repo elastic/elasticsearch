@@ -511,4 +511,5 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
     public CacheStats getCacheStats() {
         return cache.getCacheStats();
     }
+
 }

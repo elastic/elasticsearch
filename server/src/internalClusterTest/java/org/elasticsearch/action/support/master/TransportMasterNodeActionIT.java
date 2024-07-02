@@ -45,7 +45,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -81,7 +80,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
             final long originalTerm = internalCluster().masterClient().admin().cluster().prepareState().get().getState().term();
             final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatch(newMaster, cleanupTasks);
 
-            final var reroutedMessageReceived = new AtomicBoolean(false);
+            final var reroutedMessageReceived = ActionListener.assertOnce(ActionListener.noop());
             for (final var transportService : internalCluster().getInstances(TransportService.class)) {
                 if (transportService.getLocalNode().getName().equals(newMaster)) {
                     continue;
@@ -101,7 +100,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
                 // Assert that no other node receives the re-routed message more than once, and only from a node in the original term.
                 mockTransportService.addRequestHandlingBehavior(TEST_ACTION_TYPE.name(), (handler, request, channel, task) -> {
                     assertThat(asInstanceOf(MasterNodeRequest.class, request).masterTerm(), equalTo(originalTerm));
-                    assertTrue("rerouted message received exactly once", reroutedMessageReceived.compareAndSet(false, true));
+                    reroutedMessageReceived.onResponse(null);
                     handler.messageReceived(request, channel, task);
                 });
             }
@@ -121,7 +120,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
 
             // trigger a cluster state update, which fails, causing a master failover
             internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-                .submitUnbatchedStateUpdateTask("no-op", new ClusterStateUpdateTask() {
+                .submitUnbatchedStateUpdateTask("failover", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         return ClusterState.builder(currentState).build();

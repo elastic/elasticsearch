@@ -26,6 +26,8 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessExistingShardsAllocator;
 import co.elastic.elasticsearch.stateless.allocation.StatelessIndexSettingProvider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleStrategy;
+import co.elastic.elasticsearch.stateless.api.CompoundCommitInfo;
+import co.elastic.elasticsearch.stateless.api.CompoundCommitService;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadPublisher;
@@ -64,6 +66,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.TransportConsiste
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService;
@@ -101,6 +104,7 @@ import co.elastic.elasticsearch.stateless.xpack.DummyWatcherInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyWatcherUsageTransportAction;
 
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
@@ -388,6 +392,18 @@ public class Stateless extends Plugin
         return settings.build();
     }
 
+    private record StatelessCompoundCommitInfo(StatelessCompoundCommit compoundCommit) implements CompoundCommitInfo {
+        @Override
+        public long primaryTerm() {
+            return compoundCommit.primaryTerm();
+        }
+
+        @Override
+        public long generation() {
+            return compoundCommit.generation();
+        }
+    }
+
     @Override
     public Collection<Object> createComponents(PluginServices services) {
         Client client = services.client();
@@ -438,6 +454,22 @@ public class Stateless extends Plugin
             cacheWarmingService
         );
         components.add(commitService);
+        final var finalCommitService = commitService;
+        components.add(new PluginComponentBinding<>(CompoundCommitService.class, shardId -> {
+            try {
+                var batchedCompoundCommit = finalCommitService.getLatestUploadedBcc(shardId);
+                if (batchedCompoundCommit == null) {
+                    return null;
+                }
+                var statelessCompoundCommit = batchedCompoundCommit.lastCompoundCommit();
+                if (statelessCompoundCommit == null) {
+                    return null;
+                }
+                return new StatelessCompoundCommitInfo(statelessCompoundCommit);
+            } catch (AlreadyClosedException ex) {
+                return null;
+            }
+        }));
         var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
         clusterService.addListener(clusterStateCleanupService);
         // Allow wrapping non-Guiced version for testing

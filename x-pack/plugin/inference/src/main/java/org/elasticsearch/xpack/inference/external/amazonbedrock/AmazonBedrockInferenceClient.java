@@ -122,10 +122,8 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         }
     }
 
-    private void setExpiryTimestamp() {
-        synchronized (this) {
-            this.expiryTimestamp = System.currentTimeMillis() + CACHE_EXPIRY_ADD_MS;
-        }
+    private synchronized void setExpiryTimestamp() {
+        this.expiryTimestamp = System.currentTimeMillis() + CACHE_EXPIRY_ADD_MS;
     }
 
     @Override

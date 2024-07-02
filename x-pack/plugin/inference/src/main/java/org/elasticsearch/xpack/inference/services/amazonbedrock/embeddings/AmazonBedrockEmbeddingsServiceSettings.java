@@ -29,8 +29,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockServiceSettings {
     public static final String NAME = "amazon_bedrock_embeddings_service_settings";
@@ -60,8 +60,14 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     ) {
         var baseSettings = AmazonBedrockServiceSettings.fromMap(map, validationException, context);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+
+        Integer maxTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
 

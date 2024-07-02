@@ -40,6 +40,11 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
     protected final AmazonBedrockProvider provider;
     protected final RateLimitSettings rateLimitSettings;
 
+    // the default requests per minute are defined as per-model in the "Runtime quotas" on AWS
+    // see: https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html
+    // setting this to 240 requests per minute (4 requests / sec) is a sane default for us as it should be enough for
+    // decent throughput without exceeding the minimal for _most_ items. The user should consult
+    // the table above if using a model that might have a lesser limit (e.g. Anthropic Claude 3.5)
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
 
     protected static AmazonBedrockServiceSettings.BaseAmazonBedrockCommonSettings fromMap(

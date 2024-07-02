@@ -59,13 +59,11 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
         }
     }
 
-    private void flushExpiredClients() {
+    private synchronized void flushExpiredClients() {
         var currentTimestampMs = System.currentTimeMillis();
-        synchronized (this) {
-            for (final AmazonBedrockBaseClient client : clientsCache.values()) {
-                if (client.isExpired(currentTimestampMs)) {
-                    client.decRef();
-                }
+        for (final AmazonBedrockBaseClient client : clientsCache.values()) {
+            if (client.isExpired(currentTimestampMs)) {
+                client.decRef();
             }
         }
     }

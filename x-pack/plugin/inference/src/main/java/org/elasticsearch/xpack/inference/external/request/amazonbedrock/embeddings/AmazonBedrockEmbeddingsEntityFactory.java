@@ -19,13 +19,13 @@ public final class AmazonBedrockEmbeddingsEntityFactory {
 
         var truncatedInput = truncationResult.input();
         if (truncatedInput == null || truncatedInput.isEmpty()) {
-            throw new ElasticsearchException("Input cannot be null or empty");
+            throw new ElasticsearchException("[input] cannot be null or empty");
         }
 
         switch (serviceSettings.provider()) {
             case AMAZONTITAN -> {
                 if (truncatedInput.size() > 1) {
-                    throw new ElasticsearchException("Input cannot contain more than one string");
+                    throw new ElasticsearchException("[input] cannot contain more than one string");
                 }
                 return new AmazonBedrockTitanEmbeddingsRequestEntity(truncatedInput.get(0));
             }

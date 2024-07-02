@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.common;
+package org.elasticsearch.xpack.inference.chunking;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;

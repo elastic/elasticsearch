@@ -30,6 +30,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -73,48 +75,47 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
 
     public void testRoutingLoopProtection() {
 
-        final var cleanupTasks = new ArrayList<Runnable>();
+        final var cleanupTasks = new ArrayList<Releasable>();
 
         try {
             final var newMaster = ensureSufficientMasterEligibleNodes();
             final long originalTerm = internalCluster().masterClient().admin().cluster().prepareState().get().getState().term();
             final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatch(newMaster, cleanupTasks);
 
-            final var reroutedMessageReceived = ActionListener.assertOnce(ActionListener.noop());
-            for (final var transportService : internalCluster().getInstances(TransportService.class)) {
-                if (transportService.getLocalNode().getName().equals(newMaster)) {
-                    continue;
-                }
-
-                // Disable every other node's ability to send pre-vote and publish requests
-                final var mockTransportService = asInstanceOf(MockTransportService.class, transportService);
-                mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)
-                        || action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)) {
-                        throw new ElasticsearchException("[{}] for [{}] denied", action, connection.getNode());
-                    } else {
-                        connection.sendRequest(requestId, action, request, options);
-                    }
-                });
-
-                // Assert that no other node receives the re-routed message more than once, and only from a node in the original term.
-                mockTransportService.addRequestHandlingBehavior(TEST_ACTION_TYPE.name(), (handler, request, channel, task) -> {
-                    assertThat(asInstanceOf(MasterNodeRequest.class, request).masterTerm(), equalTo(originalTerm));
-                    reroutedMessageReceived.onResponse(null);
-                    handler.messageReceived(request, channel, task);
-                });
-            }
-
-            // Complete listener when the new master receives the re-routed message, ensure it only receives it once, and only from a node
-            // in the newMaster term.
             final var newMasterReceivedReroutedMessageFuture = new PlainActionFuture<>();
             final var newMasterReceivedReroutedMessageListener = ActionListener.assertOnce(newMasterReceivedReroutedMessageFuture);
-            MockTransportService.getInstance(newMaster)
-                .addRequestHandlingBehavior(TEST_ACTION_TYPE.name(), (handler, request, channel, task) -> {
-                    assertThat(asInstanceOf(MasterNodeRequest.class, request).masterTerm(), greaterThan(originalTerm));
-                    newMasterReceivedReroutedMessageListener.onResponse(null);
-                    handler.messageReceived(request, channel, task);
-                });
+            final var reroutedMessageReceived = ActionListener.assertOnce(ActionListener.noop());
+            for (final var transportService : internalCluster().getInstances(TransportService.class)) {
+                final var mockTransportService = asInstanceOf(MockTransportService.class, transportService);
+                cleanupTasks.add(mockTransportService::clearAllRules);
+
+                if (mockTransportService.getLocalNode().getName().equals(newMaster)) {
+                    // Complete listener when the new master receives the re-routed message, ensure it only receives it once, and only from
+                    // a node in the newMaster term.
+                    mockTransportService.addRequestHandlingBehavior(TEST_ACTION_TYPE.name(), (handler, request, channel, task) -> {
+                        assertThat(asInstanceOf(MasterNodeRequest.class, request).masterTerm(), greaterThan(originalTerm));
+                        newMasterReceivedReroutedMessageListener.onResponse(null);
+                        handler.messageReceived(request, channel, task);
+                    });
+                } else {
+                    // Disable every other node's ability to send pre-vote and publish requests
+                    mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                        if (action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)
+                            || action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)) {
+                            throw new ElasticsearchException("[{}] for [{}] denied", action, connection.getNode());
+                        } else {
+                            connection.sendRequest(requestId, action, request, options);
+                        }
+                    });
+
+                    // Assert that no other node receives the re-routed message more than once, and only from a node in the original term.
+                    mockTransportService.addRequestHandlingBehavior(TEST_ACTION_TYPE.name(), (handler, request, channel, task) -> {
+                        assertThat(asInstanceOf(MasterNodeRequest.class, request).masterTerm(), equalTo(originalTerm));
+                        reroutedMessageReceived.onResponse(null);
+                        handler.messageReceived(request, channel, task);
+                    });
+                }
+            }
 
             final var newMasterStateApplierBlock = blockClusterStateApplier(newMaster, cleanupTasks);
 
@@ -147,11 +148,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
 
             safeGet(testActionFuture);
         } finally {
-            // Run cleanup tasks
-            cleanupTasks.forEach(Runnable::run);
-            for (final var transportService : internalCluster().getInstances(TransportService.class)) {
-                asInstanceOf(MockTransportService.class, transportService).clearAllRules();
-            }
+            Releasables.closeExpectNoException(Releasables.wrap(cleanupTasks));
         }
     }
 
@@ -162,7 +159,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
      * @param cleanupTasks The list of clean up tasks
      * @return A cyclic barrier which when awaited on will un-block the applier
      */
-    private static CyclicBarrier blockClusterStateApplier(String nodeName, ArrayList<Runnable> cleanupTasks) {
+    private static CyclicBarrier blockClusterStateApplier(String nodeName, ArrayList<Releasable> cleanupTasks) {
         final var stateApplierBarrier = new CyclicBarrier(2);
         internalCluster().getInstance(ClusterService.class, nodeName).getClusterApplierService().onNewClusterState("test", () -> {
             // Meet to signify application is blocked
@@ -185,7 +182,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
      * @param cleanupTasks The list of cleanup tasks
      * @return A latch that will be released when the old master acknowledges the new master's election
      */
-    private CountDownLatch configureElectionLatch(String newMaster, List<Runnable> cleanupTasks) {
+    private CountDownLatch configureElectionLatch(String newMaster, List<Releasable> cleanupTasks) {
         final String originalMasterName = internalCluster().getMasterName();
         logger.info("Original master was {}, new master will be {}", originalMasterName, newMaster);
         final var previousMasterKnowsNewMasterIsElectedLatch = new CountDownLatch(1);

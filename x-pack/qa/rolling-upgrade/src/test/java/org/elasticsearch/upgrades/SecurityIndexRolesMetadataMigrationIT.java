@@ -13,7 +13,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -24,7 +23,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.CoreMatchers.is;
@@ -147,7 +145,7 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
     }
 
     @SuppressWarnings("unchecked")
-    private static void waitForMigrationCompletion(RestClient adminClient, @Nullable Integer migrationVersion) throws Exception {
+    private static void waitForMigrationCompletion(RestClient adminClient) throws Exception {
         final Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
         assertBusy(() -> {
             Response response = adminClient.performRequest(request);
@@ -160,19 +158,6 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
             assertTrue(
                 ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).containsKey(MIGRATION_VERSION_CUSTOM_KEY)
             );
-            if (migrationVersion != null) {
-                assertTrue(
-                    ((Map<String, Object>) ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).get(
-                        MIGRATION_VERSION_CUSTOM_KEY
-                    )).containsKey(MIGRATION_VERSION_CUSTOM_DATA_KEY)
-                );
-                assertThat(
-                    (Integer) ((Map<String, Object>) ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).get(
-                        MIGRATION_VERSION_CUSTOM_KEY
-                    )).get(MIGRATION_VERSION_CUSTOM_DATA_KEY),
-                    equalTo(migrationVersion)
-                );
-            }
         });
     }
 

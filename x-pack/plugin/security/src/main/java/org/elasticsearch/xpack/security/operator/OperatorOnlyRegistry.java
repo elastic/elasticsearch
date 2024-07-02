@@ -29,14 +29,17 @@ public interface OperatorOnlyRegistry {
      * A fully restricted REST API mandates that the implementation of this method throw an
      * {@link org.elasticsearch.ElasticsearchStatusException} with an appropriate status code and error message.
      *
-     * A partially restricted REST API mandates that the {@link RestRequest} is marked as restricted so that the downstream handler can
-     * behave appropriately.
-     * For example, to restrict the REST response the implementation
-     * should call {@link RestRequest#markRestrictForServerless()} so that the downstream handler can properly restrict the response
-     * before returning to the client. Note - a partial restriction should not throw an exception.
+     * A partially restricted REST API is available to non-operator users but either the request or response for it is restricted
+     * (e.g., certain fields are not allowed in the request).
+     *
+     * The implementation of this method should mark all {@link RestRequest}s for APIs that are *not* fully restricted as candidates
+     * for partial restriction. It's the responsibility of the downstream REST handler to apply the necessary partial restrictions
+     * (if any).
+     * The implementation of this method should call {@link RestRequest#markApiRestrictionsActiveFor(String)} to indicate to downstream
+     * handlers that any partial restrictions they have should be applied.
      *
      * @param restHandler The {@link RestHandler} to check for any restrictions
-     * @param restRequest The {@link RestRequest} to check for any restrictions and mark any partially restricted REST API's
+     * @param restRequest The {@link RestRequest} to check for any restrictions and mark all REST APIs that are not fully restricted
      * @throws ElasticsearchStatusException if the request should be denied in its entirety (fully restricted)
      */
     void checkRest(RestHandler restHandler, RestRequest restRequest) throws ElasticsearchException;

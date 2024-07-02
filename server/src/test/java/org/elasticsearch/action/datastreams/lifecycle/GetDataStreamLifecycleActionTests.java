@@ -22,7 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestRequest.RESTRICT_FOR_SERVERLESS;
+import static org.elasticsearch.rest.RestRequest.ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetDataStreamLifecycleActionTests extends ESTestCase {
@@ -75,7 +75,7 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
         TimeValue globalMaxRetention
     ) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            ToXContent.Params params = new ToXContent.MapParams(Map.of(RESTRICT_FOR_SERVERLESS, "serverless"));
+            ToXContent.Params params = new ToXContent.MapParams(Map.of(ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS, "serverless"));
             RolloverConfiguration rolloverConfiguration = null;
             DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
             dataStreamLifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);

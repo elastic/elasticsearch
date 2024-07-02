@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.rest.RestRequest.RESTRICT_FOR_SERVERLESS;
+import static org.elasticsearch.rest.RestRequest.ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -251,14 +251,17 @@ public class RestRequestTests extends ESTestCase {
 
     public void testMarkAsRestrictForServerless() {
         RestRequest request1 = contentRestRequest("content", new HashMap<>());
-        request1.markRestrictForServerless();
-        assertEquals(request1.param(RESTRICT_FOR_SERVERLESS), "serverless");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::markRestrictForServerless);
-        assertThat(exception.getMessage(), is("The parameter [" + RESTRICT_FOR_SERVERLESS + "] is already defined."));
+        request1.markApiRestrictionsActiveFor("serverless");
+        assertEquals(request1.param(ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS), "serverless");
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> request1.markApiRestrictionsActiveFor("serverless")
+        );
+        assertThat(exception.getMessage(), is("The parameter [" + ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS + "] is already defined."));
 
-        RestRequest request2 = contentRestRequest("content", Map.of(RESTRICT_FOR_SERVERLESS, "serverless"));
-        exception = expectThrows(IllegalArgumentException.class, request2::markRestrictForServerless);
-        assertThat(exception.getMessage(), is("The parameter [" + RESTRICT_FOR_SERVERLESS + "] is already defined."));
+        RestRequest request2 = contentRestRequest("content", Map.of(ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS, "serverless"));
+        exception = expectThrows(IllegalArgumentException.class, () -> request2.markApiRestrictionsActiveFor("serverless"));
+        assertThat(exception.getMessage(), is("The parameter [" + ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS + "] is already defined."));
     }
 
     public static RestRequest contentRestRequest(String content, Map<String, String> params) {

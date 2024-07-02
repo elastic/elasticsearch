@@ -29,6 +29,7 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
 public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
@@ -100,7 +101,8 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
         Cohere response:
         {
             "embeddings": [
-                < array of 1024 floats >
+                [< array of 1024 floats >],
+                ...
             ],
             "id": string,
             "response_type" : "embeddings_floats",
@@ -108,8 +110,20 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
         }
          */
         positionParserAtTokenAfterField(parser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
-        List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
-        var embeddingValues = InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(embeddingValuesList);
-        return List.of(embeddingValues);
+
+        List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding> embeddingList = parseList(
+            parser,
+            AmazonBedrockEmbeddingsResponse::parseCohereEmbeddingsListItem
+        );
+        consumeUntilObjectEnd(parser);
+
+        return embeddingList;
     }
+
+    private static InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding parseCohereEmbeddingsListItem(XContentParser parser)
+        throws IOException {
+        List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
+        return InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(embeddingValuesList);
+    }
+
 }

@@ -802,7 +802,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                         )
                     )
                 );
-                var inputStrings = (List<String>) requestSender.getInputs();
+                var inputStrings = requestSender.getInputs();
 
                 MatcherAssert.assertThat(inputStrings, Matchers.is(List.of("how big")));
             }
@@ -861,7 +861,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                         )
                     )
                 );
-                var inputStrings = (List<String>) requestSender.getInputs();
+                var inputStrings = requestSender.getInputs();
 
                 MatcherAssert.assertThat(inputStrings, Matchers.is(List.of("how big")));
             }
@@ -911,7 +911,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     )
                 );
 
-                var inputStrings = (List<String>) requestSender.getInputs();
+                var inputStrings = requestSender.getInputs();
                 MatcherAssert.assertThat(inputStrings, Matchers.is(List.of("how big")));
             }
         }
@@ -969,7 +969,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                         )
                     )
                 );
-                var inputStrings = (List<String>) requestSender.getInputs();
+                var inputStrings = requestSender.getInputs();
 
                 MatcherAssert.assertThat(inputStrings, Matchers.is(List.of("how big")));
             }

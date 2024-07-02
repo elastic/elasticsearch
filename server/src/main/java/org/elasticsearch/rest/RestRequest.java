@@ -637,7 +637,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         consumedParams.add(RESTRICT_FOR_SERVERLESS);
     }
 
-    public boolean restrictForServerless() {
+    public boolean shouldRestrictForServerless() {
         final boolean hasParam = hasParam(RESTRICT_FOR_SERVERLESS);
         assert false == hasParam || params.get(RESTRICT_FOR_SERVERLESS).equals("serverless");
         return hasParam;

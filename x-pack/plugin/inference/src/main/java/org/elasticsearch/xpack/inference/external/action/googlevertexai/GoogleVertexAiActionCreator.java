@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 
 import java.util.Map;
 import java.util.Objects;
@@ -29,5 +30,10 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
     @Override
     public ExecutableAction create(GoogleVertexAiEmbeddingsModel model, Map<String, Object> taskSettings) {
         return new GoogleVertexAiEmbeddingsAction(sender, model, serviceComponents);
+    }
+
+    @Override
+    public ExecutableAction create(GoogleVertexAiRerankModel model, Map<String, Object> taskSettings) {
+        return new GoogleVertexAiRerankAction(sender, model, serviceComponents.threadPool());
     }
 }

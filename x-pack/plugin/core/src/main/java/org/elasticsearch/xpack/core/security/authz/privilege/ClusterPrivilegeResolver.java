@@ -67,6 +67,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -174,6 +175,23 @@ public class ClusterPrivilegeResolver {
     );
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
+    private static final Set<String> MANAGE_CONNECTOR_PATTERN = Set.of("cluster:admin/xpack/connector/*");
+    private static final Set<String> MONITOR_CONNECTOR_PATTERN = Set.of(
+        "cluster:admin/xpack/connector/get",
+        "cluster:admin/xpack/connector/list",
+        "cluster:admin/xpack/connector/sync_job/get",
+        "cluster:admin/xpack/connector/sync_job/list"
+    );
+    private static final Set<String> READ_CONNECTOR_SECRETS_PATTERN = Set.of("cluster:admin/xpack/connector/secret/get");
+    private static final Set<String> WRITE_CONNECTOR_SECRETS_PATTERN = Set.of(
+        "cluster:admin/xpack/connector/secret/delete",
+        "cluster:admin/xpack/connector/secret/post",
+        "cluster:admin/xpack/connector/secret/put"
+    );
+    private static final Set<String> CONNECTOR_SECRETS_PATTERN = Stream.concat(
+        READ_CONNECTOR_SECRETS_PATTERN.stream(),
+        WRITE_CONNECTOR_SECRETS_PATTERN.stream()
+    ).collect(Collectors.toSet());
     private static final Set<String> MANAGE_SEARCH_QUERY_RULES_PATTERN = Set.of("cluster:admin/xpack/query_rules/*");
     private static final Set<String> MANAGE_SEARCH_SYNONYMS_PATTERN = Set.of(
         "cluster:admin/synonyms/*",
@@ -262,6 +280,7 @@ public class ClusterPrivilegeResolver {
             ProfileHasPrivilegesAction.NAME,
             SuggestProfilesAction.NAME,
             GetRolesAction.NAME,
+            ActionTypes.QUERY_ROLE_ACTION.name(),
             GetRoleMappingsAction.NAME,
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME + "*",
@@ -332,6 +351,15 @@ public class ClusterPrivilegeResolver {
         "manage_search_application",
         MANAGE_SEARCH_APPLICATION_PATTERN
     );
+    public static final NamedClusterPrivilege MANAGE_CONNECTOR = new ActionClusterPrivilege(
+        "manage_connector",
+        MANAGE_CONNECTOR_PATTERN,
+        CONNECTOR_SECRETS_PATTERN
+    );
+    public static final NamedClusterPrivilege MONITOR_CONNECTOR = new ActionClusterPrivilege(
+        "monitor_connector",
+        MONITOR_CONNECTOR_PATTERN
+    );
     public static final NamedClusterPrivilege MANAGE_SEARCH_SYNONYMS = new ActionClusterPrivilege(
         "manage_search_synonyms",
         MANAGE_SEARCH_SYNONYMS_PATTERN
@@ -362,16 +390,12 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege READ_CONNECTOR_SECRETS = new ActionClusterPrivilege(
         "read_connector_secrets",
-        Set.of("cluster:admin/xpack/connector/secret/get")
+        READ_CONNECTOR_SECRETS_PATTERN
     );
 
     public static final NamedClusterPrivilege WRITE_CONNECTOR_SECRETS = new ActionClusterPrivilege(
         "write_connector_secrets",
-        Set.of(
-            "cluster:admin/xpack/connector/secret/delete",
-            "cluster:admin/xpack/connector/secret/post",
-            "cluster:admin/xpack/connector/secret/put"
-        )
+        WRITE_CONNECTOR_SECRETS_PATTERN
     );
     public static final NamedClusterPrivilege MONITOR_GLOBAL_RETENTION = new ActionClusterPrivilege(
         "monitor_data_stream_global_retention",
@@ -391,6 +415,7 @@ public class ClusterPrivilegeResolver {
             NONE,
             ALL,
             MONITOR,
+            MONITOR_CONNECTOR,
             MONITOR_INFERENCE,
             MONITOR_ML,
             MONITOR_TEXT_STRUCTURE,
@@ -400,6 +425,7 @@ public class ClusterPrivilegeResolver {
             MONITOR_ROLLUP,
             MONITOR_ENRICH,
             MANAGE,
+            MANAGE_CONNECTOR,
             MANAGE_INFERENCE,
             MANAGE_ML,
             MANAGE_TRANSFORM_DEPRECATED,

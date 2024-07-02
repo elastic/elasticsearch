@@ -94,7 +94,7 @@
  *                 to keep all the logic in one place.
  *                 <p>
  *                     You can find examples of other aggregations using this method,
- *                     like {@link org.elasticsearch.xpack.esql.expression.function.aggregate.TopList#writeTo(PlanStreamOutput)}
+ *                     like {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Top#writeTo(PlanStreamOutput)}
  *                 </p>
  *             </li>
  *             <li>
@@ -155,7 +155,7 @@
  *     <li>
  *         Create a new StringTemplate file.
  *         Use another as a reference, like
- *         {@code x-pack/plugin/esql/compute/src/main/java/org/elasticsearch/compute/aggregation/X-TopListAggregator.java.st}.
+ *         {@code x-pack/plugin/esql/compute/src/main/java/org/elasticsearch/compute/aggregation/X-TopAggregator.java.st}.
  *     </li>
  *     <li>
  *         Add the template scripts to {@code x-pack/plugin/esql/compute/build.gradle}.

@@ -525,7 +525,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSettings,
                 directory,
                 lock,
-                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
+                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
+                this.indexSettings.getIndexSortConfig().hasIndexSort()
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(

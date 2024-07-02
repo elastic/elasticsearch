@@ -19,7 +19,7 @@ if [ -z "$ARTIFACTORY_API_KEY" ]; then
   exit 1;
 fi
 
-VERSION="1.0.9"
+VERSION="1.0.10"
 ARTIFACTORY_REPOSITORY="${ARTIFACTORY_REPOSITORY:-https://artifactory.elastic.dev/artifactory/elasticsearch-native/}"
 TEMP=$(mktemp -d)
 
@@ -33,11 +33,11 @@ echo 'Building Darwin binary...'
 
 echo 'Building Linux binary...'
 mkdir -p build/libs/vec/shared/aarch64/
-DOCKER_IMAGE=$(docker build --platform linux/arm64 --quiet .)
+DOCKER_IMAGE=$(docker build --platform linux/arm64 --quiet --file=Dockerfile.aarch64 .)
 docker run $DOCKER_IMAGE > build/libs/vec/shared/aarch64/libvec.so
 
 echo 'Building Linux x64 binary...'
-DOCKER_IMAGE=$(docker build --platform linux/amd64 --quiet .)
+DOCKER_IMAGE=$(docker build --platform linux/amd64 --quiet --file=Dockerfile.amd64 .)
 mkdir -p build/libs/vec/shared/amd64
 docker run --platform linux/amd64 $DOCKER_IMAGE > build/libs/vec/shared/amd64/libvec.so
 

@@ -64,6 +64,15 @@ tasks.named("internalClusterTest") {
   onlyIf("OS != windows") { OS.current() != OS.WINDOWS }
 }
 
+tasks.named('forbiddenApisTest').configure {
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  modifyBundledSignatures { bundledSignatures ->
+    bundledSignatures -= 'jdk-non-portable'
+    bundledSignatures += 'jdk-internal'
+    bundledSignatures
+  }
+}
+
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.mmdb'
 }

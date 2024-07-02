@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
@@ -3571,6 +3572,100 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("Expected zero range query builder", rangeQueryBuilders.size(), equalTo(0));
         var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 400000.0, 600000.0);
+    }
+
+    public void testPushSpatialDistanceDisjointBandsToSource() {
+        var query = """
+            FROM airports
+            | WHERE (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 600000
+                 AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 400000)
+               OR
+                    (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 300000
+                 AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 200000)
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var limit2 = as(fragment.fragment(), Limit.class);
+        var filter = as(limit2.child(), Filter.class);
+        var or = as(filter.condition(), Or.class);
+        assertThat("OR has two predicates", or.arguments().size(), equalTo(2));
+        for (Expression expression : or.arguments()) {
+            var and = as(expression, And.class);
+            for (Expression exp : and.arguments()) {
+                var comp = as(exp, EsqlBinaryComparison.class);
+                var expectedComp = comp.equals(and.left()) ? LessThanOrEqual.class : GreaterThanOrEqual.class;
+                assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+                assertThat("filter contains ST_DISTANCE", comp.left(), instanceOf(StDistance.class));
+            }
+        }
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var disjuntiveQueryBuilders = bool.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
+        for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
+            var subRangeBool = as(disjuntiveQueryBuilders.get(i), BoolQueryBuilder.class);
+            var shapeQueryBuilders = subRangeBool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+            assertShapeQueryRange(shapeQueryBuilders, i == 0 ? 400000.0 : 200000.0, i == 0 ? 600000.0 : 300000.0);
+        }
+    }
+
+    public void testPushSpatialDistanceComplexPredicateToSource() {
+        var query = """
+            FROM airports
+            | WHERE ((ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 600000
+                  AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 400000
+                  AND NOT (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 500000
+                       AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 430000))
+                  OR (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 300000
+                           AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 200000))
+                AND NOT abbrev == "PLQ"
+                AND scalerank < 6
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var limit2 = as(fragment.fragment(), Limit.class);
+        var filter = as(limit2.child(), Filter.class);
+        var outerAnd = as(filter.condition(), And.class);
+        var outerLeft = as(outerAnd.left(), And.class);
+        as(outerLeft.right(), Not.class);
+        as(outerAnd.right(), LessThan.class);
+        var or = as(outerLeft.left(), Or.class);
+        var innerAnd1 = as(or.left(), And.class);
+        var innerAnd2 = as(or.right(), And.class);
+        for (Expression exp : innerAnd2.arguments()) {
+            var comp = as(exp, EsqlBinaryComparison.class);
+            var expectedComp = comp.equals(innerAnd2.left()) ? LessThanOrEqual.class : GreaterThanOrEqual.class;
+            assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+            assertThat("filter contains ST_DISTANCE", comp.left(), instanceOf(StDistance.class));
+        }
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(2));
+        assertThat("Expected boolean query of one FILTER clause", bool.filter().size(), equalTo(1));
+        var boolDisjuntive = as(bool.filter().get(0), BoolQueryBuilder.class);
+        var disjuntiveQueryBuilders = boolDisjuntive.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
+        for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
+            var subRangeBool = as(disjuntiveQueryBuilders.get(i), BoolQueryBuilder.class);
+            var shapeQueryBuilders = subRangeBool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+            assertShapeQueryRange(shapeQueryBuilders, i == 0 ? 400000.0 : 200000.0, i == 0 ? 600000.0 : 300000.0);
+        }
     }
 
     private void assertShapeQueryRange(List<QueryBuilder> shapeQueryBuilders, double min, double max) {

@@ -966,6 +966,29 @@ ARN      | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | 
 SVG      | Stavanger Sola          | POINT (5.6298103297218 58.8821564842185) | Norway    | Sandnes         | POINT (5.7361 58.8517)  | 548.26     | 541.35
 ;
 
+airportsWithinDistanceBandFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 600000
+    AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 400000
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, name, location, country, city, city_location, distance, city_distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+GDN      | Gdansk Lech Walesa      | POINT(18.4684422165911 54.3807025352925) | Poland    | Gdańsk          | POINT(18.6453 54.3475)  | 402.61     | 414.59
+NYO      | Stockholm-Skavsta       | POINT(16.9216055584254 58.7851041303448) | Sweden    | Nyköping        | POINT(17.0086 58.7531)  | 433.99     | 434.43
+OSL      | Oslo Gardermoen         | POINT(11.0991032762581 60.1935783171386) | Norway    | Oslo            | POINT(10.7389 59.9133)  | 510.03     | 483.71
+DRS      | Dresden                 | POINT(13.7649671440047 51.1250912428871) | Germany   | Dresden         | POINT(13.74 51.05)      | 511.9      | 519.91
+BMA      | Bromma                  | POINT(17.9456175406145 59.3555902065112) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 520.18     | 522.54
+PLQ      | Palanga Int'l           | POINT(21.0974463986251 55.9713426235358) | Lithuania | Klaipėda        | POINT(21.1667 55.75)    | 533.67     | 538.56
+ARN      | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 545.09     | 522.54
+SVG      | Stavanger Sola          | POINT (5.6298103297218 58.8821564842185) | Norway    | Sandnes         | POINT (5.7361 58.8517)  | 548.26     | 541.35
+;
+
 airportsWithinDistanceCopenhagenTrainStationCount
 required_capability: st_distance
 
@@ -979,6 +1002,24 @@ count:long | country:k
 3          | Germany
 3          | Sweden
 1          | Denmark
+1          | Poland
+;
+
+airportsWithinDistanceBandCopenhagenTrainStationCount
+required_capability: st_distance
+
+FROM airports
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 600000
+    AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 400000
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+;
+
+count:long | country:k
+3          | Sweden
+2          | Norway
+1          | Germany
+1          | Lithuania
 1          | Poland
 ;
 

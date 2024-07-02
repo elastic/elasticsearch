@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ml.utils.SemanticTextInfoExtractor.extractSemanticTextFields;
+
 public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeAction<
     DeleteInferenceEndpointAction.Request,
     DeleteInferenceEndpointAction.Response> {
@@ -87,19 +89,30 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
                 listener.onFailure(InferenceExceptions.mismatchedTaskTypeException(request.getTaskType(), unparsedModel.taskType()));
                 return;
             }
-
+            logger.error("Stopping inference endpoint {}", request.getInferenceEndpointId());
             if (request.isDryRun()) {
-                masterListener.onResponse(
-                    new DeleteInferenceEndpointAction.Response(
-                        false,
-                        InferenceProcessorInfoExtractor.pipelineIdsForResource(state, Set.of(request.getInferenceEndpointId()))
-                    )
+                logger.error("Stopping inference endpoint {} with dry run 1", request.getInferenceEndpointId());
+
+                Set<String> pipelines = InferenceProcessorInfoExtractor.pipelineIdsForResource(
+                    state,
+                    Set.of(request.getInferenceEndpointId())
                 );
+                logger.error("Stopping inference endpoint {} with dry run 2", request.getInferenceEndpointId());
+
+                Set<String> indexesReferencedBySemanticText = extractSemanticTextFields(
+                    state.getMetadata(),
+                    Set.of(request.getInferenceEndpointId())
+                );
+                logger.error("Stopping inference endpoint {} with dry run 3", request.getInferenceEndpointId());
+
+                masterListener.onResponse(new DeleteInferenceEndpointAction.Response(false, pipelines, indexesReferencedBySemanticText));
                 return;
             } else if (request.isForceDelete() == false
-                && endpointIsReferencedInPipelines(state, request.getInferenceEndpointId(), listener)) {
+                && endpointIsReferenceInPipelinesOrSemanticText(state, request.getInferenceEndpointId(), listener)) {
                     return;
                 }
+
+            logger.error("Stopping inference endpoint {} after check", request.getInferenceEndpointId());
 
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
@@ -126,9 +139,41 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         })
             .addListener(
                 masterListener.delegateFailure(
-                    (l3, didDeleteModel) -> masterListener.onResponse(new DeleteInferenceEndpointAction.Response(didDeleteModel, Set.of()))
+                    (l3, didDeleteModel) -> masterListener.onResponse(
+                        new DeleteInferenceEndpointAction.Response(didDeleteModel, Set.of(), Set.of())
+                    )
                 )
             );
+    }
+
+    private static boolean endpointIsReferenceInPipelinesOrSemanticText(
+        final ClusterState state,
+        final String inferenceEndpointId,
+        ActionListener<Boolean> listener
+    ) {
+        logger.error("Stopping inference endpoint -- check");
+        return endpointIsReferencedInPipelines(state, inferenceEndpointId, listener)
+            || endpointIsReferenceInSemanticText(state, inferenceEndpointId, listener);
+    }
+
+    private static boolean endpointIsReferenceInSemanticText(
+        final ClusterState state,
+        final String inferenceEndpointId,
+        ActionListener<Boolean> listener
+    ) {
+        if (extractSemanticTextFields(state.getMetadata(), Set.of(inferenceEndpointId)).isEmpty() == false) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Inference endpoint "
+                        + inferenceEndpointId
+                        + " is referenced by `SemanticText` field(s) and cannot be deleted. "
+                        + "Use `force` to delete it anyway, or use `dry_run` to list the `SemanticText` field(s) that reference it.",
+                    RestStatus.CONFLICT
+                )
+            );
+            return true;
+        }
+        return false;
     }
 
     private static boolean endpointIsReferencedInPipelines(

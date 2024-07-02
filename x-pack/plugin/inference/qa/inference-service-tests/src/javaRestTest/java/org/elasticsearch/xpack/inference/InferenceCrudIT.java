@@ -146,4 +146,35 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
         deletePipeline(pipelineId);
     }
+
+    public void testDeleteEndpointWhileReferencedBySemanticText() throws IOException {
+        String endpointId = "endpoint_referenced_by_pipeline";
+        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putSemanticText(endpointId, randomAlphaOfLength(10));
+        var pipelineId = "pipeline_referencing_model";
+        putPipeline(pipelineId, endpointId);
+
+        {
+            var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    " is referenced by `SemanticText` field(s) and cannot be deleted. "
+                        + "Use `force` to delete it anyway, or use `dry_run` to list the `SemanticText` field(s) that reference it."
+                )
+            );
+        }
+        {
+            var response = deleteModel(endpointId, "dry_run=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString(pipelineId));
+            assertThat(entityString, containsString("\"acknowledged\":false"));
+        }
+        {
+            var response = deleteModel(endpointId, "force=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString("\"acknowledged\":true"));
+        }
+        deletePipeline(pipelineId);
+    }
 }

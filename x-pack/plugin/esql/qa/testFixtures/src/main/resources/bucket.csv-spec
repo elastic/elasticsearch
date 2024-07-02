@@ -655,3 +655,36 @@ max:integer | b:double
 ;
 
 
+foldableBuckets#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| EVAL c = concat("2", "0")::int
+| STATS hires_per_month = COUNT(*) BY month = BUCKET(hire_date, c, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| SORT month
+;
+
+  hires_per_month:long |    month:date
+2                      |1985-02-01T00:00:00.000Z
+1                      |1985-05-01T00:00:00.000Z
+1                      |1985-07-01T00:00:00.000Z
+1                      |1985-09-01T00:00:00.000Z
+2                      |1985-10-01T00:00:00.000Z
+4                      |1985-11-01T00:00:00.000Z
+;
+
+
+foldableBucketsInline#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS hires_per_month = COUNT(*) BY month = BUCKET(hire_date, concat("2", "0")::int, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| SORT month
+;
+
+  hires_per_month:long |    month:date
+2                      |1985-02-01T00:00:00.000Z
+1                      |1985-05-01T00:00:00.000Z
+1                      |1985-07-01T00:00:00.000Z
+1                      |1985-09-01T00:00:00.000Z
+2                      |1985-10-01T00:00:00.000Z
+4                      |1985-11-01T00:00:00.000Z
+;

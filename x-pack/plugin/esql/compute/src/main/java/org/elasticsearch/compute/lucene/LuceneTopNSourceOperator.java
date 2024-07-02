@@ -187,10 +187,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             assert isEmitting() == false : "offset=" + offset + " score_docs=" + Arrays.toString(scoreDocs);
             offset = 0;
             if (perShardCollector != null) {
-                scoreDocs = maybeRescoreDocuments(
-                    perShardCollector.shardContext,
-                    perShardCollector.topFieldCollector.topDocs()
-                );
+                scoreDocs = maybeRescoreDocuments(perShardCollector.shardContext, perShardCollector.topFieldCollector.topDocs());
             } else {
                 scoreDocs = new ScoreDoc[0];
             }

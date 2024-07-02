@@ -137,7 +137,7 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
         }
 
         TopDocs rescoredTopDocs = topDocs;
-        for(var rescoreQuerySupplier : rescoreQuerySuppliers) {
+        for (var rescoreQuerySupplier : rescoreQuerySuppliers) {
             var query = rescoreQuerySupplier.apply(shardContext);
 
             Rescorer rescorer = new QueryRescorer(query) {

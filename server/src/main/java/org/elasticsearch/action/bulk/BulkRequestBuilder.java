@@ -165,14 +165,6 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
-     */
-    public final BulkRequestBuilder setTimeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return this;
-    }
-
-    /**
      * The number of actions currently in the bulk.
      */
     public int numberOfActions() {

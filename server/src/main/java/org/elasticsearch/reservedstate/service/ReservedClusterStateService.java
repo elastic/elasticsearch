@@ -42,6 +42,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.checkErrorVersion;
 import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.isNewError;
@@ -112,7 +113,7 @@ public class ReservedClusterStateService {
         try {
             return stateChunkParser.apply(parser, null);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -134,7 +135,7 @@ public class ReservedClusterStateService {
         try {
             stateChunk = parse(namespace, parser);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -148,7 +149,7 @@ public class ReservedClusterStateService {
     }
 
     public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
-        var missingVersion = new ReservedStateVersion(-1L, Version.CURRENT);
+        var missingVersion = new ReservedStateVersion(EMPTY_VERSION, Version.CURRENT);
         var emptyState = new ReservedStateChunk(Map.of(), missingVersion);
         updateTaskQueue.submitTask(
             "empty initial cluster state [" + namespace + "]",

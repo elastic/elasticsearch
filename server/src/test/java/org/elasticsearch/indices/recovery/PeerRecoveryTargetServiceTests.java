@@ -350,7 +350,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, null, null, new PeerRecoveryTargetService.RecoveryListener() {
             @Override
-            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
                 future.onResponse(null);
             }
 
@@ -372,7 +376,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         DiscoveryNode rNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
         IndexShard shard = newStartedShard(false);
         final SeqNoStats seqNoStats = populateRandomData(shard);
-        shard.close("test", false);
+        closeShardNoCheck(shard);
         if (randomBoolean()) {
             shard.store().associateIndexWithNewTranslog(UUIDs.randomBase64UUID());
         } else if (randomBoolean()) {

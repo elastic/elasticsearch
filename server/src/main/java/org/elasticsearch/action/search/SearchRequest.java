@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -366,9 +367,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     validationException
                 );
             }
-            if (source.collapse() != null && source.rescores() != null && source.rescores().isEmpty() == false) {
-                validationException = addValidationError("cannot use `collapse` in conjunction with `rescore`", validationException);
-            }
             if (source.storedFields() != null) {
                 if (source.storedFields().fetchFields() == false) {
                     if (source.fetchSource() != null && source.fetchSource().fetchSource()) {
@@ -397,10 +395,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (size == 0) {
                     validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
                 }
-                if (size > source.rankBuilder().windowSize()) {
+                if (size > source.rankBuilder().rankWindowSize()) {
                     validationException = addValidationError(
-                        "[rank] requires [window_size: "
-                            + source.rankBuilder().windowSize()
+                        "[rank] requires [rank_window_size: "
+                            + source.rankBuilder().rankWindowSize()
                             + "]"
                             + " be greater than or equal to [size: "
                             + size
@@ -409,7 +407,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     );
                 }
                 int queryCount = source.subSearches().size() + source.knnSearch().size();
-                if (queryCount < 2) {
+                if (source.rankBuilder().isCompoundBuilder() && queryCount < 2) {
                     validationException = addValidationError(
                         "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
                         validationException
@@ -436,11 +434,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (source.pointInTimeBuilder() != null) {
                     validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
                 }
-                if (source.profile()) {
-                    validationException = addValidationError("[rank] requires [profile] is [false]", validationException);
-                }
-                if (source.explain() != null && source.explain()) {
-                    validationException = addValidationError("[rank] requires [explain] is [false]", validationException);
+            }
+            if (source.rescores() != null) {
+                for (@SuppressWarnings("rawtypes")
+                RescorerBuilder rescoreBuilder : source.rescores()) {
+                    validationException = rescoreBuilder.validate(this, validationException);
                 }
             }
         }
@@ -690,13 +688,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public SearchRequest scroll(TimeValue keepAlive) {
         return scroll(new Scroll(keepAlive));
-    }
-
-    /**
-     * If set, will enable scrolling of the search request for the specified timeout.
-     */
-    public SearchRequest scroll(String keepAlive) {
-        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null, getClass().getSimpleName() + ".Scroll.keepAlive")));
     }
 
     /**

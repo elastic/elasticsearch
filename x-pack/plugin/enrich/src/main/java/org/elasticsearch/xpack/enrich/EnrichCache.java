@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -25,7 +26,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.LongSupplier;
 
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
@@ -48,9 +51,18 @@ import java.util.function.BiConsumer;
 public final class EnrichCache {
 
     private final Cache<CacheKey, List<Map<?, ?>>> cache;
+    private final LongSupplier relativeNanoTimeProvider;
+    private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
+    private final AtomicLong missesTimeInNanos = new AtomicLong(0);
     private volatile Metadata metadata;
 
     EnrichCache(long maxSize) {
+        this(maxSize, System::nanoTime);
+    }
+
+    // non-private for unit testing only
+    EnrichCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
+        this.relativeNanoTimeProvider = relativeNanoTimeProvider;
         this.cache = CacheBuilder.<CacheKey, List<Map<?, ?>>>builder().setMaximumWeight(maxSize).build();
     }
 
@@ -67,14 +79,22 @@ public final class EnrichCache {
         ActionListener<List<Map<?, ?>>> listener
     ) {
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
+        long cacheStart = relativeNanoTimeProvider.getAsLong();
         List<Map<?, ?>> response = get(searchRequest);
+        long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
         if (response != null) {
+            hitsTimeInNanos.addAndGet(cacheRequestTime);
             listener.onResponse(response);
         } else {
+
+            final long retrieveStart = relativeNanoTimeProvider.getAsLong();
             searchResponseFetcher.accept(searchRequest, ActionListener.wrap(resp -> {
                 List<Map<?, ?>> value = toCacheValue(resp);
                 put(searchRequest, value);
-                listener.onResponse(deepCopy(value, false));
+                List<Map<?, ?>> copy = deepCopy(value, false);
+                long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
+                missesTimeInNanos.addAndGet(cacheRequestTime + databaseQueryAndCachePutTime);
+                listener.onResponse(copy);
             }, listener::onFailure));
         }
     }
@@ -111,7 +131,9 @@ public final class EnrichCache {
             cache.count(),
             cacheStats.getHits(),
             cacheStats.getMisses(),
-            cacheStats.getEvictions()
+            cacheStats.getEvictions(),
+            TimeValue.nsecToMSec(hitsTimeInNanos.get()),
+            TimeValue.nsecToMSec(missesTimeInNanos.get())
         );
     }
 

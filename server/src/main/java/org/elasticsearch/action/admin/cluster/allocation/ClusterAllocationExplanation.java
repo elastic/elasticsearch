@@ -226,16 +226,16 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
     private static XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder) throws IOException {
 
         builder.startObject("unassigned_info");
-        builder.field("reason", unassignedInfo.getReason());
-        builder.field("at", UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.getUnassignedTimeInMillis())));
-        if (unassignedInfo.getNumFailedAllocations() > 0) {
-            builder.field("failed_allocation_attempts", unassignedInfo.getNumFailedAllocations());
+        builder.field("reason", unassignedInfo.reason());
+        builder.field("at", UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.unassignedTimeMillis())));
+        if (unassignedInfo.failedAllocations() > 0) {
+            builder.field("failed_allocation_attempts", unassignedInfo.failedAllocations());
         }
-        String details = unassignedInfo.getDetails();
+        String details = unassignedInfo.details();
         if (details != null) {
             builder.field("details", details);
         }
-        builder.field("last_allocation_status", AllocationDecision.fromAllocationStatus(unassignedInfo.getLastAllocationStatus()));
+        builder.field("last_allocation_status", AllocationDecision.fromAllocationStatus(unassignedInfo.lastAllocationStatus()));
         builder.endObject();
         return builder;
     }

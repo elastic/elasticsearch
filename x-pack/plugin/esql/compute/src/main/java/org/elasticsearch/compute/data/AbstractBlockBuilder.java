@@ -120,6 +120,11 @@ abstract class AbstractBlockBuilder implements Block.Builder {
         }
     }
 
+    @Override
+    public long estimatedBytes() {
+        return estimatedBytes;
+    }
+
     /**
      * Called during implementations of {@link Block.Builder#build} as a last step
      * to mark the Builder as closed and make sure that further closes don't double

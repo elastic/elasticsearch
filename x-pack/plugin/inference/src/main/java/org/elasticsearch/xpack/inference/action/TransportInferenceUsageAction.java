@@ -66,7 +66,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         GetInferenceModelAction.Request getInferenceModelAction = new GetInferenceModelAction.Request("_all", TaskType.ANY);
         client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, listener.delegateFailureAndWrap((delegate, response) -> {
             Map<String, InferenceFeatureSetUsage.ModelStats> stats = new TreeMap<>();
-            for (ModelConfigurations model : response.getModels()) {
+            for (ModelConfigurations model : response.getEndpoints()) {
                 String statKey = model.getService() + ":" + model.getTaskType().name();
                 InferenceFeatureSetUsage.ModelStats stat = stats.computeIfAbsent(
                     statKey,

@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
 import static org.elasticsearch.rest.Scope.INTERNAL;
 
 @ServerlessScope(INTERNAL)
@@ -64,7 +65,7 @@ public class RestListTasksAction extends BaseRestHandler {
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
-        TimeValue timeout = request.paramAsTime("timeout", null);
+        TimeValue timeout = getTimeout(request);
 
         ListTasksRequest listTasksRequest = new ListTasksRequest();
         listTasksRequest.setNodes(nodes);

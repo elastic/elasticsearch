@@ -21,7 +21,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -101,14 +101,11 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
 
         // Will mark for the operator user
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(OperatorPrivileges.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "marking",
                     logger.getName(),
                     Level.DEBUG,
@@ -120,10 +117,8 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
                 AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR,
                 threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
             );
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
         }
 
@@ -214,15 +209,12 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(licensed);
 
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try {
+        try (var mockLog = MockLog.capture(OperatorPrivileges.class)) {
             final RestoreSnapshotRequest restoreSnapshotRequest = mock(RestoreSnapshotRequest.class);
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "intercepting",
                     logger.getName(),
                     Level.DEBUG,
@@ -231,10 +223,8 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
             );
             operatorPrivilegesService.maybeInterceptRequest(new ThreadContext(Settings.EMPTY), restoreSnapshotRequest);
             verify(restoreSnapshotRequest).skipOperatorOnlyState(licensed);
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
         }
     }

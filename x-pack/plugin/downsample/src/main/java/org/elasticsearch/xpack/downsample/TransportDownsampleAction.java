@@ -110,7 +110,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
     private final Client client;
     private final IndicesService indicesService;
-    private final ClusterService clusterService;
     private final MasterServiceTaskQueue<DownsampleClusterStateUpdateTask> taskQueue;
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
@@ -170,7 +169,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.indicesService = indicesService;
-        this.clusterService = clusterService;
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.threadContext = threadPool.getThreadContext();
@@ -312,7 +310,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 request.getDownsampleConfig().getTimestampField()
             );
             MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-                if (helper.isTimeSeriesDimension(field, mapping)) {
+                var flattenedDimensions = helper.extractFlattenedDimensions(field, mapping);
+                if (flattenedDimensions != null) {
+                    dimensionFields.addAll(flattenedDimensions);
+                } else if (helper.isTimeSeriesDimension(field, mapping)) {
                     dimensionFields.add(field);
                 } else if (helper.isTimeSeriesMetric(field, mapping)) {
                     metricFields.add(field);

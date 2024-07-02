@@ -17,7 +17,51 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      * Gets the effective userid of the current process.
      *
      * @return the effective user id
-     * @see <a href="https://pubs.opengroup.org/onlinepubs/9699919799/functions/geteuid.html">geteuid</a>
+     * @see <a href="https://man7.org/linux/man-pages/man3/geteuid.3p.html">geteuid manpage</a>
      */
     int geteuid();
+
+    /** corresponds to struct rlimit */
+    interface RLimit {
+        long rlim_cur();
+
+        long rlim_max();
+    }
+
+    /**
+     * Create a new RLimit struct for use by getrlimit.
+     */
+    RLimit newRLimit();
+
+    /**
+     * Retrieve the current rlimit values for the given resource.
+     *
+     * @return 0 on success, -1 on failure with errno set
+     * @see <a href="https://man7.org/linux/man-pages/man2/getrlimit.2.html">getrlimit manpage</a>
+     */
+    int getrlimit(int resource, RLimit rlimit);
+
+    /**
+     * Lock all the current process's virtual address space into RAM.
+     * @param flags flags determining how memory will be locked
+     * @return 0 on success, -1 on failure with errno set
+     * @see <a href="https://man7.org/linux/man-pages/man2/mlock.2.html">mlockall manpage</a>
+     */
+    int mlockall(int flags);
+
+    /**
+     * Return a string description for an error.
+     *
+     * @param errno The error number
+     * @return a String description for the error
+     * @see <a href="https://man7.org/linux/man-pages/man3/strerror.3.html">strerror manpage</a>
+     */
+    String strerror(int errno);
+
+    /**
+     * Return the error number from the last failed C library call.
+     *
+     * @see <a href="https://man7.org/linux/man-pages/man3/errno.3.html">errno manpage</a>
+     */
+    int errno();
 }

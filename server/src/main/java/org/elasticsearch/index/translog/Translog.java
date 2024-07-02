@@ -159,11 +159,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.operationListener = config.getOperationListener();
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
-        bigArrays = config.getBigArrays();
-        diskIoBufferPool = config.getDiskIoBufferPool();
+        this.bigArrays = config.getBigArrays();
+        this.diskIoBufferPool = config.getDiskIoBufferPool();
         var rwl = new ReentrantReadWriteLock();
-        readLock = rwl.readLock();
-        writeLock = rwl.writeLock();
+        this.readLock = rwl.readLock();
+        this.writeLock = rwl.writeLock();
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
 
@@ -580,7 +580,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 persistedSequenceNumberConsumer,
                 bigArrays,
                 diskIoBufferPool,
-                operationListener
+                operationListener,
+                config.fsync()
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
@@ -2002,7 +2003,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             },
             BigArrays.NON_RECYCLING_INSTANCE,
             DiskIoBufferPool.INSTANCE,
-            (d, s, l) -> {}
+            TranslogConfig.NOOP_OPERATION_LISTENER,
+            true
         );
         writer.close();
         return uuid;

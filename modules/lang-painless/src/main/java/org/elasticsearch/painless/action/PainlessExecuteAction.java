@@ -648,6 +648,9 @@ public class PainlessExecuteAction {
                         luceneQuery = indexSearcher.rewrite(luceneQuery);
                         Weight weight = indexSearcher.createWeight(luceneQuery, ScoreMode.COMPLETE, 1f);
                         Scorer scorer = weight.scorer(indexSearcher.getIndexReader().leaves().get(0));
+                        if (scorer == null) {
+                            throw new IllegalArgumentException("The provided query did not match the sample document");
+                        }
                         // Consume the first (and only) match.
                         int docID = scorer.iterator().nextDoc();
                         assert docID == scorer.docID();

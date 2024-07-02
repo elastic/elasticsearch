@@ -26,7 +26,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -1435,7 +1434,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     private static Map<String, Object> runEsql(String query) throws IOException {
-        return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(query).version(EsqlTestUtils.latestEsqlVersionOrSnapshot()));
+        return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(query));
     }
 
 }

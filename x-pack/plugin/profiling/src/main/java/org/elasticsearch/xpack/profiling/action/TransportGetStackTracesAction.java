@@ -254,19 +254,11 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         CountedTermsAggregationBuilder groupByStackTraceId = new CountedTermsAggregationBuilder("group_by").size(
             MAX_TRACE_EVENTS_RESULT_SIZE
         ).field(request.getStackTraceIdsField());
-        if (request.getAggregationField() != null) {
-            String aggregationField = request.getAggregationField();
-            log.trace("Grouping stacktrace events by [{}].", aggregationField);
-            // be strict about the accepted field names to avoid downstream errors or leaking unintended information
-            if (aggregationField.equals("transaction.name") == false) {
-                throw new IllegalArgumentException(
-                    "Requested custom event aggregation field [" + aggregationField + "] but only [transaction.name] is supported."
-                );
-            }
-            groupByStackTraceId.subAggregation(
-                new TermsAggregationBuilder(CUSTOM_EVENT_SUB_AGGREGATION_NAME).field(request.getAggregationField())
-            );
-        }
+        SubGroupCollector subGroups = SubGroupCollector.attach(
+            groupByStackTraceId,
+            request.getAggregationFields(),
+            request.isLegacyAggregationField()
+        );
         RandomSamplerAggregationBuilder randomSampler = new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
             .setProbability(responseBuilder.getSamplingRate())
             .subAggregation(groupByStackTraceId);
@@ -307,14 +299,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         stackTraceEvents.put(stackTraceID, event);
                     }
                     event.count += count;
-                    if (request.getAggregationField() != null) {
-                        Terms eventSubGroup = stacktraceBucket.getAggregations().get(CUSTOM_EVENT_SUB_AGGREGATION_NAME);
-                        for (Terms.Bucket b : eventSubGroup.getBuckets()) {
-                            String subGroupName = b.getKeyAsString();
-                            long subGroupCount = event.subGroups.getOrDefault(subGroupName, 0L);
-                            event.subGroups.put(subGroupName, subGroupCount + b.getDocCount());
-                        }
-                    }
+                    subGroups.collectResults(stacktraceBucket, event);
                 }
                 responseBuilder.setTotalSamples(totalSamples);
                 responseBuilder.setHostEventCounts(hostEventCounts);
@@ -340,17 +325,11 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             // Especially with high cardinality fields, this makes aggregations really slow.
             .executionHint("map")
             .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"));
-        if (request.getAggregationField() != null) {
-            String aggregationField = request.getAggregationField();
-            log.trace("Grouping stacktrace events by [{}].", aggregationField);
-            // be strict about the accepted field names to avoid downstream errors or leaking unintended information
-            if (aggregationField.equals("service.name") == false) {
-                throw new IllegalArgumentException(
-                    "Requested custom event aggregation field [" + aggregationField + "] but only [service.name] is supported."
-                );
-            }
-            groupByStackTraceId.subAggregation(new TermsAggregationBuilder(CUSTOM_EVENT_SUB_AGGREGATION_NAME).field(aggregationField));
-        }
+        SubGroupCollector subGroups = SubGroupCollector.attach(
+            groupByStackTraceId,
+            request.getAggregationFields(),
+            request.isLegacyAggregationField()
+        );
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -412,14 +391,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                             stackTraceEvents.put(stackTraceID, event);
                         }
                         event.count += finalCount;
-                        if (request.getAggregationField() != null) {
-                            Terms subGroup = stacktraceBucket.getAggregations().get(CUSTOM_EVENT_SUB_AGGREGATION_NAME);
-                            for (Terms.Bucket b : subGroup.getBuckets()) {
-                                String subGroupName = b.getKeyAsString();
-                                long subGroupCount = event.subGroups.getOrDefault(subGroupName, 0L);
-                                event.subGroups.put(subGroupName, subGroupCount + b.getDocCount());
-                            }
-                        }
+                        subGroups.collectResults(stacktraceBucket, event);
                     }
                 }
                 responseBuilder.setTotalSamples(totalFinalCount);

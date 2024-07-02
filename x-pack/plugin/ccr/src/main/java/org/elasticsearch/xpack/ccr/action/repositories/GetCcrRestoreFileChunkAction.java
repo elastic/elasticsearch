@@ -92,7 +92,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             BytesReference pagedBytesReference = BytesReference.fromByteArray(array, bytesRequested);
             try (ReleasableBytesReference reference = new ReleasableBytesReference(pagedBytesReference, array)) {
                 try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
-                    long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
+                    long offsetAfterRead = sessionReader.readFileBytes(fileName, array);
                     long offsetBeforeRead = offsetAfterRead - reference.length();
                     ActionListener.respondAndRelease(listener, new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
                 }

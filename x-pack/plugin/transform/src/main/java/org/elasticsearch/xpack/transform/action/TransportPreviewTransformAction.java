@@ -148,7 +148,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         ActionListener<Boolean> validateConfigListener = ActionListener.wrap(
             validateConfigResponse -> getPreview(
                 parentTaskId,
-                request.timeout(),
+                request.ackTimeout(),
                 config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
                 function,
                 config.getSource(),

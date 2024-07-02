@@ -12,9 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -26,8 +24,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,15 +37,15 @@ import static org.mockito.Mockito.mock;
 public class DisableNativeRoleMappingsStoreTests extends SecurityIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(PrivateCustomPlugin.class);
-        return plugins;
+    protected boolean addMockHttpTransport() {
+        return false; // need real http
     }
 
     @Override
-    protected boolean addMockHttpTransport() {
-        return false; // need real http
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        builder.put("xpack.security.authc.native_role_mappings.enabled", "false");
+        return builder.build();
     }
 
     public void testPutRoleMappingDisallowed() {
@@ -132,26 +128,5 @@ public class DisableNativeRoleMappingsStoreTests extends SecurityIntegTestCase {
         PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
         nativeRoleMappingStore.resolveRoles(userData, future);
         assertThat(future.get(), emptyIterable());
-    }
-
-    public static class PrivateCustomPlugin extends Plugin {
-
-        public static final Setting<Boolean> NATIVE_ROLE_MAPPINGS_SETTING = Setting.boolSetting(
-            "xpack.security.authc.native_role_mappings.enabled",
-            true,
-            Setting.Property.NodeScope
-        );
-
-        public PrivateCustomPlugin() {}
-
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put(NATIVE_ROLE_MAPPINGS_SETTING.getKey(), false).build();
-        }
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(NATIVE_ROLE_MAPPINGS_SETTING);
-        }
     }
 }

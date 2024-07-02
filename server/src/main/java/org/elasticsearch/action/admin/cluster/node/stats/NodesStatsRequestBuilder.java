@@ -17,8 +17,8 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
     NodesStatsResponse,
     NodesStatsRequestBuilder> {
 
-    public NodesStatsRequestBuilder(ElasticsearchClient client) {
-        super(client, TransportNodesStatsAction.TYPE, new NodesStatsRequest());
+    public NodesStatsRequestBuilder(ElasticsearchClient client, String[] nodeIds) {
+        super(client, TransportNodesStatsAction.TYPE, new NodesStatsRequest(nodeIds));
     }
 
     /**

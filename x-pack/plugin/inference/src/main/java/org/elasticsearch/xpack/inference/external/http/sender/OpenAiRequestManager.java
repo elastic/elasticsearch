@@ -19,7 +19,12 @@ import java.util.Objects;
 abstract class OpenAiRequestManager extends BaseRequestManager {
 
     protected OpenAiRequestManager(ThreadPool threadPool, OpenAiModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model, uriBuilder));
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            RateLimitGrouping.of(model, uriBuilder),
+            model.rateLimitServiceSettings().rateLimitSettings()
+        );
     }
 
     record RateLimitGrouping(int accountHash, int modelIdHash) {

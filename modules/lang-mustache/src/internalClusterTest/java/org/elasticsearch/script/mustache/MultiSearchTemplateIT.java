@@ -208,8 +208,8 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
             String expectedCause = Strings.format(
                 "[fail_before_current_version] was released first in version %s, failed compatibility "
                     + "check trying to send it to node with version %s",
-                FailBeforeCurrentVersionQueryBuilder.FUTURE_VERSION,
-                TransportVersions.MINIMUM_CCS_VERSION
+                FailBeforeCurrentVersionQueryBuilder.FUTURE_VERSION.toReleaseVersion(),
+                TransportVersions.MINIMUM_CCS_VERSION.toReleaseVersion()
             );
             String actualCause = ex.getCause().getMessage();
             assertEquals(expectedCause, actualCause);

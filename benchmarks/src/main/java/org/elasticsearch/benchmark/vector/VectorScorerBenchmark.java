@@ -8,17 +8,21 @@
 
 package org.elasticsearch.benchmark.vector;
 
+import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorScorer;
+import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
+import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.vec.VectorScorer;
-import org.elasticsearch.vec.VectorScorerFactory;
+import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -37,8 +41,8 @@ import java.nio.file.Files;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.vec.VectorSimilarityType.DOT_PRODUCT;
-import static org.elasticsearch.vec.VectorSimilarityType.EUCLIDEAN;
+import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
+import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @Warmup(iterations = 3, time = 3)
@@ -71,10 +75,13 @@ public class VectorScorerBenchmark {
     float vec2Offset;
     float scoreCorrectionConstant;
 
-    ScalarQuantizedVectorSimilarity luceneDotScorer;
-    ScalarQuantizedVectorSimilarity luceneSqrScorer;
-    VectorScorer nativeDotScorer;
-    VectorScorer nativeSqrScorer;
+    RandomVectorScorer luceneDotScorer;
+    RandomVectorScorer luceneSqrScorer;
+    RandomVectorScorer nativeDotScorer;
+    RandomVectorScorer nativeSqrScorer;
+
+    RandomVectorScorer luceneDotScorerQuery;
+    RandomVectorScorer nativeDotScorerQuery;
 
     @Setup
     public void setup() throws IOException {
@@ -90,12 +97,11 @@ public class VectorScorerBenchmark {
             throw new AssertionError("Vector scorer factory not present. Cannot run the benchmark. " + msg);
         }
         factory = optionalVectorScorerFactory.get();
-        scoreCorrectionConstant = 1f;
         vec1 = new byte[dims];
         vec2 = new byte[dims];
 
-        ThreadLocalRandom.current().nextBytes(vec1);
-        ThreadLocalRandom.current().nextBytes(vec2);
+        randomInt7BytesBetween(vec1);
+        randomInt7BytesBetween(vec2);
         vec1Offset = ThreadLocalRandom.current().nextFloat();
         vec2Offset = ThreadLocalRandom.current().nextFloat();
 
@@ -107,14 +113,22 @@ public class VectorScorerBenchmark {
             out.writeInt(Float.floatToIntBits(vec2Offset));
         }
         in = dir.openInput("vector.data", IOContext.DEFAULT);
+        var values = vectorValues(dims, 2, in, VectorSimilarityFunction.DOT_PRODUCT);
+        scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
+        luceneDotScorer = luceneScoreSupplier(values, VectorSimilarityFunction.DOT_PRODUCT).scorer(0);
+        values = vectorValues(dims, 2, in, VectorSimilarityFunction.EUCLIDEAN);
+        luceneSqrScorer = luceneScoreSupplier(values, VectorSimilarityFunction.EUCLIDEAN).scorer(0);
 
-        luceneDotScorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(
-            VectorSimilarityFunction.DOT_PRODUCT,
-            scoreCorrectionConstant
-        );
-        luceneSqrScorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant);
-        nativeDotScorer = factory.getScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, DOT_PRODUCT, in).get();
-        nativeSqrScorer = factory.getScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, EUCLIDEAN, in).get();
+        nativeDotScorer = factory.getInt7SQVectorScorerSupplier(DOT_PRODUCT, in, values, scoreCorrectionConstant).get().scorer(0);
+        nativeSqrScorer = factory.getInt7SQVectorScorerSupplier(EUCLIDEAN, in, values, scoreCorrectionConstant).get().scorer(0);
+
+        // setup for getInt7SQVectorScorer / query vector scoring
+        float[] queryVec = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            queryVec[i] = ThreadLocalRandom.current().nextFloat();
+        }
+        luceneDotScorerQuery = luceneScorer(values, VectorSimilarityFunction.DOT_PRODUCT, queryVec);
+        nativeDotScorerQuery = factory.getInt7SQVectorScorer(VectorSimilarityFunction.DOT_PRODUCT, values, queryVec).get();
 
         // sanity
         var f1 = dotProductLucene();
@@ -136,6 +150,12 @@ public class VectorScorerBenchmark {
         if (f1 != f3) {
             throw new AssertionError("lucene[" + f1 + "] != " + "scalar[" + f3 + "]");
         }
+
+        var q1 = dotProductLuceneQuery();
+        var q2 = dotProductNativeQuery();
+        if (q1 != q2) {
+            throw new AssertionError("query: lucene[" + q1 + "] != " + "native[" + q2 + "]");
+        }
     }
 
     @TearDown
@@ -144,13 +164,13 @@ public class VectorScorerBenchmark {
     }
 
     @Benchmark
-    public float dotProductLucene() {
-        return luceneDotScorer.score(vec1, vec1Offset, vec2, vec2Offset);
+    public float dotProductLucene() throws IOException {
+        return luceneDotScorer.score(1);
     }
 
     @Benchmark
     public float dotProductNative() throws IOException {
-        return nativeDotScorer.score(0, 1);
+        return nativeDotScorer.score(1);
     }
 
     @Benchmark
@@ -163,16 +183,26 @@ public class VectorScorerBenchmark {
         return (1 + adjustedDistance) / 2;
     }
 
+    @Benchmark
+    public float dotProductLuceneQuery() throws IOException {
+        return luceneDotScorerQuery.score(1);
+    }
+
+    @Benchmark
+    public float dotProductNativeQuery() throws IOException {
+        return nativeDotScorerQuery.score(1);
+    }
+
     // -- square distance
 
     @Benchmark
-    public float squareDistanceLucene() {
-        return luceneSqrScorer.score(vec1, vec1Offset, vec2, vec2Offset);
+    public float squareDistanceLucene() throws IOException {
+        return luceneSqrScorer.score(1);
     }
 
     @Benchmark
     public float squareDistanceNative() throws IOException {
-        return nativeSqrScorer.score(0, 1);
+        return nativeSqrScorer.score(1);
     }
 
     @Benchmark
@@ -184,5 +214,32 @@ public class VectorScorerBenchmark {
         }
         float adjustedDistance = squareDistance * scoreCorrectionConstant;
         return 1 / (1f + adjustedDistance);
+    }
+
+    RandomAccessQuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
+        var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
+        var slice = in.slice("values", 0, in.length());
+        return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, sq, false, sim, null, slice);
+    }
+
+    RandomVectorScorerSupplier luceneScoreSupplier(RandomAccessQuantizedByteVectorValues values, VectorSimilarityFunction sim)
+        throws IOException {
+        return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
+    }
+
+    RandomVectorScorer luceneScorer(RandomAccessQuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
+        throws IOException {
+        return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorer(sim, values, queryVec);
+    }
+
+    // Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
+    static final byte MIN_INT7_VALUE = 0;
+    static final byte MAX_INT7_VALUE = 127;
+
+    static void randomInt7BytesBetween(byte[] bytes) {
+        var random = ThreadLocalRandom.current();
+        for (int i = 0, len = bytes.length; i < len;) {
+            bytes[i++] = (byte) random.nextInt(MIN_INT7_VALUE, MAX_INT7_VALUE + 1);
+        }
     }
 }

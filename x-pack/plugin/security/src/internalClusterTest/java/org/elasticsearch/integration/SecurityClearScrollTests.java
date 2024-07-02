@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xcontent.XContentType;
@@ -77,7 +78,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
         int count = randomIntBetween(5, 15);
         for (int i = 0; i < count; i++) {
-            multiSearchRequestBuilder.add(prepareSearch("index").setScroll("10m").setSize(1));
+            multiSearchRequestBuilder.add(prepareSearch("index").setScroll(TimeValue.timeValueMinutes(10)).setSize(1));
         }
         scrollIds = new ArrayList<>();
         assertResponse(multiSearchRequestBuilder, multiSearchResponse -> scrollIds.addAll(getScrollIds(multiSearchResponse)));

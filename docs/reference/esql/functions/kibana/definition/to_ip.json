@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : ""
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -22,7 +22,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -34,11 +34,14 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
       "returnType" : "ip"
     }
+  ],
+  "examples" : [
+    "ROW str1 = \"1.1.1.1\", str2 = \"foo\"\n| EVAL ip1 = TO_IP(str1), ip2 = TO_IP(str2)\n| WHERE CIDR_MATCH(ip1, \"1.0.0.0/8\")"
   ]
 }

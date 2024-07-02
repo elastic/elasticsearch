@@ -172,5 +172,8 @@
       "variadic" : false,
       "returnType" : "integer"
     }
+  ],
+  "examples" : [
+    "row a = \"hello\"\n| eval a_ll = locate(a, \"ll\")"
   ]
 }

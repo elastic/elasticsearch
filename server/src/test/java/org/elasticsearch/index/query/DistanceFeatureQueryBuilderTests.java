@@ -42,7 +42,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             case DATE_FIELD_NAME:
                 long randomDateMills = randomLongBetween(0, 2_000_000_000_000L);
                 origin = randomBoolean() ? new Origin(randomDateMills) : new Origin(Instant.ofEpochMilli(randomDateMills).toString());
-                pivot = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
+                pivot = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m");
                 break;
             default: // DATE_NANOS_FIELD_NAME
                 randomDateMills = randomLongBetween(0, 2_000_000_000_000L);
@@ -53,7 +53,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                     Instant randomDateNanos = Instant.ofEpochMilli(randomDateMills).plusNanos(randomNanos);
                     origin = new Origin(randomDateNanos.toString());
                 }
-                pivot = randomTimeValue(1, 100_000_000, "nanos");
+                pivot = between(1, 100_000_000) + "nanos";
                 break;
         }
         return new DistanceFeatureQueryBuilder(field, origin, pivot);

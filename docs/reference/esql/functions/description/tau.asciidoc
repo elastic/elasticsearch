@@ -2,4 +2,4 @@
 
 *Description*
 
-The ratio of a circle’s circumference to its radius.
+Returns the https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.

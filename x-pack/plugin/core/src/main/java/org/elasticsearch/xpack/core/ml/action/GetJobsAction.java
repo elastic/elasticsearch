@@ -48,6 +48,7 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
         }
 
         public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             local(true);
         }
 

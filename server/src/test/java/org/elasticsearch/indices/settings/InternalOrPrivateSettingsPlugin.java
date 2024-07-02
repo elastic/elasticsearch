@@ -40,6 +40,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
+
 public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlugin {
 
     static final Setting<String> INDEX_INTERNAL_SETTING = Setting.simpleString(
@@ -69,8 +71,6 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             private String key;
             private String value;
 
-            Request() {}
-
             Request(StreamInput in) throws IOException {
                 super(in);
                 index = in.readString();
@@ -79,6 +79,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             }
 
             public Request(final String index, final String key, final String value) {
+                super(TEST_REQUEST_TIMEOUT);
                 this.index = index;
                 this.key = key;
                 this.value = value;

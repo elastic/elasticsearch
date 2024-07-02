@@ -39,6 +39,8 @@
             "EQL",
             "ES|QL",
             "Engine",
+            "Experiences",
+            "Extract&Transform",
             "FIPS",
             "Features",
             "Geo",
@@ -48,6 +50,7 @@
             "ILM+SLM",
             "IdentityProvider",
             "Indices APIs",
+            "Inference",
             "Infra/CLI",
             "Infra/Circuit Breakers",
             "Infra/Core",
@@ -65,6 +68,7 @@
             "Java High Level REST Client",
             "Java Low Level REST Client",
             "License",
+            "Logs",
             "Machine Learning",
             "Mapping",
             "Monitoring",
@@ -76,6 +80,7 @@
             "Ranking",
             "Recovery",
             "Reindex",
+            "Relevance",
             "Rollup",
             "SQL",
             "Search",
@@ -174,7 +179,9 @@
             }
           },
           "then": {
-            "required": ["breaking"]
+            "required": [
+              "breaking"
+            ]
           }
         },
         {
@@ -186,7 +193,9 @@
             }
           },
           "then": {
-            "required": ["breaking"]
+            "required": [
+              "breaking"
+            ]
           }
         }
       ],
@@ -198,7 +207,9 @@
         }
       },
       "then": {
-        "required": ["deprecation"]
+        "required": [
+          "deprecation"
+        ]
       },
       "additionalProperties": false
     },

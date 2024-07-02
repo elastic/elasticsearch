@@ -1,5 +1,0 @@
-pr: 107533
-summary: Add setting for max connections to S3
-area: Snapshot/Restore
-type: enhancement
-issues: []

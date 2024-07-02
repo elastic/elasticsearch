@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -35,14 +36,28 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends MasterNodeRequest<Request> {
 
-        public Request(TimeValue timeout) {
-            super(timeout);
+        private final TimeValue requestTimeout;
+
+        public Request(TimeValue masterNodeTimeout, TimeValue requestTimeout) {
+            super(masterNodeTimeout);
+            this.requestTimeout = Objects.requireNonNull(requestTimeout);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            this.requestTimeout = in.readTimeValue();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeTimeValue(this.requestTimeout);
+        }
+
+        public TimeValue requestTimeout() {
+            return requestTimeout;
         }
 
         @Override
@@ -51,8 +66,13 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
         }
 
         @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        @Override
         public int hashCode() {
-            return Objects.hash(timeout);
+            return Objects.hash(requestTimeout);
         }
 
         @Override
@@ -64,7 +84,7 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
                 return false;
             }
             GetMlAutoscalingStats.Request other = (GetMlAutoscalingStats.Request) obj;
-            return Objects.equals(timeout, other.timeout);
+            return Objects.equals(requestTimeout, other.requestTimeout);
         }
     }
 

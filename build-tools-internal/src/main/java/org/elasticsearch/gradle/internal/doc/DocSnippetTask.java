@@ -8,19 +8,17 @@
 
 package org.elasticsearch.gradle.internal.doc;
 
-import org.apache.commons.collections.map.HashedMap;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.ConfigurableFileTree;
+import org.gradle.api.provider.MapProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public abstract class DocSnippetTask extends DefaultTask {
 
@@ -36,7 +34,6 @@ public abstract class DocSnippetTask extends DefaultTask {
      * directory.
      */
     private ConfigurableFileTree docs;
-    private Map<String, String> defaultSubstitutions = new HashedMap();
 
     @InputFiles
     public ConfigurableFileTree getDocs() {
@@ -51,34 +48,30 @@ public abstract class DocSnippetTask extends DefaultTask {
      * Substitutions done on every snippet's contents.
      */
     @Input
-    public Map<String, String> getDefaultSubstitutions() {
-        return defaultSubstitutions;
-    }
+    abstract MapProperty<String, String> getDefaultSubstitutions();
 
     @TaskAction
     void executeTask() {
         for (File file : docs) {
-            List<Snippet> snippets = parseDocFile(docs.getDir(), file, new ArrayList<>());
+            List<Snippet> snippets = parseDocFile(docs.getDir(), file);
             if (perSnippet != null) {
                 snippets.forEach(perSnippet::execute);
             }
         }
     }
 
-    List<Snippet> parseDocFile(File rootDir, File docFile, List<Map.Entry<String, String>> substitutions) {
+    List<Snippet> parseDocFile(File rootDir, File docFile) {
         SnippetParser parser = parserForFileType(docFile);
-        return parser.parseDoc(rootDir, docFile, substitutions);
+        return parser.parseDoc(rootDir, docFile);
     }
 
     private SnippetParser parserForFileType(File docFile) {
         if (docFile.getName().endsWith(".asciidoc")) {
-            return new AsciidocSnippetParser(defaultSubstitutions);
+            return new AsciidocSnippetParser(getDefaultSubstitutions().get());
+        } else if (docFile.getName().endsWith(".mdx")) {
+            return new MdxSnippetParser(getDefaultSubstitutions().get());
         }
         throw new InvalidUserDataException("Unsupported file type: " + docFile.getName());
-    }
-
-    public void setDefaultSubstitutions(Map<String, String> defaultSubstitutions) {
-        this.defaultSubstitutions = defaultSubstitutions;
     }
 
     public void setPerSnippet(Action<Snippet> perSnippet) {

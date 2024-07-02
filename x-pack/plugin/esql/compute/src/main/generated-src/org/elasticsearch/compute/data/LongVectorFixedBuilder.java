@@ -25,6 +25,8 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
      */
     private int nextIndex;
 
+    private boolean closed;
+
     LongVectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
         blockFactory.adjustBreaker(preAdjustedBytes);
@@ -38,6 +40,12 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
         return this;
     }
 
+    @Override
+    public LongVectorFixedBuilder appendLong(int idx, long value) {
+        values[idx] = value;
+        return this;
+    }
+
     private static long ramBytesUsed(int size) {
         return size == 1
             ? ConstantLongVector.RAM_BYTES_USED
@@ -47,14 +55,16 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return ramBytesUsed(values.length);
+    }
+
+    @Override
     public LongVector build() {
-        if (nextIndex < 0) {
+        if (closed) {
             throw new IllegalStateException("already closed");
         }
-        if (nextIndex != values.length) {
-            throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
-        }
-        nextIndex = -1;
+        closed = true;
         LongVector vector;
         if (values.length == 1) {
             vector = blockFactory.newConstantLongBlockWith(values[0], 1, preAdjustedBytes).asVector();
@@ -67,14 +77,14 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
 
     @Override
     public void close() {
-        if (nextIndex >= 0) {
+        if (closed == false) {
             // If nextIndex < 0 we've already built the vector
-            nextIndex = -1;
+            closed = true;
             blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }
 
     boolean isReleased() {
-        return nextIndex < 0;
+        return closed;
     }
 }

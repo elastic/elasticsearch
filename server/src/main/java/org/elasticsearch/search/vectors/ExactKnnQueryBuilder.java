@@ -128,6 +128,6 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.NESTED_KNN_MORE_INNER_HITS;
+        return TransportVersions.V_8_13_0;
     }
 }

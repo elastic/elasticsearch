@@ -165,7 +165,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 alias.isHidden(true);
             }
         }).collect(Collectors.toSet());
-        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
+        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
@@ -201,7 +201,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             request.index()
         );
 
-        return updateRequest.ackTimeout(request.timeout())
+        return updateRequest.ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)

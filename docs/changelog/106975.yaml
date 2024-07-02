@@ -1,5 +1,0 @@
-pr: 106975
-summary: GET /_all should return hidden indices with visible aliases
-area: Indices APIs
-type: bug
-issues: []

@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 8.12.99'
+  - requires:
+      cluster_features: "gte_v8.13.0"
       reason: '[k] and [num_candidates] were made optional for kNN search in 8.13.0'
   - do:
       indices.create:

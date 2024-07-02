@@ -462,7 +462,7 @@ public class EquivalenceIT extends ESIntegTestCase {
 
     private void assertEquals(Terms t1, Terms t2) {
         List<? extends Terms.Bucket> t1Buckets = t1.getBuckets();
-        List<? extends Terms.Bucket> t2Buckets = t1.getBuckets();
+        List<? extends Terms.Bucket> t2Buckets = t2.getBuckets();
         assertEquals(t1Buckets.size(), t2Buckets.size());
         for (Iterator<? extends Terms.Bucket> it1 = t1Buckets.iterator(), it2 = t2Buckets.iterator(); it1.hasNext();) {
             final Terms.Bucket b1 = it1.next();

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+
 import java.net.URI;
 
 /**
@@ -18,4 +20,6 @@ public interface OpenAiRateLimitServiceSettings {
     URI uri();
 
     String organizationId();
+
+    RateLimitSettings rateLimitSettings();
 }

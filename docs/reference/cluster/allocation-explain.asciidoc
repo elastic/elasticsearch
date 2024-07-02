@@ -156,7 +156,7 @@ node.
 <3> Whether to allocate the shard.
 <4> Whether to allocate the shard to the particular node.
 <5> The decider which led to the `no` decision for the node.
-<6> An explanation as to why the decider returned a `no` decision, with a helpful hint pointing to the setting that led to the decision.
+<6> An explanation as to why the decider returned a `no` decision, with a helpful hint pointing to the setting that led to the decision. In this example, a newly created index has <<indices-get-settings,an index setting>> that requires that it only be allocated to a node named `nonexistent_node`, which does not exist, so the index is unable to allocate.
 
 The following response contains an allocation explanation for an unassigned
 primary shard that was previously allocated.
@@ -179,6 +179,8 @@ primary shard that was previously allocated.
 }
 ----
 // NOTCONSOLE
+
+TIP: If a shard is unassigned with an allocation status of `no_valid_shard_copy`, then you should <<fix-cluster-status-recover-nodes,make sure that all nodes are in the cluster>>. If all the nodes containing in-sync copies of a shard are lost, then you can <<fix-cluster-status-restore,recover the data for the shard>>.
 
 ===== Unassigned replica shard
 

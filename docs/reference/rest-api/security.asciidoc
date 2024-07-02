@@ -45,6 +45,7 @@ Use the following APIs to add, remove, update, and retrieve role mappings:
 Use the following APIs to add, remove, update, and retrieve roles in the native realm:
 
 * <<security-api-put-role,Create or update roles>>
+* <<security-api-bulk-put-role, Bulk create or update roles>>
 * <<security-api-clear-role-cache,Clear roles cache>>
 * <<security-api-delete-role,Delete roles>>
 * <<security-api-get-role,Get roles>>
@@ -71,7 +72,7 @@ without requiring basic authentication:
 * <<security-api-update-api-key,Update REST API key>>
 * <<security-api-bulk-update-api-keys,Bulk update REST API keys>>
 
-beta:[] Use the following APIs to create and update cross-cluster API keys for
+Use the following APIs to create and update cross-cluster API keys for
 <<remote-clusters-api-key,API key based remote cluster access>>:
 
 * <<security-api-create-cross-cluster-api-key,Create Cross-Cluster API key>>
@@ -171,6 +172,7 @@ include::security/create-api-keys.asciidoc[]
 include::security/put-app-privileges.asciidoc[]
 include::security/create-role-mappings.asciidoc[]
 include::security/create-roles.asciidoc[]
+include::security/bulk-create-roles.asciidoc[]
 include::security/create-users.asciidoc[]
 include::security/create-service-token.asciidoc[]
 include::security/delegate-pki-authentication.asciidoc[]

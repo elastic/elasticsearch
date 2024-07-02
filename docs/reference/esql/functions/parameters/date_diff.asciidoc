@@ -3,7 +3,7 @@
 *Parameters*
 
 `unit`::
-A valid date unit
+Time difference unit
 
 `startTimestamp`::
 A string representing a start timestamp

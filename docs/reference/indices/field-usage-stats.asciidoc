@@ -46,8 +46,6 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailabl
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
-
 `fields`::
 +
 --

@@ -65,14 +65,9 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
     }
 
     public void testParameters() throws Exception {
-        String tvString = randomTimeValue(1, 100);
-        doTestParameter("keep_alive", tvString, TimeValue.parseTimeValue(tvString, ""), SubmitAsyncSearchRequest::getKeepAlive);
-        doTestParameter(
-            "wait_for_completion_timeout",
-            tvString,
-            TimeValue.parseTimeValue(tvString, ""),
-            SubmitAsyncSearchRequest::getWaitForCompletionTimeout
-        );
+        TimeValue tv = randomTimeValue(1, 100);
+        doTestParameter("keep_alive", tv.getStringRep(), tv, SubmitAsyncSearchRequest::getKeepAlive);
+        doTestParameter("wait_for_completion_timeout", tv.getStringRep(), tv, SubmitAsyncSearchRequest::getWaitForCompletionTimeout);
         boolean keepOnCompletion = randomBoolean();
         doTestParameter(
             "keep_on_completion",

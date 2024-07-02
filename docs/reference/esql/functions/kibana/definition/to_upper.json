@@ -10,7 +10,7 @@
           "name" : "str",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input string"
+          "description" : "String expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -22,11 +22,14 @@
           "name" : "str",
           "type" : "text",
           "optional" : false,
-          "description" : "The input string"
+          "description" : "String expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
       "returnType" : "text"
     }
+  ],
+  "examples" : [
+    "ROW message = \"Some Text\"\n| EVAL message_upper = TO_UPPER(message)"
   ]
 }

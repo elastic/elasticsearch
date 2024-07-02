@@ -89,11 +89,10 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
-        this.transformCheckpointService = transformServices.getCheckpointService();
+        this.transformConfigManager = transformServices.configManager();
+        this.transformCheckpointService = transformServices.checkpointService();
         this.client = client;
         this.nodeSettings = settings;
     }

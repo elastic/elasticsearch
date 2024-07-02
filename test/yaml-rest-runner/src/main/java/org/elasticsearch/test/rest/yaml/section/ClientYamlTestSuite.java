@@ -299,6 +299,14 @@ public class ClientYamlTestSuite {
                     """, section.getLocation().lineNumber()))
         );
 
+        if (hasCapabilitiesCheck(testSection, setupSection, teardownSection)
+            && false == hasYamlRunnerFeature("capabilities", testSection, setupSection, teardownSection)) {
+            errors = Stream.concat(errors, Stream.of("""
+                attempted to add a [capabilities] check in prerequisites without a corresponding \
+                ["requires": "test_runner_features": "capabilities"] \
+                so runners that do not support [capabilities] checks can skip the test"""));
+        }
+
         return errors;
     }
 
@@ -311,6 +319,16 @@ public class ClientYamlTestSuite {
         return (testSection != null && hasYamlRunnerFeature(feature, testSection.getPrerequisiteSection()))
             || (setupSection != null && hasYamlRunnerFeature(feature, setupSection.getPrerequisiteSection()))
             || (teardownSection != null && hasYamlRunnerFeature(feature, teardownSection.getPrerequisiteSection()));
+    }
+
+    private static boolean hasCapabilitiesCheck(
+        ClientYamlTestSection testSection,
+        SetupSection setupSection,
+        TeardownSection teardownSection
+    ) {
+        return (testSection != null && testSection.getPrerequisiteSection().hasCapabilitiesCheck())
+            || (setupSection != null && setupSection.getPrerequisiteSection().hasCapabilitiesCheck())
+            || (teardownSection != null && teardownSection.getPrerequisiteSection().hasCapabilitiesCheck());
     }
 
     private static boolean hasYamlRunnerFeature(String feature, PrerequisiteSection prerequisiteSection) {

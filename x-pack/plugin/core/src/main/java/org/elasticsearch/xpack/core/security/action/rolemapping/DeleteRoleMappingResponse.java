@@ -19,7 +19,7 @@ import java.io.IOException;
  */
 public class DeleteRoleMappingResponse extends ActionResponse implements ToXContentObject {
 
-    private boolean found = false;
+    private final boolean found;
 
     public DeleteRoleMappingResponse(boolean found) {
         this.found = found;

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface;
 
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+
 import java.net.URI;
 
 /**
@@ -14,4 +16,6 @@ import java.net.URI;
  */
 public interface HuggingFaceRateLimitServiceSettings {
     URI uri();
+
+    RateLimitSettings rateLimitSettings();
 }

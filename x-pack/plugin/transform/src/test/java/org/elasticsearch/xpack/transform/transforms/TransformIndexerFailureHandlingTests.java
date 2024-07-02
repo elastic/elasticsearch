@@ -10,15 +10,17 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptException;
@@ -35,7 +38,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -75,6 +77,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
@@ -85,6 +88,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -99,8 +103,11 @@ import static org.mockito.Mockito.mock;
  */
 public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
-    private Client client;
     private ThreadPool threadPool;
+    private static final Function<BulkRequest, BulkResponse> EMPTY_BULK_RESPONSE = bulkRequest -> new BulkResponse(
+        new BulkItemResponse[0],
+        100
+    );
 
     static class MockedTransformIndexer extends ClientTransformIndexer {
 
@@ -110,13 +117,13 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         // used for synchronizing with the test
         private CountDownLatch latch;
+        private int doProcessCount;
 
         MockedTransformIndexer(
             ThreadPool threadPool,
             ClusterService clusterService,
             IndexNameExpressionResolver indexNameExpressionResolver,
             TransformExtension transformExtension,
-            String executorName,
             IndexBasedTransformConfigManager transformsConfigManager,
             CheckpointProvider checkpointProvider,
             TransformConfig transformConfig,
@@ -127,7 +134,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             TransformContext context,
             Function<SearchRequest, SearchResponse> searchFunction,
             Function<BulkRequest, BulkResponse> bulkFunction,
-            Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction
+            Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
+            int doProcessCount
         ) {
             super(
                 threadPool,
@@ -157,6 +165,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.deleteByQueryFunction = deleteByQueryFunction;
+            this.doProcessCount = doProcessCount;
         }
 
         public void initialize() {
@@ -182,12 +191,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 throw new IllegalStateException(e);
             }
 
-            try {
-                SearchResponse response = searchFunction.apply(buildSearchRequest().v2());
-                nextPhase.onResponse(response);
-            } catch (Exception e) {
-                nextPhase.onFailure(e);
-            }
+            ActionListener.run(nextPhase, l -> ActionListener.respondAndRelease(l, searchFunction.apply(buildSearchRequest().v2())));
         }
 
         @Override
@@ -278,12 +282,22 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         protected void persistState(TransformState state, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
+
+        @Override
+        protected IterationResult<TransformIndexerPosition> doProcess(SearchResponse searchResponse) {
+            if (doProcessCount > 0) {
+                doProcessCount -= 1;
+                // pretend that we processed 10k documents for each call
+                getStats().incrementNumDocuments(10_000);
+                return new IterationResult<>(Stream.of(new IndexRequest()), new TransformIndexerPosition(null, null), false);
+            }
+            return super.doProcess(searchResponse);
+        }
     }
 
     @Before
     public void setUpMocks() {
         threadPool = createThreadPool();
-        client = new NoOpClient(threadPool);
     }
 
     @After
@@ -325,17 +339,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
-        MockedTransformIndexer indexer = createMockIndexer(
-            config,
-            state,
-            searchFunction,
-            bulkFunction,
-            null,
-            threadPool,
-            ThreadPool.Names.GENERIC,
-            auditor,
-            context
-        );
+        MockedTransformIndexer indexer = createMockIndexer(config, state, searchFunction, bulkFunction, null, threadPool, auditor, context);
         final CountDownLatch latch = indexer.newLatch(1);
         indexer.start();
         assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -415,7 +419,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 bulkFunction,
                 null,
                 threadPool,
-                ThreadPool.Names.GENERIC,
                 auditor,
                 context
             );
@@ -476,17 +479,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         TransformContext.Listener contextListener = createContextListener(failIndexerCalled, failureMessage);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
 
-        MockedTransformIndexer indexer = createMockIndexer(
-            config,
-            state,
-            searchFunction,
-            bulkFunction,
-            null,
-            threadPool,
-            ThreadPool.Names.GENERIC,
-            auditor,
-            context
-        );
+        MockedTransformIndexer indexer = createMockIndexer(config, state, searchFunction, bulkFunction, null, threadPool, auditor, context);
 
         final CountDownLatch latch = indexer.newLatch(1);
 
@@ -542,7 +535,10 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
+            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
+                searchResponse.mustIncRef();
+                return searchResponse;
+            };
 
             Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
@@ -571,7 +567,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 bulkFunction,
                 deleteByQueryFunction,
                 threadPool,
-                ThreadPool.Names.GENERIC,
                 auditor,
                 context
             );
@@ -635,7 +630,10 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
+            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
+                searchResponse.mustIncRef();
+                return searchResponse;
+            };
 
             Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
@@ -670,7 +668,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 bulkFunction,
                 deleteByQueryFunction,
                 threadPool,
-                ThreadPool.Names.GENERIC,
                 auditor,
                 context
             );
@@ -744,6 +741,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                             new ShardSearchFailure[] { new ShardSearchFailure(new Exception()) }
                         );
                     }
+                    searchResponse.mustIncRef();
                     return searchResponse;
                 }
             };
@@ -764,7 +762,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 bulkFunction,
                 null,
                 threadPool,
-                ThreadPool.Names.GENERIC,
                 auditor,
                 context
             );
@@ -865,17 +862,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             )
         );
 
-        MockedTransformIndexer indexer = createMockIndexer(
-            config,
-            state,
-            searchFunction,
-            bulkFunction,
-            null,
-            threadPool,
-            ThreadPool.Names.GENERIC,
-            auditor,
-            context
-        );
+        MockedTransformIndexer indexer = createMockIndexer(config, state, searchFunction, bulkFunction, null, threadPool, auditor, context);
 
         indexer.handleFailure(
             new SearchPhaseExecutionException(
@@ -934,6 +921,151 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
 
         auditor.assertAllExpectationsMatched();
+    }
+
+    /**
+     * Given no bulk upload errors
+     * When we run the indexer
+     * Then we should not fail or recreate the destination index
+     */
+    public void testHandleBulkResponseWithNoFailures() throws Exception {
+        var indexer = runIndexer(createMockIndexer(returnHit(), EMPTY_BULK_RESPONSE));
+        assertThat(indexer.getStats().getIndexFailures(), is(0L));
+        assertFalse(indexer.context.shouldRecreateDestinationIndex());
+        assertNull(indexer.context.getLastFailure());
+    }
+
+    private static TransformIndexer runIndexer(MockedTransformIndexer indexer) throws Exception {
+        var latch = indexer.newLatch(1);
+        indexer.start();
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+        latch.countDown();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
+        return indexer;
+    }
+
+    private MockedTransformIndexer createMockIndexer(
+        Function<SearchRequest, SearchResponse> searchFunction,
+        Function<BulkRequest, BulkResponse> bulkFunction
+    ) {
+        return createMockIndexer(searchFunction, bulkFunction, mock(TransformContext.Listener.class));
+    }
+
+    private static Function<SearchRequest, SearchResponse> returnHit() {
+        return request -> new SearchResponse(
+            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            false,
+            false,
+            new SearchProfileResults(Collections.emptyMap()),
+            1,
+            "",
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+    }
+
+    /**
+     * Given an irrecoverable bulk upload error
+     * When we run the indexer
+     * Then we should fail without retries and not recreate the destination index
+     */
+    public void testHandleBulkResponseWithIrrecoverableFailures() throws Exception {
+        var failCalled = new AtomicBoolean();
+        var indexer = runIndexer(
+            createMockIndexer(
+                returnHit(),
+                bulkResponseWithError(new ResourceNotFoundException("resource not found error")),
+                createContextListener(failCalled, new AtomicReference<>())
+            )
+        );
+        assertThat(indexer.getStats().getIndexFailures(), is(1L));
+        assertFalse(indexer.context.shouldRecreateDestinationIndex());
+        assertTrue(failCalled.get());
+    }
+
+    private MockedTransformIndexer createMockIndexer(
+        Function<SearchRequest, SearchResponse> searchFunction,
+        Function<BulkRequest, BulkResponse> bulkFunction,
+        TransformContext.Listener listener
+    ) {
+        return createMockIndexer(
+            new TransformConfig(
+                randomAlphaOfLength(10),
+                randomSourceConfig(),
+                randomDestConfig(),
+                null,
+                null,
+                null,
+                randomPivotConfig(),
+                null,
+                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+                new SettingsConfig.Builder().setMaxPageSearchSize(randomBoolean() ? null : randomIntBetween(500, 10_000)).build(),
+                null,
+                null,
+                null,
+                null
+            ),
+            new AtomicReference<>(IndexerState.STOPPED),
+            searchFunction,
+            bulkFunction,
+            null,
+            threadPool,
+            mock(TransformAuditor.class),
+            new TransformContext(TransformTaskState.STARTED, "", 0, listener),
+            1
+        );
+    }
+
+    private static Function<BulkRequest, BulkResponse> bulkResponseWithError(Exception e) {
+        return bulkRequest -> new BulkResponse(
+            new BulkItemResponse[] {
+                BulkItemResponse.failure(1, DocWriteRequest.OpType.INDEX, new BulkItemResponse.Failure("the_index", "id", e)) },
+            100
+        );
+    }
+
+    /**
+     * Given an IndexNotFound bulk upload error
+     * When we run the indexer
+     * Then we should fail with retries and recreate the destination index
+     */
+    public void testHandleBulkResponseWithIndexNotFound() throws Exception {
+        var indexer = runIndexerWithBulkResponseError(new IndexNotFoundException("Some Error"));
+        assertThat(indexer.getStats().getIndexFailures(), is(1L));
+        assertTrue(indexer.context.shouldRecreateDestinationIndex());
+        assertFalse(bulkIndexingException(indexer).isIrrecoverable());
+    }
+
+    private TransformIndexer runIndexerWithBulkResponseError(Exception e) throws Exception {
+        return runIndexer(createMockIndexer(returnHit(), bulkResponseWithError(e)));
+    }
+
+    private static BulkIndexingException bulkIndexingException(TransformIndexer indexer) {
+        var lastFailure = indexer.context.getLastFailure();
+        assertNotNull(lastFailure);
+        assertThat(lastFailure, instanceOf(BulkIndexingException.class));
+        return (BulkIndexingException) lastFailure;
+    }
+
+    /**
+     * Given a recoverable bulk upload error
+     * When we run the indexer
+     * Then we should fail with retries and not recreate the destination index
+     */
+    public void testHandleBulkResponseWithNoIrrecoverableFailures() throws Exception {
+        var indexer = runIndexerWithBulkResponseError(new EsRejectedExecutionException("es rejected execution"));
+        assertThat(indexer.getStats().getIndexFailures(), is(1L));
+        assertFalse(indexer.context.shouldRecreateDestinationIndex());
+        assertFalse(bulkIndexingException(indexer).isIrrecoverable());
     }
 
     public void testHandleFailure() {
@@ -996,17 +1128,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             )
         );
 
-        MockedTransformIndexer indexer = createMockIndexer(
-            config,
-            state,
-            searchFunction,
-            bulkFunction,
-            null,
-            threadPool,
-            ThreadPool.Names.GENERIC,
-            auditor,
-            context
-        );
+        MockedTransformIndexer indexer = createMockIndexer(config, state, searchFunction, bulkFunction, null, threadPool, auditor, context);
 
         for (int i = 0; i < expectedEffectiveNumFailureRetries; ++i) {
             indexer.handleFailure(new Exception("exception no. " + (i + 1)));
@@ -1039,14 +1161,26 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         Function<BulkRequest, BulkResponse> bulkFunction,
         Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
         ThreadPool threadPool,
-        String executorName,
         TransformAuditor auditor,
         TransformContext context
     ) {
+        return createMockIndexer(config, state, searchFunction, bulkFunction, deleteByQueryFunction, threadPool, auditor, context, 0);
+    }
+
+    private MockedTransformIndexer createMockIndexer(
+        TransformConfig config,
+        AtomicReference<IndexerState> state,
+        Function<SearchRequest, SearchResponse> searchFunction,
+        Function<BulkRequest, BulkResponse> bulkFunction,
+        Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
+        ThreadPool threadPool,
+        TransformAuditor auditor,
+        TransformContext context,
+        int doProcessCount
+    ) {
         IndexBasedTransformConfigManager transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<TransformConfig> listener = (ActionListener<TransformConfig>) invocationOnMock.getArguments()[1];
+            ActionListener<TransformConfig> listener = invocationOnMock.getArgument(1);
             listener.onResponse(config);
             return null;
         }).when(transformConfigManager).getTransformConfiguration(any(), any());
@@ -1055,7 +1189,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             mock(ClusterService.class),
             mock(IndexNameExpressionResolver.class),
             mock(TransformExtension.class),
-            executorName,
             transformConfigManager,
             mock(CheckpointProvider.class),
             config,
@@ -1066,7 +1199,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             context,
             searchFunction,
             bulkFunction,
-            deleteByQueryFunction
+            deleteByQueryFunction,
+            doProcessCount
         );
 
         indexer.initialize();

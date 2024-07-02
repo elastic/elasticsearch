@@ -12,8 +12,14 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,7 +43,13 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
             dims = randomIntBetween(32, 256);
         }
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
-        return new HuggingFaceServiceSettings(ServiceUtils.createUri(url), similarityMeasure, dims, maxInputTokens);
+        return new HuggingFaceServiceSettings(
+            ServiceUtils.createUri(url),
+            similarityMeasure,
+            dims,
+            maxInputTokens,
+            RateLimitSettingsTests.createRandom()
+        );
     }
 
     public void testFromMap() {
@@ -46,7 +58,10 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
         var dims = 384;
         var maxInputTokens = 128;
         {
-            var serviceSettings = HuggingFaceServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)));
+            var serviceSettings = HuggingFaceServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.URL, url)),
+                ConfigurationParseContext.PERSISTENT
+            );
             assertThat(serviceSettings, is(new HuggingFaceServiceSettings(url)));
         }
         {
@@ -62,14 +77,44 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
                         ServiceFields.MAX_INPUT_TOKENS,
                         maxInputTokens
                     )
-                )
+                ),
+                ConfigurationParseContext.PERSISTENT
             );
-            assertThat(serviceSettings, is(new HuggingFaceServiceSettings(ServiceUtils.createUri(url), similarity, dims, maxInputTokens)));
+            assertThat(
+                serviceSettings,
+                is(new HuggingFaceServiceSettings(ServiceUtils.createUri(url), similarity, dims, maxInputTokens, null))
+            );
+        }
+        {
+            var serviceSettings = HuggingFaceServiceSettings.fromMap(
+                new HashMap<>(
+                    Map.of(
+                        ServiceFields.URL,
+                        url,
+                        ServiceFields.SIMILARITY,
+                        similarity.toString(),
+                        ServiceFields.DIMENSIONS,
+                        dims,
+                        ServiceFields.MAX_INPUT_TOKENS,
+                        maxInputTokens,
+                        RateLimitSettings.FIELD_NAME,
+                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
+                    )
+                ),
+                ConfigurationParseContext.PERSISTENT
+            );
+            assertThat(
+                serviceSettings,
+                is(new HuggingFaceServiceSettings(ServiceUtils.createUri(url), similarity, dims, maxInputTokens, new RateLimitSettings(3)))
+            );
         }
     }
 
     public void testFromMap_MissingUrl_ThrowsError() {
-        var thrownException = expectThrows(ValidationException.class, () -> HuggingFaceServiceSettings.fromMap(new HashMap<>()));
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> HuggingFaceServiceSettings.fromMap(new HashMap<>(), ConfigurationParseContext.PERSISTENT)
+        );
 
         assertThat(
             thrownException.getMessage(),
@@ -82,7 +127,7 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
     public void testFromMap_EmptyUrl_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> HuggingFaceServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")))
+            () -> HuggingFaceServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")), ConfigurationParseContext.PERSISTENT)
         );
 
         assertThat(
@@ -100,12 +145,14 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
         var url = "https://www.abc^.com";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> HuggingFaceServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)))
+            () -> HuggingFaceServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)), ConfigurationParseContext.PERSISTENT)
         );
 
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];", url, ServiceFields.URL))
+            containsString(
+                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
+            )
         );
     }
 
@@ -114,7 +161,10 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
         var similarity = "by_size";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> HuggingFaceServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url, ServiceFields.SIMILARITY, similarity)))
+            () -> HuggingFaceServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.URL, url, ServiceFields.SIMILARITY, similarity)),
+                ConfigurationParseContext.PERSISTENT
+            )
         );
 
         assertThat(
@@ -124,6 +174,17 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
                     + "must be one of [cosine, dot_product, l2_norm];"
             )
         );
+    }
+
+    public void testToXContent_WritesAllValues() throws IOException {
+        var serviceSettings = new HuggingFaceServiceSettings(ServiceUtils.createUri("url"), null, null, null, new RateLimitSettings(3));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = org.elasticsearch.common.Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {"url":"url","rate_limit":{"requests_per_minute":3}}"""));
     }
 
     @Override
@@ -138,7 +199,7 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
 
     @Override
     protected HuggingFaceServiceSettings mutateInstance(HuggingFaceServiceSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, HuggingFaceServiceSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getServiceSettingsMap(String url) {

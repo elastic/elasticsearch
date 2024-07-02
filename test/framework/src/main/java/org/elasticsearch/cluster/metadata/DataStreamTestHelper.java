@@ -47,6 +47,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -130,13 +131,10 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
-        return DataStream.builder(name, indices)
-            .setGeneration(generation)
-            .setMetadata(metadata)
-            .setReplicated(replicated)
-            .setLifecycle(lifecycle)
-            .setAutoShardingEvent(autoShardingEvent)
-            .build();
+        return DataStream.builder(
+            name,
+            DataStream.DataStreamIndices.backingIndicesBuilder(indices).setAutoShardingEvent(autoShardingEvent).build()
+        ).setGeneration(generation).setMetadata(metadata).setReplicated(replicated).setLifecycle(lifecycle).build();
     }
 
     public static DataStream newInstance(
@@ -154,7 +152,7 @@ public final class DataStreamTestHelper {
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
             .setFailureStoreEnabled(failureStores.isEmpty() == false)
-            .setFailureIndices(failureStores)
+            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
             .build();
     }
 
@@ -340,7 +338,6 @@ public final class DataStreamTestHelper {
         boolean replicated = randomBoolean();
         return new DataStream(
             dataStreamName,
-            indices,
             generation,
             metadata,
             randomBoolean(),
@@ -351,15 +348,30 @@ public final class DataStreamTestHelper {
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore,
-            failureIndices,
-            replicated == false && randomBoolean(),
-            randomBoolean()
-                ? new DataStreamAutoShardingEvent(
-                    indices.get(indices.size() - 1).getName(),
-                    randomIntBetween(1, 10),
-                    randomMillisUpToYear9999()
+            DataStream.DataStreamIndices.backingIndicesBuilder(indices)
+                .setRolloverOnWrite(replicated == false && randomBoolean())
+                .setAutoShardingEvent(
+                    randomBoolean()
+                        ? new DataStreamAutoShardingEvent(
+                            indices.get(indices.size() - 1).getName(),
+                            randomIntBetween(1, 10),
+                            randomMillisUpToYear9999()
+                        )
+                        : null
                 )
-                : null
+                .build(),
+            DataStream.DataStreamIndices.failureIndicesBuilder(failureIndices)
+                .setRolloverOnWrite(failureStore && replicated == false && randomBoolean())
+                .setAutoShardingEvent(
+                    failureStore && randomBoolean()
+                        ? new DataStreamAutoShardingEvent(
+                            indices.get(indices.size() - 1).getName(),
+                            randomIntBetween(1, 10),
+                            randomMillisUpToYear9999()
+                        )
+                        : null
+                )
+                .build()
         );
     }
 
@@ -623,7 +635,8 @@ public final class DataStreamTestHelper {
         DataStream dataStream,
         ThreadPool testThreadPool,
         Set<IndexSettingProvider> providers,
-        NamedXContentRegistry registry
+        NamedXContentRegistry registry,
+        TelemetryProvider telemetryProvider
     ) throws Exception {
         DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
             "@timestamp",
@@ -639,7 +652,7 @@ public final class DataStreamTestHelper {
         AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
         when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        MappingLookup mappingLookup = null;
+        MappingLookup mappingLookup = MappingLookup.EMPTY;
         if (dataStream != null) {
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
@@ -658,7 +671,7 @@ public final class DataStreamTestHelper {
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
-            mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), List.of());
+            mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of());
         }
         IndicesService indicesService = mockIndicesServices(mappingLookup);
 
@@ -684,7 +697,8 @@ public final class DataStreamTestHelper {
             indexAliasesService,
             EmptySystemIndices.INSTANCE,
             WriteLoadForecaster.DEFAULT,
-            clusterService
+            clusterService,
+            telemetryProvider
         );
     }
 
@@ -718,6 +732,7 @@ public final class DataStreamTestHelper {
             when(documentMapper.mapping()).thenReturn(mapping);
             when(documentMapper.mappers()).thenReturn(MappingLookup.EMPTY);
             when(documentMapper.mappingSource()).thenReturn(mapping.toCompressedXContent());
+            when(documentMapper.mappers()).thenReturn(mappingLookup);
             RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
             when(routingFieldMapper.required()).thenReturn(false);
             when(documentMapper.routingFieldMapper()).thenReturn(routingFieldMapper);

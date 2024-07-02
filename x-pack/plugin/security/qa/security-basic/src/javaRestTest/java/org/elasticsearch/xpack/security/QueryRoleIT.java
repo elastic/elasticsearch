@@ -14,9 +14,9 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -42,6 +42,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.iterableWithSize;
 
 public final class QueryRoleIT extends SecurityInBasicRestTestCase {
@@ -144,7 +145,7 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
             Map.of("other", "matchSimpleValue"),
             randomApplicationPrivileges()
         );
-        waitForMigrationCompletion(adminClient(), null);
+        waitForMigrationCompletion(adminClient(), SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
         assertQuery("""
             {"query":{"term":{"metadata.matchSimpleKey":"matchSimpleValue"}}}""", 1, roles -> {
             assertThat(roles, iterableWithSize(1));
@@ -214,7 +215,7 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
             Map.of("mapField1", Map.of("innerField", "butNotThis", "innerField2", Map.of("deeperInnerField", "matchThis"))),
             randomApplicationPrivileges()
         );
-        waitForMigrationCompletion(adminClient(), null);
+        waitForMigrationCompletion(adminClient(), SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
         Consumer<List<Map<String, Object>>> matcher = roles -> {
             assertThat(roles, iterableWithSize(5));
             roles.sort(Comparator.comparing(o -> ((String) o.get("name"))));
@@ -624,7 +625,7 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public static void waitForMigrationCompletion(RestClient adminClient, @Nullable Integer migrationVersion) throws Exception {
+    public static void waitForMigrationCompletion(RestClient adminClient, Integer migrationVersion) throws Exception {
         final Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
         assertBusy(() -> {
             Response response = adminClient.performRequest(request);
@@ -643,12 +644,12 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
                         MIGRATION_VERSION_CUSTOM_KEY
                     )).containsKey(MIGRATION_VERSION_CUSTOM_DATA_KEY)
                 );
-                assertThat(
-                    (Integer) ((Map<String, Object>) ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).get(
+                Integer versionInteger = Integer.parseInt(
+                    (String) ((Map<String, Object>) ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).get(
                         MIGRATION_VERSION_CUSTOM_KEY
-                    )).get(MIGRATION_VERSION_CUSTOM_DATA_KEY),
-                    equalTo(migrationVersion)
+                    )).get(MIGRATION_VERSION_CUSTOM_DATA_KEY)
                 );
+                assertThat(versionInteger, greaterThanOrEqualTo(migrationVersion));
             }
         });
     }

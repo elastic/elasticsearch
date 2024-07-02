@@ -62,14 +62,14 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final boolean restrictForServerless = request.shouldRestrictForServerless();
+        final boolean shouldRestrictForServerless = request.shouldRestrictForServerless();
         return channel -> client.execute(
             GetBuiltinPrivilegesAction.INSTANCE,
             new GetBuiltinPrivilegesRequest(),
             new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetBuiltinPrivilegesResponse response, XContentBuilder builder) throws Exception {
-                    final var translatedResponse = responseTranslator.translate(response, restrictForServerless);
+                    final var translatedResponse = responseTranslator.translate(response, shouldRestrictForServerless);
                     builder.startObject();
                     builder.array("cluster", translatedResponse.getClusterPrivileges());
                     builder.array("index", translatedResponse.getIndexPrivileges());
@@ -86,9 +86,9 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     protected Exception innerCheckFeatureAvailable(RestRequest request) {
-        final boolean restrictPath = request.shouldRestrictForServerless();
-        assert false == restrictPath || DiscoveryNode.isStateless(settings);
-        if (false == restrictPath) {
+        final boolean shouldRestrictForServerless = request.shouldRestrictForServerless();
+        assert false == shouldRestrictForServerless || DiscoveryNode.isStateless(settings);
+        if (false == shouldRestrictForServerless) {
             return super.innerCheckFeatureAvailable(request);
         }
         // This is a temporary hack: we are re-using the native roles setting as an overall feature flag for custom roles.

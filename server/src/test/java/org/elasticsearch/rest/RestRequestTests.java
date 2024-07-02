@@ -249,15 +249,15 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("unknown content type", e.getMessage());
     }
 
-    public void testMarkAsServerlessNonOperatorRequest() {
+    public void testMarkAsRestrictForServerless() {
         RestRequest request1 = contentRestRequest("content", new HashMap<>());
-        request1.markAsRestrictForServerless();
+        request1.markRestrictForServerless();
         assertEquals(request1.param(RESTRICT_FOR_SERVERLESS), "serverless");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::markAsRestrictForServerless);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::markRestrictForServerless);
         assertThat(exception.getMessage(), is("The parameter [" + RESTRICT_FOR_SERVERLESS + "] is already defined."));
 
         RestRequest request2 = contentRestRequest("content", Map.of(RESTRICT_FOR_SERVERLESS, "serverless"));
-        exception = expectThrows(IllegalArgumentException.class, request2::markAsRestrictForServerless);
+        exception = expectThrows(IllegalArgumentException.class, request2::markRestrictForServerless);
         assertThat(exception.getMessage(), is("The parameter [" + RESTRICT_FOR_SERVERLESS + "] is already defined."));
     }
 

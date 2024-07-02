@@ -628,7 +628,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return restApiVersion.isPresent();
     }
 
-    public void markAsRestrictForServerless() {
+    public void markRestrictForServerless() {
         if (params.containsKey(RESTRICT_FOR_SERVERLESS)) {
             throw new IllegalArgumentException("The parameter [" + RESTRICT_FOR_SERVERLESS + "] is already defined.");
         }

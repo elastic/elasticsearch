@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -93,18 +92,16 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     private MvSort(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            // TODO readOptionalNamedWriteable
-            in.readOptionalWriteable(i -> ((PlanStreamInput) i).readExpression())
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(field);
-        // TODO writeOptionalNamedWriteable
-        out.writeOptionalWriteable(order == null ? null : o -> ((PlanStreamOutput) o).writeExpression(order));
+        out.writeNamedWriteable(field);
+        out.writeOptionalNamedWriteable(order);
     }
 
     @Override

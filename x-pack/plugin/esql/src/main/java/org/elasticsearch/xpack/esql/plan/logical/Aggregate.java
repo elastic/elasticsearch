@@ -25,9 +25,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
-
 public class Aggregate extends UnaryPlan {
 
     public enum AggregateType {
@@ -74,7 +71,7 @@ public class Aggregate extends UnaryPlan {
             Source.readFrom(in),
             in.readLogicalPlanNode(),
             AggregateType.readType(in),
-            in.readCollectionAsList(readerFromPlanReader(org.elasticsearch.xpack.esql.io.stream.PlanStreamInput::readExpression)),
+            in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class)
         );
     }
@@ -83,7 +80,7 @@ public class Aggregate extends UnaryPlan {
         Source.EMPTY.writeTo(out);
         out.writeLogicalPlanNode(aggregate.child());
         AggregateType.writeType(out, aggregate.aggregateType());
-        out.writeCollection(aggregate.groupings(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
+        out.writeNamedWriteableCollection(aggregate.groupings);
         out.writeNamedWriteableCollection(aggregate.aggregates());
     }
 

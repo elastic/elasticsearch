@@ -722,7 +722,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         stateForJoinValidation.getNodes().getMinNodeVersion()
                     );
                 }
-                sendJoinValidate(joinRequest.getSourceNode(), listeners.acquire());
+                if (joinRequest.getSourceNode().getId().equals(getLocalNode().getId()) == false) {
+                    sendJoinValidate(joinRequest.getSourceNode(), listeners.acquire());
+                }
                 return null;
             });
 

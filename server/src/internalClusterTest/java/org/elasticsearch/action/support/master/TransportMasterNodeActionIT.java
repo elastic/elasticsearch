@@ -10,22 +10,34 @@ package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -38,9 +50,14 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class TransportMasterNodeActionIT extends ESIntegTestCase {
 
+    @SuppressWarnings("unchecked")
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+        return CollectionUtils.appendToCopyNoNullElements(
+            super.nodePlugins(),
+            MockTransportService.TestPlugin.class,
+            TestActionPlugin.class
+        );
     }
 
     @TestLogging(reason = "wip", value = "org.elasticsearch.action.support.master.TransportMasterNodeAction:DEBUG")
@@ -76,14 +93,11 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
                  * from a node in the original term
                  */
                 final var reroutedMessageReceived = new AtomicBoolean(false);
-                mockTransportService.addRequestHandlingBehavior(
-                    TransportClusterHealthAction.TYPE.name(),
-                    (handler, request, channel, task) -> {
-                        assertThat(asInstanceOf(MasterNodeRequest.class, request).masterTerm(), equalTo(originalTerm));
-                        assertTrue("rerouted message received exactly once", reroutedMessageReceived.compareAndSet(false, true));
-                        handler.messageReceived(request, channel, task);
-                    }
-                );
+                mockTransportService.addRequestHandlingBehavior(TEST_ACTION_TYPE.name(), (handler, request, channel, task) -> {
+                    assertThat(asInstanceOf(MasterNodeRequest.class, request).masterTerm(), equalTo(originalTerm));
+                    assertTrue("rerouted message received exactly once", reroutedMessageReceived.compareAndSet(false, true));
+                    handler.messageReceived(request, channel, task);
+                });
             }
 
             /*
@@ -92,7 +106,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
              */
             final var newMasterReceivedReroutedMessageLatch = new CountDownLatch(1);
             MockTransportService.getInstance(newMaster)
-                .addRequestHandlingBehavior(TransportClusterHealthAction.TYPE.name(), (handler, request, channel, task) -> {
+                .addRequestHandlingBehavior(TEST_ACTION_TYPE.name(), (handler, request, channel, task) -> {
                     assertThat(asInstanceOf(MasterNodeRequest.class, request).masterTerm(), greaterThan(originalTerm));
                     assertThat(newMasterReceivedReroutedMessageLatch.getCount(), greaterThan(0L));
                     newMasterReceivedReroutedMessageLatch.countDown();
@@ -120,7 +134,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
             logger.info("New master is elected");
 
             // perform a TransportMasterNodeAction on the new master, which doesn't know it's the master yet
-            final var stateFuture = client(newMaster).admin().cluster().prepareHealth().execute();
+            final var testActionFuture = client(newMaster).execute(TEST_ACTION_TYPE, new TestRequest());
 
             // wait for the request to come back to the new master
             safeAwait(newMasterReceivedReroutedMessageLatch);
@@ -128,9 +142,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
             // Unblock state application on new master, allow it to know of its election win
             safeAwait(stateApplierBarrier);
 
-            assertFalse(stateFuture.isDone());
-
-            safeGet(stateFuture);
+            safeGet(testActionFuture);
         } finally {
             // Run cleanup tasks
             cleanupTasks.forEach(Runnable::run);
@@ -205,6 +217,63 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
             return newNodeNames.get(0);
         } finally {
             votingConfigSizeListener.onResponse(null);
+        }
+    }
+
+    private static final ActionType<ActionResponse.Empty> TEST_ACTION_TYPE = new ActionType<>("internal:test");
+
+    public static final class TestActionPlugin extends Plugin implements ActionPlugin {
+        @Override
+        public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+            return List.of(new ActionHandler<>(TEST_ACTION_TYPE, TestTransportAction.class));
+        }
+    }
+
+    public static final class TestRequest extends MasterNodeRequest<TestRequest> {
+        TestRequest() {
+            super(TEST_REQUEST_TIMEOUT);
+        }
+
+        TestRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+    }
+
+    public static final class TestTransportAction extends TransportMasterNodeAction<TestRequest, ActionResponse.Empty> {
+        @Inject
+        public TestTransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+            super(
+                TEST_ACTION_TYPE.name(),
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                TestRequest::new,
+                indexNameExpressionResolver,
+                in -> ActionResponse.Empty.INSTANCE,
+                threadPool.generic()
+            );
+        }
+
+        @Override
+        protected void masterOperation(Task task, TestRequest request, ClusterState state, ActionListener<ActionResponse.Empty> listener) {
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
+        }
+
+        @Override
+        protected ClusterBlockException checkBlock(TestRequest request, ClusterState state) {
+            return null;
         }
     }
 }

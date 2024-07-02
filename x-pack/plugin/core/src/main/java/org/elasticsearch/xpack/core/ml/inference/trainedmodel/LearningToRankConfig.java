@@ -255,7 +255,7 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
         boolean forCreation,
         ActionRequestValidationException validationException
     ) {
-        if (input != null && input.getFieldNames().isEmpty() == false) {
+        if (forCreation && input != null && input.getFieldNames().isEmpty() == false) {
             return addValidationError("cannot specify [input.field_names] for a model of type [learning_to_rank]", validationException);
         }
 

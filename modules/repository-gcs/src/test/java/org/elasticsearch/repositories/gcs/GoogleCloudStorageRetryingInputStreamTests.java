@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class GoogleCloudStorageRetryingInputStreamTest extends ESTestCase {
+public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
 
     private static final String BUCKET_NAME = "test-bucket";
     private static final String BLOB_NAME = "test-blob";

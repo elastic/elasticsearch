@@ -156,7 +156,7 @@ if (OS.current() == OS.WINDOWS) {
         /* Use a closure on the string to delay evaluation until right before we
          * run the integration tests so that we can be sure that the file is
          * ready. */
-        nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
+        nonInputProperties.systemProperty "es${version}.port", fixture.flatMap {f-> f.addressAndPortProvider)
     }
   }
 }

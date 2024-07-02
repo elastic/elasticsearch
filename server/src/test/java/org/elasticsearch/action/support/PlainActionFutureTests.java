@@ -14,13 +14,21 @@ import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class PlainActionFutureTests extends ESTestCase {
 
@@ -140,6 +148,66 @@ public class PlainActionFutureTests extends ESTestCase {
         assertCapturesInterrupt(() -> future.get(10, TimeUnit.SECONDS));
         assertPropagatesInterrupt(future::actionGet);
         assertPropagatesInterrupt(() -> future.actionGet(10, TimeUnit.SECONDS));
+    }
+
+    public void testAssertCompleteAllowedAllowsConcurrentCompletes() throws InterruptedException {
+        assumeTrue("Assertions need to be enabled for assertCompleteAllowed to be invoked", Assertions.ENABLED);
+        try (TestThreadPool tp = new TestThreadPool(getTestName())) {
+            final AtomicReference<PlainActionFuture<?>> futureReference = new AtomicReference<>(new PlainActionFuture<>());
+            final int threads = 4;
+            final AtomicBoolean running = new AtomicBoolean(true);
+            final CountDownLatch startBarrier = new CountDownLatch(threads + 1);
+            final CompletionService<?> cs = new ExecutorCompletionService<>(tp.generic());
+            final List<Future<?>> futures = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                futures.add(cs.submit(new FutureCompleter(i, startBarrier, futureReference, running), null));
+            }
+            startBarrier.countDown();
+            safeAwait(startBarrier);
+            cs.poll(500, TimeUnit.MILLISECONDS);
+            running.set(false);
+            futures.forEach(ESTestCase::safeGet);
+        }
+    }
+
+    private static class FutureCompleter implements Runnable {
+        private final int number;
+        private final AtomicReference<PlainActionFuture<?>> future;
+        private final AtomicBoolean running;
+        private final CountDownLatch startBarrier;
+        private volatile boolean failed = false;
+
+        private FutureCompleter(
+            int number,
+            CountDownLatch startBarrier,
+            AtomicReference<PlainActionFuture<?>> future,
+            AtomicBoolean running
+        ) {
+            this.number = number;
+            this.future = future;
+            this.running = running;
+            this.startBarrier = startBarrier;
+        }
+
+        @Override
+        public void run() {
+            try {
+                startBarrier.countDown();
+                safeAwait(startBarrier);
+                while (running.get()) {
+                    if (number == 0) {
+                        future.set(new PlainActionFuture<>());
+                    }
+                    future.get().onResponse(null);
+                }
+            } finally {
+                if (running.get()) {
+                    // We failed
+                    failed = true;
+                }
+                running.set(false);
+            }
+        }
     }
 
     private static void assertCancellation(ThrowingRunnable runnable) {

@@ -18,31 +18,37 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AmazonBedrockInferenceClientCacheTests extends ESTestCase {
     public void testCache_ReturnsSameObject() throws IOException {
-        var cache = new AmazonBedrockInferenceClientCache(AmazonBedrockMockInferenceClient::create);
-        var model = AmazonBedrockEmbeddingsModelTests.createModel(
-            "inferenceId",
-            "testregion",
-            "model",
-            AmazonBedrockProvider.AMAZONTITAN,
-            "access_key",
-            "secret_key"
-        );
+        AmazonBedrockInferenceClientCache cacheInstance;
+        try (var cache = new AmazonBedrockInferenceClientCache(AmazonBedrockMockInferenceClient::create)) {
+            cacheInstance = cache;
+            var model = AmazonBedrockEmbeddingsModelTests.createModel(
+                "inferenceId",
+                "testregion",
+                "model",
+                AmazonBedrockProvider.AMAZONTITAN,
+                "access_key",
+                "secret_key"
+            );
 
-        var client = cache.getOrCreateClient(model, null);
+            try (var client = cache.getOrCreateClient(model, null)) {
 
-        var secondModel = AmazonBedrockEmbeddingsModelTests.createModel(
-            "inferenceId_two",
-            "testregion",
-            "a_different_model",
-            AmazonBedrockProvider.COHERE,
-            "access_key",
-            "secret_key"
-        );
+                var secondModel = AmazonBedrockEmbeddingsModelTests.createModel(
+                    "inferenceId_two",
+                    "testregion",
+                    "a_different_model",
+                    AmazonBedrockProvider.COHERE,
+                    "access_key",
+                    "secret_key"
+                );
 
-        var secondClient = cache.getOrCreateClient(secondModel, null);
-        assertThat(client, sameInstance(secondClient));
-        assertThat(client.refCount(), is(2));
+                try (var secondClient = cache.getOrCreateClient(secondModel, null)) {
+                    assertThat(client, sameInstance(secondClient));
+                    assertThat(client.refCount(), is(3));
+                }
+            }
 
-        cache.close();
+            assertThat(cache.clientCount(), is(1));
+        }
+        assertThat(cacheInstance.clientCount(), is(0));
     }
 }

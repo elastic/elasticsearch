@@ -88,4 +88,9 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
         // it will be restarted on new client usage
         IdleConnectionReaper.shutdown();
     }
+
+    // used for testing
+    public int clientCount() {
+        return clientsCache.size();
+    }
 }

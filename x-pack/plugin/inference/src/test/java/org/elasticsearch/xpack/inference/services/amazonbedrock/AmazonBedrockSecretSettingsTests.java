@@ -12,7 +12,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -72,6 +76,18 @@ public class AmazonBedrockSecretSettingsTests extends AbstractBWCWireSerializati
             thrownException.getMessage(),
             containsString(Strings.format("[secret_settings] does not contain the required setting [%s]", SECRET_KEY_FIELD))
         );
+    }
+
+    public void testToXContent_CreatesProperContent() throws IOException {
+        var secrets = AmazonBedrockSecretSettings.fromMap(
+            new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest", SECRET_KEY_FIELD, "secrettest"))
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        secrets.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+        assertThat(xContentResult, CoreMatchers.is("""
+            {"access_key":"accesstest","secret_key":"secrettest"}"""));
     }
 
     public static Map<String, Object> getAmazonBedrockSecretSettingsMap(String accessKey, String secretKey) {

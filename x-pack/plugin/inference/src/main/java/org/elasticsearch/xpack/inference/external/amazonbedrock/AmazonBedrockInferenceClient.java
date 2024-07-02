@@ -67,6 +67,9 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
                 Strings.format("failed to create AmazonBedrockRuntime client: [%s]", amazonBedrockRuntimeException.getMessage()),
                 amazonBedrockRuntimeException
             );
+        } catch (ElasticsearchException elasticsearchException) {
+            // just throw the exception if we have one
+            throw elasticsearchException;
         } catch (Exception e) {
             throw new ElasticsearchException("Amazon Bedrock client converse call failed", e);
         }
@@ -81,12 +84,15 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
                 Strings.format("failed to create AmazonBedrockRuntime client: [%s]", amazonBedrockRuntimeException.getMessage()),
                 amazonBedrockRuntimeException
             );
+        } catch (ElasticsearchException elasticsearchException) {
+            // just throw the exception if we have one
+            throw elasticsearchException;
         } catch (Exception e) {
             throw new ElasticsearchException("Amazon Bedrock client invokeModel call failed", e);
         }
     }
 
-    private AmazonBedrockRuntime createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+    protected AmazonBedrockRuntime createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
         var credentials = new BasicAWSCredentials(secretSettings.accessKey.toString(), secretSettings.secretKey.toString());
         var credentialsProvider = new AWSStaticCredentialsProvider(credentials);

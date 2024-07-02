@@ -287,7 +287,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         assertThat(
             metadata.build().reservedStateMetadata(),
-            hasEntry(FileSettingsService.NAMESPACE, new ReservedStateMetadata(FileSettingsService.NAMESPACE, 0L, Map.of(), null))
+            hasEntry(FileSettingsService.NAMESPACE, new ReservedStateMetadata(FileSettingsService.NAMESPACE, ReservedStateMetadata.RESTORED_VERSION, Map.of(), null))
         );
     }
 

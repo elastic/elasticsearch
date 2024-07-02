@@ -21,13 +21,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -40,7 +38,7 @@ public abstract class AsyncOperator implements Operator {
     private volatile SubscribableListener<Void> blockedFuture;
 
     private final Map<Long, Page> buffers = ConcurrentCollections.newConcurrentMap();
-    private final AtomicReference<Exception> failure = new AtomicReference<>();
+    private final FailureCollector failure = new FailureCollector();
     private final DriverContext driverContext;
 
     private final int maxOutstandingRequests;
@@ -90,7 +88,7 @@ public abstract class AsyncOperator implements Operator {
                 onSeqNoCompleted(seqNo);
             }, e -> {
                 releasePageOnAnyThread(input);
-                onFailure(e);
+                failure.unwrapAndCollect(e);
                 onSeqNoCompleted(seqNo);
             });
             final long startNanos = System.nanoTime();
@@ -120,25 +118,6 @@ public abstract class AsyncOperator implements Operator {
     protected abstract void performAsync(Page inputPage, ActionListener<Page> listener);
 
     protected abstract void doClose();
-
-    private void onFailure(Exception e) {
-        failure.getAndUpdate(first -> {
-            if (first == null) {
-                return e;
-            }
-            // ignore subsequent TaskCancelledException exceptions as they don't provide useful info.
-            if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-                return first;
-            }
-            if (ExceptionsHelper.unwrap(first, TaskCancelledException.class) != null) {
-                return e;
-            }
-            if (ExceptionsHelper.unwrapCause(first) != ExceptionsHelper.unwrapCause(e)) {
-                first.addSuppressed(e);
-            }
-            return first;
-        });
-    }
 
     private void onSeqNoCompleted(long seqNo) {
         checkpoint.markSeqNoAsProcessed(seqNo);

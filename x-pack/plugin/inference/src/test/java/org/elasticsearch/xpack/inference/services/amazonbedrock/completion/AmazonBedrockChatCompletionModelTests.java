@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockPro
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettingsTests.getTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -34,7 +34,7 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             "access_key",
             "secret_key"
         );
-        var requestTaskSettingsMap = getTaskSettingsMap(null, null, null, null);
+        var requestTaskSettingsMap = getChatCompletionTaskSettingsMap(null, null, null, null);
         var overriddenModel = AmazonBedrockChatCompletionModel.of(model, requestTaskSettingsMap);
 
         assertThat(overriddenModel, sameInstance(overriddenModel));
@@ -54,7 +54,7 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             "access_key",
             "secret_key"
         );
-        var requestTaskSettings = getTaskSettingsMap(0.5, null, null, null);
+        var requestTaskSettings = getChatCompletionTaskSettingsMap(0.5, null, null, null);
         var overriddenModel = AmazonBedrockChatCompletionModel.of(model, requestTaskSettings);
         assertThat(
             overriddenModel,
@@ -90,7 +90,7 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             "access_key",
             "secret_key"
         );
-        var requestTaskSettings = getTaskSettingsMap(null, 0.5, null, null);
+        var requestTaskSettings = getChatCompletionTaskSettingsMap(null, 0.5, null, null);
         var overriddenModel = AmazonBedrockChatCompletionModel.of(model, requestTaskSettings);
         assertThat(
             overriddenModel,
@@ -126,7 +126,7 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             "access_key",
             "secret_key"
         );
-        var requestTaskSettings = getTaskSettingsMap(null, null, 0.8, null);
+        var requestTaskSettings = getChatCompletionTaskSettingsMap(null, null, 0.8, null);
         var overriddenModel = AmazonBedrockChatCompletionModel.of(model, requestTaskSettings);
         assertThat(
             overriddenModel,
@@ -162,7 +162,7 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             "access_key",
             "secret_key"
         );
-        var requestTaskSettings = getTaskSettingsMap(null, null, null, 128);
+        var requestTaskSettings = getChatCompletionTaskSettingsMap(null, null, null, 128);
         var overriddenModel = AmazonBedrockChatCompletionModel.of(model, requestTaskSettings);
         assertThat(
             overriddenModel,

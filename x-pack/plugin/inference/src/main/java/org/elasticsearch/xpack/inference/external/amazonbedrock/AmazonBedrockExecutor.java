@@ -20,11 +20,6 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockMod
 import java.util.function.Supplier;
 
 public class AmazonBedrockExecutor implements Runnable {
-
-    protected static final AmazonBedrockClientCache amazonBedrockClientCache = new AmazonBedrockInferenceClientCache(
-        AmazonBedrockInferenceClient::create
-    );
-
     protected final AmazonBedrockModel baseModel;
     protected final AmazonBedrockResponseHandler responseHandler;
     protected final Logger logger;
@@ -33,24 +28,6 @@ public class AmazonBedrockExecutor implements Runnable {
     protected final ActionListener<InferenceServiceResults> listener;
     private final AmazonBedrockClientCache clientCache;
 
-    public AmazonBedrockExecutor(
-        AmazonBedrockModel model,
-        AmazonBedrockRequest request,
-        AmazonBedrockResponseHandler responseHandler,
-        Logger logger,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
-    ) {
-        this.baseModel = model;
-        this.responseHandler = responseHandler;
-        this.logger = logger;
-        this.request = request;
-        this.hasRequestCompletedFunction = hasRequestCompletedFunction;
-        this.listener = listener;
-        this.clientCache = amazonBedrockClientCache;
-    }
-
-    // only used for testing
     public AmazonBedrockExecutor(
         AmazonBedrockModel model,
         AmazonBedrockRequest request,
@@ -66,7 +43,7 @@ public class AmazonBedrockExecutor implements Runnable {
         this.request = request;
         this.hasRequestCompletedFunction = hasRequestCompletedFunction;
         this.listener = listener;
-        this.clientCache = (clientCache == null) ? amazonBedrockClientCache : clientCache;
+        this.clientCache = clientCache;
     }
 
     @Override

@@ -74,6 +74,10 @@ public class AmazonBedrockSecretSettingsTests extends AbstractBWCWireSerializati
         );
     }
 
+    public static Map<String, Object> getAmazonBedrockSecretSettingsMap(String accessKey, String secretKey) {
+        return new HashMap<String, Object>(Map.of(ACCESS_KEY_FIELD, accessKey, SECRET_KEY_FIELD, secretKey));
+    }
+
     @Override
     protected AmazonBedrockSecretSettings mutateInstanceForVersion(AmazonBedrockSecretSettings instance, TransportVersion version) {
         return instance;

@@ -47,7 +47,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         var dims = 1536;
         var maxInputTokens = 512;
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(
-            createRequestSettingsMap(region, model, provider, dims, null, maxInputTokens, SimilarityMeasure.COSINE),
+            createEmbeddingsRequestSettingsMap(region, model, provider, dims, null, maxInputTokens, SimilarityMeasure.COSINE),
             ConfigurationParseContext.REQUEST
         );
 
@@ -74,7 +74,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         var provider = "amazontitan";
         var dims = 1536;
         var maxInputTokens = 512;
-        var settingsMap = createRequestSettingsMap(region, model, provider, dims, null, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, dims, null, maxInputTokens, SimilarityMeasure.COSINE);
         settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3)));
 
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
@@ -101,7 +101,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         var model = "model-id";
         var provider = "amazontitan";
         var maxInputTokens = 512;
-        var settingsMap = createRequestSettingsMap(region, model, provider, null, null, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, null, maxInputTokens, SimilarityMeasure.COSINE);
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
 
         assertThat(
@@ -127,7 +127,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         var provider = "amazontitan";
         var maxInputTokens = 512;
 
-        var settingsMap = createRequestSettingsMap(region, model, provider, null, true, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, true, maxInputTokens, SimilarityMeasure.COSINE);
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -149,7 +149,15 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         var dims = 1536;
         var maxInputTokens = 512;
 
-        var settingsMap = createRequestSettingsMap(region, model, provider, dims, false, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            region,
+            model,
+            provider,
+            dims,
+            false,
+            maxInputTokens,
+            SimilarityMeasure.COSINE
+        );
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
         assertThat(
@@ -174,7 +182,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         var model = "model-id";
         var provider = "amazontitan";
 
-        var settingsMap = createRequestSettingsMap(region, model, provider, null, true, null, null);
+        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, true, null, null);
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
         assertThat(
@@ -188,7 +196,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         var model = "model-id";
         var provider = "amazontitan";
 
-        var settingsMap = createRequestSettingsMap(region, model, provider, null, true, null, SimilarityMeasure.DOT_PRODUCT);
+        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, true, null, SimilarityMeasure.DOT_PRODUCT);
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
         assertThat(
@@ -213,7 +221,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         var model = "model-id";
         var provider = "amazontitan";
 
-        var settingsMap = createRequestSettingsMap(region, model, provider, 1, null, null, null);
+        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, 1, null, null, null);
 
         var exception = expectThrows(
             ValidationException.class,
@@ -290,7 +298,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             "rate_limit":{"requests_per_minute":3},"dimensions":1024,"max_input_tokens":512}"""));
     }
 
-    public static HashMap<String, Object> createRequestSettingsMap(
+    public static HashMap<String, Object> createEmbeddingsRequestSettingsMap(
         String region,
         String model,
         String provider,

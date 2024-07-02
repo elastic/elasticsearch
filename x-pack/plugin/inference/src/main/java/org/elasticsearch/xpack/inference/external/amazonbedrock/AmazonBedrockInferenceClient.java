@@ -12,6 +12,7 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.bedrockruntime.AmazonBedrockRuntime;
 import com.amazonaws.services.bedrockruntime.AmazonBedrockRuntimeClientBuilder;
+import com.amazonaws.services.bedrockruntime.model.AmazonBedrockRuntimeException;
 import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
 import com.amazonaws.services.bedrockruntime.model.ConverseResult;
 import com.amazonaws.services.bedrockruntime.model.InvokeModelRequest;
@@ -20,6 +21,7 @@ import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
@@ -60,6 +62,11 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     public ConverseResult converse(ConverseRequest converseRequest) throws ElasticsearchException {
         try {
             return internalClient.converse(converseRequest);
+        } catch (AmazonBedrockRuntimeException amazonBedrockRuntimeException) {
+            throw new ElasticsearchException(
+                Strings.format("failed to create AmazonBedrockRuntime client: [%s]", amazonBedrockRuntimeException.getMessage()),
+                amazonBedrockRuntimeException
+            );
         } catch (Exception e) {
             throw new ElasticsearchException("Amazon Bedrock client converse call failed", e);
         }
@@ -69,6 +76,11 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     public InvokeModelResult invokeModel(InvokeModelRequest invokeModelRequest) throws ElasticsearchException {
         try {
             return internalClient.invokeModel(invokeModelRequest);
+        } catch (AmazonBedrockRuntimeException amazonBedrockRuntimeException) {
+            throw new ElasticsearchException(
+                Strings.format("failed to create AmazonBedrockRuntime client: [%s]", amazonBedrockRuntimeException.getMessage()),
+                amazonBedrockRuntimeException
+            );
         } catch (Exception e) {
             throw new ElasticsearchException("Amazon Bedrock client invokeModel call failed", e);
         }
@@ -94,6 +106,11 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
             );
 
             return SocketAccess.doPrivileged(builder::build);
+        } catch (AmazonBedrockRuntimeException amazonBedrockRuntimeException) {
+            throw new ElasticsearchException(
+                Strings.format("failed to create AmazonBedrockRuntime client: [%s]", amazonBedrockRuntimeException.getMessage()),
+                amazonBedrockRuntimeException
+            );
         } catch (Exception e) {
             throw new ElasticsearchException("failed to create AmazonBedrockRuntime client", e);
         }

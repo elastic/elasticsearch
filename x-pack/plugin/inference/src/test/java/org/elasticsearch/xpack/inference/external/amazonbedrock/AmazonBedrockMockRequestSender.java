@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,6 +24,19 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class AmazonBedrockMockRequestSender implements Sender {
+
+    public static class Factory extends AmazonBedrockRequestSender.Factory {
+        private final Sender sender;
+
+        public Factory(ServiceComponents serviceComponents, ClusterService clusterService) {
+            super(serviceComponents, clusterService);
+            this.sender = new AmazonBedrockMockRequestSender();
+        }
+
+        public Sender createSender() {
+            return sender;
+        }
+    }
 
     private Queue<Object> results = new ConcurrentLinkedQueue<>();
     private Queue<List<String>> inputs = new ConcurrentLinkedQueue<>();

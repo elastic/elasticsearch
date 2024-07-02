@@ -26,6 +26,12 @@ public final class AmazonBedrockProviderCapabilities {
         AmazonBedrockProvider.MISTRAL
     );
 
+    public static final List<AmazonBedrockProvider> chatCompletionProvidersWithTopK = List.of(
+        AmazonBedrockProvider.ANTHROPIC,
+        AmazonBedrockProvider.COHERE,
+        AmazonBedrockProvider.MISTRAL
+    );
+
     public static boolean providerAllowsTaskType(AmazonBedrockProvider provider, TaskType taskType) {
         switch (taskType) {
             case COMPLETION -> {
@@ -38,6 +44,10 @@ public final class AmazonBedrockProviderCapabilities {
                 return false;
             }
         }
+    }
+
+    public static boolean chatCompletionProviderHasTopKParameter(AmazonBedrockProvider provider) {
+        return chatCompletionProvidersWithTopK.contains(provider);
     }
 
 }

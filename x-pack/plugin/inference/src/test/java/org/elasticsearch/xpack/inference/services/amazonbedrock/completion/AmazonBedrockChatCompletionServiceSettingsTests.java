@@ -37,7 +37,7 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
         var model = "model-id";
         var provider = "amazontitan";
         var serviceSettings = AmazonBedrockChatCompletionServiceSettings.fromMap(
-            createRequestSettingsMap(region, model, provider),
+            createChatCompletionRequestSettingsMap(region, model, provider),
             ConfigurationParseContext.REQUEST
         );
 
@@ -51,7 +51,7 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
         var region = "region";
         var model = "model-id";
         var provider = "amazontitan";
-        var settingsMap = createRequestSettingsMap(region, model, provider);
+        var settingsMap = createChatCompletionRequestSettingsMap(region, model, provider);
         settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3)));
 
         var serviceSettings = AmazonBedrockChatCompletionServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
@@ -66,7 +66,7 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
         var region = "region";
         var model = "model-id";
         var provider = "amazontitan";
-        var settingsMap = createRequestSettingsMap(region, model, provider);
+        var settingsMap = createChatCompletionRequestSettingsMap(region, model, provider);
         var serviceSettings = AmazonBedrockChatCompletionServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
         assertThat(
@@ -92,7 +92,7 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
             "rate_limit":{"requests_per_minute":3}}"""));
     }
 
-    public static HashMap<String, Object> createRequestSettingsMap(String region, String model, String provider) {
+    public static HashMap<String, Object> createChatCompletionRequestSettingsMap(String region, String model, String provider) {
         return new HashMap<String, Object>(Map.of(REGION_FIELD, region, MODEL_FIELD, model, PROVIDER_FIELD, provider));
     }
 

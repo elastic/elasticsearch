@@ -33,7 +33,7 @@ public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWir
     AmazonBedrockChatCompletionTaskSettings> {
 
     public void testFromMap_AllValues() {
-        var taskMap = getTaskSettingsMap(1.0, 0.5, 0.6, 512);
+        var taskMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512);
         assertEquals(
             new AmazonBedrockChatCompletionTaskSettings(1.0, 0.5, 0.6, 512),
             AmazonBedrockChatCompletionTaskSettings.fromMap(taskMap)
@@ -41,7 +41,7 @@ public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWir
     }
 
     public void testFromMap_TemperatureIsInvalidValue_ThrowsValidationException() {
-        var taskMap = getTaskSettingsMap(1.0, 0.5, 0.6, 512);
+        var taskMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512);
         taskMap.put(TEMPERATURE_FIELD, "invalid");
 
         var thrownException = expectThrows(ValidationException.class, () -> AmazonBedrockChatCompletionTaskSettings.fromMap(taskMap));
@@ -55,7 +55,7 @@ public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWir
     }
 
     public void testFromMap_TopPIsInvalidValue_ThrowsValidationException() {
-        var taskMap = getTaskSettingsMap(1.0, 0.5, 0.6, 512);
+        var taskMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512);
         taskMap.put(TOP_P_FIELD, "invalid");
 
         var thrownException = expectThrows(ValidationException.class, () -> AmazonBedrockChatCompletionTaskSettings.fromMap(taskMap));
@@ -69,7 +69,7 @@ public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWir
     }
 
     public void testFromMap_TopKIsInvalidValue_ThrowsValidationException() {
-        var taskMap = getTaskSettingsMap(1.0, 0.5, 0.6, 512);
+        var taskMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512);
         taskMap.put(TOP_K_FIELD, "invalid");
 
         var thrownException = expectThrows(ValidationException.class, () -> AmazonBedrockChatCompletionTaskSettings.fromMap(taskMap));
@@ -81,7 +81,7 @@ public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWir
     }
 
     public void testFromMap_MaxNewTokensIsInvalidValue_ThrowsValidationException() {
-        var taskMap = getTaskSettingsMap(1.0, 0.5, 0.6, 512);
+        var taskMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512);
         taskMap.put(MAX_NEW_TOKENS_FIELD, "invalid");
 
         var thrownException = expectThrows(ValidationException.class, () -> AmazonBedrockChatCompletionTaskSettings.fromMap(taskMap));
@@ -103,41 +103,49 @@ public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWir
     }
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
-        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 0.5, 0.6, 512));
+        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
         var overrideSettings = AmazonBedrockChatCompletionTaskSettings.of(settings, AmazonBedrockChatCompletionTaskSettings.EMPTY_SETTINGS);
         MatcherAssert.assertThat(overrideSettings, is(settings));
     }
 
     public void testOverrideWith_UsesTemperatureOverride() {
-        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 0.5, 0.6, 512));
-        var overrideSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(0.3, null, null, null));
+        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
+        var overrideSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(
+            getChatCompletionTaskSettingsMap(0.3, null, null, null)
+        );
         var overriddenTaskSettings = AmazonBedrockChatCompletionTaskSettings.of(settings, overrideSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AmazonBedrockChatCompletionTaskSettings(0.3, 0.5, 0.6, 512)));
     }
 
     public void testOverrideWith_UsesTopPOverride() {
-        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 0.5, 0.6, 512));
-        var overrideSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(null, 0.2, null, null));
+        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
+        var overrideSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(
+            getChatCompletionTaskSettingsMap(null, 0.2, null, null)
+        );
         var overriddenTaskSettings = AmazonBedrockChatCompletionTaskSettings.of(settings, overrideSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AmazonBedrockChatCompletionTaskSettings(1.0, 0.2, 0.6, 512)));
     }
 
     public void testOverrideWith_UsesDoSampleOverride() {
-        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 0.5, 0.6, 512));
-        var overrideSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(null, null, 0.1, null));
+        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
+        var overrideSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(
+            getChatCompletionTaskSettingsMap(null, null, 0.1, null)
+        );
         var overriddenTaskSettings = AmazonBedrockChatCompletionTaskSettings.of(settings, overrideSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AmazonBedrockChatCompletionTaskSettings(1.0, 0.5, 0.1, 512)));
     }
 
     public void testOverrideWith_UsesMaxNewTokensOverride() {
-        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 0.5, 0.6, 512));
-        var overrideSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(null, null, null, 128));
+        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
+        var overrideSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(
+            getChatCompletionTaskSettingsMap(null, null, null, 128)
+        );
         var overriddenTaskSettings = AmazonBedrockChatCompletionTaskSettings.of(settings, overrideSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AmazonBedrockChatCompletionTaskSettings(1.0, 0.5, 0.6, 128)));
     }
 
     public void testToXContent_WithoutParameters() throws IOException {
-        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getTaskSettingsMap(null, null, null, null));
+        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(null, null, null, null));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
@@ -147,7 +155,7 @@ public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWir
     }
 
     public void testToXContent_WithParameters() throws IOException {
-        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 0.5, 0.6, 512));
+        var settings = AmazonBedrockChatCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
@@ -157,7 +165,7 @@ public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWir
             {"temperature":1.0,"top_p":0.5,"top_k":0.6,"max_new_tokens":512}"""));
     }
 
-    public static Map<String, Object> getTaskSettingsMap(
+    public static Map<String, Object> getChatCompletionTaskSettingsMap(
         @Nullable Double temperature,
         @Nullable Double topP,
         @Nullable Double topK,

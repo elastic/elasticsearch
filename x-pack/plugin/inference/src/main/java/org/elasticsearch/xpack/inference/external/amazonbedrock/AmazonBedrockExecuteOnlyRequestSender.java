@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 
+import java.io.IOException;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -28,7 +29,11 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
 
-    public AmazonBedrockExecuteOnlyRequestSender() {}
+    private final AmazonBedrockClientCache clientCache;
+
+    public AmazonBedrockExecuteOnlyRequestSender(AmazonBedrockClientCache clientCache) {
+        this.clientCache = clientCache;
+    }
 
     @Override
     public void send(
@@ -62,7 +67,15 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
         Supplier<Boolean> hasRequestTimedOutFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        return new AmazonBedrockExecutor(awsRequest.model(), awsRequest, awsResponse, logger, hasRequestTimedOutFunction, listener);
+        return new AmazonBedrockExecutor(
+            awsRequest.model(),
+            awsRequest,
+            awsResponse,
+            logger,
+            hasRequestTimedOutFunction,
+            listener,
+            clientCache
+        );
     }
 
     private void logException(Logger logger, Request request, Exception exception) {
@@ -79,5 +92,9 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
             format("Amazon Bedrock client failed to send request from inference entity id [%s]", inferenceEntityId),
             e
         );
+    }
+
+    public void shutdown() throws IOException {
+        this.clientCache.close();
     }
 }

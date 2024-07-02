@@ -42,7 +42,8 @@ public class AmazonBedrockRequestSender implements Sender {
         }
 
         public Sender createSender() {
-            return createSender(new AmazonBedrockExecuteOnlyRequestSender());
+            var clientCache = new AmazonBedrockInferenceClientCache(AmazonBedrockInferenceClient::create);
+            return createSender(new AmazonBedrockExecuteOnlyRequestSender(clientCache));
         }
 
         public Sender createSender(RequestSender requestSender) {

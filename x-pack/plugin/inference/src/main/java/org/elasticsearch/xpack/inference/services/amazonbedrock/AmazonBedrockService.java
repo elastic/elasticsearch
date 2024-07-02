@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -31,14 +32,17 @@ import org.elasticsearch.xpack.inference.external.action.amazonbedrock.AmazonBed
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,12 +54,14 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_K_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.chatCompletionProviderHasTopKParameter;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.providerAllowsTaskType;
 
 public class AmazonBedrockService extends SenderService {
     public static final String NAME = "amazonbedrock";
 
-    private final AmazonBedrockRequestSender.Factory amazonBedrockSenderFactory;
+    private final Sender amazonBedrockSender;
 
     public AmazonBedrockService(
         HttpRequestSender.Factory httpSenderFactory,
@@ -63,7 +69,7 @@ public class AmazonBedrockService extends SenderService {
         ServiceComponents serviceComponents
     ) {
         super(httpSenderFactory, serviceComponents);
-        this.amazonBedrockSenderFactory = amazonBedrockFactory;
+        this.amazonBedrockSender = amazonBedrockFactory.createSender();
     }
 
     @Override
@@ -75,7 +81,7 @@ public class AmazonBedrockService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var actionCreator = new AmazonBedrockActionCreator(amazonBedrockSenderFactory.createSender(), this.getServiceComponents(), timeout);
+        var actionCreator = new AmazonBedrockActionCreator(amazonBedrockSender, this.getServiceComponents(), timeout);
         if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
             var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
             action.execute(new DocumentsOnlyInput(input), timeout, listener);
@@ -237,6 +243,7 @@ public class AmazonBedrockService extends SenderService {
                     context
                 );
                 checkProviderForTask(TaskType.COMPLETION, model.provider());
+                checkChatCompletionProviderForTopKParameter(model);
                 return model;
             }
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
@@ -309,5 +316,23 @@ public class AmazonBedrockService extends SenderService {
                 RestStatus.BAD_REQUEST
             );
         }
+    }
+
+    private static void checkChatCompletionProviderForTopKParameter(AmazonBedrockChatCompletionModel model) {
+        var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
+        if (taskSettings.topK() != null) {
+            if (chatCompletionProviderHasTopKParameter(model.provider()) == false) {
+                throw new ElasticsearchStatusException(
+                    Strings.format("The [%s] task parameter is not available for provider [%s]", TOP_K_FIELD, model.provider()),
+                    RestStatus.BAD_REQUEST
+                );
+            }
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        IOUtils.closeWhileHandlingException(amazonBedrockSender);
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseRequestUtils.doesConverseRequestHasMessage;
 import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseRequestUtils.doesConverseRequestHaveAnyMaxTokensInput;
 import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseRequestUtils.doesConverseRequestHaveAnyTemperatureInput;
 import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseRequestUtils.doesConverseRequestHaveAnyTopKInput;
@@ -18,9 +19,8 @@ import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.c
 import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseRequestUtils.doesConverseRequestHaveMaxTokensInput;
 import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseRequestUtils.doesConverseRequestHaveTemperatureInput;
 import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseRequestUtils.doesConverseRequestHaveTopPInput;
-import static org.hamcrest.Matchers.is;
-import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseRequestUtils.doesConverseRequestHasMessage;
 import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseRequestUtils.getConverseRequest;
+import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockAI21LabsCompletionRequestEntityTests extends ESTestCase {
     public void testRequestEntity_CreatesProperRequest() {

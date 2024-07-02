@@ -28,6 +28,10 @@ public class AmazonBedrockMockExecuteRequestSender extends AmazonBedrockExecuteO
     private Queue<List<String>> inputs = new ConcurrentLinkedQueue<>();
     private int sendCounter = 0;
 
+    public AmazonBedrockMockExecuteRequestSender(AmazonBedrockClientCache clientCache) {
+        super(clientCache);
+    }
+
     public void enqueue(Object result) {
         results.add(result);
     }

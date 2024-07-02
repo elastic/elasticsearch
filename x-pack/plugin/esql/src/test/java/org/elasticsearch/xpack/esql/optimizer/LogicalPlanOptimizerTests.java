@@ -116,6 +116,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -158,6 +159,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
@@ -5009,11 +5011,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLookupSimple() {
-        var plan = optimizedPlan("""
+        String query = """
               FROM test
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
-            """);
+            | LOOKUP int_number_names ON int""";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        var plan = optimizedPlan(query);
         var join = as(plan, Join.class);
 
         // Right is the lookup table
@@ -5082,12 +5089,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLookupStats() {
-        var plan = optimizedPlan("""
+        String query = """
               FROM test
             | RENAME languages AS int
             | LOOKUP int_number_names ON int
-            | STATS MIN(emp_no) BY name
-            """);
+            | STATS MIN(emp_no) BY name""";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        var plan = optimizedPlan(query);
         var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
 

@@ -294,8 +294,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 ia = concreteIndices.resolveIfAbsent(docWriteRequest);
                 indexOperationValidator.accept(ia, docWriteRequest);
 
-                TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
-                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
+                TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, ia);
+                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia);
                 docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
 
                 final Index concreteIndex = docWriteRequest.getConcreteWriteIndex(ia, metadata);

@@ -226,7 +226,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitString(EsqlBaseParser.StringContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, unquoteString(source), DataType.KEYWORD);
+        return new Literal(source, unquote(source), DataType.KEYWORD);
     }
 
     @Override

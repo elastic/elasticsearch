@@ -411,6 +411,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             true,
             true,
             true,
+            true,
             null,
             null,
             null,

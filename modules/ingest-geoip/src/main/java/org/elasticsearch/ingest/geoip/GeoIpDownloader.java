@@ -111,14 +111,23 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Supplier<Boolean> atLeastOneGeoipProcessorSupplier
     ) {
         super(id, type, action, description, parentTask, headers);
-        this.httpClient = httpClient;
         this.client = client;
+        this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        endpoint = ENDPOINT_SETTING.get(settings);
+        this.endpoint = ENDPOINT_SETTING.get(settings);
         this.pollIntervalSupplier = pollIntervalSupplier;
         this.eagerDownloadSupplier = eagerDownloadSupplier;
         this.atLeastOneGeoipProcessorSupplier = atLeastOneGeoipProcessorSupplier;
+    }
+
+    void setState(GeoIpTaskState state) {
+        // this is for injecting the state in GeoIpDownloaderTaskExecutor#nodeOperation just after the task instance has been created
+        // by the PersistentTasksNodeService -- since the GeoIpDownloader is newly created, the state will be null, and the passed-in
+        // state cannot be null
+        assert this.state == null;
+        assert state != null;
+        this.state = state;
     }
 
     // visible for testing
@@ -171,7 +180,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         logger.debug("downloading geoip database [{}]", name);
         String url = databaseInfo.get("url").toString();
         if (url.startsWith("http") == false) {
-            // relative url, add it after last slash (i.e resolve sibling) or at the end if there's no slash after http[s]://
+            // relative url, add it after last slash (i.e. resolve sibling) or at the end if there's no slash after http[s]://
             int lastSlash = endpoint.substring(8).lastIndexOf('/');
             url = (lastSlash != -1 ? endpoint.substring(0, lastSlash + 8) : endpoint) + "/" + url;
         }
@@ -264,14 +273,13 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         return buf;
     }
 
-    void setState(GeoIpTaskState state) {
-        this.state = state;
-    }
-
     /**
      * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
      */
     void runDownloader() {
+        // by the time we reach here, the state will never be null
+        assert state != null;
+
         if (isCancelled() || isCompleted()) {
             return;
         }

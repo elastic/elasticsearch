@@ -101,7 +101,12 @@ public class EsqlCapabilities {
         /**
          * Support for quoting index sources in double quotes.
          */
-        DOUBLE_QUOTES_SOURCE_ENCLOSING;
+        DOUBLE_QUOTES_SOURCE_ENCLOSING,
+
+        /**
+         * Support for WEIGHTED_AVG function.
+         */
+        AGG_WEIGHTED_AVG;
 
         private final boolean snapshotOnly;
 

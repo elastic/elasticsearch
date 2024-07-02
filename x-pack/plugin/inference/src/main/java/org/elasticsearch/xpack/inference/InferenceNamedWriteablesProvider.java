@@ -53,6 +53,8 @@ import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
@@ -312,6 +314,22 @@ public class InferenceNamedWriteablesProvider {
                 TaskSettings.class,
                 GoogleVertexAiEmbeddingsTaskSettings.NAME,
                 GoogleVertexAiEmbeddingsTaskSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                GoogleVertexAiRerankServiceSettings.NAME,
+                GoogleVertexAiRerankServiceSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                GoogleVertexAiRerankTaskSettings.NAME,
+                GoogleVertexAiRerankTaskSettings::new
             )
         );
     }

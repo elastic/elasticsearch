@@ -15,16 +15,16 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletionService;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -150,59 +150,37 @@ public class PlainActionFutureTests extends ESTestCase {
         assertPropagatesInterrupt(() -> future.actionGet(10, TimeUnit.SECONDS));
     }
 
-    public void testAssertCompleteAllowedAllowsConcurrentCompletesFromSamePool() throws InterruptedException {
+    public void testAssertCompleteAllowedAllowsConcurrentCompletesFromSamePool() {
         assumeTrue("Assertions need to be enabled for assertCompleteAllowed to be invoked", Assertions.ENABLED);
         try (TestThreadPool threadPool = new TestThreadPool(getTestName())) {
             final AtomicReference<PlainActionFuture<?>> futureReference = new AtomicReference<>(new PlainActionFuture<>());
-            final int threads = 4;
+            final var executorName = randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.MANAGEMENT);
+            final var threadCount = threadPool.info(executorName).getMax();
             final AtomicBoolean running = new AtomicBoolean(true);
-            final CountDownLatch startLatch = new CountDownLatch(threads + 1);
-            final CompletionService<?> completionService = new ExecutorCompletionService<>(threadPool.generic());
+            final CountDownLatch startLatch = new CountDownLatch(threadCount + 1);
             final List<Future<?>> futures = new ArrayList<>();
-            for (int i = 0; i < threads; i++) {
-                futures.add(completionService.submit(new FutureCompleter(i, startLatch, futureReference, running), null));
+            final ExecutorService executor = threadPool.executor(executorName);
+            for (int i = 1; i < threadCount; i++) {
+                futures.add(executor.submit(() -> {
+                    startLatch.countDown();
+                    safeAwait(startLatch);
+                    while (running.get()) {
+                        futureReference.get().onResponse(null);
+                    }
+                }, null));
             }
+            executor.submit(() -> {
+                startLatch.countDown();
+                safeAwait(startLatch);
+                while (running.get()) {
+                    futureReference.set(new PlainActionFuture<>());
+                }
+            }, null);
             startLatch.countDown();
             safeAwait(startLatch);
-            completionService.poll(20, TimeUnit.MILLISECONDS);
+            safeSleep(20);
             running.set(false);
             futures.forEach(ESTestCase::safeGet);
-        }
-    }
-
-    private static class FutureCompleter implements Runnable {
-        private final int number;
-        private final AtomicReference<PlainActionFuture<?>> future;
-        private final AtomicBoolean running;
-        private final CountDownLatch startBarrier;
-
-        private FutureCompleter(
-            int number,
-            CountDownLatch startBarrier,
-            AtomicReference<PlainActionFuture<?>> future,
-            AtomicBoolean running
-        ) {
-            this.number = number;
-            this.future = future;
-            this.running = running;
-            this.startBarrier = startBarrier;
-        }
-
-        @Override
-        public void run() {
-            try {
-                startBarrier.countDown();
-                safeAwait(startBarrier);
-                while (running.get()) {
-                    if (number == 0) {
-                        future.set(new PlainActionFuture<>());
-                    }
-                    future.get().onResponse(null);
-                }
-            } finally {
-                // In the event we failed, stop all the other FutureCompleter instances
-                running.set(false);
-            }
         }
     }
 

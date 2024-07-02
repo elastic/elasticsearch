@@ -997,6 +997,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomInt() & Integer.MAX_VALUE;
     }
 
+    /**
+     * @return an <code>int</code> between <code>Integer.MIN_VALUE</code> and <code>-1</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNegativeInt() {
+        return randomInt() | Integer.MIN_VALUE;
+    }
+
     public static float randomFloat() {
         return random().nextFloat();
     }

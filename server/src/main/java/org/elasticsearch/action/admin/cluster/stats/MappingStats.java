@@ -230,7 +230,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             out.writeOptionalVLong(totalFieldCount);
             out.writeOptionalVLong(totalDeduplicatedFieldCount);
             out.writeOptionalVLong(totalMappingSizeBytes);
-        } // else just omit these stats, they're not computed on older nodes anyway
+        }
         out.writeCollection(fieldTypeStats);
         out.writeCollection(runtimeFieldStats);
     }

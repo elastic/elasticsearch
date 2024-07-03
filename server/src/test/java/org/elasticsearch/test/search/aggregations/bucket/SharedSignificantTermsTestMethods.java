@@ -9,7 +9,7 @@
 package org.elasticsearch.test.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -20,7 +20,6 @@ import org.junit.Assert;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
@@ -55,9 +54,9 @@ public class SharedSignificantTermsTestMethods {
                 StringTerms classes = response.getAggregations().get("class");
                 Assert.assertThat(classes.getBuckets().size(), equalTo(2));
                 for (Terms.Bucket classBucket : classes.getBuckets()) {
-                    Map<String, InternalAggregation> aggs = classBucket.getAggregations().asMap();
-                    Assert.assertTrue(aggs.containsKey("sig_terms"));
-                    SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
+                    InternalAggregations aggs = classBucket.getAggregations();
+                    Assert.assertNotNull(aggs.get("sig_terms"));
+                    SignificantTerms agg = aggs.get("sig_terms");
                     Assert.assertThat(agg.getBuckets().size(), equalTo(1));
                     SignificantTerms.Bucket sigBucket = agg.iterator().next();
                     String term = sigBucket.getKeyAsString();

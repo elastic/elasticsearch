@@ -412,6 +412,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return;
         }
 
+        logger.info(
+            Strings.format(
+                "Registering repository [%s] with repository UUID [%s] and generation [%d]",
+                repositoryName,
+                repositoryData.getUuid(),
+                repositoryData.getGenId()
+            )
+        );
+
         submitUnbatchedTask(
             clusterService,
             "update repository UUID [" + repositoryName + "] to [" + repositoryUuid + "]",
@@ -486,8 +495,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
          * Constructor used by {@link org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction}
          * @param name the repository name
          */
-        public UnregisterRepositoryTask(String name) {
-            this(new DeleteRepositoryRequest(name), null);
+        public UnregisterRepositoryTask(TimeValue dummyTimeout, String name) {
+            this(new DeleteRepositoryRequest(dummyTimeout, dummyTimeout, name), null);
         }
 
         @Override

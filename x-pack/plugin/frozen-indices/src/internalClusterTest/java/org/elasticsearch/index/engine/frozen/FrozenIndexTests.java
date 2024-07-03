@@ -228,6 +228,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     public void testFreezeAndUnfreeze() {
         final IndexService originalIndexService = createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
         assertThat(originalIndexService.getMetadata().getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(originalIndexService.getMetadata().getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
 
         prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -250,6 +251,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             IndexShard shard = indexService.getShard(0);
             assertEquals(0, shard.refreshStats().getTotal());
             assertThat(indexService.getMetadata().getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+            assertThat(indexService.getMetadata().getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         }
         assertAcked(
             client().execute(
@@ -268,6 +270,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             Engine engine = IndexShardTestCase.getEngine(shard);
             assertThat(engine, Matchers.instanceOf(InternalEngine.class));
             assertThat(indexService.getMetadata().getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+            assertThat(indexService.getMetadata().getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         }
         prepareIndex("index").setId("4").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
     }
@@ -671,17 +674,15 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index")).actionGet()
         );
 
-        final IndexLongFieldRange timestampFieldRange = clusterAdmin().prepareState()
-            .get()
-            .getState()
-            .metadata()
-            .index("index")
-            .getTimestampRange();
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("index");
+        final IndexLongFieldRange timestampFieldRange = indexMetadata.getTimestampRange();
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
         assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").toEpochMilli()));
         assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
+
+        assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
     }
 
     public void testComputesTimestampRangeFromNanoseconds() throws IOException {
@@ -705,18 +706,98 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index")).actionGet()
         );
 
-        final IndexLongFieldRange timestampFieldRange = clusterAdmin().prepareState()
-            .get()
-            .getState()
-            .metadata()
-            .index("index")
-            .getTimestampRange();
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("index");
+        final IndexLongFieldRange timestampFieldRange = indexMetadata.getTimestampRange();
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
         final DateFieldMapper.Resolution resolution = DateFieldMapper.Resolution.NANOSECONDS;
         assertThat(timestampFieldRange.getMin(), equalTo(resolution.convert(Instant.parse("2010-01-05T01:02:03.456789012Z"))));
         assertThat(timestampFieldRange.getMax(), equalTo(resolution.convert(Instant.parse("2010-01-06T02:03:04.567890123Z"))));
+
+        assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
     }
 
+    public void testComputesEventIngestedRangeFromMilliseconds() {
+        final int shardCount = between(1, 3);
+        createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount).build());
+        prepareIndex("index").setSource(IndexMetadata.EVENT_INGESTED_FIELD_NAME, "2010-01-05T01:02:03.456Z").get();
+        prepareIndex("index").setSource(IndexMetadata.EVENT_INGESTED_FIELD_NAME, "2010-01-06T02:03:04.567Z").get();
+
+        assertAcked(
+            client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index")).actionGet()
+        );
+
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("index");
+        final IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
+        assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+        assertTrue(eventIngestedRange.isComplete());
+        assertThat(eventIngestedRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").toEpochMilli()));
+        assertThat(eventIngestedRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
+
+        assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+    }
+
+    public void testComputesEventIngestedRangeFromNanoseconds() throws IOException {
+
+        final XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(IndexMetadata.EVENT_INGESTED_FIELD_NAME)
+            .field("type", "date_nanos")
+            .field("format", "strict_date_optional_time_nanos")
+            .endObject()
+            .endObject()
+            .endObject();
+
+        final int shardCount = between(1, 3);
+        createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount).build(), mapping);
+        prepareIndex("index").setSource(IndexMetadata.EVENT_INGESTED_FIELD_NAME, "2010-01-05T01:02:03.456789012Z").get();
+        prepareIndex("index").setSource(IndexMetadata.EVENT_INGESTED_FIELD_NAME, "2010-01-06T02:03:04.567890123Z").get();
+
+        assertAcked(
+            client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index")).actionGet()
+        );
+
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("index");
+        final IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
+        assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+        assertTrue(eventIngestedRange.isComplete());
+        final DateFieldMapper.Resolution resolution = DateFieldMapper.Resolution.NANOSECONDS;
+        assertThat(eventIngestedRange.getMin(), equalTo(resolution.convert(Instant.parse("2010-01-05T01:02:03.456789012Z"))));
+        assertThat(eventIngestedRange.getMax(), equalTo(resolution.convert(Instant.parse("2010-01-06T02:03:04.567890123Z"))));
+
+        assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+    }
+
+    public void testComputesEventIngestedAndTimestampRangesWhenBothPresent() {
+        final int shardCount = between(1, 3);
+        createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount).build());
+        prepareIndex("index").setSource(IndexMetadata.EVENT_INGESTED_FIELD_NAME, "2010-01-05T01:02:03.456Z").get();
+        prepareIndex("index").setSource(IndexMetadata.EVENT_INGESTED_FIELD_NAME, "2010-01-06T02:03:04.567Z").get();
+        prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-05T01:55:03.456Z").get();
+        prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:55:04.567Z").get();
+
+        assertAcked(
+            client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index")).actionGet()
+        );
+
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("index");
+
+        final IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
+        assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+        assertTrue(eventIngestedRange.isComplete());
+        assertThat(eventIngestedRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").toEpochMilli()));
+        assertThat(eventIngestedRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
+
+        final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
+        assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+        assertTrue(timestampRange.isComplete());
+        assertThat(timestampRange.getMin(), equalTo(Instant.parse("2010-01-05T01:55:03.456Z").toEpochMilli()));
+        assertThat(timestampRange.getMax(), equalTo(Instant.parse("2010-01-06T02:55:04.567Z").toEpochMilli()));
+    }
 }

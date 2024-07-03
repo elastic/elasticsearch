@@ -252,7 +252,8 @@ public class FollowingEngineTests extends ESTestCase {
             null,
             System::nanoTime,
             null,
-            true
+            true,
+            null
         );
     }
 

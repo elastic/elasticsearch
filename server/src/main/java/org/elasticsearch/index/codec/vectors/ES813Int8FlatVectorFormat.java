@@ -37,16 +37,15 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
     private final FlatVectorsFormat format;
 
     public ES813Int8FlatVectorFormat() {
-        this(null);
+        this(null, 7, false);
     }
 
     /**
      * Sole constructor
      */
-    public ES813Int8FlatVectorFormat(Float confidenceInterval) {
+    public ES813Int8FlatVectorFormat(Float confidenceInterval, int bits, boolean compress) {
         super(NAME);
-        int bits = 7;
-        boolean compress = false;
+        // TODO can we just switch this to ES814ScalarQuantizedVectorsFormat ?
         this.format = new Lucene99ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
     }
 
@@ -58,6 +57,11 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES813FlatVectorReader(format.fieldsReader(state));
+    }
+
+    @Override
+    public String toString() {
+        return NAME + "(name=" + NAME + ", innerFormat=" + format + ")";
     }
 
     public static class ES813FlatVectorWriter extends KnnVectorsWriter {

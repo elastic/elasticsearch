@@ -97,7 +97,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     }
 
     @Override
-    protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
+    protected DiscoveryNode[] resolveRequest(NodesRequest request, ClusterState clusterState) {
         final Map<String, DiscoveryNode> dataNodes = clusterState.getNodes().getDataNodes();
 
         final DiscoveryNode[] resolvedNodes;
@@ -109,7 +109,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
                 .map(dataNodes::get)
                 .toArray(DiscoveryNode[]::new);
         }
-        request.setConcreteNodes(resolvedNodes);
+        return resolvedNodes;
     }
 
     @Override
@@ -149,14 +149,8 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     }
 
     public static final class NodesRequest extends BaseNodesRequest<NodesRequest> {
-
         public NodesRequest(String[] nodes) {
             super(nodes);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            TransportAction.localOnly();
         }
     }
 

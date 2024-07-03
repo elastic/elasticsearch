@@ -108,12 +108,6 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(requestName);
-        }
-
-        @Override
         public String getDescription() {
             return "CancellableNodesRequest[" + requestName + "]";
         }

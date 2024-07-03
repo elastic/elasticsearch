@@ -34,7 +34,7 @@ space. Additional latency can be avoided by not loading `_source` field in queri
 ===== Supported fields
 Synthetic `_source` is supported by all field types. Depending on implementation details, field types have different properties when used with synthetic `_source`.
 
-<<synthetic-source-fields-native-list, Most field types>> construct synthetic `_source` using existing data, most commonly <<doc-values,`doc_values`>> and <<stored-fields, stored fields>>. As such no additional space is used to store contents of `_source` field. Due to the storage layout of <<doc-values,`doc_values`>>, generated `_source` field undergoes <<synthetic-source-modifications, modifications>> compared to original document.
+<<synthetic-source-fields-native-list, Most field types>> construct synthetic `_source` using existing data, most commonly <<doc-values,`doc_values`>> and <<stored-fields, stored fields>>. For these field types, no additional space is needed to store the contents of `_source` field. Due to the storage layout of <<doc-values,`doc_values`>>, the generated `_source` field undergoes <<synthetic-source-modifications, modifications>> compared to original document.
 
 For all other fields, the original value of the field is stored as is, in the same way as the `_source` field in non-synthetic mode. In this case there are no modifications and field data in `_source` is the same as in the original document. Similarly, malformed values of fields that use <<ignore-malformed,`ignore_malformed`>> or <<ignore-above,`ignore_above`>> need to be stored as is. This approach is less storage efficient since data needed for `_source` reconstruction is stored in addition to other data required to index the field (like `doc_values`).
 

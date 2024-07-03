@@ -420,6 +420,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return toXContent(builder, params, docCreation, false);
     }
 
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation, boolean includeMetadataFlattened)
+        throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params, docCreation, includeMetadataFlattened);
+        return builder.endObject();
+    }
+
     /**
      * Generates x-content for this {@link RoleDescriptor} instance.
      *
@@ -432,9 +439,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
      * @return x-content builder
      * @throws IOException if there was an error writing the x-content to the builder
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation, boolean includeMetadataFlattened)
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params, boolean docCreation, boolean includeMetadataFlattened)
         throws IOException {
-        builder.startObject();
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
         if (configurableClusterPrivileges.length != 0) {
             builder.field(Fields.GLOBAL.getPreferredName());
@@ -466,7 +472,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         if (hasDescription()) {
             builder.field(Fields.DESCRIPTION.getPreferredName(), description);
         }
-        return builder.endObject();
+        return builder;
     }
 
     @Override
@@ -545,12 +551,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
 
         public RoleDescriptor parse(String name, XContentParser parser) throws IOException {
-            // validate name
-            Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
-            if (validationError != null) {
-                ValidationException ve = new ValidationException();
-                ve.addValidationError(validationError.toString());
-                throw ve;
+            return parse(name, parser, true);
+        }
+
+        public RoleDescriptor parse(String name, XContentParser parser, boolean validate) throws IOException {
+            if (validate) {
+                Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
+                if (validationError != null) {
+                    ValidationException ve = new ValidationException();
+                    ve.addValidationError(validationError.toString());
+                    throw ve;
+                }
             }
 
             // advance to the START_OBJECT token if needed

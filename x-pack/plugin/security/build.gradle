@@ -151,11 +151,6 @@ dependencies {
   testImplementation('org.apache.directory.server:ldap-client-test:2.0.0-M24')
   testImplementation('org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0-M24')
   testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
-
-  // netty self signed certificate dependency
-  testImplementation('org.bouncycastle:bcprov-jdk18on:1.78.1')
-  testImplementation ('org.bouncycastle:bcutil-jdk18on:1.78.1')
-  testImplementation('org.bouncycastle:bcpkix-jdk18on:1.78.1')
 }
 
 tasks.named("test").configure {

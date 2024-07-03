@@ -8,11 +8,20 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
+
+import java.util.Arrays;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public interface InferenceConfig extends NamedXContentObject, VersionedNamedWriteable {
 
@@ -63,6 +72,39 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
 
     default boolean supportsSearchRescorer() {
         return false;
+    }
+
+    @Nullable
+    default TrainedModelInput getDefaultInput(TrainedModelType modelType) {
+        if (modelType == null) {
+            return null;
+        }
+        return modelType.getDefaultInput();
+    }
+
+    default ActionRequestValidationException validateTrainedModelInput(
+        TrainedModelInput input,
+        boolean forCreation,
+        ActionRequestValidationException validationException
+    ) {
+
+        if (input != null && input.getFieldNames().isEmpty()) {
+            validationException = addValidationError("[input.field_names] must not be empty", validationException);
+        }
+
+        if (input != null
+            && input.getFieldNames()
+                .stream()
+                .filter(s -> s.contains("."))
+                .flatMap(s -> Arrays.stream(Strings.delimitedListToStringArray(s, ".")))
+                .anyMatch(String::isEmpty)) {
+            validationException = addValidationError(
+                "[input.field_names] must only contain valid dot delimited field names",
+                validationException
+            );
+        }
+
+        return validationException;
     }
 
     default ElasticsearchStatusException incompatibleUpdateException(String updateName) {

@@ -142,6 +142,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             Exception.class,
             () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 | STATS sum=sum(value)")
         );
+        logger.info("error", error);
         assertThat(
             error.getMessage(),
             containsString(

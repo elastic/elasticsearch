@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -27,6 +28,13 @@ public class DataStreamFailureStoreDefinition {
     public static final Settings DATA_STREAM_FAILURE_STORE_SETTINGS;
     public static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
 
+    public static final int FAILURE_STORE_DEFINITION_VERSION = 1;
+    public static final Setting<Integer> FAILURE_STORE_DEFINITION_VERSION_SETTING = Setting.intSetting(
+        "index.failure_store.version",
+        0,
+        Setting.Property.IndexScope
+    );
+
     static {
         DATA_STREAM_FAILURE_STORE_SETTINGS = Settings.builder()
             // Always start with the hidden settings for a backing index.
@@ -36,6 +44,7 @@ public class DataStreamFailureStoreDefinition {
             // meant for the backing indices only.
             .putNull(IndexSettings.DEFAULT_PIPELINE.getKey())
             .putNull(IndexSettings.FINAL_PIPELINE.getKey())
+            .put(FAILURE_STORE_DEFINITION_VERSION_SETTING.getKey(), FAILURE_STORE_DEFINITION_VERSION)
             .build();
 
         try {

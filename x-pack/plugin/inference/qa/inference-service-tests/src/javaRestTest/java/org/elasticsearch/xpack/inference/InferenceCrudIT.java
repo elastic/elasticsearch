@@ -16,6 +16,7 @@ import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -124,14 +125,15 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         putPipeline(pipelineId, endpointId);
 
         {
+            var errorString = new StringBuilder().append("Inference endpoint ")
+                .append(endpointId)
+                .append(" is referenced by pipelines: ")
+                .append(Set.of(pipelineId))
+                .append(". ")
+                .append("Ensure that no pipelines are using this inference endpoint, ")
+                .append("or use force to ignore this warning and delete the inference endpoint.");
             var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "Inference endpoint endpoint_referenced_by_pipeline is referenced by pipelines and cannot be deleted. "
-                        + "Use `force` to delete it anyway, or use `dry_run` to list the pipelines that reference it."
-                )
-            );
+            assertThat(e.getMessage(), containsString(errorString.toString()));
         }
         {
             var response = deleteModel(endpointId, "dry_run=true");
@@ -153,14 +155,16 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String indexName = randomAlphaOfLength(10).toLowerCase();
         putSemanticText(endpointId, indexName);
         {
+
+            var errorString = new StringBuilder().append(" Inference endpoint ")
+                .append(endpointId)
+                .append(" is being used in the mapping for indexes: ")
+                .append(Set.of(indexName))
+                .append(". ")
+                .append("Ensure that no index mappings are using this inference endpoint, ")
+                .append("or use force to ignore this warning and delete the inference endpoint.");
             var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    " is referenced by `SemanticText` field(s) and cannot be deleted. "
-                        + "Use `force` to delete it anyway, or use `dry_run` to list the `SemanticText` field(s) that reference it."
-                )
-            );
+            assertThat(e.getMessage(), containsString(errorString.toString()));
         }
         {
             var response = deleteModel(endpointId, "dry_run=true");
@@ -183,14 +187,24 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         var pipelineId = "pipeline_referencing_model";
         putPipeline(pipelineId, endpointId);
         {
+
+            var errorString = new StringBuilder().append("Inference endpoint ")
+                .append(endpointId)
+                .append(" is referenced by pipelines: ")
+                .append(Set.of(pipelineId))
+                .append(". ")
+                .append("Ensure that no pipelines are using this inference endpoint, ")
+                .append("or use force to ignore this warning and delete the inference endpoint.")
+                .append(" Inference endpoint ")
+                .append(endpointId)
+                .append(" is being used in the mapping for indexes: ")
+                .append(Set.of(indexName))
+                .append(". ")
+                .append("Ensure that no index mappings are using this inference endpoint, ")
+                .append("or use force to ignore this warning and delete the inference endpoint.");
+
             var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    " is referenced by `SemanticText` field(s) and cannot be deleted. "
-                        + "Use `force` to delete it anyway, or use `dry_run` to list the `SemanticText` field(s) that reference it."
-                )
-            );
+            assertThat(e.getMessage(), containsString(errorString.toString()));
         }
         {
             var response = deleteModel(endpointId, "dry_run=true");

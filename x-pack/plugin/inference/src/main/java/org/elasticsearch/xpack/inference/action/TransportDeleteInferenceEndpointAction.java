@@ -97,8 +97,8 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
                 var errorString = endpointIsReferencedInPipelinesOrIndexes(state, request.getInferenceEndpointId());
                 if (errorString != null) {
                     listener.onFailure(new ElasticsearchStatusException(errorString, RestStatus.CONFLICT));
+                    return;
                 }
-                return;
             }
 
             var service = serviceRegistry.getService(unparsedModel.service());
@@ -180,7 +180,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         }
 
         if (indexes.isEmpty() == false) {
-            errorString.append("Inference endpoint ")
+            errorString.append(" Inference endpoint ")
                 .append(inferenceEndpointId)
                 .append(" is being used in the mapping for indexes: ")
                 .append(indexes)

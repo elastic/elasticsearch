@@ -10,9 +10,11 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.search.builder.QueryType;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
+import java.util.Set;
 
 public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject, Rewriteable<QueryBuilder> {
 
@@ -65,5 +67,9 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
     @Override
     default QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
+    }
+
+    default Set<QueryType> queryType() {
+        return Set.of();
     }
 }

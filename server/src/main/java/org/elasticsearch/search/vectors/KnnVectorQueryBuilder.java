@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
+import org.elasticsearch.search.builder.QueryType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -41,6 +42,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
@@ -514,4 +516,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_0_0;
     }
+
+    @Override
+    public Set<QueryType> queryType() {
+        return Set.of(QueryType.VECTOR);
+    }
+
 }

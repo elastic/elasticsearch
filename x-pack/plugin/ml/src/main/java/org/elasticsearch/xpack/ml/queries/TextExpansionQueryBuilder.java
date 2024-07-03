@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.builder.QueryType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -321,5 +323,10 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
         return queryBuilder;
+    }
+
+    @Override
+    public Set<QueryType> queryType() {
+        return Set.of(QueryType.VECTOR);
     }
 }

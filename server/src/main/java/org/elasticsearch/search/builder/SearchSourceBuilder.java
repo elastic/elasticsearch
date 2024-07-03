@@ -65,6 +65,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
@@ -192,6 +193,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<IndexBoost> indexBoosts = new ArrayList<>();
 
     private List<String> stats;
+    private Set<QueryType> queryTypes;
 
     private List<SearchExtBuilder> extBuilders = Collections.emptyList();
 
@@ -279,6 +281,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_TYPES_ADDED)) {
+            queryTypes = in.readCollectionAsImmutableSet(input -> input.readEnum(QueryType.class));
+        }
     }
 
     @Override
@@ -364,6 +369,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeOptionalNamedWriteable(rankBuilder);
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.QUERY_TYPES_ADDED)) {
+            out.writeCollection(queryTypes, StreamOutput::writeEnum);
         }
     }
 
@@ -1661,7 +1669,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         searchUsageConsumer.accept(searchUsage);
+        getSearchTypesFromUsage(searchUsage);
         return this;
+    }
+
+    private void getSearchTypesFromUsage(SearchUsage searchUsage) {
+
     }
 
     private static void throwUnknownKey(XContentParser parser, XContentParser.Token token, String currentFieldName)

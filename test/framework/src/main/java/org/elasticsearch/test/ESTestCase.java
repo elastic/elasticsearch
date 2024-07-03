@@ -2270,6 +2270,22 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Call a supplier that might throw and fail if it throws, useful to avoid try/catch boilerplate or cumbersome
+     * propagation of checked exceptions around something you assume should never throw.
+     *
+     * @param supplier A supplier that may throw an exception
+     * @return The value returned by the supplier
+     * @param <T> the type of object returned
+     */
+    public static <T> T safeGet(CheckedSupplier<T, ?> supplier) {
+        try {
+            return supplier.get();
+        } catch (Exception e) {
+            return fail(e);
+        }
+    }
+
     public static Exception safeAwaitFailure(SubscribableListener<?> listener) {
         return safeAwait(
             SubscribableListener.newForked(
@@ -2336,20 +2352,5 @@ public abstract class ESTestCase extends LuceneTestCase {
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
             () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
         );
-    }
-
-    /**
-     * Call a supplier that might throw and fail if it throws, useful to avoid try/catch boilerplate or cumbersome
-     * propagation of checked exceptions around something you assume should never throw.
-     *
-     * @param supplier A supplier that may throw an exception
-     * @return The value returned by the supplier
-     */
-    protected static <T> T assertDoesNotThrow(CheckedSupplier<T, ?> supplier) {
-        try {
-            return supplier.get();
-        } catch (Exception e) {
-            return fail(e);
-        }
     }
 }

@@ -5,11 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.expression.function;
+package org.elasticsearch.xpack.esql.expression.function;
 
 /**
  * Marker interface indicating that a function accepts one optional argument (typically the last one).
- * This is used by the {@link FunctionRegistry} to perform validation of function declaration.
+ * This is used by the {@link EsqlFunctionRegistry} to perform validation of function declaration.
  */
 public interface OptionalArgument {
 

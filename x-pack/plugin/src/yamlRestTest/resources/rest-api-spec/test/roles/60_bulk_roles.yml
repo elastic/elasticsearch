@@ -82,3 +82,17 @@ teardown:
           }
   - match: { deleted.0: "admin_role" }
   - match: { deleted.1: "role_with_description" }
+
+  # query match_all roles
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      security.query_role:
+        body: >
+          {
+            "query": { "match_all": {} }, "sort": ["name"]
+          }
+  - match: { total: 2 }
+  - match: { count: 2 }
+  - match: { roles.0.name: "admin_role" }
+  - match: { roles.1.name: "role_with_description" }

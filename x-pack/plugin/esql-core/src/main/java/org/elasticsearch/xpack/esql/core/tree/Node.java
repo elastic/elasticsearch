@@ -254,7 +254,7 @@ public abstract class Node<T extends Node<T>> {
      * This always returns something of the same type as the current
      * node but since {@link Node} doesn't have a {@code SelfT} parameter
      * we return the closest thing we do have: {@code T}, which is the
-     * root of the hierarchy for the this node.
+     * root of the hierarchy for this node.
      */
     protected final <E> T transformNodeProps(Class<E> typeToken, Function<? super E, ? extends E> rule) {
         return info().transform(rule, typeToken);

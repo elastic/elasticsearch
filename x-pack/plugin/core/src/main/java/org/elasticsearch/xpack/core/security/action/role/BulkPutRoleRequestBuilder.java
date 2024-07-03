@@ -27,7 +27,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Builder for requests to bulk add a roles to the security index
  */
-public class BulkPutRoleRequestBuilder extends ActionRequestBuilder<BulkPutRolesRequest, BulkPutRolesResponse> {
+public class BulkPutRoleRequestBuilder extends ActionRequestBuilder<BulkPutRolesRequest, BulkRolesResponse> {
 
     private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowDescription(true).build();
     @SuppressWarnings("unchecked")

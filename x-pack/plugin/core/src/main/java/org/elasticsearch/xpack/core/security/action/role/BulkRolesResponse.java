@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class BulkPutRolesResponse extends ActionResponse implements ToXContentObject {
+public class BulkRolesResponse extends ActionResponse implements ToXContentObject {
 
     private final List<Item> items;
 
@@ -34,12 +34,12 @@ public class BulkPutRolesResponse extends ActionResponse implements ToXContentOb
             return this;
         }
 
-        public BulkPutRolesResponse build() {
-            return new BulkPutRolesResponse(items);
+        public BulkRolesResponse build() {
+            return new BulkRolesResponse(items);
         }
     }
 
-    public BulkPutRolesResponse(List<Item> items) {
+    public BulkRolesResponse(List<Item> items) {
         this.items = items;
     }
 

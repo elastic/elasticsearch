@@ -655,7 +655,8 @@ max:integer | b:double
 ;
 
 
-foldableBuckets#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+foldableBuckets
+required_capability: casting_operator
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | EVAL c = concat("2", "0")::int
@@ -673,7 +674,8 @@ FROM employees
 ;
 
 
-foldableBucketsInline#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+foldableBucketsInline
+required_capability: casting_operator
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS hires_per_month = COUNT(*) BY month = BUCKET(hire_date, concat("2", "0")::int, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")

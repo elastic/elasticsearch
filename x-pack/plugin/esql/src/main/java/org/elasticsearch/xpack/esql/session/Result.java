@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
 
-public record Result(List<Attribute> columns, List<List<Object>> values) {}
+public record Result(List<Attribute> layout, List<Page> pages, List<DriverProfile> profiles) {}

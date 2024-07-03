@@ -65,7 +65,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
         startIndexNode();
         ensureStableCluster(3);
 
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeA);
+        ObjectStoreService objectStoreService = getObjectStoreService(indexNodeA);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
@@ -135,7 +135,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
         indexDocsAndRefresh(indexName, numDocs);
         ensureSearchable(indexName);
 
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNode);
+        ObjectStoreService objectStoreService = getObjectStoreService(searchNode);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
@@ -162,7 +162,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
         final String searchNodeB = startSearchNode();
         ensureStableCluster(4);
 
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNodeB);
+        ObjectStoreService objectStoreService = getObjectStoreService(searchNodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
@@ -191,7 +191,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
         final String indexNodeB = startIndexNode();
         ensureStableCluster(3);
 
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
+        ObjectStoreService objectStoreService = getObjectStoreService(indexNodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
@@ -230,10 +230,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
 
         boolean failuresOnSource = randomBoolean(); // else failures on target node
         logger.info("--> failures will be on source node? [{}]", failuresOnSource);
-        ObjectStoreService objectStoreService = internalCluster().getInstance(
-            ObjectStoreService.class,
-            failuresOnSource ? indexNodeA : indexNodeB
-        );
+        ObjectStoreService objectStoreService = getObjectStoreService(failuresOnSource ? indexNodeA : indexNodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);

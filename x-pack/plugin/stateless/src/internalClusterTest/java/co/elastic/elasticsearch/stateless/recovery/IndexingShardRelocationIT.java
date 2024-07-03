@@ -223,7 +223,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         final var indexNodeB = startIndexNode();
         ensureStableCluster(3); // with master node
 
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
+        ObjectStoreService objectStoreService = getObjectStoreService(indexNodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);

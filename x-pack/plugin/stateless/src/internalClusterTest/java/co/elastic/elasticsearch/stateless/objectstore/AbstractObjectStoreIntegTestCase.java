@@ -49,7 +49,7 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
 
     public void testBlobCreateVerifyDelete() throws Exception {
         startMasterAndIndexNode();
-        var objectStoreService = internalCluster().getAnyMasterNodeInstance(ObjectStoreService.class);
+        var objectStoreService = getCurrentMasterObjectStoreService();
         BlobStoreRepository repository = objectStoreService.getObjectStore();
 
         logger.info("--> About to write test blob");
@@ -70,7 +70,7 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
 
     public void testBlobStoreStats() throws IOException {
         startMasterAndIndexNode();
-        var objectStoreService = internalCluster().getAnyMasterNodeInstance(ObjectStoreService.class);
+        var objectStoreService = getCurrentMasterObjectStoreService();
         BlobStoreRepository repository = objectStoreService.getObjectStore();
 
         // randomly read, write and delete some data

@@ -455,9 +455,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
     }
 
     private static Set<String> getIndicesInBlobStore(String viaNode) throws IOException {
-        var objectStoreService = viaNode == null
-            ? internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class)
-            : internalCluster().getInstance(ObjectStoreService.class, viaNode);
+        var objectStoreService = viaNode == null ? getCurrentMasterObjectStoreService() : getObjectStoreService(viaNode);
         return objectStoreService.getIndicesBlobContainer().children(OperationPurpose.INDICES).keySet();
     }
 

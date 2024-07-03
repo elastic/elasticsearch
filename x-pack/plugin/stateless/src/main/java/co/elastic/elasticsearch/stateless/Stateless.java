@@ -420,7 +420,6 @@ public class Stateless extends Plugin
             this.objectStoreService,
             createObjectStoreService(settings, services.repositoriesService(), threadPool, clusterService)
         );
-        components.add(objectStoreService);
         var cacheService = createSharedBlobCacheService(services, nodeEnvironment, settings, threadPool);
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
@@ -483,7 +482,9 @@ public class Stateless extends Plugin
             this.translogReplicator,
             new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService)
         );
-        components.add(translogReplicator);
+
+        components.add(new StatelessComponents(translogReplicator, objectStoreService));
+
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
         components.add(refreshThrottlingService);
 

@@ -38,7 +38,6 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
@@ -211,7 +210,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     private final ClusterService clusterService;
 
-    @Inject
     public ObjectStoreService(
         Settings settings,
         RepositoriesService repositoriesService,

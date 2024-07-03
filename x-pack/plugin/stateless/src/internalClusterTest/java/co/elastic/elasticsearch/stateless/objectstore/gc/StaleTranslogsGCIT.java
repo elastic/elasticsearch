@@ -121,7 +121,7 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
 
     public void testTranslogGC() throws Exception {
         startMasterOnlyNode();
-        ObjectStoreService objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
+        ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
 
         String indexNodeA = startIndexNode();
         ensureStableCluster(2);
@@ -178,7 +178,7 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
 
     public void testTranslogGCWithDisruption() throws Exception {
         String masterNode = startMasterOnlyNode();
-        ObjectStoreService objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
+        ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
 
         String indexNodeA = startIndexNode();
         ensureStableCluster(2);
@@ -246,7 +246,7 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
     public void testIsolatedNodeDoesNotDeleteTranslogs() throws Exception {
         Settings settings = Settings.builder().put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1)).build();
         String masterNode = startMasterOnlyNode(settings);
-        ObjectStoreService objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
+        ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
         int numDocs = randomIntBetween(1, 10);
         AtomicInteger nodes = new AtomicInteger(1);
 
@@ -293,7 +293,7 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
     public void testNewFilesOfRejoinedNodeAreNotDeleted() throws Exception {
         Settings settings = Settings.builder().put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1)).build();
         String masterNode = startMasterOnlyNode(settings);
-        ObjectStoreService objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
+        ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
 
         String indexNodeA = startIndexNode(settings); // has the persistent GC task
         ensureStableCluster(2);
@@ -362,7 +362,7 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
     public void testStaleTranslogsAreNotCleanedWhenGCIsDisabled() throws Exception {
         Settings noGCSettings = Settings.builder().put(ObjectStoreGCTask.STALE_TRANSLOGS_GC_ENABLED_SETTING.getKey(), false).build();
         startMasterOnlyNode();
-        ObjectStoreService objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
+        ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
 
         String indexNodeA = startIndexNode(noGCSettings);
         ensureStableCluster(2);
@@ -394,7 +394,7 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
 
     public void testTranslogGCDoesNotDeleteLeftNodeWhenRecovering() throws Exception {
         startMasterOnlyNode();
-        ObjectStoreService objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
+        ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
         String indexNodeA = startIndexNode(); // has persistent task
         ensureStableCluster(2);
 
@@ -415,7 +415,7 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
         String indexNodeC = startIndexNode(); // will recover shard after node B leaves
         ensureStableCluster(4);
 
-        ObjectStoreService objectStoreServiceC = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
+        ObjectStoreService objectStoreServiceC = getObjectStoreService(indexNodeB);
         MockRepository repositoryC = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreServiceC);
         repositoryC.setBlockOnAnyFiles(); // recoveries will not progress
 
@@ -444,7 +444,7 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
 
     public void testTranslogGCRespectsFileLimit() throws Exception {
         startMasterOnlyNode();
-        ObjectStoreService objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
+        ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
         Settings settings = Settings.builder()
             .put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1))
             .put(ObjectStoreGCTask.STALE_TRANSLOGS_GC_FILES_LIMIT_SETTING.getKey(), 1)

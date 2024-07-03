@@ -149,7 +149,7 @@ missing hostname field:
 
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "unknown index sort field:[host.name]" }
+  - match: { error.reason: "unknown index sort field:[host.name] required by [index.mode=logs]" }
 
 ---
 missing sort field:
@@ -190,7 +190,7 @@ missing sort field:
 
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "unknown index sort field:[host_name]" }
+  - match: { error.reason: "unknown index sort field:[host_name] required by [index.mode=logs]" }
 
 ---
 non-default sort settings:
@@ -518,7 +518,7 @@ routing path allowed in logs mode:
 
   - is_true: test
   - match: { test.settings.index.mode: "logs" }
-  - match: { test.settings.index.routing_path: [ "hostname", "agent_id"] }
+  - match: { test.settings.index.routing_path: [ "host.name", "agent_id"] }
 
 ---
 start time not allowed in logs mode:

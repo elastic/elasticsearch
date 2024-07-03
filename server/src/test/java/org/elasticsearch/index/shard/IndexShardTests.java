@@ -65,6 +65,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -157,6 +158,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -3943,11 +3945,11 @@ public class IndexShardTests extends IndexShardTestCase {
     private void ensureNoPendingScheduledRefresh() {
         var refreshThreadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.REFRESH);
         int maximumPoolSize = refreshThreadPoolExecutor.getMaximumPoolSize();
-        var latch = new CountDownLatch(maximumPoolSize);
+        var phaser = new Phaser(maximumPoolSize + 1);
         for (int i = 0; i < maximumPoolSize; i++) {
-            refreshThreadPoolExecutor.execute(latch::countDown);
+            refreshThreadPoolExecutor.execute(phaser::arriveAndAwaitAdvance);
         }
-        safeAwait(latch);
+        phaser.arriveAndAwaitAdvance();
     }
 
     public void testRefreshIsNeededWithRefreshListeners() throws IOException, InterruptedException {

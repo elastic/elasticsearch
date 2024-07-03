@@ -24,7 +24,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Rest endpoint to bulk add a Roles to the security index
+ * Rest endpoint to bulk delete roles to the security index
  */
 public class RestBulkDeleteRolesAction extends NativeRoleBaseRestHandler {
     @SuppressWarnings("unchecked")

@@ -67,7 +67,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
      * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
      */
     @Override
-    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
         // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
         // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
         // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change

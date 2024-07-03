@@ -93,8 +93,8 @@ public class Not extends UnaryScalarFunction implements Negatable<Expression> {
     }
 
     @Override
-    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
-        return field().canPushToSource(hasIdenticalDelegate);
+    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+        return field().canPushQueryToSource(hasIdenticalDelegate);
     }
 
     static Expression negate(Expression exp) {

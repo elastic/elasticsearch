@@ -71,7 +71,7 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
     }
 
     @Override
-    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
         if (field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
             return true;
         }

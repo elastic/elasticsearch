@@ -74,7 +74,7 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
     }
 
     @Override
-    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
         return isAttributePushable(field(), this instanceof WildcardLike, hasIdenticalDelegate);
     }
 

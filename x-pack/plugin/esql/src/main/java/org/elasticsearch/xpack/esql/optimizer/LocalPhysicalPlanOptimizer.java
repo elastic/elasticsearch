@@ -232,7 +232,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 List<Expression> nonPushable = new ArrayList<>();
                 for (Expression exp : splitAnd(filterExec.condition())) {
                     // can we get hold of an index searcher?
-                    (exp.canPushToSource(x -> hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(exp);
+                    (exp.canPushQueryToSource(x -> hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(exp);
                 }
                 if (pushable.size() > 0) { // update the executable with pushable conditions
                     Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable));
@@ -295,8 +295,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
 
         private boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
-            // allow only exact FieldAttributes (no expressions) for sorting
-            return orders.stream().allMatch(o -> Expression.isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
+            return orders.stream().allMatch(o -> o.child().canPushSortToSource(hasIdenticalDelegate));
         }
 
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {

@@ -66,7 +66,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
-        return left().canPushToSource(hasIdenticalDelegate) && right().canPushToSource(hasIdenticalDelegate);
+    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+        return left().canPushQueryToSource(hasIdenticalDelegate) && right().canPushQueryToSource(hasIdenticalDelegate);
     }
 }

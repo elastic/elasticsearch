@@ -203,8 +203,13 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
      * if the expression can be pushed down to lucene. By default nothing is pushed down so expressions that
      * can be pushed down should override this method.
      */
-    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
         return false;
+    }
+
+    public final boolean canPushSortToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+        // allow only exact FieldAttributes (no expressions) for sorting
+        return isPushableFieldAttribute(this, hasIdenticalDelegate);
     }
 
     @Override
@@ -231,7 +236,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
         return false;
     }
 
-    public static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    private static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
             return fa.dataType() != DataType.TEXT || hasIdenticalDelegate.test(fa);
         }

@@ -141,7 +141,7 @@ public class CIDRMatch extends EsqlScalarFunction {
     }
 
     @Override
-    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
         return isAttributePushable(ipField(), false, hasIdenticalDelegate) && Expressions.foldable(matches());
     }
 

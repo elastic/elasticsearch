@@ -201,7 +201,7 @@ public class PlannerUtils {
                         boolean matchesField = refs.removeIf(e -> fieldName.equals(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refs.isEmpty() && exp.canPushToSource(hasIdenticalDelegate)) {
+                        if (matchesField && refs.isEmpty() && exp.canPushQueryToSource(hasIdenticalDelegate)) {
                             matches.add(exp);
                         }
                     }

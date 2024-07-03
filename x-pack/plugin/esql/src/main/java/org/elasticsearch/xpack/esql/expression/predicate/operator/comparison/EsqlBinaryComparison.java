@@ -273,7 +273,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
     }
 
     @Override
-    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
         return isAttributePushable(left(), supportMetadataFields(this), hasIdenticalDelegate) && right().foldable();
     }
 

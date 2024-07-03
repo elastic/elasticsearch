@@ -32,7 +32,7 @@ public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction {
     }
 
     @Override
-    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
         return isAttributePushable(left(), false, hasIdenticalDelegate) && right().foldable();
     }
 }

@@ -42,7 +42,7 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
     }
 
     @Override
-    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
         return isAttributePushable(left(), false, hasIdenticalDelegate) && right().foldable();
     }
 

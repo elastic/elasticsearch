@@ -351,7 +351,11 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
             } else if (getState() == COMPLETING) {
                 // If some other thread is currently completing the future, block until
                 // they are done so we can guarantee completion.
-                acquireShared(-1);
+                // Don't use acquire here, to prevent false-positive deadlock detection
+                // when multiple threads from the same pool are completing the future
+                while (isDone() == false) {
+                    Thread.onSpinWait();
+                }
             }
             return doCompletion;
         }

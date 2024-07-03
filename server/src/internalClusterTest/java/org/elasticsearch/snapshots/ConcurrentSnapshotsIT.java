@@ -677,6 +677,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     public void testQueuedOperationsOnMasterDisconnect() throws Exception {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(4, dataNode);
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
         createIndexWithContent("index-one");
@@ -693,7 +694,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .execute();
         waitForBlock(masterNode, repoName);
 
-        final ActionFuture<CreateSnapshotResponse> createThirdSnapshot = client(masterNode).admin()
+        final ActionFuture<CreateSnapshotResponse> createSnapshot = client(masterNode).admin()
             .cluster()
             .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-three")
             .setWaitForCompletion(true)
@@ -714,8 +715,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> make sure all failing requests get a response");
         assertAcked(firstDeleteFuture.get());
         assertAcked(secondDeleteFuture.get());
-        expectThrows(SnapshotException.class, createThirdSnapshot);
-
+        expectThrows(SnapshotException.class, createSnapshot);
         awaitNoMoreRunningOperations();
     }
 

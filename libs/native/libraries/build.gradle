@@ -18,7 +18,7 @@ configurations {
 }
 
 var zstdVersion = "1.5.5"
-var vecVersion = "1.0.9"
+var vecVersion = "1.0.10"
 
 repositories {
   exclusiveContent {

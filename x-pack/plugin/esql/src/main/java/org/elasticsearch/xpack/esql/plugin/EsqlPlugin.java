@@ -56,11 +56,14 @@ import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -189,7 +192,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.add(UnsupportedAttribute.ENTRY);  // TODO combine with above once these are in the same project
         entries.addAll(NamedExpression.getNamedWriteables());
         entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY); // TODO combine with above once these are in the same project
+        entries.addAll(Expression.getNamedWriteables());
+        entries.add(UnsupportedAttribute.EXPRESSION_ENTRY); // TODO combine with above once these are in the same project
         entries.add(MultiTypeEsField.ENTRY); // TODO combine with EsField.getNamedWriteables() once these are in the same module
+        entries.addAll(EsqlScalarFunction.getNamedWriteables());
+        entries.addAll(AggregateFunction.getNamedWriteables());
         return entries;
     }
 

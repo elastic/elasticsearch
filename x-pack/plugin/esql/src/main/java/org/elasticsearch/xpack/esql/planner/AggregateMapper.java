@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
@@ -24,15 +25,18 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.TopList;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 
 import java.lang.invoke.MethodHandle;
@@ -63,7 +67,12 @@ final class AggregateMapper {
         SpatialCentroid.class,
         Sum.class,
         Values.class,
-        TopList.class
+        Top.class,
+        Rate.class,
+
+        // internal function
+        FromPartial.class,
+        ToPartial.class
     );
 
     /** Record of agg Class, type, and grouping (or non-grouping). */
@@ -145,11 +154,17 @@ final class AggregateMapper {
         } else if (Values.class.isAssignableFrom(clazz)) {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
-        } else if (TopList.class.isAssignableFrom(clazz)) {
+        } else if (Top.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");
-        } else {
-            assert clazz == CountDistinct.class : "Expected CountDistinct, got: " + clazz;
+        } else if (Rate.class.isAssignableFrom(clazz)) {
+            types = List.of("Int", "Long", "Double");
+        } else if (FromPartial.class.isAssignableFrom(clazz) || ToPartial.class.isAssignableFrom(clazz)) {
+            types = List.of(""); // no type
+        } else if (CountDistinct.class.isAssignableFrom(clazz)) {
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();
+        } else {
+            assert false : "unknown aggregate type " + clazz;
+            throw new IllegalArgumentException("unknown aggregate type " + clazz);
         }
         return combinations(types, extraConfigs).map(combo -> new Tuple<>(clazz, combo));
     }
@@ -159,10 +174,15 @@ final class AggregateMapper {
     }
 
     private static Stream<AggDef> groupingAndNonGrouping(Tuple<Class<?>, Tuple<String, String>> tuple) {
-        return Stream.of(
-            new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),
-            new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false)
-        );
+        if (tuple.v1().isAssignableFrom(Rate.class)) {
+            // rate doesn't support non-grouping aggregations
+            return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true));
+        } else {
+            return Stream.of(
+                new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),
+                new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false)
+            );
+        }
     }
 
     private static AggDef aggDefOrNull(Expression aggregate, boolean grouping) {
@@ -224,7 +244,15 @@ final class AggregateMapper {
 
     /** Maps intermediate state description to named expressions.  */
     private static Stream<NamedExpression> isToNE(List<IntermediateStateDesc> intermediateStateDescs) {
-        return intermediateStateDescs.stream().map(is -> new ReferenceAttribute(Source.EMPTY, is.name(), toDataType(is.type())));
+        return intermediateStateDescs.stream().map(is -> {
+            final DataType dataType;
+            if (Strings.isEmpty(is.dataType())) {
+                dataType = toDataType(is.type());
+            } else {
+                dataType = DataType.fromEs(is.dataType());
+            }
+            return new ReferenceAttribute(Source.EMPTY, is.name(), dataType);
+        });
     }
 
     /** Returns the data type for the engines element type. */
@@ -245,13 +273,16 @@ final class AggregateMapper {
         if (aggClass == Count.class) {
             return "";  // no type distinction
         }
+        if (aggClass == ToPartial.class || aggClass == FromPartial.class) {
+            return "";
+        }
         if (type.equals(DataType.BOOLEAN)) {
             return "Boolean";
-        } else if (type.equals(DataType.INTEGER)) {
+        } else if (type.equals(DataType.INTEGER) || type.equals(DataType.COUNTER_INTEGER)) {
             return "Int";
-        } else if (type.equals(DataType.LONG) || type.equals(DataType.DATETIME)) {
+        } else if (type.equals(DataType.LONG) || type.equals(DataType.DATETIME) || type.equals(DataType.COUNTER_LONG)) {
             return "Long";
-        } else if (type.equals(DataType.DOUBLE)) {
+        } else if (type.equals(DataType.DOUBLE) || type.equals(DataType.COUNTER_DOUBLE)) {
             return "Double";
         } else if (type.equals(DataType.KEYWORD)
             || type.equals(DataType.IP)

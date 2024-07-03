@@ -14,8 +14,7 @@ restResources {
       'nodes',
       'indices',
       'index',
-      'query_ruleset',
-      'query_rule',
+      'query_rules',
       'search_application',
       'xpack',
       'security',
@@ -33,4 +32,8 @@ testClusters.configureEach {
   user username: 'entsearch-admin', password: 'entsearch-admin-password', role: 'admin'
   user username: 'entsearch-user', password: 'entsearch-user-password', role: 'user'
   user username: 'entsearch-unprivileged', password: 'entsearch-unprivileged-password', role: 'unprivileged'
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

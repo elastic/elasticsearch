@@ -87,8 +87,6 @@ All operations related to managing autoscaling policies.
 +
 This privilege is not available in {serverless-full}.
 
-// manage_behavioral_analytics:: TBD
-
 `manage_ccr`::
 All {ccr} operations related to managing follower indices and auto-follow
 patterns. It also includes the authority to grant the privileges necessary to
@@ -264,8 +262,6 @@ All read-only operations related to {transforms}.
 All read-only watcher operations, such as getting a watch and watcher stats.
 +
 This privilege is not available in {serverless-full}.
-
-// post_behavioral_analytics_event:: TBD
 
 `read_ccr`::
 All read-only {ccr} operations, such as getting information about indices and

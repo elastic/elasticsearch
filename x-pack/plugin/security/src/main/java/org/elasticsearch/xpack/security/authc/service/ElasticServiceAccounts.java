@@ -30,8 +30,8 @@ final class ElasticServiceAccounts {
                 "manage",
                 "manage_security",
                 "write_connector_secrets",
-                "cluster:admin/xpack/connector/secret/get" // for reading connector secrets
-            },
+                // for reading connector secrets
+                "cluster:admin/xpack/connector/secret/get" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(

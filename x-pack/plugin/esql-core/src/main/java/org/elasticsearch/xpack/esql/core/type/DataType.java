@@ -68,7 +68,8 @@ public enum DataType {
     GEO_SHAPE(builder().esType("geo_shape").unknownSize().docValues()),
 
     DOC_DATA_TYPE(builder().esType("_doc").size(Integer.BYTES * 3)),
-    TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues());
+    TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues()),
+    PARTIAL_AGG(builder().esType("partial_agg").unknownSize());
 
     private final String typeName;
 
@@ -253,18 +254,31 @@ public enum DataType {
         return esType;
     }
 
+    /**
+     * The name we give to types on the response.
+     */
     public String outputType() {
         return esType == null ? "unsupported" : esType;
     }
 
+    /**
+     * Does this data type represent whole numbers? As in, numbers without a decimal point.
+     * Like {@code int} or {@code long}. See {@link #isRational} for numbers with a decimal point.
+     */
     public boolean isInteger() {
         return isInteger;
     }
 
+    /**
+     * Does this data type represent rational numbers (like floating point)?
+     */
     public boolean isRational() {
         return isRational;
     }
 
+    /**
+     * Does this data type represent <strong>any</strong> number?
+     */
     public boolean isNumeric() {
         return isInteger || isRational;
     }

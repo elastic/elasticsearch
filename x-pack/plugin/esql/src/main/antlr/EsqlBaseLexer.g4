@@ -34,13 +34,15 @@ WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
 
-fragment INDEX_UNQUOTED_IDENTIFIER_PART
-    : ~[=`|,[\]/ \t\r\n]
-    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
+// in 8.14 ` were not allowed
+// this has been relaxed in 8.15 since " is used for quoting
+fragment UNQUOTED_SOURCE_PART
+    : ~[:"=|,[\]/ \t\r\n]
+    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment -- used in index pattern date spec
     ;
 
-INDEX_UNQUOTED_IDENTIFIER
-    : INDEX_UNQUOTED_IDENTIFIER_PART+
+UNQUOTED_SOURCE
+    : UNQUOTED_SOURCE_PART+
     ;
 
 //
@@ -202,15 +204,13 @@ mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
 FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
+FROM_COLON : COLON -> type(COLON);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
-FROM_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
-
 METADATA : 'metadata';
 
-FROM_INDEX_UNQUOTED_IDENTIFIER
-    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER)
-    ;
+FROM_UNQUOTED_SOURCE : UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
+FROM_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
 
 FROM_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -301,10 +301,6 @@ ENRICH_POLICY_NAME
     : (ENRICH_POLICY_NAME_BODY+ COLON)? ENRICH_POLICY_NAME_BODY+
     ;
 
-ENRICH_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
-    ;
-
 ENRICH_MODE_UNQUOTED_VALUE
     : ENRICH_POLICY_NAME -> type(ENRICH_POLICY_NAME)
     ;
@@ -321,7 +317,7 @@ ENRICH_WS
     : WS -> channel(HIDDEN)
     ;
 
-// submode for Enrich to allow different lexing between policy identifier (loose) and field identifiers
+// submode for Enrich to allow different lexing between policy source (loose) and field identifiers
 mode ENRICH_FIELD_MODE;
 ENRICH_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
 ENRICH_FIELD_ASSIGN : ASSIGN -> type(ASSIGN);
@@ -353,13 +349,13 @@ ENRICH_FIELD_WS
 // LOOKUP ON key
 mode LOOKUP_MODE;
 LOOKUP_PIPE : PIPE -> type(PIPE), popMode;
+LOOKUP_COLON : COLON -> type(COLON);
 LOOKUP_COMMA : COMMA -> type(COMMA);
 LOOKUP_DOT: DOT -> type(DOT);
 LOOKUP_ON : ON -> type(ON), pushMode(LOOKUP_FIELD_MODE);
 
-LOOKUP_INDEX_UNQUOTED_IDENTIFIER
-    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER)
-    ;
+LOOKUP_UNQUOTED_SOURCE: UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
+LOOKUP_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
 
 LOOKUP_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -486,9 +482,8 @@ SETTING_WS
 mode METRICS_MODE;
 METRICS_PIPE : PIPE -> type(PIPE), popMode;
 
-METRICS_INDEX_UNQUOTED_IDENTIFIER
-    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER), popMode, pushMode(CLOSING_METRICS_MODE)
-    ;
+METRICS_UNQUOTED_SOURCE: UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE), popMode, pushMode(CLOSING_METRICS_MODE);
+METRICS_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING), popMode, pushMode(CLOSING_METRICS_MODE);
 
 METRICS_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -504,6 +499,10 @@ METRICS_WS
 
 // TODO: remove this workaround mode - see https://github.com/elastic/elasticsearch/issues/108528
 mode CLOSING_METRICS_MODE;
+
+CLOSING_METRICS_COLON
+    : COLON -> type(COLON), popMode, pushMode(METRICS_MODE)
+    ;
 
 CLOSING_METRICS_COMMA
     : COMMA -> type(COMMA), popMode, pushMode(METRICS_MODE)

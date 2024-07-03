@@ -1931,7 +1931,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP int_number_names ON int
             """;
         if (Build.current().isProductionRelease()) {
-            var e = expectThrows(VerificationException.class, () -> analyze(query));
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
             assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
             return;
         }
@@ -1982,39 +1982,45 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupMissingField() {
-        var e = expectThrows(VerificationException.class, () -> analyze("""
+        String query = """
               FROM test
             | LOOKUP int_number_names ON garbage
-            """));
+            """;
         if (Build.current().isProductionRelease()) {
-            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 2:4: LOOKUP is in preview and only available in SNAPSHOT build"));
             return;
         }
+        var e = expectThrows(VerificationException.class, () -> analyze(query));
         assertThat(e.getMessage(), containsString("Unknown column in lookup target [garbage]"));
     }
 
     public void testLookupMissingTable() {
-        var e = expectThrows(VerificationException.class, () -> analyze("""
+        String query = """
               FROM test
             | LOOKUP garbage ON a
-            """));
+            """;
         if (Build.current().isProductionRelease()) {
-            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 2:4: LOOKUP is in preview and only available in SNAPSHOT build"));
             return;
         }
+        var e = expectThrows(VerificationException.class, () -> analyze(query));
         assertThat(e.getMessage(), containsString("Unknown table [garbage]"));
     }
 
     public void testLookupMatchTypeWrong() {
-        var e = expectThrows(VerificationException.class, () -> analyze("""
+        String query = """
               FROM test
             | RENAME last_name AS int
             | LOOKUP int_number_names ON int
-            """));
+            """;
         if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
             assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
             return;
         }
+        var e = expectThrows(VerificationException.class, () -> analyze(query));
         assertThat(e.getMessage(), containsString("column type mismatch, table column was [integer] and original column was [keyword]"));
     }
 

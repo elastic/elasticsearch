@@ -110,7 +110,7 @@ setup:
 ---
 unsupported:
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      cluster_features: ["gte_v8.15.0"]
       reason: "Latest types supported in ESQL as of 8.13.0"
 
   - do:
@@ -290,7 +290,7 @@ unsupported:
 ---
 unsupported with sort:
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      cluster_features: ["gte_v8.15.0"]
       reason: "Latest types supported in ESQL as of 8.13.0"
 
   - do:

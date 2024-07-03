@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicySecurityClient;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryItem;
@@ -39,10 +40,13 @@ import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
@@ -224,17 +228,17 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         }, ToXContent.EMPTY_PARAMS);
     }
 
-    private static long numPolicySnapshotsInProgress(String policyId, SnapshotsInProgress snapshots) {
-        long numInProgress = 0;
+    private static Set<String> currentlyRunningSnapshots(String policyId, SnapshotsInProgress snapshots) {
+        Set<String> currentlyRunning = new HashSet<>();
         for (final List<SnapshotsInProgress.Entry> entriesForRepo : snapshots.entriesByRepo()) {
-            numInProgress += entriesForRepo.stream()
-                .map(SnapshotsInProgress.Entry::userMetadata)
-                .filter(Objects::nonNull)
-                .map(meta -> meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD))
-                .filter(policyId::equals)
-                .count();
+            for (SnapshotsInProgress.Entry entry : entriesForRepo) {
+                Map<String, Object> metadata = entry.userMetadata();
+                if (metadata != null && policyId.equals(metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD))) {
+                    currentlyRunning.add(entry.snapshot().getSnapshotId().getName()); // TODO toString?
+                }
+            }
         }
-        return numInProgress;
+        return currentlyRunning;
     }
 
     private static class PreRegisterSLMRun extends ClusterStateUpdateTask {
@@ -274,27 +278,38 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 return currentState;
             }
 
-            long preRegisteredRuns = policyMetadata.getPreRegisteredRuns();
+
+            Set<String> preRegisteredSnapshots = policyMetadata.getPreRegisteredSnapshots();
             SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-            final long numSnapshotsRunning = snapshots == null ? 0 : numPolicySnapshotsInProgress(policyName, snapshots);
+            final Set<String> snapshotsRunning = snapshots == null ? Set.of() : currentlyRunningSnapshots(policyName, snapshots);
 
             SnapshotLifecyclePolicyMetadata.Builder newPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder(policyMetadata);
-            if (preRegisteredRuns > numSnapshotsRunning) {
-                final long unrecordedFailures = preRegisteredRuns - numSnapshotsRunning;
-                newPolicyMetadata.setInvocationsSinceLastSuccess(policyMetadata.getInvocationsSinceLastSuccess() + unrecordedFailures);
 
-                // There are likely scenarios where inc/decrements to preRegisteredRuns can be lost, so lower bound to 1 before run.
-                long newPreRegisteredRuns = Math.min(1, preRegisteredRuns + 1 - unrecordedFailures);
-                newPolicyMetadata.setPreRegisteredRuns(newPreRegisteredRuns);
-            } else {
-                newPolicyMetadata.setPreRegisteredRuns(preRegisteredRuns + 1);
+            final SnapshotLifecycleStats stats = snapMeta.getStats();
+
+            long unrecordedFailures = 0;
+            Set<String> newPreRegisteredSnapshots = new HashSet<>();
+            for (String snapshot : preRegisteredSnapshots) {
+                if (snapshotsRunning.contains(snapshot)) {
+                    newPreRegisteredSnapshots.add(snapshot);
+                } else {
+                    // snapshot failed!
+                    stats.snapshotFailed(policyName);
+                    unrecordedFailures++;
+                }
+                // TODO should probably just do for one
+                newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, null, Instant.now().toEpochMilli(),
+                    "found pre-registered snapshot which is no longer running, assuming failure"));
             }
+            newPreRegisteredSnapshots.add(snapshotName);
+            newPolicyMetadata.setPreRegisteredSnapshots(newPreRegisteredSnapshots);
+            newPolicyMetadata.setInvocationsSinceLastSuccess(policyMetadata.getInvocationsSinceLastSuccess() + unrecordedFailures);
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());
             SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(
                 snapLifecycles,
                 currentSLMMode(currentState),
-                snapMeta.getStats()
+                stats
             );
             Metadata currentMeta = currentState.metadata();
             return ClusterState.builder(currentState)
@@ -394,9 +409,12 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             }
 
             // There are likely scenarios where inc/decrements to preRegisteredRuns can be lost, so lower bound to 0 after run.
-            assert policyMetadata.getPreRegisteredRuns() > 0
-                : "PreRegisteredRuns should be greater than 0 until a success/failures is emitted to acquiesce it.";
-            newPolicyMetadata.setPreRegisteredRuns(Math.min(0, policyMetadata.getPreRegisteredRuns() - 1L));
+
+            Set<String> preRegisteredSnapshots = policyMetadata.getPreRegisteredSnapshots();
+            assert preRegisteredSnapshots.contains(snapshotName)
+                : "PreRegisteredSnapshots must contain a running snapshot's id until a success/failure is emitted to acquiesce it.";
+            preRegisteredSnapshots.remove(snapshotName);
+            newPolicyMetadata.setPreRegisteredSnapshots(preRegisteredSnapshots);
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());
             SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(

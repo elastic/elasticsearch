@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
@@ -50,6 +49,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -130,12 +130,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }, 1, TimeUnit.MINUTES);
 
         assertBusy(() -> {
-            var snapshotLifecyclePolicyMetadata = getSnapshotLifecyclePolicyMetadata(policyName);
+            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
+            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
+            assertStats(snapshotLifecycleMetadata, policyName, 1, 0);
             assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
             assertNotNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess(), 0);
-            assertEquals(snapshotLifecyclePolicyMetadata.getPreRegisteredRuns(), 0);
-            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = 0");
+            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
+            assertEquals(Set.of(), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = []");
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -183,12 +185,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }, 1, TimeUnit.MINUTES);
 
         assertBusy(() -> {
-            var snapshotLifecyclePolicyMetadata = getSnapshotLifecyclePolicyMetadata(policyName);
+            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
+            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
+            assertStats(snapshotLifecycleMetadata, policyName, 0, 0);
             assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess(), 0);
-            assertEquals(snapshotLifecyclePolicyMetadata.getPreRegisteredRuns(), 1);
-            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = 1");
+            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
+            assertEquals(Set.of(snapshotName), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = [snap]");
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
@@ -211,12 +215,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         // Check stats, this time past failure should be accounted for
         assertBusy(() -> {
-            var snapshotLifecyclePolicyMetadata = getSnapshotLifecyclePolicyMetadata(policyName);
-            assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
+            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
+            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
+            assertStats(snapshotLifecycleMetadata, policyName, 1, 1);
+            assertNotNull(snapshotLifecyclePolicyMetadata.getLastFailure());
             assertNotNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess(), 0);
-            assertEquals(snapshotLifecyclePolicyMetadata.getPreRegisteredRuns(), 0);
-            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = 0");
+            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
+            assertEquals(Set.of(), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = []");
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -266,12 +272,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }, 1, TimeUnit.MINUTES);
 
         assertBusy(() -> {
-            var snapshotLifecyclePolicyMetadata = getSnapshotLifecyclePolicyMetadata(policyName);
+            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
+            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
+            assertStats(snapshotLifecycleMetadata, policyName, 0, 0);
             assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess(), 0);
-            assertEquals(snapshotLifecyclePolicyMetadata.getPreRegisteredRuns(), 1);
-            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = 1");
+            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
+            assertEquals(Set.of(snapshotName), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = [snap]");
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
@@ -298,12 +306,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         // Check stats, this time past failure should be accounted for
         assertBusy(() -> {
-            var snapshotLifecyclePolicyMetadata = getSnapshotLifecyclePolicyMetadata(policyName);
+            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
+            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
+            assertStats(snapshotLifecycleMetadata, policyName, 0, 2);
             assertNotNull(snapshotLifecyclePolicyMetadata.getLastFailure());
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess(), 2);
-            assertEquals(snapshotLifecyclePolicyMetadata.getPreRegisteredRuns(), 0);
-            logger.info("Verified stats: invocationsSinceLastSuccess = 2, preRegisteredRuns = 0");
+            assertEquals(2, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
+            assertEquals(Set.of(), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+            logger.info("Verified stats: invocationsSinceLastSuccess = 2, preRegisteredRuns = []");
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -348,10 +358,12 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }, 1, TimeUnit.MINUTES);
 
         assertBusy(() -> {
-            var snapshotLifecyclePolicyMetadata = getSnapshotLifecyclePolicyMetadata(policyName);
+            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
+            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
+            assertStats(snapshotLifecycleMetadata, policyName, 0, 0);
             assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess(), 0);
+            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
             logger.info("Verified stats: invocationsSinceLastSuccess = 0");
         }, 1, TimeUnit.MINUTES);
     }
@@ -393,20 +405,20 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }, 1, TimeUnit.MINUTES);
 
         assertBusy(() -> {
-            var snapshotLifecyclePolicyMetadata = getSnapshotLifecyclePolicyMetadata(policyName);
+            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
+            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
+            assertStats(snapshotLifecycleMetadata, policyName, 0, 1);
             assertNotNull(snapshotLifecyclePolicyMetadata.getLastFailure());
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess(), 1);
+            assertEquals(1, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
             logger.info("Verified stats: invocationsSinceLastSuccess = 1");
         }, 1, TimeUnit.MINUTES);
     }
 
-    private SnapshotLifecyclePolicyMetadata getSnapshotLifecyclePolicyMetadata(String policyName) {
+    private SnapshotLifecycleMetadata getSnapshotLifecycleMetadata() {
         final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
         ClusterState state = clusterStateResponse.getState();
-        SnapshotLifecycleMetadata slmeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-        Map<String, SnapshotLifecyclePolicyMetadata> configs = slmeta.getSnapshotConfigurations();
-        return configs.get(policyName);
+        return state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
     }
 
     private SnapshotInfo getSnapshotInfo(String repository, String snapshot) {
@@ -432,6 +444,17 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertEquals(0, snapshotInfo.successfulShards());
         assertEquals(1, snapshotInfo.failedShards());
         logger.info("Checked snapshot exists and is state PARTIAL");
+    }
+
+    private void assertStats(SnapshotLifecycleMetadata snapshotLifecycleMetadata, String policyName, long taken, long failed) {
+        var stats = snapshotLifecycleMetadata.getStats().getMetrics().get(policyName);
+        if (taken == 0 && failed == 0) {
+            assertNull(stats);
+        } else {
+            assertNotNull(stats);
+            assertEquals(taken, stats.getSnapshotTakenCount());
+            assertEquals(failed, stats.getSnapshotFailedCount());
+        }
     }
 
     private void createRandomIndex(String idxName, String dataNodeName) throws InterruptedException {

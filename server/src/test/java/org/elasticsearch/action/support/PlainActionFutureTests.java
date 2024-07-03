@@ -149,21 +149,27 @@ public class PlainActionFutureTests extends ESTestCase {
         assumeTrue("Assertions need to be enabled for assertCompleteAllowed to be invoked", Assertions.ENABLED);
         final AtomicReference<PlainActionFuture<?>> futureReference = new AtomicReference<>(new PlainActionFuture<>());
         final var executorName = randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.MANAGEMENT);
-        final var threadCount = 4;
         final var running = new AtomicBoolean(true);
-        final var startBarrier = new CyclicBarrier(threadCount + 1);
         try (TestThreadPool threadPool = new TestThreadPool(getTestName())) {
-            assert threadPool.info(executorName).getMax() >= threadCount : "Not enough threads in pool";
+            // We only need 4 threads to reproduce this issue reliably, using more threads
+            // just increases the run time due to the additional synchronisation
+            final var threadCount = Math.min(threadPool.info(executorName).getMax(), 4);
+            final var startBarrier = new CyclicBarrier(threadCount + 1);
             // N threads competing to complete the futures
             for (int i = 0; i < threadCount; i++) {
-                threadPool.executor(executorName).submit(() -> {
+                threadPool.executor(executorName).execute(() -> {
                     safeAwait(startBarrier);
                     while (running.get()) {
                         futureReference.get().onResponse(null);
                     }
-                }, null);
+                });
             }
-            // create new futures to complete
+            // The race can only occur once per completion, so we provide
+            // a stream of new futures to the competing threads to
+            // maximise the probability it occurs. Providing them
+            // with new futures while they spin proved to be much
+            // more reliable at reproducing the issue than releasing
+            // them all from a barrier to complete a single future.
             safeAwait(startBarrier);
             for (int i = 0; i < 20; i++) {
                 futureReference.set(new PlainActionFuture<>());

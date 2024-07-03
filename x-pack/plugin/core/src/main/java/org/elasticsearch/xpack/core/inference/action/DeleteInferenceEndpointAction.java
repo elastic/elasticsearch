@@ -119,6 +119,8 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
             pipelineIds = in.readCollectionAsSet(StreamInput::readString);
             if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS)) {
                 indexes = in.readCollectionAsSet(StreamInput::readString);
+            } else {
+                indexes = Set.of();
             }
         }
 

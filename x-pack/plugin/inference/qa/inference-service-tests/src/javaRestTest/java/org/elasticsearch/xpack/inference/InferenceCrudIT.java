@@ -148,7 +148,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     public void testDeleteEndpointWhileReferencedBySemanticText() throws IOException {
-        String endpointId = "endpoint_referenced_by_pipeline";
+        String endpointId = "endpoint_referenced_by_semantic_text";
         putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         String indexName = randomAlphaOfLength(10).toLowerCase();
         putSemanticText(endpointId, indexName);

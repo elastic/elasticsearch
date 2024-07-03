@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
@@ -23,7 +24,7 @@ public class TransportBulkDeleteRolesAction extends TransportAction<BulkDeleteRo
 
     @Inject
     public TransportBulkDeleteRolesAction(ActionFilters actionFilters, NativeRolesStore rolesStore, TransportService transportService) {
-        super(DeleteRoleAction.NAME, actionFilters, transportService.getTaskManager());
+        super(ActionTypes.BULK_DELETE_ROLES.name(), actionFilters, transportService.getTaskManager());
         this.rolesStore = rolesStore;
     }
 

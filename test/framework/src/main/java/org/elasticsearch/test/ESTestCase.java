@@ -2212,6 +2212,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static final TimeValue SAFE_AWAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
+    /**
+     * Await on the given {@link CyclicBarrier} with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's interrupt status flag
+     * and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     */
     public static void safeAwait(CyclicBarrier barrier) {
         try {
             barrier.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -2223,6 +2227,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Await on the given {@link CountDownLatch} with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's interrupt status
+     * flag and asserting that the latch is indeed completed before the timeout.
+     */
     public static void safeAwait(CountDownLatch countDownLatch) {
         try {
             assertTrue(
@@ -2235,10 +2243,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Acquire a single permit from the given {@link Semaphore}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's
+     * interrupt status flag and asserting that the permit was successfully acquired.
+     */
     public static void safeAcquire(Semaphore semaphore) {
         safeAcquire(1, semaphore);
     }
 
+    /**
+     * Acquire the specified number of permits from the given {@link Semaphore}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving
+     * the thread's interrupt status flag and asserting that the permits were all successfully acquired.
+     */
     public static void safeAcquire(int permits, Semaphore semaphore) {
         try {
             assertTrue(
@@ -2251,12 +2267,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Wait for the successful completion of the given {@link SubscribableListener}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code listener} was completed.
+     */
     public static <T> T safeAwait(SubscribableListener<T> listener) {
         final var future = new PlainActionFuture<T>();
         listener.addListener(future);
         return safeGet(future);
     }
 
+    /**
+     * Wait for the successful completion of the given {@link Future}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the
+     * thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code future} was completed.
+     */
     public static <T> T safeGet(Future<T> future) {
         try {
             return future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -2270,6 +2298,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Wait for the exceptional completion of the given {@link SubscribableListener}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure.
+     *
+     * @return The exception with which the {@code listener} was completed exceptionally.
+     */
     public static Exception safeAwaitFailure(SubscribableListener<?> listener) {
         return safeAwait(
             SubscribableListener.newForked(
@@ -2278,10 +2313,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
+    /**
+     * Send the current thread to sleep for the given duration, asserting that the sleep is not interrupted but preserving the thread's
+     * interrupt status flag in any case.
+     */
     public static void safeSleep(TimeValue timeValue) {
         safeSleep(timeValue.millis());
     }
 
+    /**
+     * Send the current thread to sleep for the given number of milliseconds, asserting that the sleep is not interrupted but preserving the
+     * thread's interrupt status flag in any case.
+     */
     public static void safeSleep(long millis) {
         try {
             Thread.sleep(millis);

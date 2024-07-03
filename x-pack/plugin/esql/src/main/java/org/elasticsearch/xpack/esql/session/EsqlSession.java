@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.index.MappingException;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
@@ -37,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -77,7 +77,7 @@ public class EsqlSession {
 
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
-    private final FunctionRegistry functionRegistry;
+    private final EsqlFunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
 
     private final Mapper mapper;
@@ -89,7 +89,7 @@ public class EsqlSession {
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
-        FunctionRegistry functionRegistry,
+        EsqlFunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
         Verifier verifier

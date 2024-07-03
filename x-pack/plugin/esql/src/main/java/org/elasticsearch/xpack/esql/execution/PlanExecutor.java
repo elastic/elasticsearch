@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -30,7 +29,7 @@ public class PlanExecutor {
 
     private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
-    private final FunctionRegistry functionRegistry;
+    private final EsqlFunctionRegistry functionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
     private final Verifier verifier;

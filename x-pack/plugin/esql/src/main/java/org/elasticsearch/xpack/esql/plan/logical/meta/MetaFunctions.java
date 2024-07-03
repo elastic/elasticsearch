@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -49,7 +48,7 @@ public class MetaFunctions extends LeafPlan {
         return attributes;
     }
 
-    public List<List<Object>> values(FunctionRegistry functionRegistry) {
+    public List<List<Object>> values(EsqlFunctionRegistry functionRegistry) {
         List<List<Object>> rows = new ArrayList<>();
         for (var def : functionRegistry.listFunctions(null)) {
             EsqlFunctionRegistry.FunctionDescription signature = EsqlFunctionRegistry.description(def);

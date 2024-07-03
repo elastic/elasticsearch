@@ -30,12 +30,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -88,6 +90,10 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     private final NodeClient client;
     private final ClusterService clusterService;
     private final SearchMetricsService searchMetricsService;
+    /**
+     * Counters used to prevent immediate scale-down actions to prevent scaling down
+     * indices with frequently changing scaling decisions.
+     */
     final Map<String, AtomicInteger> scaleDownCounters = new ConcurrentHashMap<>();
     private final ThreadPool threadPool;
     // guard flag to prevent running the scheduled job in parallel when e.g. canceling
@@ -152,7 +158,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
 
     void updateSearchPowerMin(Integer spMin) {
         if (enableReplicasForInstantFailover && job != null) {
-            performReplicaUpdates();
+            performReplicaUpdates(true);
         }
     }
 
@@ -264,9 +270,13 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     }
 
     /**
-     * Schedule task that gets the last replicas update recommendations and performs a settings update.
+     * Scheduled task that gets the last replicas update recommendations and performs a settings update.
      */
     void performReplicaUpdates() {
+        performReplicaUpdates(false);
+    }
+
+    private void performReplicaUpdates(boolean immediateScaleDown) {
         if (running.compareAndSet(false, true)) {
             try {
                 if (checkDisabledAndNeedsScaledown()) {
@@ -297,31 +307,36 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                     // This is also necessary for SPmin >= {@link #SEARCH_POWER_MIN_FULL_REPLICATION} because
                     // even in that case indices might enter and fall out of the interactive boosting window.
                     Set<String> indicesToScaleDown = numberOfReplicaChanges.remove(1);
+                    Set<String> countersInUse = Collections.emptySet();
                     if (indicesToScaleDown != null) {
                         if (ensureRunning() == false) {
                             // break out if some other thread canceled the job at this point.
                             return;
                         }
-                        Set<String> scaleDownUpdatesToSend = new HashSet<>();
-                        for (String index : indicesToScaleDown) {
-                            AtomicInteger scaleDownRepetitions = scaleDownCounters.computeIfAbsent(index, k -> new AtomicInteger(0));
-                            if (scaleDownRepetitions.incrementAndGet() >= scaledownRepetitionSetting) {
-                                scaleDownUpdatesToSend.add(index);
+                        if (immediateScaleDown) {
+                            publishUpdateReplicaSetting(1, indicesToScaleDown);
+                            indicesScaledDown = indicesToScaleDown.size();
+                        } else {
+                            Set<String> scaleDownUpdatesToSend = new HashSet<>();
+                            countersInUse = indicesToScaleDown;
+                            for (String index : indicesToScaleDown) {
+                                AtomicInteger scaleDownRepetitions = scaleDownCounters.computeIfAbsent(index, k -> new AtomicInteger(0));
+                                if (scaleDownRepetitions.incrementAndGet() >= scaledownRepetitionSetting) {
+                                    scaleDownUpdatesToSend.add(index);
+                                }
                             }
+                            publishUpdateReplicaSetting(1, scaleDownUpdatesToSend);
+                            indicesScaledDown = scaleDownUpdatesToSend.size();
                         }
-                        indicesScaledDown = scaleDownUpdatesToSend.size();
-                        publishUpdateReplicaSetting(1, scaleDownUpdatesToSend);
-                    }
-                    // We only need to keep counters for scaling down candidates that haven't been included in this round's
-                    // updates, e.g. because they haven't reached the number of repetitions needed for stabilization yet.
-                    // We can remove all counters that are not part of this update's indices to scale down.
-                    if (indicesToScaleDown == null) {
-                        clearCounters();
-                    } else {
+                        // We only need to keep counters for scaling down candidates that haven't been included in this round's
+                        // updates, e.g. because they haven't reached the number of repetitions needed for stabilization yet.
+                        // We can remove all counters that are not part of this update's indices to scale down.
                         scaleDownCounters.entrySet().removeIf(e -> indicesToScaleDown.contains(e.getKey()) == false);
                     }
+                    clearCountersExcept(countersInUse);
                     assert numberOfReplicaChanges.isEmpty() : "we should have processed all requested replica demand changes";
                 }
+
                 LOGGER.info(
                     "Finished replicas update task. Indices scaled up: "
                         + indicesScaledUp
@@ -374,8 +389,23 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         }
     }
 
+    /**
+     * This cleans all scale-down counters. These counters are used to
+     * delay scale-down actions until we have received
+     * {@link #REPLICA_UPDATER_SCALEDOWN_REPETITIONS} repeated asks to
+     * scale an index down to one replica. We do this to prevent scaling down indices
+     * that receive frequently changing scaling decisions in a short amount of time.
+     */
     private void clearCounters() {
-        this.scaleDownCounters.clear();
+        clearCountersExcept(Collections.emptySet());
+    }
+
+    private void clearCountersExcept(@Nullable Set<String> countersToKeep) {
+        if (countersToKeep == null || countersToKeep.size() == 0) {
+            this.scaleDownCounters.clear();
+        } else {
+            scaleDownCounters.entrySet().removeIf(e -> countersToKeep.contains(e.getKey()) == false);
+        }
     }
 
     private void unschedule(boolean clearState) {

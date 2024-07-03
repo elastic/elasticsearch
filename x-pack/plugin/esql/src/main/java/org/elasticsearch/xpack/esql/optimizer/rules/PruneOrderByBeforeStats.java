@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 

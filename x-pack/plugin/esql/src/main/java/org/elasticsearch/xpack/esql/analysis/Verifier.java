@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
@@ -35,6 +34,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -52,9 +53,9 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.esql.core.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 
 public class Verifier {
 
@@ -175,6 +176,15 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
+        if (p instanceof Filter f) {
+            Expression condition = f.condition();
+            if (condition.dataType() != BOOLEAN) {
+                localFailures.add(fail(condition, "Condition expression needs to be boolean, found [{}]", condition.dataType()));
+            }
+        }
     }
 
     private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {

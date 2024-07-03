@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.FoldNull;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -54,6 +53,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceRegexMatch;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 
 import java.util.List;
 

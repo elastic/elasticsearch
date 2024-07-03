@@ -20,7 +20,6 @@ package co.elastic.elasticsearch.stateless.engine.translog;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -98,13 +97,13 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
             indexDocs(indexName, randomIntBetween(1, 20));
         }
 
-        var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNode);
+        var translogReplicator = getTranslogReplicator(indexNode);
 
         Set<TranslogReplicator.BlobTranslogFile> firstActiveTranslogFiles = translogReplicator.getActiveTranslogFiles();
         int firstFileCount = firstActiveTranslogFiles.size();
         assertThat(firstFileCount, greaterThan(0));
 
-        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var indexObjectStoreService = getObjectStoreService(indexNode);
         BlobContainer translogBlobContainer = indexObjectStoreService.getTranslogBlobContainer();
         assertTranslogBlobsExist(firstActiveTranslogFiles, translogBlobContainer);
 
@@ -156,14 +155,14 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
             indexDocs(idleIndex, randomIntBetween(1, 20));
         }
 
-        var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNode);
+        var translogReplicator = getTranslogReplicator(indexNode);
 
         Set<TranslogReplicator.BlobTranslogFile> firstActiveTranslogFiles = translogReplicator.getActiveTranslogFiles();
         int firstFileCount = firstActiveTranslogFiles.size();
         long maxUploadedFileAfterFirstIndex = translogReplicator.getMaxUploadedFile();
         assertThat(firstFileCount, greaterThan(0));
 
-        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var indexObjectStoreService = getObjectStoreService(indexNode);
         BlobContainer translogBlobContainer = indexObjectStoreService.getTranslogBlobContainer();
         assertTranslogBlobsExist(firstActiveTranslogFiles, translogBlobContainer);
 
@@ -222,13 +221,13 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
             indexDocs(indexName, randomIntBetween(1, 20));
         }
 
-        var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNode);
+        var translogReplicator = getTranslogReplicator(indexNode);
 
         Set<TranslogReplicator.BlobTranslogFile> firstActiveTranslogFiles = translogReplicator.getActiveTranslogFiles();
         int firstFileCount = firstActiveTranslogFiles.size();
         assertThat(firstFileCount, greaterThan(0));
 
-        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var indexObjectStoreService = getObjectStoreService(indexNode);
         BlobContainer translogBlobContainer = indexObjectStoreService.getTranslogBlobContainer();
         assertTranslogBlobsExist(firstActiveTranslogFiles, translogBlobContainer);
 

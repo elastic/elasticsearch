@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -172,7 +173,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doStart() {}
+    protected void doStart() {
+        assert objectStoreService.lifecycleState() == Lifecycle.State.STARTED : "objectStoreService not started";
+    }
 
     private class ScheduleFlush extends AbstractRunnable {
 
@@ -256,6 +259,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {
+        assert objectStoreService.lifecycleState() != Lifecycle.State.CLOSED : "objectStoreService should close after translogReplicator";
         isOpen.set(false);
         nodeState.close();
         shardSyncStates.values().forEach(ShardSyncState::close);

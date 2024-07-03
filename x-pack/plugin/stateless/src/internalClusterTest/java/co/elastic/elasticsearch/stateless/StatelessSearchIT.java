@@ -598,7 +598,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         final var indexShard = indexService.getShard(shardId.id());
         final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
         final var statelessCommitService = (TestStatelessCommitService) indexEngine.getStatelessCommitService();
-        final ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        final ObjectStoreService objectStoreService = getObjectStoreService(indexNode);
         final BlobContainer blobContainer = objectStoreService.getBlobContainer(shardId, indexShard.getOperationPrimaryTerm());
 
         final AtomicLong currentGeneration = new AtomicLong(indexEngine.getLastCommittedSegmentInfos().getGeneration());

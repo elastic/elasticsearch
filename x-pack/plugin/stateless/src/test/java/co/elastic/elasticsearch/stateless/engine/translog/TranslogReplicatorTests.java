@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -499,6 +500,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         AtomicInteger attempt = new AtomicInteger(0);
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             if (attempt.incrementAndGet() < 3) {
                 invocation.<ActionListener<Void>>getArgument(2).onFailure(new IOException("test"));
@@ -611,6 +613,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         PlainActionFuture<Void> syncStartedFuture = new PlainActionFuture<>();
 
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             syncStartedFuture.onResponse(null);
             invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
@@ -658,6 +661,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         AtomicReference<ActionListener<Void>> firstSyncCompleter = new AtomicReference<>();
 
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             var metadata = CompoundTranslogHeader.readFromStore("test", invocation.<BytesReference>getArgument(1).streamInput()).metadata();
             if (metadata.get(shardId).maxSeqNo() == 1L) {
@@ -946,6 +950,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             safeAwait(latch);
             invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
@@ -984,6 +989,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -1245,6 +1251,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         AtomicReference<CountDownLatch> uploadBlocker
     ) throws IOException {
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             uploadBlocker.get().await();
             compoundFiles.add(getBytes(invocation.getArgument(1)));

@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
@@ -404,12 +405,12 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected void setNodeRepositoryStrategy(String nodeName, StatelessMockRepositoryStrategy strategy) {
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, nodeName);
+        ObjectStoreService objectStoreService = getObjectStoreService(nodeName);
         ObjectStoreTestUtils.getObjectStoreStatelessMockRepository(objectStoreService).setStrategy(strategy);
     }
 
     protected StatelessMockRepositoryStrategy getNodeRepositoryStrategy(String nodeName) {
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, nodeName);
+        ObjectStoreService objectStoreService = getObjectStoreService(nodeName);
         return ObjectStoreTestUtils.getObjectStoreStatelessMockRepository(objectStoreService).getStrategy();
     }
 
@@ -557,6 +558,18 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return false;
     }
 
+    protected static ObjectStoreService getCurrentMasterObjectStoreService() {
+        return internalCluster().getCurrentMasterNodeInstance(StatelessComponents.class).getObjectStoreService();
+    }
+
+    protected static ObjectStoreService getObjectStoreService(String nodeName) {
+        return internalCluster().getInstance(StatelessComponents.class, nodeName).getObjectStoreService();
+    }
+
+    protected static TranslogReplicator getTranslogReplicator(String nodeName) {
+        return internalCluster().getInstance(StatelessComponents.class, nodeName).getTranslogReplicator();
+    }
+
     protected static void indexDocumentsWithFlush(String indexName) {
         indexDocuments(indexName, true);
     }
@@ -605,7 +618,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         final Store store = indexShard.store();
         store.incRef();
         try {
-            ObjectStoreService objectStoreService = internalCluster().getDataNodeInstance(ObjectStoreService.class);
+            ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
             var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
 
             final SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
@@ -684,7 +697,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         indexStore.incRef();
         searchStore.incRef();
         try {
-            ObjectStoreService objectStoreService = internalCluster().getDataNodeInstance(ObjectStoreService.class);
+            ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
             var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
 
             // Wait for the latest commit on the index shard is processed on the search engine
@@ -867,7 +880,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                 final ShardId objShardId = new ShardId(entry.getKey(), shardId);
 
                 // Check that the translog on the object store contains the correct sequence numbers and number of operations
-                var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode.getName());
+                var indexObjectStoreService = getObjectStoreService(indexNode.getName());
                 var reader = new TranslogReplicatorReader(indexObjectStoreService.getTranslogBlobContainer(), objShardId);
                 long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
                 long totalOps = 0;
@@ -893,7 +906,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected static BlobContainer getShardCommitsContainerForCurrentPrimaryTerm(String indexName, String indexNode, int shardId) {
-        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var indexObjectStoreService = getObjectStoreService(indexNode);
         var primaryTerm = client().admin().cluster().prepareState().get().getState().metadata().index(indexName).primaryTerm(shardId);
         return indexObjectStoreService.getBlobContainer(new ShardId(resolveIndex(indexName), shardId), primaryTerm);
     }
@@ -928,7 +941,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     protected static Set<PrimaryTermAndGeneration> listBlobsTermAndGenerations(ShardId shardId) throws Exception {
         Set<PrimaryTermAndGeneration> set = new HashSet<>();
-        var objectStoreService = internalCluster().getInstance(ObjectStoreService.class, internalCluster().getRandomNodeName());
+        var objectStoreService = getObjectStoreService(internalCluster().getRandomNodeName());
         var indexBlobContainer = objectStoreService.getBlobContainer(shardId);
         for (var entry : indexBlobContainer.children(operationPurpose).entrySet()) {
             var primaryTerm = Long.parseLong(entry.getKey());

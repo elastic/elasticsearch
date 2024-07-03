@@ -26,7 +26,6 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -415,7 +414,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
         networkDisruption.stopDisrupting();
 
         // list the blobs that exist in the object store and map the staless_commit_N files with their primary term prefixes
-        var objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
+        var objectStoreService = getCurrentMasterObjectStoreService();
         var blobContainer = objectStoreService.getBlobContainer(newIndexShard.shardId());
         var blobNamesAndPrimaryTerms = new HashMap<String, Set<Long>>();
         for (var child : blobContainer.children(operationPurpose).entrySet()) {
@@ -749,7 +748,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
 
     private static void assertBlobExists(ShardId shardId, PrimaryTermAndGeneration primaryTermAndGeneration) {
         try {
-            var objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
+            var objectStoreService = getCurrentMasterObjectStoreService();
             var blobContainer = objectStoreService.getBlobContainer(shardId, primaryTermAndGeneration.primaryTerm());
             var blobName = blobNameFromGeneration(primaryTermAndGeneration.generation());
             assertTrue("Blob not found: " + blobContainer.path() + blobName, blobContainer.blobExists(OperationPurpose.INDICES, blobName));

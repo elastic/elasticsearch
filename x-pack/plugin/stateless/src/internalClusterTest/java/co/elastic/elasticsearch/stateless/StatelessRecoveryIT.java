@@ -373,7 +373,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             indexDocs(indexName, randomIntBetween(1, 100));
         }
 
-        var objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodes.get(0));
+        var objectStoreService = getObjectStoreService(indexNodes.get(0));
         Map<String, BlobMetadata> translogFiles = objectStoreService.getTranslogBlobContainer().listBlobs(operationPurpose);
 
         final String newIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -459,7 +459,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         int numDocs = scaledRandomIntBetween(1, 10);
         indexDocs(indexName, numDocs);
 
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
+        ObjectStoreService objectStoreService = getObjectStoreService(indexNodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
 
         logger.info("--> accessing translog would fail relocation");
@@ -567,7 +567,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             });
 
         // Establishing a sender on the search node to block recovery after sending the request to the indexing node to register the commit
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNode);
+        ObjectStoreService objectStoreService = getObjectStoreService(searchNode);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
@@ -665,7 +665,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             }
         );
 
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNode);
+        ObjectStoreService objectStoreService = getObjectStoreService(searchNode);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setBlockOnAnyFiles();
         setReplicaCount(1, indexName);
@@ -702,7 +702,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             }
         );
 
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNode);
+        ObjectStoreService objectStoreService = getObjectStoreService(searchNode);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setBlockOnAnyFiles();
         setReplicaCount(1, indexName);

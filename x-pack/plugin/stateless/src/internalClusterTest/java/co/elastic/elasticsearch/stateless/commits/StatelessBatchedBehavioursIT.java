@@ -128,7 +128,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
         // speed up commit deletion since it uses delayed cluster consistency check from translog
         indexDoc(indexName, "doc-extra", "field", randomUnicodeOfLength(50));
 
-        final ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        final ObjectStoreService objectStoreService = getObjectStoreService(indexNode);
         final IndexShard indexShard = findIndexShard(indexName);
         final Engine indexEngine = indexShard.getEngineOrNull();
         final long generation = indexEngine.getLastCommittedSegmentInfos().getGeneration();

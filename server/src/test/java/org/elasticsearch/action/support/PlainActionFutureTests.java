@@ -19,12 +19,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -152,33 +149,30 @@ public class PlainActionFutureTests extends ESTestCase {
 
     public void testAssertCompleteAllowedAllowsConcurrentCompletesFromSamePool() {
         assumeTrue("Assertions need to be enabled for assertCompleteAllowed to be invoked", Assertions.ENABLED);
+        final AtomicReference<PlainActionFuture<?>> futureReference = new AtomicReference<>(new PlainActionFuture<>());
+        final var executorName = randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.MANAGEMENT);
+        final var threadCount = 4;
+        final var running = new AtomicBoolean(true);
+        final var startBarrier = new CyclicBarrier(threadCount + 1);
+        final var futures = new ArrayList<Future<?>>();
         try (TestThreadPool threadPool = new TestThreadPool(getTestName())) {
-            final AtomicReference<PlainActionFuture<?>> futureReference = new AtomicReference<>(new PlainActionFuture<>());
-            final var executorName = randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.MANAGEMENT);
-            final var threadCount = threadPool.info(executorName).getMax();
-            final AtomicBoolean running = new AtomicBoolean(true);
-            final CountDownLatch startLatch = new CountDownLatch(threadCount + 1);
-            final List<Future<?>> futures = new ArrayList<>();
-            final ExecutorService executor = threadPool.executor(executorName);
-            for (int i = 1; i < threadCount; i++) {
-                futures.add(executor.submit(() -> {
-                    startLatch.countDown();
-                    safeAwait(startLatch);
+            assert threadPool.info(executorName).getMax() >= threadCount : "Not enough threads in pool";
+            // N threads competing to complete the future
+            for (int i = 0; i < threadCount; i++) {
+                futures.add(threadPool.executor(executorName).submit(() -> {
+                    safeAwait(startBarrier);
                     while (running.get()) {
                         futureReference.get().onResponse(null);
                     }
                 }, null));
             }
-            executor.submit(() -> {
-                startLatch.countDown();
-                safeAwait(startLatch);
-                while (running.get()) {
-                    futureReference.set(new PlainActionFuture<>());
-                }
-            }, null);
-            startLatch.countDown();
-            safeAwait(startLatch);
-            safeSleep(20);
+            // continually create new futures to complete
+            safeAwait(startBarrier);
+            long endTime = System.currentTimeMillis() + 20;
+            while (System.currentTimeMillis() < endTime) {
+                futureReference.set(new PlainActionFuture<>());
+                safeSleep(1);
+            }
             running.set(false);
             futures.forEach(ESTestCase::safeGet);
         }

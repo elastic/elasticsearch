@@ -3926,11 +3926,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(primary.searchIdleTime() >= TimeValue.ZERO.millis());
         primary.flushOnIdle(0);
         logger.info("--> scheduledRefresh(future5)");
-        assertBusy(() -> {
-            PlainActionFuture<Boolean> future5 = new PlainActionFuture<>();
-            primary.scheduledRefresh(future5);
-            assertTrue(future5.actionGet()); // make sure we refresh once the shard is inactive
-        });
+        assertTrue(primary.scheduledRefresh(ActionListener.noop())); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
         }

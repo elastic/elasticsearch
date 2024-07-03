@@ -7,17 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 
 import java.util.List;
+import java.util.Map;
 
 public final class AmazonBedrockProviderCapabilities {
-    public static final List<AmazonBedrockProvider> embeddingProviders = List.of(
+    private static final List<AmazonBedrockProvider> embeddingProviders = List.of(
         AmazonBedrockProvider.AMAZONTITAN,
         AmazonBedrockProvider.COHERE
     );
 
-    public static final List<AmazonBedrockProvider> chatCompletionProviders = List.of(
+    private static final List<AmazonBedrockProvider> chatCompletionProviders = List.of(
         AmazonBedrockProvider.AMAZONTITAN,
         AmazonBedrockProvider.ANTHROPIC,
         AmazonBedrockProvider.AI21LABS,
@@ -26,10 +28,17 @@ public final class AmazonBedrockProviderCapabilities {
         AmazonBedrockProvider.MISTRAL
     );
 
-    public static final List<AmazonBedrockProvider> chatCompletionProvidersWithTopK = List.of(
+    private static final List<AmazonBedrockProvider> chatCompletionProvidersWithTopK = List.of(
         AmazonBedrockProvider.ANTHROPIC,
         AmazonBedrockProvider.COHERE,
         AmazonBedrockProvider.MISTRAL
+    );
+
+    private static final Map<AmazonBedrockProvider, SimilarityMeasure> embeddingsDefaultSimilarityMeasure = Map.of(
+        AmazonBedrockProvider.AMAZONTITAN,
+        SimilarityMeasure.COSINE,
+        AmazonBedrockProvider.COHERE,
+        SimilarityMeasure.DOT_PRODUCT
     );
 
     public static boolean providerAllowsTaskType(AmazonBedrockProvider provider, TaskType taskType) {
@@ -48,6 +57,14 @@ public final class AmazonBedrockProviderCapabilities {
 
     public static boolean chatCompletionProviderHasTopKParameter(AmazonBedrockProvider provider) {
         return chatCompletionProvidersWithTopK.contains(provider);
+    }
+
+    public static SimilarityMeasure getProviderDefaultSimilarityMeasure(AmazonBedrockProvider provider) {
+        if (embeddingsDefaultSimilarityMeasure.containsKey(provider)) {
+            return embeddingsDefaultSimilarityMeasure.get(provider);
+        }
+
+        return SimilarityMeasure.COSINE;
     }
 
 }

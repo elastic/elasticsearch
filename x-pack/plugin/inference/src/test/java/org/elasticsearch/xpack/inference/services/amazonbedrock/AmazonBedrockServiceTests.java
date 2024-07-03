@@ -795,7 +795,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                             2,
                             false,
                             100,
-                            SimilarityMeasure.DOT_PRODUCT,
+                            SimilarityMeasure.COSINE,
                             null,
                             "access",
                             "secret"

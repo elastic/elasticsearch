@@ -191,6 +191,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new LocalRelation(plan.source(), plan.output(), supplier);
     }
 
+    // TODO: update
     /**
      * Pushes LogicalPlans which generate new attributes (Eval, Grok/Dissect, Enrich), past OrderBys and Projections.
      * Although it seems arbitrary whether the OrderBy or the Eval is executed first, this transformation ensures that OrderBys only
@@ -243,6 +244,16 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             return orderBy.replaceChild(generatingPlan.replaceChild(orderBy.child()));
         } else if (child instanceof Project project) {
+            // We need to account for attribute shadowing. E.g.
+            // Eval[[2 * x{f}#1 AS y]]
+            // \_Project[[x{f}#1, y{f}#2, y{f}#2 AS z]]
+            // ..\_....
+            // Just moving the Eval down breaks z because we shadow y{f}#2.
+            // Instead, we use a different alias in the Eval, eventually renaming back to y:
+            // Project[[x{f}#1, y{f}#2 as z, $$y{r}#3 as y]]
+            // \_Eval[[2 * x{f}#1 as $$y]]
+            // ..\_....
+
             AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
             project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
             var aliases = aliasBuilder.build();

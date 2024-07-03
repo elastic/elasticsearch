@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -114,6 +115,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineLimits;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -4353,6 +4355,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_EsRelation[test][_meta_field{f}#42, emp_no{f}#36, first_name{f}#37, ..]
      */
     public void testReplaceSortByExpressions() {
+        // Important: these replace existing attributes with new ones by shadowing.
         List<String> overwritingCommands = List.of(
             "EVAL emp_no = 3*emp_no, salary = -2*emp_no-salary",
             "DISSECT first_name \"%{emp_no} %{salary}\"",
@@ -4442,6 +4445,55 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
             assertThat(renamingEval.child(), instanceOf(EsRelation.class));
         }
+    }
+
+    /**
+     * The following plan
+     *
+     * Eval[[x{r}#2 * 5[INTEGER] AS y]]
+     * \_Project[[x{r}#2, y{r}#3, y{r}#3 AS z]]
+     *   \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
+     *
+     * should become
+     *
+     * Project[[x{r}#2, y{r}#3 AS z, $$y$temp_name${r}#6 AS y]]
+     * \_Eval[[x{r}#2 * 5[INTEGER] AS $$y$temp_name$]]
+     *   \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
+     */
+    // TODO: parameterize, also do grok/dissect and enrich
+    public void testPushShadowingEvalPastProject() {
+        var x = new Alias(EMPTY, "x", new Literal(EMPTY, 1, INTEGER));
+        var y = new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER));
+        LogicalPlan plan = new Row(EMPTY, List.of(x, y));
+        plan = new Project(EMPTY, plan, List.of(x.toAttribute(), y.toAttribute(), new Alias(EMPTY, "z", y.toAttribute())));
+        plan = new Eval(EMPTY, plan, List.of(new Alias(EMPTY, "y", new Mul(EMPTY, x.toAttribute(), new Literal(EMPTY, 5, INTEGER)))));
+        plan = new PushDownEval().apply(plan);
+
+        Failures inconsistencies = LogicalVerifier.INSTANCE.verify(plan);
+        ;
+        assertFalse(inconsistencies.hasFailures());
+
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child(), Eval.class);
+
+        List<? extends NamedExpression> projections = project.projections();
+        List<Alias> evalExprs = eval.fields();
+
+        assertThat(Expressions.names(evalExprs), contains("$$y$temp_name$"));
+        Alias yTemp = as(evalExprs.get(0), Alias.class);
+        Mul mul = as(yTemp.child(), Mul.class);
+        assertThat(Expressions.name(mul.left()), is("x"));
+        Literal five = as(mul.right(), Literal.class);
+        assertEquals(five.value(), 5);
+
+        assertThat(Expressions.names(projections), contains("x", "z", "y"));
+        assertThat(projections.get(0), instanceOf(ReferenceAttribute.class));
+        Alias zAlias = as(projections.get(1), Alias.class);
+        ReferenceAttribute yRenamed = as(zAlias.child(), ReferenceAttribute.class);
+        assertEquals(yRenamed.name(), "y");
+        Alias yAlias = as(projections.get(2), Alias.class);
+        ReferenceAttribute yTempRenamed = as(yAlias.child(), ReferenceAttribute.class);
+        assertEquals(yTempRenamed.name(), "$$y$temp_name$");
     }
 
     public void testPartiallyFoldCase() {

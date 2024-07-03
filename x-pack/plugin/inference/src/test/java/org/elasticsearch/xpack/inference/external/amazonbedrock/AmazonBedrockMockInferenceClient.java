@@ -81,5 +81,5 @@ public class AmazonBedrockMockInferenceClient extends AmazonBedrockInferenceClie
     }
 
     @Override
-    protected void closeInternal() {}
+    void close() {}
 }

@@ -59,7 +59,7 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
 
     @Override
     public void executeRequest(AmazonBedrockBaseClient client) {
-        try (var requestClient = client) {
+        try {
             var jsonBuilder = new AmazonBedrockJsonBuilder(requestEntity);
             var bodyAsString = jsonBuilder.getStringContent();
 
@@ -68,7 +68,7 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
 
             var invokeModelRequest = new InvokeModelRequest().withModelId(embeddingsModel.model()).withBody(bodyBuffer);
 
-            result = SocketAccess.doPrivileged(() -> requestClient.invokeModel(invokeModelRequest));
+            result = SocketAccess.doPrivileged(() -> client.invokeModel(invokeModelRequest));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

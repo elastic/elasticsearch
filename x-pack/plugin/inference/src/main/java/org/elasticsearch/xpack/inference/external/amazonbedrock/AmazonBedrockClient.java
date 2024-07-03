@@ -13,15 +13,14 @@ import com.amazonaws.services.bedrockruntime.model.InvokeModelRequest;
 import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Releasable;
 import org.joda.time.Instant;
 
-public interface AmazonBedrockClient extends Releasable {
+public interface AmazonBedrockClient {
     ConverseResult converse(ConverseRequest converseRequest) throws ElasticsearchException;
 
     InvokeModelResult invokeModel(InvokeModelRequest invokeModelRequest) throws ElasticsearchException;
 
     boolean isExpired(Instant currentTimestampMs);
 
-    boolean tryToIncreaseReference();
+    void resetExpiration();
 }

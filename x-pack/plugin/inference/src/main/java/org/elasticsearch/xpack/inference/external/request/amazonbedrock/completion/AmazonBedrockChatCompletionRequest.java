@@ -42,8 +42,8 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     public void executeRequest(AmazonBedrockBaseClient client) {
         var converseRequest = getConverseRequest();
 
-        try (var requestClient = client) {
-            result = SocketAccess.doPrivileged(() -> requestClient.converse(converseRequest));
+        try {
+            result = SocketAccess.doPrivileged(() -> client.converse(converseRequest));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

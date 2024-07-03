@@ -91,6 +91,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         }
     }
 
+    // allow this to be overridden for test mocks
     protected AmazonBedrockRuntime createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         var secretSettings = model.getSecretSettings();
         var credentials = new BasicAWSCredentials(secretSettings.accessKey.toString(), secretSettings.secretKey.toString());
@@ -131,10 +132,8 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         return (this.expiryTimestamp.compareTo(currentTimestampMs) < 0);
     }
 
-    @Override
-    public boolean tryToIncreaseReference() {
+    public void resetExpiration() {
         setExpiryTimestamp();
-        return this.tryIncRef();
     }
 
     @Override
@@ -150,14 +149,9 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         return this.modelKeysAndRegionHashcode;
     }
 
+    // make this package-private so only the cache can close it
     @Override
-    public void close() {
-        decRef();
-    }
-
-    @Override
-    protected void closeInternal() {
+    void close() {
         internalClient.shutdown();
     }
-
 }

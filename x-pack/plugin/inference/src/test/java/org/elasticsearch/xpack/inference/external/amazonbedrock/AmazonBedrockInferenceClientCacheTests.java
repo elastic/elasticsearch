@@ -30,22 +30,19 @@ public class AmazonBedrockInferenceClientCacheTests extends ESTestCase {
                 "secret_key"
             );
 
-            try (var client = cache.getOrCreateClient(model, null)) {
+            var client = cache.getOrCreateClient(model, null);
 
-                var secondModel = AmazonBedrockEmbeddingsModelTests.createModel(
-                    "inferenceId_two",
-                    "testregion",
-                    "a_different_model",
-                    AmazonBedrockProvider.COHERE,
-                    "access_key",
-                    "secret_key"
-                );
+            var secondModel = AmazonBedrockEmbeddingsModelTests.createModel(
+                "inferenceId_two",
+                "testregion",
+                "a_different_model",
+                AmazonBedrockProvider.COHERE,
+                "access_key",
+                "secret_key"
+            );
 
-                try (var secondClient = cache.getOrCreateClient(secondModel, null)) {
-                    assertThat(client, sameInstance(secondClient));
-                    assertThat(client.refCount(), is(3));
-                }
-            }
+            var secondClient = cache.getOrCreateClient(secondModel, null);
+            assertThat(client, sameInstance(secondClient));
 
             assertThat(cache.clientCount(), is(1));
         }

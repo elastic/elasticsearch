@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockMod
 import org.joda.time.Instant;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,7 +42,8 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
         final Integer modelHash = AmazonBedrockInferenceClient.getModelKeysAndRegionHashcode(model, timeout);
         {
             final AmazonBedrockBaseClient client = clientsCache.get(modelHash);
-            if (client != null && client.tryToIncreaseReference()) {
+            if (client != null) {
+                client.resetExpiration();
                 return client;
             }
         }
@@ -49,7 +51,8 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
         cacheLock.readLock().lock();
         try {
             final AmazonBedrockBaseClient existing = clientsCache.get(modelHash);
-            if (existing != null && existing.tryIncRef()) {
+            if (existing != null) {
+                existing.resetExpiration();
                 return existing;
             }
 
@@ -58,7 +61,6 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
             try {
                 final AmazonBedrockBaseClient builtClient = creator.apply(model, timeout);
 
-                builtClient.mustIncRef();
                 clientsCache.put(modelHash, builtClient);
                 return builtClient;
             } finally {
@@ -72,12 +74,37 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
         }
     }
 
-    private synchronized void flushExpiredClients() {
+    private void flushExpiredClients() {
         var currentTimestampMs = new Instant();
-        for (final AmazonBedrockBaseClient client : clientsCache.values()) {
-            if (client.isExpired(currentTimestampMs)) {
-                client.decRef();
+        var expiredClients = new ArrayList<Map.Entry<Integer, AmazonBedrockBaseClient>>();
+
+        cacheLock.readLock().lock();
+        try {
+            for (final Map.Entry<Integer, AmazonBedrockBaseClient> client : clientsCache.entrySet()) {
+                if (client.getValue().isExpired(currentTimestampMs)) {
+                    expiredClients.add(client);
+                }
             }
+
+            if (expiredClients.isEmpty()) {
+                return;
+            }
+
+            cacheLock.writeLock().lock();
+            cacheLock.readLock().unlock();
+            try {
+                for (final Map.Entry<Integer, AmazonBedrockBaseClient> client : expiredClients) {
+                    var removed = clientsCache.remove(client.getKey());
+                    if (removed != null) {
+                        removed.close();
+                    }
+                }
+            } finally {
+                cacheLock.readLock().lock();
+                cacheLock.writeLock().unlock();
+            }
+        } finally {
+            cacheLock.readLock().unlock();
         }
     }
 
@@ -87,9 +114,9 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
     }
 
     private void releaseCachedClients() {
-        // the clients will shutdown when they will not be used anymore
+        // ensure all the clients are closed before we clear
         for (final AmazonBedrockBaseClient client : clientsCache.values()) {
-            client.decRef();
+            client.close();
         }
 
         // clear previously cached clients, they will be build lazily

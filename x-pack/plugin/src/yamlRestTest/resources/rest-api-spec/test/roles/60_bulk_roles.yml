@@ -74,15 +74,6 @@ teardown:
   - match: { role_with_description.cluster.0:  "manage_security" }
   - match: { role_with_description.description:  "Allows all security-related operations such as CRUD operations on users and roles and cache clearing." }
 
-  - do:
-      security.bulk_delete_role:
-        body: >
-          {
-             "names": ["admin_role", "role_with_description"]
-          }
-  - match: { deleted.0: "admin_role" }
-  - match: { deleted.1: "role_with_description" }
-
   # query match_all roles
   - do:
       headers:
@@ -96,3 +87,12 @@ teardown:
   - match: { count: 2 }
   - match: { roles.0.name: "admin_role" }
   - match: { roles.1.name: "role_with_description" }
+
+  - do:
+      security.bulk_delete_role:
+        body: >
+          {
+             "names": ["admin_role", "role_with_description"]
+          }
+  - match: { deleted.0: "admin_role" }
+  - match: { deleted.1: "role_with_description" }

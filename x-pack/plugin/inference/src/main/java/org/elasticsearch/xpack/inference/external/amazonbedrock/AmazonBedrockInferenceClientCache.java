@@ -32,22 +32,14 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
         this.creator = Objects.requireNonNull(creator);
     }
 
-    public AmazonBedrockBaseClient getOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) throws IOException {
+    public AmazonBedrockBaseClient getOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         var returnClient = internalGetOrCreateClient(model, timeout);
         flushExpiredClients();
         return returnClient;
     }
 
-    private AmazonBedrockBaseClient internalGetOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) throws IOException {
+    private AmazonBedrockBaseClient internalGetOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         final Integer modelHash = AmazonBedrockInferenceClient.getModelKeysAndRegionHashcode(model, timeout);
-        {
-            final AmazonBedrockBaseClient client = clientsCache.get(modelHash);
-            if (client != null) {
-                client.resetExpiration();
-                return client;
-            }
-        }
-
         cacheLock.readLock().lock();
         try {
             final AmazonBedrockBaseClient existing = clientsCache.get(modelHash);

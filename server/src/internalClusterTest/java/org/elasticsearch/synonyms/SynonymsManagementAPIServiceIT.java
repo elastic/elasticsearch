@@ -194,7 +194,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                 // Updating a rule fails
                 synonymsManagementAPIService.putSynonymRule(
                     synonymSetId,
-                    synonymsSet[randomIntBetween(0, maxSynonymSets)],
+                    synonymsSet[randomIntBetween(0, maxSynonymSets - 1)],
                     new ActionListener<>() {
                         @Override
                         public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {

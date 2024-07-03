@@ -150,7 +150,7 @@ public class NestedObjectMapper extends ObjectMapper {
         }
     }
 
-    private static class NestedMapperBuilderContext extends MapperBuilderContext {
+    static class NestedMapperBuilderContext extends MapperBuilderContext {
         final boolean parentIncludedInRoot;
         final Query nestedTypeFilter;
 
@@ -164,7 +164,7 @@ public class NestedObjectMapper extends ObjectMapper {
             Dynamic dynamic,
             MapperService.MergeReason mergeReason
         ) {
-            super(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason);
+            super(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, true);
             this.parentIncludedInRoot = parentIncludedInRoot;
             this.nestedTypeFilter = nestedTypeFilter;
         }
@@ -181,11 +181,6 @@ public class NestedObjectMapper extends ObjectMapper {
                 getDynamic(dynamic),
                 getMergeReason()
             );
-        }
-
-        @Override
-        public boolean isNested() {
-            return true;
         }
     }
 

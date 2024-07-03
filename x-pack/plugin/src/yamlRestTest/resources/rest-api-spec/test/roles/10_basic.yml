@@ -87,6 +87,20 @@ teardown:
   - match: { admin_role.indices.0.names.0: "*" }
   - match: { admin_role.indices.0.privileges.0:  "all" }
 
+  # query match_all roles
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      security.query_role:
+        body: >
+          {
+            "query": { "match_all": {} }, "sort": ["name"]
+          }
+  - match: { total: 2 }
+  - match: { count: 2 }
+  - match: { roles.0.name: "admin_role" }
+  - match: { roles.1.name: "backwards_role" }
+
   - do:
       security.put_role:
         name: "role_with_description"
@@ -104,3 +118,16 @@ teardown:
         name: "role_with_description"
   - match: { role_with_description.cluster.0:  "manage_security" }
   - match: { role_with_description.description:  "Allows all security-related operations such as CRUD operations on users and roles and cache clearing." }
+
+  # query again for this last role
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      security.query_role:
+        body: >
+          {
+            "query": { "match_all": {} }, "sort": ["name"], "from": 2
+          }
+  - match: { total: 3 }
+  - match: { count: 1 }
+  - match: { roles.0.name: "role_with_description" }

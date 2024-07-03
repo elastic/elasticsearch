@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
+import org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
@@ -54,7 +54,7 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP;
+import static org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules.TransformDirection.UP;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.cleanup;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operators;
 

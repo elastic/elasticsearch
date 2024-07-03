@@ -29,8 +29,9 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.FoldNull;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable;
+import org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules;
+import org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules.PropagateNullable;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -603,8 +604,8 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
-        org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.FoldNull rule =
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.FoldNull();
+        OptimizerRules.FoldNull rule =
+            new OptimizerRules.FoldNull();
 
         Or or = new Or(EMPTY, NULL, TRUE);
         assertEquals(or, rule.rule(or));
@@ -626,7 +627,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         And and = new And(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, fa));
-        assertEquals(FALSE, new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable().rule(and));
+        assertEquals(FALSE, new OptimizerRules.PropagateNullable().rule(and));
     }
 
     // a IS NULL AND b IS NOT NULL AND c IS NULL AND d IS NOT NULL AND e IS NULL AND a IS NOT NULL => false
@@ -639,7 +640,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         And and = new And(EMPTY, andOne, new And(EMPTY, andThree, andTwo));
 
-        assertEquals(FALSE, new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable().rule(and));
+        assertEquals(FALSE, new OptimizerRules.PropagateNullable().rule(and));
     }
 
     // a IS NULL AND a > 1 => a IS NULL AND false
@@ -818,8 +819,8 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testBoolSimplifyOr() {
-        org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification simplification =
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification();
+        OptimizerRules.BooleanSimplification simplification =
+            new OptimizerRules.BooleanSimplification();
 
         assertEquals(TRUE, simplification.rule(new Or(EMPTY, TRUE, TRUE)));
         assertEquals(TRUE, simplification.rule(new Or(EMPTY, TRUE, DUMMY_EXPRESSION)));
@@ -831,8 +832,8 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testBoolSimplifyAnd() {
-        org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification simplification =
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification();
+        OptimizerRules.BooleanSimplification simplification =
+            new OptimizerRules.BooleanSimplification();
 
         assertEquals(TRUE, simplification.rule(new And(EMPTY, TRUE, TRUE)));
         assertEquals(DUMMY_EXPRESSION, simplification.rule(new And(EMPTY, TRUE, DUMMY_EXPRESSION)));
@@ -844,8 +845,8 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testBoolCommonFactorExtraction() {
-        org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification simplification =
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification();
+        OptimizerRules.BooleanSimplification simplification =
+            new OptimizerRules.BooleanSimplification();
 
         Expression a1 = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 1);
         Expression a2 = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 1);

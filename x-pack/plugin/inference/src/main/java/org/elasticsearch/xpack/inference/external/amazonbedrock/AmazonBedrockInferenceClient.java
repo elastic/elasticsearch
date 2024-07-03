@@ -63,7 +63,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
             return internalClient.converse(converseRequest);
         } catch (AmazonBedrockRuntimeException amazonBedrockRuntimeException) {
             throw new ElasticsearchException(
-                Strings.format("failed to create AmazonBedrockRuntime client: [%s]", amazonBedrockRuntimeException.getMessage()),
+                Strings.format("AmazonBedrock converse failure: [%s]", amazonBedrockRuntimeException.getMessage()),
                 amazonBedrockRuntimeException
             );
         } catch (ElasticsearchException elasticsearchException) {
@@ -80,7 +80,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
             return internalClient.invokeModel(invokeModelRequest);
         } catch (AmazonBedrockRuntimeException amazonBedrockRuntimeException) {
             throw new ElasticsearchException(
-                Strings.format("failed to create AmazonBedrockRuntime client: [%s]", amazonBedrockRuntimeException.getMessage()),
+                Strings.format("AmazonBedrock invoke model failure: [%s]", amazonBedrockRuntimeException.getMessage()),
                 amazonBedrockRuntimeException
             );
         } catch (ElasticsearchException elasticsearchException) {
@@ -122,7 +122,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         }
     }
 
-    private synchronized void setExpiryTimestamp() {
+    private void setExpiryTimestamp() {
         this.expiryTimestamp = (new Instant()).withDurationAdded(CACHE_EXPIRY_ADD_MS, 1);
     }
 

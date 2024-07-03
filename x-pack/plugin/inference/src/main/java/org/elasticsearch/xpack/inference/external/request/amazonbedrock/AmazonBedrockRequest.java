@@ -37,7 +37,7 @@ public abstract class AmazonBedrockRequest implements Request {
     /**
      * Amazon Bedrock uses the AWS SDK, and will not create its own Http Request
      * But, this is needed for the ExecutableInferenceRequest to get the inferenceEntityId
-     * @return null
+     * @return NoOp request
      */
     @Override
     public final HttpRequest createHttpRequest() {

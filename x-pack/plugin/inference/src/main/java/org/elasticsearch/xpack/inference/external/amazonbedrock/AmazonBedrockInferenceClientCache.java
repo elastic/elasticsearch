@@ -90,8 +90,8 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
                 return;
             }
 
-            cacheLock.writeLock().lock();
             cacheLock.readLock().unlock();
+            cacheLock.writeLock().lock();
             try {
                 for (final Map.Entry<Integer, AmazonBedrockBaseClient> client : expiredClients) {
                     var removed = clientsCache.remove(client.getKey());
@@ -114,13 +114,20 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
     }
 
     private void releaseCachedClients() {
-        // ensure all the clients are closed before we clear
-        for (final AmazonBedrockBaseClient client : clientsCache.values()) {
-            client.close();
-        }
+        // as we're closing and flushing all of these - we'll use a write lock
+        // across the whole operation to ensure this stays in sync
+        cacheLock.writeLock().lock();
+        try {
+            // ensure all the clients are closed before we clear
+            for (final AmazonBedrockBaseClient client : clientsCache.values()) {
+                client.close();
+            }
 
-        // clear previously cached clients, they will be build lazily
-        clientsCache.clear();
+            // clear previously cached clients, they will be build lazily
+            clientsCache.clear();
+        } finally {
+            cacheLock.writeLock().unlock();
+        }
 
         // shutdown IdleConnectionReaper background thread
         // it will be restarted on new client usage
@@ -129,6 +136,11 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
 
     // used for testing
     public int clientCount() {
-        return clientsCache.size();
+        cacheLock.readLock().lock();
+        try {
+            return clientsCache.size();
+        } finally {
+            cacheLock.readLock().unlock();
+        }
     }
 }

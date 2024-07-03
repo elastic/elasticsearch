@@ -105,7 +105,7 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
 
         private final String PIPELINE_IDS = "pipelines";
         Set<String> pipelineIds;
-        private final String REFERENCED_SEMANTIC_TEXT_INDEXES = "semantic_text_indexes";
+        private final String REFERENCED_INDEXES = "indexes";
         Set<String> indexes;
 
         public Response(boolean acknowledged, Set<String> pipelineIds, Set<String> semanticTextIndexes) {
@@ -116,10 +116,11 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            pipelineIds = in.readCollectionAsSet(StreamInput::readString);
             if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS)) {
+                pipelineIds = in.readCollectionAsSet(StreamInput::readString);
                 indexes = in.readCollectionAsSet(StreamInput::readString);
             } else {
+                pipelineIds = Set.of();
                 indexes = Set.of();
             }
         }
@@ -127,8 +128,8 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeCollection(pipelineIds, StreamOutput::writeString);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS)) {
+                out.writeCollection(pipelineIds, StreamOutput::writeString);
                 out.writeCollection(indexes, StreamOutput::writeString);
             }
         }
@@ -137,7 +138,7 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
         protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
             super.addCustomFields(builder, params);
             builder.field(PIPELINE_IDS, pipelineIds);
-            builder.field(REFERENCED_SEMANTIC_TEXT_INDEXES, indexes);
+            builder.field(REFERENCED_INDEXES, indexes);
         }
 
         @Override

@@ -155,7 +155,7 @@ that ordering.
 
 [[synthetic-source-modifications-ranges]]
 ====== Representation of ranges
-Range field vales (e.g. `long_range`) are always represented as inclusive on both sides with bounds adjusted accordingly. See <<range-synthetic-source-inclusive, examples>>.
+Range field values (e.g. `long_range`) are always represented as inclusive on both sides with bounds adjusted accordingly. See <<range-synthetic-source-inclusive, examples>>.
 
 [[synthetic-source-precision-loss-for-point-types]]
 ====== Reduced precision of `geo_point` values

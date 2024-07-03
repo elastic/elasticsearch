@@ -722,8 +722,8 @@ public abstract class DocumentParserContext {
         if (indexSettings().getMode() == IndexMode.LOGS
             && indexSettings().getIndexRouting() instanceof IndexRouting.ExtractFromSource dimensionRouting) {
             for (var mapper : mappingLookup().fieldMappers()) {
-                if (mapper instanceof FieldMapper fieldMapper && dimensionRouting.matchesField(fieldMapper.name())) {
-                    String name = fieldMapper.name();
+                if (mapper instanceof FieldMapper fieldMapper && dimensionRouting.matchesField(fieldMapper.fullPath())) {
+                    String name = fieldMapper.fullPath();
                     var field = rootDoc().getField(name);
                     if (field != null) {
                         var binaryValue = field.binaryValue();

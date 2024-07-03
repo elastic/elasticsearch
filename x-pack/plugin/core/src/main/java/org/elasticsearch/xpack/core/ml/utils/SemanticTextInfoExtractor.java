@@ -22,7 +22,7 @@ import java.util.Set;
 public class SemanticTextInfoExtractor {
     private static final Logger logger = LogManager.getLogger(SemanticTextInfoExtractor.class);
 
-    public static Set<String> extractSemanticTextFields(Metadata metadata, Set<String> endpointIds) {
+    public static Set<String> extractIndexesReferencingInferenceEndpoints(Metadata metadata, Set<String> endpointIds) {
         assert endpointIds.isEmpty() == false;
         assert metadata != null;
 

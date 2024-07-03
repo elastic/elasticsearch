@@ -52,8 +52,7 @@ DELETE /_security/role
     "names": ["my_admin_role", "my_user_role"]
 }
 --------------------------------------------------
-// TEST[setup:admin_role]
-// TEST[setup:user_role]
+// TEST[setup:admin_role,user_role]
 
 If the roles are successfully deleted, the request returns:
 

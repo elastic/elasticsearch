@@ -15,7 +15,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
-import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 public class TransportBulkDeleteRolesAction extends TransportAction<BulkDeleteRolesRequest, BulkRolesResponse> {

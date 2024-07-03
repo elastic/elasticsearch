@@ -75,7 +75,7 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
         TimeValue globalMaxRetention
     ) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            ToXContent.Params params = new ToXContent.MapParams(Map.of(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS, "serverless"));
+            ToXContent.Params params = new ToXContent.MapParams(Map.of(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS, "true"));
             RolloverConfiguration rolloverConfiguration = null;
             DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
             dataStreamLifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);

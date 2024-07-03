@@ -29,6 +29,10 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -40,6 +44,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.TriConsumer;
@@ -47,6 +52,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -66,7 +72,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -74,6 +83,8 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiConsumer;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
@@ -636,6 +647,77 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
         refresh(indexName);
         final long totalHits = SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName));
         assertThat(totalHits, equalTo((long) docsAcknowledged.get()));
+    }
+
+    public void testPostWriteRefreshTimeoutDoesNotMakeOnGoingRecoveryFail() throws Exception {
+        var indexNode1 = startMasterAndIndexNode();
+        var searchNode = startSearchNode();
+        ensureStableCluster(2);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        var requestTimeout = TimeValue.timeValueSeconds(1);
+
+        var indexDocs = new AtomicBoolean(true);
+        var indexerThread = new Thread(() -> {
+            while (indexDocs.get()) {
+                try {
+                    var bulkRequest = client().prepareBulk();
+                    bulkRequest.setTimeout(requestTimeout);
+                    var numDocs = randomIntBetween(50, 100);
+                    for (int i = 0; i < numDocs; i++) {
+                        bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+                    }
+                    bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+                    // The refresh timeouts and that's considered a bulk failure (hence we cannot assert that there are no failures)
+                    bulkRequest.get();
+                } catch (Exception e) {
+                    logger.info("Error", e);
+                }
+            }
+        }, "indexer-thread");
+        indexerThread.start();
+
+        var indexNode2 = startMasterAndIndexNode();
+        ensureStableCluster(3);
+
+        Queue<CheckedRunnable<Exception>> pendingRefreshRequests = new LinkedBlockingQueue<>();
+        var shardRefreshRequestSent = new CountDownLatch(1);
+        var delayRefreshResponses = new AtomicBoolean(true);
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportUnpromotableShardRefreshAction.NAME + "[u]", (handler, request, channel, task) -> {
+                UnpromotableShardRefreshRequest req = (UnpromotableShardRefreshRequest) request;
+                if (req.shardId().getIndexName().equals(indexName) && delayRefreshResponses.get()) {
+                    shardRefreshRequestSent.countDown();
+                    pendingRefreshRequests.add(() -> handler.messageReceived(request, channel, task));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        safeAwait(shardRefreshRequestSent);
+        logger.info("--> relocating shard 0 from {} to {}", indexNode1, indexNode2);
+        var relocationFuture = client().execute(
+            TransportClusterRerouteAction.TYPE,
+            new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setRetryFailed(false)
+                .add(new MoveAllocationCommand(indexName, 0, indexNode1, indexNode2))
+        );
+        // Ensure that ongoing refreshes time-out
+        safeSleep(requestTimeout.millis() + 100);
+
+        // Process the refresh requests, even though the search shard should have failed at that point
+        CheckedRunnable<Exception> pendingRefresh;
+        while ((pendingRefresh = pendingRefreshRequests.poll()) != null) {
+            pendingRefresh.run();
+        }
+
+        delayRefreshResponses.set(false);
+        safeGet(relocationFuture);
+        ensureGreen(indexName);
+
+        indexDocs.set(false);
+        indexerThread.join(requestTimeout.millis());
     }
 
     private static void assertBusyCommitsMatchExpectedResults(String indexName, ExpectedCommits expected) throws Exception {

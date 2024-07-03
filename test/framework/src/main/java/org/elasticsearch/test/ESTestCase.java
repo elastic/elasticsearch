@@ -2290,6 +2290,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    public static void flushThreadPoolExecutor(ThreadPool threadPool, String executorName) {
+        final var maxThreads = threadPool.info(executorName).getMax();
+        final var barrier = new CyclicBarrier(maxThreads + 1);
+        final var executor = threadPool.executor(executorName);
+        for (int i = 0; i < maxThreads; i++) {
+            executor.execute(() -> safeAwait(barrier));
+        }
+        safeAwait(barrier);
+    }
+
     protected static boolean isTurkishLocale() {
         return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());

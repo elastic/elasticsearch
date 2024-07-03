@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -200,16 +199,19 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
     public abstract DataType dataType();
 
     /**
-     * if the expression can be pushed down to lucene. By default nothing is pushed down so expressions that
+     * if this expression can be pushed down to lucene as a query. By default nothing is pushed down so expressions that
      * can be pushed down should override this method.
      */
-    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public boolean canPushQueryToSource(FieldInfo fieldInfo) {
         return false;
     }
 
-    public final boolean canPushSortToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    /**
+     * if this expression can be pushed down to lucene for sorting.
+     */
+    public final boolean canPushSortToSource(FieldInfo fieldInfo) {
         // allow only exact FieldAttributes (no expressions) for sorting
-        return isPushableFieldAttribute(this, hasIdenticalDelegate);
+        return isPushableFieldAttribute(this, fieldInfo);
     }
 
     @Override
@@ -222,12 +224,8 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
         return super.propertiesToString(false);
     }
 
-    protected static boolean isAttributePushable(
-        Expression expression,
-        boolean supportMetadataFields,
-        Predicate<FieldAttribute> hasIdenticalDelegate
-    ) {
-        if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
+    protected static boolean isAttributePushable(Expression expression, boolean supportMetadataFields, FieldInfo fieldInfo) {
+        if (isPushableFieldAttribute(expression, fieldInfo)) {
             return true;
         }
         if (expression instanceof MetadataAttribute ma && ma.searchable()) {
@@ -236,9 +234,9 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
         return false;
     }
 
-    private static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    private static boolean isPushableFieldAttribute(Expression exp, FieldInfo fieldInfo) {
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
-            return fa.dataType() != DataType.TEXT || hasIdenticalDelegate.test(fa);
+            return fa.dataType() != DataType.TEXT || fieldInfo.hasIdenticalDelegate(fa);
         }
         return false;
     }
@@ -250,5 +248,9 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
      */
     protected static boolean isAggregatable(FieldAttribute f) {
         return f.exactAttribute().field().isAggregatable();
+    }
+
+    public interface FieldInfo {
+        boolean hasIdenticalDelegate(FieldAttribute attr);
     }
 }

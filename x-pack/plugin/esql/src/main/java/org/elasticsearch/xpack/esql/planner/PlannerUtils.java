@@ -19,7 +19,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
@@ -56,7 +55,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
@@ -172,15 +170,15 @@ public class PlannerUtils {
     /**
      * Extracts the ES query provided by the filter parameter
      * @param plan
-     * @param hasIdenticalDelegate a lambda that given a field attribute sayis if it has
-     *                             a synthetic source delegate with the exact same value
+     * @param fieldInfo provides field information to decide if we can push down to lucene
+     *
      * @return
      */
-    public static QueryBuilder requestFilter(PhysicalPlan plan, Predicate<FieldAttribute> hasIdenticalDelegate) {
-        return detectFilter(plan, "@timestamp", hasIdenticalDelegate);
+    public static QueryBuilder requestFilter(PhysicalPlan plan, Expression.FieldInfo fieldInfo) {
+        return detectFilter(plan, "@timestamp", fieldInfo);
     }
 
-    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName, Expression.FieldInfo fieldInfo) {
         // first position is the REST filter, the second the query filter
         var requestFilter = new QueryBuilder[] { null, null };
 
@@ -201,7 +199,7 @@ public class PlannerUtils {
                         boolean matchesField = refs.removeIf(e -> fieldName.equals(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refs.isEmpty() && exp.canPushQueryToSource(hasIdenticalDelegate)) {
+                        if (matchesField && refs.isEmpty() && exp.canPushQueryToSource(fieldInfo)) {
                             matches.add(exp);
                         }
                     }

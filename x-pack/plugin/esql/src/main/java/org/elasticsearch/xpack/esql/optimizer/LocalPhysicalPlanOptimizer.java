@@ -73,7 +73,6 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -294,8 +293,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        private boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
-            return orders.stream().allMatch(o -> o.child().canPushSortToSource(hasIdenticalDelegate));
+        private boolean canPushDownOrders(List<Order> orders, Expression.FieldInfo fieldInfo) {
+            return orders.stream().allMatch(o -> o.child().canPushSortToSource(fieldInfo));
         }
 
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {

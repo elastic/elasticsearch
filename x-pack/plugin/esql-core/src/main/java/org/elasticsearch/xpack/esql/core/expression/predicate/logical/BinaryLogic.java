@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.logical;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
 
@@ -66,7 +64,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
-        return left().canPushQueryToSource(hasIdenticalDelegate) && right().canPushQueryToSource(hasIdenticalDelegate);
+    public boolean canPushQueryToSource(FieldInfo fieldInfo) {
+        return left().canPushQueryToSource(fieldInfo) && right().canPushQueryToSource(fieldInfo);
     }
 }

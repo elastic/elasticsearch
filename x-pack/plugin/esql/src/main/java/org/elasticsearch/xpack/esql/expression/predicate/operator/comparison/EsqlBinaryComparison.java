@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -30,7 +29,6 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -271,15 +269,4 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             right().dataType().typeName()
         );
     }
-
-    @Override
-    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
-        return isAttributePushable(left(), supportMetadataFields(this), hasIdenticalDelegate) && right().foldable();
-    }
-
-    private static boolean supportMetadataFields(EsqlBinaryComparison operation) {
-        // no range or regex queries supported with metadata fields
-        return operation instanceof Equals || operation instanceof NotEquals;
-    }
-
 }

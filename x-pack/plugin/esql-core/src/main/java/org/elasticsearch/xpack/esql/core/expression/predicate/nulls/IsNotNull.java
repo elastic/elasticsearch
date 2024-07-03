@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
-import java.util.function.Predicate;
 
 public class IsNotNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -71,10 +70,10 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
     }
 
     @Override
-    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public final boolean canPushQueryToSource(FieldInfo fieldInfo) {
         if (field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
             return true;
         }
-        return isAttributePushable(field(), false, hasIdenticalDelegate);
+        return isAttributePushable(field(), false, fieldInfo);
     }
 }

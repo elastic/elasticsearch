@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -143,7 +141,7 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     }
 
     @Override
-    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
-        return isAttributePushable(value(), true, hasIdenticalDelegate) && Expressions.foldable(list());
+    public final boolean canPushQueryToSource(FieldInfo fieldInfo) {
+        return isAttributePushable(value(), true, fieldInfo) && Expressions.foldable(list());
     }
 }

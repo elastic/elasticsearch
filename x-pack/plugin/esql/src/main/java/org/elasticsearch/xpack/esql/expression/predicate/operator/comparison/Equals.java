@@ -111,4 +111,9 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         return lhs.equals(rhs);
     }
 
+    @Override
+    public final boolean canPushQueryToSource(FieldInfo fieldInfo) {
+        return isAttributePushable(left(), true, fieldInfo) && right().foldable();
+    }
+
 }

@@ -110,4 +110,9 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     public EsqlBinaryComparison negate() {
         return new Equals(source(), left(), right(), zoneId());
     }
+
+    @Override
+    public final boolean canPushQueryToSource(FieldInfo fieldInfo) {
+        return isAttributePushable(left(), true, fieldInfo) && right().foldable();
+    }
 }

@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static org.apache.lucene.document.ShapeField.QueryRelation.CONTAINS;
 import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
@@ -67,7 +66,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
      * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
      */
     @Override
-    public boolean canPushQueryToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public boolean canPushQueryToSource(FieldInfo fieldInfo) {
         // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
         // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
         // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change

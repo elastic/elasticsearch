@@ -43,4 +43,9 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         return new WildcardLike(source(), newLeft, pattern(), caseInsensitive());
     }
 
+    @Override
+    public final boolean canPushQueryToSource(FieldInfo fieldInfo) {
+        return isAttributePushable(field(), true, fieldInfo);
+    }
+
 }

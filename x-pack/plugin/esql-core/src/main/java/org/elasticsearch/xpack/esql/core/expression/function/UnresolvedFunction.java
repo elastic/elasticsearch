@@ -56,7 +56,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      *
      * @see #withMessage(String)
      */
-    UnresolvedFunction(
+    public UnresolvedFunction(
         Source source,
         String name,
         FunctionResolutionStrategy resolutionStrategy,

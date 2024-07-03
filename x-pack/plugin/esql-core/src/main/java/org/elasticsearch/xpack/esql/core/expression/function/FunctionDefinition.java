@@ -14,7 +14,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class FunctionDefinition {
     /**
-     * Converts an {@link UnresolvedFunction} into the a proper {@link Function}.
+     * Converts an {@link UnresolvedFunction} into a proper {@link Function}.
      * <p>
      * Provides the basic signature (unresolved function + runtime configuration object) while
      * allowing extensions through the vararg extras which subclasses should expand for their
@@ -49,7 +49,7 @@ public class FunctionDefinition {
         return clazz;
     }
 
-    protected Builder builder() {
+    public Builder builder() {
         return builder;
     }
 

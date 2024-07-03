@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
@@ -599,46 +600,43 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
             PhysicalPlan plan = filterExec;
             if (filterExec.child() instanceof EsQueryExec) {
-                List<Expression> rewritten = new ArrayList<>();
-                List<Expression> notRewritten = new ArrayList<>();
-                for (Expression exp : splitAnd(filterExec.condition())) {
-                    boolean didRewrite = false;
-                    if (exp instanceof EsqlBinaryComparison comparison) {
-                        ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
-                        if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
-                            didRewrite = rewriteComparison(rewritten, dist, comparison.right(), comparisonType);
-                        } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
-                            didRewrite = rewriteComparison(rewritten, dist, comparison.left(), ComparisonType.invert(comparisonType));
-                        }
+                // Find and rewrite any binary comparisons that involve a distance function and a literal
+                var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
+                    ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
+                    if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
+                        return rewriteComparison(comparison, dist, comparison.right(), comparisonType);
+                    } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
+                        return rewriteComparison(comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
                     }
-                    if (didRewrite == false) {
-                        notRewritten.add(exp);
-                    }
-                }
-                if (rewritten.isEmpty() == false) {
-                    rewritten.addAll(notRewritten);
-                    plan = new FilterExec(filterExec.source(), filterExec.child(), Predicates.combineAnd(rewritten));
+                    return comparison;
+                });
+                if (rewritten.equals(filterExec.condition()) == false) {
+                    plan = new FilterExec(filterExec.source(), filterExec.child(), rewritten);
                 }
             }
 
             return plan;
         }
 
-        private boolean rewriteComparison(List<Expression> rewritten, StDistance dist, Expression literal, ComparisonType comparisonType) {
+        private Expression rewriteComparison(
+            EsqlBinaryComparison comparison,
+            StDistance dist,
+            Expression literal,
+            ComparisonType comparisonType
+        ) {
             Object value = literal.fold();
             if (value instanceof Number number) {
                 if (dist.right().foldable()) {
-                    return rewriteDistanceFilter(rewritten, dist.source(), dist.left(), dist.right(), number, comparisonType);
+                    return rewriteDistanceFilter(comparison, dist.left(), dist.right(), number, comparisonType);
                 } else if (dist.left().foldable()) {
-                    return rewriteDistanceFilter(rewritten, dist.source(), dist.right(), dist.left(), number, comparisonType);
+                    return rewriteDistanceFilter(comparison, dist.right(), dist.left(), number, comparisonType);
                 }
             }
-            return false;
+            return comparison;
         }
 
-        private boolean rewriteDistanceFilter(
-            List<Expression> rewritten,
-            Source source,
+        private Expression rewriteDistanceFilter(
+            EsqlBinaryComparison comparison,
             Expression spatialExp,
             Expression literalExp,
             Number number,
@@ -647,19 +645,22 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literalExp);
             if (geometry instanceof Point point) {
                 double distance = number.doubleValue();
+                Source source = comparison.source();
                 if (comparisonType.lt) {
                     distance = comparisonType.eq ? distance : Math.nextDown(distance);
-                    rewritten.add(new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp)));
+                    return new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp));
                 } else if (comparisonType.gt) {
                     distance = comparisonType.eq ? distance : Math.nextUp(distance);
-                    rewritten.add(new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, distance, literalExp)));
+                    return new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, distance, literalExp));
                 } else if (comparisonType.eq) {
-                    rewritten.add(new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp)));
-                    rewritten.add(new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, Math.nextDown(distance), literalExp)));
+                    return new And(
+                        source,
+                        new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp)),
+                        new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, Math.nextDown(distance), literalExp))
+                    );
                 }
-                return true;
             }
-            return false;
+            return comparison;
         }
 
         private Literal makeCircleLiteral(Point point, double distance, Expression literalExpression) {

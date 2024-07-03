@@ -15,7 +15,25 @@ lucene = "9.11.1"
 objenesis = "3.3"
 opentelemetry = "1.31.0"
 randomizedrunner = "2.8.0"
+slf4j = "2.0.6"
 spatial4j = "0.7"
+
+# azure specific versions
+azure = "12.20.1"
+azureCommon = "12.19.1"
+azureCoreHttpNetty = "1.12.7"
+azureCore = "1.34.0"
+azureJackson = "2.15.4"
+azureJacksonDatabind = "2.13.4.2"
+jakartaActivation = "1.2.1"
+jakartaXMLBind = "2.3.2"
+stax2API = "4.2.1"
+woodstox = "6.4.0"
+netty = "4.1.109.Final"
+reactorNetty = "1.0.39"
+reactorCore = "3.4.34"
+reactiveStreams = "1.0.4"
+
 
 [libraries]
 antlr4-runtime = { group = "org.antlr", name = "antlr4-runtime", version.ref = "antlr4" }
@@ -96,3 +114,33 @@ randomizedtesting-runner = { group = "com.carrotsearch.randomizedtesting", name 
 s2-geometry-library-java = { group = "io.sgr", name = "s2-geometry-library-java", version = "1.0.1" }
 snakeyaml = "org.yaml:snakeyaml:2.0"
 spatial4j = { group = "org.locationtech.spatial4j", name = "spatial4j", version.ref = "spatial4j" }
+
+# azure specific deps
+azure-storage-blob = { group = "com.azure", name = "azure-storage-blob", version.ref = "azure" }
+azure-storage-common = { group = "com.azure", name = "azure-storage-common", version.ref = "azureCommon" }
+azure-core-http-netty = { group = "com.azure", name = "azure-core-http-netty", version.ref = "azureCoreHttpNetty" }
+azure-core = { group = "com.azure", name = "azure-core", version.ref = "azureCore" }
+azure-jackson-core = { group = "com.fasterxml.jackson.core", name = "jackson-core", version.ref = "azureJackson" }
+azure-jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "azureJacksonDatabind" }
+azure-jackson-Annotations = { group = "com.fasterxml.jackson.core", name = "jackson-annotations", version.ref = "azureJackson" }
+azure-jackson-dataformat-xml = { group = "com.fasterxml.jackson.dataformat", name = "jackson-dataformat-xml", version.ref = "azureJackson" }
+azure-jackson-datatype-jsr310 = { group = "com.fasterxml.jackson.datatype", name = "jackson-datatype-jsr310", version.ref = "azureJackson" }
+azure-jackson-module-jaxb-annotations = { group = "com.fasterxml.jackson.module", name = "jackson-module-jaxb-annotations", version.ref = "azureJackson" }
+jakarta-activation-api = { group = "jakarta.activation", name = "jakarta.activation-api", version.ref = "jakartaActivation" }
+jakarta-xml-bind-api = { group = "jakarta.xml.bind", name = "jakarta.xml.bind-api", version.ref = "jakartaXMLBind" }
+stax2-api = { group = "org.codehaus.woodstox", name = "stax2-api", version.ref = "stax2API" }
+woodstox-core = { group = "com.fasterxml.woodstox", name = "woodstox-core", version.ref = "woodstox" }
+netty-codec-dns = { group = "io.netty", name = "netty-codec-dns", version.ref = "netty" }
+netty-codec-http2 = { group = "io.netty", name = "netty-codec-http2", version.ref = "netty" }
+netty-codec-socks = { group = "io.netty", name = "netty-codec-socks", version.ref = "netty" }
+netty-handler-proxy = { group = "io.netty", name = "netty-handler-proxy", version.ref = "netty" }
+netty-resolver-dns = { group = "io.netty", name = "netty-resolver-dns", version.ref = "netty" }
+reactor-netty-core = { group = "io.projectreactor.netty", name = "reactor-netty-core", version.ref = "reactorNetty" }
+reactor-netty-http = { group = "io.projectreactor.netty", name = "reactor-netty-http", version.ref = "reactorNetty" }
+reactor-core = { group = "io.projectreactor", name = "reactor-core", version.ref = "reactorCore" }
+reactive-streams = { group = "org.reactivestreams", name = "reactive-streams", version.ref = "reactiveStreams" }
+slf4j-api = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
+slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4j" }
+
+[bundles]
+azure = ["azure-storage-blob", "azure-storage-common", "azure-core-http-netty", "azure-core", "azure-jackson-core", "azure-jackson-databind", "azure-jackson-Annotations", "azure-jackson-dataformat-xml", "azure-jackson-datatype-jsr310", "azure-jackson-module-jaxb-annotations", "jakarta-activation-api", "jakarta-xml-bind-api", "stax2-api", "woodstox-core", "netty-codec-dns", "netty-codec-http2", "netty-codec-socks", "netty-handler-proxy", "netty-resolver-dns", "reactor-netty-core", "reactor-netty-http", "reactor-core", "reactive-streams", "slf4j-api", "slf4j-nop"]

@@ -36,42 +36,44 @@ versions << [
 ]
 
 dependencies {
-  api "com.azure:azure-storage-blob:${versions.azure}"
-  api "com.azure:azure-storage-common:${versions.azureCommon}"
-  api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
-  api "com.azure:azure-core:${versions.azureCore}"
-  // jackson
-  api "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJacksonDatabind}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.azureJackson}"
 
+  api libs.azure.storage.blob
+  api libs.azure.storage.common
+  api libs.azure.core.http.netty
+  api libs.azure.core
+
+  // jackson
+  api libs.azure.jackson.core
+  api libs.azure.jackson.databind
+  api libs.azure.jackson.annotations
   // jackson xml
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.azureJackson}"
-  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.azureJackson}"
-  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.azureJackson}"
-  api "jakarta.activation:jakarta.activation-api:${versions.jakartaActivation}"
+  api libs.azure.jackson.dataformat.xml
+  api libs.azure.jackson.datatype.jsr310
+  api libs.azure.jackson.module.jaxb.annotations
+  api libs.jakarta.activation.api
   // The SDK uses javax.xml bindings
-  api "jakarta.xml.bind:jakarta.xml.bind-api:${versions.jakartaXMLBind}"
-  api "org.codehaus.woodstox:stax2-api:${versions.stax2API}"
-  api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
+  api libs.jakarta.xml.bind.api
+  api libs.stax2.api
+  api libs.woodstox.core
 
   // netty
-  api "io.netty:netty-codec-dns:${versions.netty}"
-  api "io.netty:netty-codec-http2:${versions.netty}"
-  api "io.netty:netty-codec-socks:${versions.netty}"
-  api "io.netty:netty-handler-proxy:${versions.netty}"
-  api "io.netty:netty-resolver-dns:${versions.netty}"
+  api libs.netty.codec.dns
+  api libs.netty.codec.http2
+  api libs.netty.codec.socks
+  api libs.netty.handler.proxy
+  api libs.netty.resolver.dns
 
   // reactor
-  api "io.projectreactor.netty:reactor-netty-core:${versions.reactorNetty}"
-  api "io.projectreactor.netty:reactor-netty-http:${versions.reactorNetty}"
-  api "io.projectreactor:reactor-core:${versions.reactorCore}"
-  api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
+  api libs.reactor.netty.core
+  api libs.reactor.netty.http
+  api libs.reactor.core
+  api libs.reactive.streams
 
   implementation project(":modules:transport-netty4")
-  implementation("org.slf4j:slf4j-api:${versions.slf4j}")
-  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
-//  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
+  implementation libs.slf4j.api
+  runtimeOnly libs.slf4j.nop
+
+  // runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
 
 
   runtimeOnly "com.azure:azure-storage-internal-avro:${versions.azureAvro}"

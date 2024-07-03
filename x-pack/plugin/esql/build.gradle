@@ -25,6 +25,8 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:elasticsearch-dissect')
   implementation project(':libs:elasticsearch-grok')
+  implementation project('arrow')
+
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 

@@ -337,12 +337,8 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         Set<String> indices = new HashSet<>();
         steps.forEach(step -> {
-            updateSpMin(step.sp);
-            repeatNTimes(
-                REPLICA_UPDATER_SCALEDOWN_REPETITIONS.getDefault(Settings.EMPTY) - 1,
-                this.replicasUpdaterService::performReplicaUpdates
-            );
             indices.add(step.expectedAdditionalIndex.getIndex().getName());
+            updateSpMin(step.sp);
             mockClient.assertUpdates("SPmin: " + step.sp, Map.of(1, indices));
         });
     }
@@ -396,14 +392,6 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         // there's a single index, its size will always exceed the threshold for getting replicas
         spMin = randomIntBetween(1, 240);
         updateSpMin(spMin);
-        // for SP < 100 updating SP will already trigger the update which is immediate in that case
-        // but for other SP settings we need to make n-1 more calls
-        if (spMin >= SEARCH_POWER_MIN_NO_REPLICATION) {
-            repeatNTimes(
-                REPLICA_UPDATER_SCALEDOWN_REPETITIONS.getDefault(Settings.EMPTY) - 1,
-                this.replicasUpdaterService::performReplicaUpdates
-            );
-        }
         mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of(withinBoostWindowMetadata.getIndex().getName())));
         updateIndexMetadata(state, withinBoostWindowMetadata, 3, 1);
         assertEquals(1, searchMetricsService.getSearchTierMetrics().getMaxShardCopies().maxCopies());

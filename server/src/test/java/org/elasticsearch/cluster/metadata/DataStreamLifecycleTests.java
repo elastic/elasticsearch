@@ -354,7 +354,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
         {
             ToXContent.Params params = DataStreamLifecycle.maybeAddEffectiveRetentionParams(
-                new ToXContent.MapParams(Map.of(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS, ""))
+                new ToXContent.MapParams(Map.of(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS, "true"))
             );
             assertThat(params.paramAsBoolean(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false), equalTo(true));
         }

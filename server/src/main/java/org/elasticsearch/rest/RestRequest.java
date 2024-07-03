@@ -631,7 +631,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         if (params.containsKey(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS)) {
             throw new IllegalArgumentException("The parameter [" + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS + "] is already defined.");
         }
-        params.put(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS, "");
+        params.put(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS, "true");
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
         consumedParams.add(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS);
     }
@@ -641,7 +641,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public boolean shouldUseServerlessPartialApiRestrictions() {
         final boolean hasParam = hasParam(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS);
-        assert false == hasParam || params.get(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS).equals("");
+        assert false == hasParam || params.get(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS).equals("true");
         return hasParam;
     }
 

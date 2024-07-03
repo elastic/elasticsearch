@@ -166,7 +166,7 @@ public class RestUtilsTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params)
         );
-        assertEquals(exception.getMessage(), "parameter [" + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS + "] is reserved and may not set");
+        assertEquals(exception.getMessage(), "parameter [" + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS + "] is reserved and may not be set");
     }
 
     private void assertCorsSettingRegexIsNull(String settingsValue) {

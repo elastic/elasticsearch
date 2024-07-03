@@ -86,7 +86,9 @@ public class RestUtils {
 
     private static void addParam(Map<String, String> params, String name, String value) {
         if (USE_SERVERLESS_PARTIAL_API_RESTRICTIONS.equalsIgnoreCase(name)) {
-            throw new IllegalArgumentException("parameter [" + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS + "] is reserved and may not set");
+            throw new IllegalArgumentException(
+                "parameter [" + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS + "] is reserved and may not be set"
+            );
         }
         params.put(name, value);
     }

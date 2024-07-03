@@ -35,11 +35,13 @@ public interface OperatorOnlyRegistry {
      * The implementation of this method should mark all {@link RestRequest}s for APIs that are *not* fully restricted as candidates
      * for partial restriction. It's the responsibility of the downstream REST handler to apply the necessary partial restrictions
      * (if any).
-     * The implementation of this method should call {@link RestRequest#markApiRestrictionsActiveFor(String)} to indicate to downstream
-     * handlers that any partial restrictions they have should be applied.
      *
-     * @param restHandler The {@link RestHandler} to check for any restrictions
-     * @param restRequest The {@link RestRequest} to check for any restrictions and mark all REST APIs that are not fully restricted
+     * Marking requests is an implementation-specific detail. For Serverless mode restrictions, this is implemented via
+     * {@link RestRequest#setUseServerlessPartialApiRestrictions()} and {@link RestRequest#shouldUseServerlessPartialApiRestrictions()}}.
+     *
+     * @param restHandler The {@link RestHandler} to check for any full restrictions
+     * @param restRequest The {@link RestRequest} to mark all REST APIs that are not fully restricted as possible subjects to partial
+     *                    restrictions
      * @throws ElasticsearchStatusException if the request should be denied in its entirety (fully restricted)
      */
     void checkRest(RestHandler restHandler, RestRequest restRequest) throws ElasticsearchException;

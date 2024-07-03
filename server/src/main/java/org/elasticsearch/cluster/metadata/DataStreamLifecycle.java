@@ -370,7 +370,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * Adds a retention param to signal that this serialisation should include the effective retention metadata
      */
     public static ToXContent.Params maybeAddEffectiveRetentionParams(ToXContent.Params params) {
-        boolean shouldAddEffectiveRetention = params.param(RestRequest.USE_SERVERLESS_PARTIAL_API_RESTRICTIONS) != null;
+        boolean shouldAddEffectiveRetention = params.paramAsBoolean(RestRequest.USE_SERVERLESS_PARTIAL_API_RESTRICTIONS, false);
         return new DelegatingMapParams(
             Map.of(INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, Boolean.toString(shouldAddEffectiveRetention)),
             params

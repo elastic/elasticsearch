@@ -339,7 +339,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                 false,
                 false,
                 ObjectMapper.Defaults.DYNAMIC,
-                MapperService.MergeReason.MAPPING_UPDATE
+                MapperService.MergeReason.MAPPING_UPDATE,
+                false
             )
         );
         assertEquals("host.name", fieldMapper.leafName());
@@ -358,7 +359,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                 false,
                 false,
                 ObjectMapper.Defaults.DYNAMIC,
-                MapperService.MergeReason.MAPPING_UPDATE
+                MapperService.MergeReason.MAPPING_UPDATE,
+                false
             )
         );
         assertEquals("host.name", textKeywordMultiField.leafName());

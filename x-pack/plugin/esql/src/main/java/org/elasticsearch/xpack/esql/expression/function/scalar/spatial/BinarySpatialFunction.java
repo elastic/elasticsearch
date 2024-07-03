@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -66,8 +64,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     protected BinarySpatialFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues, boolean pointsOnly) throws IOException {
         this(
             Source.EMPTY,
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
             leftDocValues,
             rightDocValues,
             pointsOnly
@@ -76,8 +74,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeExpression(left());
-        ((PlanStreamOutput) out).writeExpression(right());
+        out.writeNamedWriteable(left());
+        out.writeNamedWriteable(right());
     }
 
     @Override

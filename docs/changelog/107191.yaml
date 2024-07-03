@@ -1,7 +1,7 @@
 pr: 107191
 summary: Stricter failure handling in multi-repo get-snapshots request handling
 area: Snapshot/Restore
-type: breaking
+type: bug
 issues: []
 breaking:
   title: Stricter failure handling in multi-repo get-snapshots request handling

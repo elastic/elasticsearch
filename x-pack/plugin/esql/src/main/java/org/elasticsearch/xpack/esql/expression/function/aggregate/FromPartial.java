@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -48,13 +49,13 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
     }
 
     private FromPartial(StreamInput in) throws IOException {
-        super(in);
-        this.function = in.readNamedWriteable(Expression.class);
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
         out.writeNamedWriteable(function);
     }
 

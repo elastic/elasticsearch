@@ -33,9 +33,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -58,6 +55,8 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
@@ -867,7 +866,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             // Allow resolving snapshot-only functions, but do not include them in the documentation
-            final FunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
+            final EsqlFunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
             return plan.transformExpressionsOnly(
                 UnresolvedFunction.class,
                 uf -> resolveFunction(uf, context.configuration(), snapshotRegistry)
@@ -877,7 +876,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         public static org.elasticsearch.xpack.esql.core.expression.function.Function resolveFunction(
             UnresolvedFunction uf,
             Configuration configuration,
-            FunctionRegistry functionRegistry
+            EsqlFunctionRegistry functionRegistry
         ) {
             org.elasticsearch.xpack.esql.core.expression.function.Function f = null;
             if (uf.analyzed()) {
@@ -926,10 +925,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformExpressionsUp(
-                ScalarFunction.class,
-                e -> ImplicitCasting.cast(e, (EsqlFunctionRegistry) context.functionRegistry())
-            );
+            return plan.transformExpressionsUp(ScalarFunction.class, e -> ImplicitCasting.cast(e, context.functionRegistry()));
         }
 
         private static Expression cast(ScalarFunction f, EsqlFunctionRegistry registry) {

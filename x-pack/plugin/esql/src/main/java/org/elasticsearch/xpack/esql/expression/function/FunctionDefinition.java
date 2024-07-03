@@ -4,8 +4,9 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.expression.function;
+package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
 
 import java.util.List;
@@ -14,7 +15,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class FunctionDefinition {
     /**
-     * Converts an {@link UnresolvedFunction} into the a proper {@link Function}.
+     * Converts an {@link UnresolvedFunction} into a proper {@link Function}.
      * <p>
      * Provides the basic signature (unresolved function + runtime configuration object) while
      * allowing extensions through the vararg extras which subclasses should expand for their
@@ -49,7 +50,7 @@ public class FunctionDefinition {
         return clazz;
     }
 
-    protected Builder builder() {
+    public Builder builder() {
         return builder;
     }
 

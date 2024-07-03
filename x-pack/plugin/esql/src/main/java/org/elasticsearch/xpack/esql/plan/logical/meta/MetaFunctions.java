@@ -12,11 +12,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.esql.core.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 
 import java.util.ArrayList;
 import java.util.Arrays;

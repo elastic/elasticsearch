@@ -85,7 +85,7 @@ public enum DataType {
     private final boolean isWholeNumber;
 
     /**
-     * True if the type represents a "rational number", as in, <strong>does</strong> ave a decimal part.
+     * True if the type represents a "rational number", as in, <strong>does</strong> have a decimal part.
      */
     private final boolean isRationalNumber;
 
@@ -269,7 +269,7 @@ public enum DataType {
     }
 
     /**
-     * True if the type represents a "rational number", as in, <strong>does</strong> ave a decimal part.
+     * True if the type represents a "rational number", as in, <strong>does</strong> have a decimal part.
      */
     public boolean isRationalNumber() {
         return isRationalNumber;
@@ -360,7 +360,7 @@ public enum DataType {
         private boolean isWholeNumber;
 
         /**
-         * True if the type represents a "rational number", as in, <strong>does</strong> ave a decimal part.
+         * True if the type represents a "rational number", as in, <strong>does</strong> have a decimal part.
          */
         private boolean isRationalNumber;
 

@@ -523,28 +523,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse bulkResponse) {
-                        List<String> rolesToRefreshInCache = new ArrayList<>(roleNames.size());
-
-                        Iterator<BulkItemResponse> bulkItemResponses = bulkResponse.iterator();
-                        BulkRolesResponse.Builder bulkPutRolesResponseBuilder = new BulkRolesResponse.Builder();
-
-                        roleNames.stream().map(roleName -> {
-                            if (validationErrorByRoleName.containsKey(roleName)) {
-                                return BulkRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName));
-                            }
-                            BulkItemResponse resp = bulkItemResponses.next();
-                            if (resp.isFailed()) {
-                                return BulkRolesResponse.Item.failure(roleName, resp.getFailure().getCause());
-                            }
-                            if (UPDATE_ROLES_REFRESH_CACHE_RESULTS.contains(resp.getResponse().getResult())) {
-                                rolesToRefreshInCache.add(roleName);
-                            }
-                            return BulkRolesResponse.Item.success(roleName, resp.getResponse().getResult());
-                        }).forEach(bulkPutRolesResponseBuilder::addItem);
-
-                        clearRoleCache(rolesToRefreshInCache.toArray(String[]::new), ActionListener.wrap(res -> {
-                            listener.onResponse(bulkPutRolesResponseBuilder.build());
-                        }, listener::onFailure), bulkResponse);
+                        buildBulkResponseAndRefreshRolesCache(roleNames, bulkResponse, validationErrorByRoleName, listener);
                     }
 
                     @Override

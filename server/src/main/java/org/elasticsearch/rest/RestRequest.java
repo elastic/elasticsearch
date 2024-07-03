@@ -51,9 +51,9 @@ public class RestRequest implements ToXContent.Params, Traceable {
     /**
      * This internal parameter indicates that APIs that have partial API restrictions in Serverless mode should apply them to the request.
      * Partial API restrictions are for APIs that are public in Serverless but prevent the use of certain fields in the request, omit
-     * fields from the response, or otherwise partially restrict functionality.
+     * fields from the response, or otherwise partially restrict API functionality.
      *
-     * This parameter is set for all request that are made in Serverless mode against a public API by non-operator users.
+     * This parameter is set for all requests that are made in Serverless mode against a public API by non-operator users.
      *
      * If you have an API with partial restrictions, use this flag to check if you need to apply them or not (i.e., if the request is
      * subject to them, or is exempt). You can check for the presence of this parameter among the REST parameters of the request instance,
@@ -641,7 +641,12 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public boolean shouldUseServerlessPartialApiRestrictions() {
         final boolean hasParam = hasParam(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS);
-        assert false == hasParam || params.get(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS).equals("true");
+        assert false == hasParam || params.get(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS).equals("true")
+            : "only [true] is allowed for ["
+                + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS
+                + "] but got ["
+                + params.get(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS)
+                + "]";
         return hasParam;
     }
 

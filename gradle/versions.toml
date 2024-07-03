@@ -19,6 +19,7 @@ spatial4j = "0.7"
 
 [libraries]
 antlr4-runtime = { group = "org.antlr", name = "antlr4-runtime", version.ref = "antlr4" }
+apm-agent = "co.elastic.apm:elastic-apm-agent:1.44.0"
 asm = { group = "org.ow2.asm", name = "asm", version.ref = "asm" }
 asm-analysis = { group = "org.ow2.asm", name = "asm-analysis", version.ref = "asm" }
 asm-commons = { group = "org.ow2.asm", name = "asm-commons", version.ref = "asm" }
@@ -59,6 +60,7 @@ jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 joni = { group = "org.jruby.joni", name = "joni", version = "2.1.29" }
 jopt-simple = "net.sf.jopt-simple:jopt-simple:5.0.2"
 jsr305 = "com.google.code.findbugs:jsr305:3.0.2"
+jts-core = { group = "org.locationtech.jts", name = "jts-core", version.ref = "jts" }
 junit = "junit:junit:4.13.2"
 junit5-jupiter-api = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "junit5" }
 log4j2-ecs-layout = { group = "co.elastic.logging", name = "log4j2-ecs-layout", version.ref = "ecsLogging" }
@@ -79,22 +81,18 @@ lucene-queryparser = { group = "org.apache.lucene", name = "lucene-queryparser",
 lucene-sandbox = { group = "org.apache.lucene", name = "lucene-sandbox", version.ref = "lucene" }
 lucene-suggest = { group = "org.apache.lucene", name = "lucene-suggest", version.ref = "lucene" }
 lucene-spatial3d = { group = "org.apache.lucene", name = "lucene-spatial3d", version.ref = "lucene" }
+lucene-spatial-extras = { group = "org.apache.lucene", name = "lucene-spatial-extras", version.ref = "lucene" }
 lz4-java = { group = "org.lz4", name = "lz4-java", version = "1.8.0" }
 maxmind-db = "com.maxmind.db:maxmind-db:3.1.0"
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 mockito-subclass = { group = "org.mockito", name = "mockito-subclass", version.ref = "mockito" }
 mocksocket = "org.elasticsearch:mocksocket:1.2"
-objenesis = { group = "org.objenesis", name = "objenesis", version.ref = "objenesis" }
-randomizedtesting-runner = { group = "com.carrotsearch.randomizedtesting", name = "randomizedtesting-runner", version.ref = "randomizedrunner" }
-snakeyaml = "org.yaml:snakeyaml:2.0"
-
 mustache-compiler = "com.github.spullara.mustache.java:compiler:0.9.10"
-lucene-spatial-extras = { group = "org.apache.lucene", name = "lucene-spatial-extras", version.ref = "lucene" }
-spatial4j = { group = "org.locationtech.spatial4j", name = "spatial4j", version.ref = "spatial4j" }
-jts-core = { group = "org.locationtech.jts", name = "jts-core", version.ref = "jts" }
-lucene-spatial3d = { group = "org.apache.lucene", name = "lucene-spatial3d", version.ref = "lucene" }
-s2-geometry-library-java = { group = "io.sgr", name = "s2-geometry-library-java", version = "1.0.1" }
+objenesis = { group = "org.objenesis", name = "objenesis", version.ref = "objenesis" }
 opentelemetry-api = { group = "io.opentelemetry", name = "opentelemetry-api", version.ref = "opentelemetry" }
 opentelemetry-context = { group = "io.opentelemetry", name = "opentelemetry-context", version.ref = "opentelemetry" }
 opentelemetry-semconv = { group = "io.opentelemetry", name = "opentelemetry-semconv", version = "1.21.0-alpha" }
-apm-agent = "co.elastic.apm:elastic-apm-agent:1.44.0"
+randomizedtesting-runner = { group = "com.carrotsearch.randomizedtesting", name = "randomizedtesting-runner", version.ref = "randomizedrunner" }
+s2-geometry-library-java = { group = "io.sgr", name = "s2-geometry-library-java", version = "1.0.1" }
+snakeyaml = "org.yaml:snakeyaml:2.0"
+spatial4j = { group = "org.locationtech.spatial4j", name = "spatial4j", version.ref = "spatial4j" }

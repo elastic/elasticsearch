@@ -211,7 +211,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
             .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
             .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s")
-            .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms");
+            .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.ZERO);
     }
 
     public void testSnapshotRetainsCommits() throws Exception {
@@ -541,8 +542,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
                 .put(DISCOVERY_FIND_PEERS_INTERVAL_SETTING.getKey(), "100ms")
                 .put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
                 .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
-                // Ensure that the disk controller does not flush the indices accidentally
-                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
                 .build()
         );
         ensureStableCluster(2);
@@ -561,10 +560,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         SeqNoStats beforeSeqNoStats = client(indexNodeA).admin().indices().prepareStats(indexName).get().getShards()[0].getSeqNoStats();
 
-        String indexNodeB = startIndexNode(
-            // Ensure that the disk controller does not flush the indices accidentally
-            Settings.builder().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
-        );
+        String indexNodeB = startIndexNode();
 
         ensureStableCluster(3);
 

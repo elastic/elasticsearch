@@ -281,8 +281,8 @@ public class ServiceAccountIT extends ESRestTestCase {
             "cluster": [
                 "manage",
                 "manage_security",
-                "read_connector_secrets",
-                "write_connector_secrets"
+                "write_connector_secrets",
+                "cluster:admin/xpack/connector/secret/get"
             ],
             "indices": [
                 {

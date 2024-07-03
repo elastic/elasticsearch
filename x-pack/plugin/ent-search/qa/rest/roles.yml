@@ -18,8 +18,8 @@ user:
   cluster:
     - post_behavioral_analytics_event
     - manage_api_key
-    - read_connector_secrets
     - write_connector_secrets
+    - cluster:admin/xpack/connector/secret/get
   indices:
     - names: [
       "test-index1",

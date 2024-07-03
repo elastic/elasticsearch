@@ -117,7 +117,6 @@ A successful call returns an object with "cluster", "index", and "remote_cluster
     "none",
     "post_behavioral_analytics_event",
     "read_ccr",
-    "read_connector_secrets",
     "read_fleet_secrets",
     "read_ilm",
     "read_pipeline",

@@ -12,7 +12,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -38,7 +41,6 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
-        invalidOrder(suppliers);
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -184,17 +186,20 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
         }));
     }
 
-    private static void invalidOrder(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataType.BOOLEAN, DataType.KEYWORD), () -> {
-            List<Boolean> field = randomList(1, 10, () -> randomBoolean());
-            return TestCaseSupplier.TestCase.typeError(
-                List.of(
-                    new TestCaseSupplier.TypedData(field, DataType.BOOLEAN, "field"),
-                    new TestCaseSupplier.TypedData("INVALID", DataType.KEYWORD, "order").forceLiteral()
-                ),
-                "Invalid order value in [], expected one of [ASC, DESC] but got [INVALID]"
-            );
-        }));
+    public void testInvalidOrder() {
+        String invalidOrder = randomAlphaOfLength(10);
+        DriverContext driverContext = driverContext();
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> evaluator(
+                new MvSort(
+                    Source.EMPTY,
+                    field("str", DataType.DATETIME),
+                    new Literal(Source.EMPTY, new BytesRef(invalidOrder), DataType.KEYWORD)
+                )
+            ).get(driverContext)
+        );
+        assertThat(e.getMessage(), equalTo("Invalid order value in [], expected one of [ASC, DESC] but got [" + invalidOrder + "]"));
     }
 
     @Override

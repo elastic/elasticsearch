@@ -51,7 +51,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -158,7 +157,8 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                 sourceText(),
                 ASC.value(),
                 DESC.value(),
-                ((BytesRef) order.fold()).utf8ToString());
+                ((BytesRef) order.fold()).utf8ToString()
+            );
         }
         if (order != null && order.foldable()) {
             ordering = ((BytesRef) order.fold()).utf8ToString().equalsIgnoreCase((String) ASC.value());

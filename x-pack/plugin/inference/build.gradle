@@ -34,17 +34,6 @@ versions << [
 ]
 
 dependencies {
-  implementation "com.amazonaws:aws-java-sdk-bedrockruntime:${versions.awsbedrockruntime}"
-  implementation "com.amazonaws:aws-java-sdk-core:${versions.aws}"
-  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  implementation "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
-  implementation "com.amazonaws:jmespath-java:${versions.aws}"
-  implementation "joda-time:joda-time:2.10.10"
-  implementation 'javax.xml.bind:jaxb-api:2.2.2'
-
   implementation project(path: ':libs:elasticsearch-logging')
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
@@ -71,10 +60,18 @@ dependencies {
   implementation 'com.google.http-client:google-http-client-jackson2:1.42.3'
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  implementation "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
   implementation 'com.google.api:gax-httpjson:0.105.1'
   implementation 'io.grpc:grpc-context:1.49.2'
   implementation 'io.opencensus:opencensus-api:0.31.1'
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  implementation "com.amazonaws:aws-java-sdk-bedrockruntime:${versions.awsbedrockruntime}"
+  implementation "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  implementation "com.amazonaws:jmespath-java:${versions.aws}"
+  implementation "joda-time:joda-time:2.10.10"
+  implementation 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
 tasks.named("dependencyLicenses").configure {

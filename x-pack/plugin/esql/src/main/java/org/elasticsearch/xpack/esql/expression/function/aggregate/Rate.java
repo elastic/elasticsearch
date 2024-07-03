@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
@@ -38,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class Rate extends AggregateFunction implements OptionalArgument, ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::readFrom);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::new);
     private static final TimeValue DEFAULT_UNIT = TimeValue.timeValueSeconds(1);
 
     private final Expression timestamp;
@@ -49,7 +48,6 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         description = "compute the rate of a counter field. Available in METRICS command only",
         isAggregation = true
     )
-
     public Rate(
         Source source,
         @Param(name = "field", type = { "counter_long|counter_integer|counter_double" }, description = "counter field") Expression field,
@@ -61,25 +59,30 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         this.unit = unit;
     }
 
-    public static Rate withUnresolvedTimestamp(Source source, Expression field, Expression unit) {
-        return new Rate(source, field, new UnresolvedAttribute(source, "@timestamp"), unit);
-    }
-
-    private static Rate readFrom(StreamInput in) throws IOException {
-        PlanStreamInput planIn = (PlanStreamInput) in;
-        Source source = Source.readFrom(planIn);
-        Expression field = planIn.readExpression();
-        Expression timestamp = planIn.readExpression();
-        Expression unit = planIn.readOptionalNamed(Expression.class);
-        return new Rate(source, field, timestamp, unit);
+    public Rate(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        PlanStreamOutput planOut = (PlanStreamOutput) out;
-        planOut.writeExpression(timestamp);
-        planOut.writeOptionalExpression(unit);
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(timestamp);
+        out.writeOptionalNamedWriteable(unit);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    public static Rate withUnresolvedTimestamp(Source source, Expression field, Expression unit) {
+        return new Rate(source, field, new UnresolvedAttribute(source, "@timestamp"), unit);
     }
 
     @Override
@@ -174,5 +177,13 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         } else {
             return "rate(" + field() + ")";
         }
+    }
+
+    Expression timestamp() {
+        return timestamp;
+    }
+
+    Expression unit() {
+        return unit;
     }
 }

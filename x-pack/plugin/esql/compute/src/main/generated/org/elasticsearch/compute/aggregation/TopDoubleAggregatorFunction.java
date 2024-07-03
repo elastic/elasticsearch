@@ -22,7 +22,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class TopDoubleAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("topList", ElementType.DOUBLE)  );
+      new IntermediateStateDesc("top", ElementType.DOUBLE)  );
 
   private final DriverContext driverContext;
 
@@ -35,7 +35,7 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
   private final boolean ascending;
 
   public TopDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-                                     TopDoubleAggregator.SingleState state, int limit, boolean ascending) {
+      TopDoubleAggregator.SingleState state, int limit, boolean ascending) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -44,7 +44,7 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   public static TopDoubleAggregatorFunction create(DriverContext driverContext,
-                                                   List<Integer> channels, int limit, boolean ascending) {
+      List<Integer> channels, int limit, boolean ascending) {
     return new TopDoubleAggregatorFunction(driverContext, channels, TopDoubleAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
   }
 
@@ -91,13 +91,13 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block topListUncast = page.getBlock(channels.get(0));
-    if (topListUncast.areAllValuesNull()) {
+    Block topUncast = page.getBlock(channels.get(0));
+    if (topUncast.areAllValuesNull()) {
       return;
     }
-    DoubleBlock topList = (DoubleBlock) topListUncast;
-    assert topList.getPositionCount() == 1;
-    TopDoubleAggregator.combineIntermediate(state, topList);
+    DoubleBlock top = (DoubleBlock) topUncast;
+    assert top.getPositionCount() == 1;
+    TopDoubleAggregator.combineIntermediate(state, top);
   }
 
   @Override

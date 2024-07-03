@@ -33,11 +33,16 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 
 public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Amazon Bedrock embeddings response";
+    private final InvokeModelResult result;
+
+    public AmazonBedrockEmbeddingsResponse(InvokeModelResult invokeModelResult) {
+        this.result = invokeModelResult;
+    }
 
     @Override
     public InferenceServiceResults accept(AmazonBedrockRequest request) {
         if (request instanceof AmazonBedrockEmbeddingsRequest asEmbeddingsRequest) {
-            return fromResponse(asEmbeddingsRequest.result(), asEmbeddingsRequest.provider());
+            return fromResponse(result, asEmbeddingsRequest.provider());
         }
 
         throw new ElasticsearchException("unexpected request type [" + request.getClass() + "]");

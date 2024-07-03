@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.response.amazonbedrock.completion;
 
+import com.amazonaws.services.bedrockruntime.model.ConverseResult;
+
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
@@ -16,16 +18,22 @@ import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonB
 
 public class AmazonBedrockChatCompletionResponseHandler extends AmazonBedrockResponseHandler {
 
+    private ConverseResult responseResult;
+
     public AmazonBedrockChatCompletionResponseHandler() {}
 
     @Override
     public InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException {
-        var response = new AmazonBedrockChatCompletionResponse();
+        var response = new AmazonBedrockChatCompletionResponse(responseResult);
         return response.accept((AmazonBedrockRequest) request);
     }
 
     @Override
     public String getRequestType() {
         return "Amazon Bedrock Chat Completion";
+    }
+
+    public void acceptChatCompletionResponseObject(ConverseResult response) {
+        this.responseResult = response;
     }
 }

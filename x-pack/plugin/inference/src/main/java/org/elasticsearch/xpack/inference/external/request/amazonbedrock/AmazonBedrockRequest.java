@@ -28,7 +28,7 @@ public abstract class AmazonBedrockRequest implements Request {
         this.timeout = timeout;
     }
 
-    public abstract void executeRequest(AmazonBedrockBaseClient client);
+    protected abstract void executeRequest(AmazonBedrockBaseClient client);
 
     public AmazonBedrockModel model() {
         return amazonBedrockModel;
@@ -59,7 +59,7 @@ public abstract class AmazonBedrockRequest implements Request {
      */
     @Override
     public Request truncate() {
-        return null;
+        return this;
     }
 
     /**

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddi
 import com.amazonaws.services.bedrockruntime.model.InvokeModelRequest;
 import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonBuilder;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonWriter;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
+import org.elasticsearch.xpack.inference.external.response.amazonbedrock.embeddings.AmazonBedrockEmbeddingsResponseListener;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 
@@ -31,8 +33,8 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     private final AmazonBedrockJsonWriter requestEntity;
     private final Truncator truncator;
     private final Truncator.TruncationResult truncationResult;
-    private InvokeModelResult result;
-    private AmazonBedrockProvider provider;
+    private final AmazonBedrockProvider provider;
+    private ActionListener<InvokeModelResult> listener = null;
 
     public AmazonBedrockEmbeddingsRequest(
         Truncator truncator,
@@ -49,16 +51,12 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
         this.provider = model.provider();
     }
 
-    public InvokeModelResult result() {
-        return result;
-    }
-
     public AmazonBedrockProvider provider() {
         return provider;
     }
 
     @Override
-    public void executeRequest(AmazonBedrockBaseClient client) {
+    protected void executeRequest(AmazonBedrockBaseClient client) {
         try {
             var jsonBuilder = new AmazonBedrockJsonBuilder(requestEntity);
             var bodyAsString = jsonBuilder.getStringContent();
@@ -68,9 +66,9 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
 
             var invokeModelRequest = new InvokeModelRequest().withModelId(embeddingsModel.model()).withBody(bodyBuffer);
 
-            result = SocketAccess.doPrivileged(() -> client.invokeModel(invokeModelRequest));
+            SocketAccess.doPrivileged(() -> client.invokeModel(invokeModelRequest, listener));
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            listener.onFailure(new RuntimeException(e));
         }
     }
 
@@ -85,4 +83,11 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
         return truncationResult.truncated().clone();
     }
 
+    public void executeEmbeddingsRequest(
+        AmazonBedrockBaseClient awsBedrockClient,
+        AmazonBedrockEmbeddingsResponseListener embeddingsResponseListener
+    ) {
+        this.listener = embeddingsResponseListener;
+        this.executeRequest(awsBedrockClient);
+    }
 }

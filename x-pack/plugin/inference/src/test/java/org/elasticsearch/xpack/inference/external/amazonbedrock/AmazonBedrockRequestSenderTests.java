@@ -13,7 +13,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockChatCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
@@ -120,7 +119,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
         );
     }
 
-    public static Sender createSender(AmazonBedrockRequestSender.Factory factory, RequestSender requestSender) {
+    public static Sender createSender(AmazonBedrockRequestSender.Factory factory, AmazonBedrockExecuteOnlyRequestSender requestSender) {
         return factory.createSender(requestSender);
     }
 }

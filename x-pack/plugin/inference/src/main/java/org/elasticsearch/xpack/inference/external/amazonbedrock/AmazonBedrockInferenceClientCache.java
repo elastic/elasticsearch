@@ -12,9 +12,9 @@ import com.amazonaws.http.IdleConnectionReaper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
-import org.joda.time.Instant;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
@@ -67,7 +67,7 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
     }
 
     private void flushExpiredClients() {
-        var currentTimestampMs = new Instant();
+        var currentTimestampMs = Instant.now();
         var expiredClients = new ArrayList<Map.Entry<Integer, AmazonBedrockBaseClient>>();
 
         cacheLock.readLock().lock();

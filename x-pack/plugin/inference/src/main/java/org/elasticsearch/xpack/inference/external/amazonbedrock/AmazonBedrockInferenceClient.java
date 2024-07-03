@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.external.amazonbedrock;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.bedrockruntime.AmazonBedrockRuntime;
-import com.amazonaws.services.bedrockruntime.AmazonBedrockRuntimeClientBuilder;
+import com.amazonaws.services.bedrockruntime.AmazonBedrockRuntimeAsync;
+import com.amazonaws.services.bedrockruntime.AmazonBedrockRuntimeAsyncClientBuilder;
 import com.amazonaws.services.bedrockruntime.model.AmazonBedrockRuntimeException;
 import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
 import com.amazonaws.services.bedrockruntime.model.ConverseResult;
@@ -20,15 +20,17 @@ import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
-import org.joda.time.Instant;
 
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -37,10 +39,9 @@ import java.util.Objects;
 public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
 
     private static final int CLIENT_CACHE_EXPIRY_MINUTES = 5;
-    private static final long CACHE_EXPIRY_ADD_MS = (1000 * 60 * CLIENT_CACHE_EXPIRY_MINUTES);
     private static final int DEFAULT_CLIENT_TIMEOUT_MS = 10000;
 
-    private final AmazonBedrockRuntime internalClient;
+    private final AmazonBedrockRuntimeAsync internalClient;
     private volatile Instant expiryTimestamp;
 
     public static AmazonBedrockBaseClient create(AmazonBedrockModel model, @Nullable TimeValue timeout) {
@@ -58,41 +59,48 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     }
 
     @Override
-    public ConverseResult converse(ConverseRequest converseRequest) throws ElasticsearchException {
+    public void converse(ConverseRequest converseRequest, ActionListener<ConverseResult> responseListener) throws ElasticsearchException {
         try {
-            return internalClient.converse(converseRequest);
+            var responseFuture = internalClient.converseAsync(converseRequest);
+            responseListener.onResponse(responseFuture.get());
         } catch (AmazonBedrockRuntimeException amazonBedrockRuntimeException) {
-            throw new ElasticsearchException(
-                Strings.format("AmazonBedrock converse failure: [%s]", amazonBedrockRuntimeException.getMessage()),
-                amazonBedrockRuntimeException
+            responseListener.onFailure(
+                new ElasticsearchException(
+                    Strings.format("AmazonBedrock converse failure: [%s]", amazonBedrockRuntimeException.getMessage()),
+                    amazonBedrockRuntimeException
+                )
             );
         } catch (ElasticsearchException elasticsearchException) {
             // just throw the exception if we have one
-            throw elasticsearchException;
+            responseListener.onFailure(elasticsearchException);
         } catch (Exception e) {
-            throw new ElasticsearchException("Amazon Bedrock client converse call failed", e);
+            responseListener.onFailure(new ElasticsearchException("Amazon Bedrock client converse call failed", e));
         }
     }
 
     @Override
-    public InvokeModelResult invokeModel(InvokeModelRequest invokeModelRequest) throws ElasticsearchException {
+    public void invokeModel(InvokeModelRequest invokeModelRequest, ActionListener<InvokeModelResult> responseListener)
+        throws ElasticsearchException {
         try {
-            return internalClient.invokeModel(invokeModelRequest);
+            var responseFuture = internalClient.invokeModelAsync(invokeModelRequest);
+            responseListener.onResponse(responseFuture.get());
         } catch (AmazonBedrockRuntimeException amazonBedrockRuntimeException) {
-            throw new ElasticsearchException(
-                Strings.format("AmazonBedrock invoke model failure: [%s]", amazonBedrockRuntimeException.getMessage()),
-                amazonBedrockRuntimeException
+            responseListener.onFailure(
+                new ElasticsearchException(
+                    Strings.format("AmazonBedrock invoke model failure: [%s]", amazonBedrockRuntimeException.getMessage()),
+                    amazonBedrockRuntimeException
+                )
             );
         } catch (ElasticsearchException elasticsearchException) {
             // just throw the exception if we have one
-            throw elasticsearchException;
+            responseListener.onFailure(elasticsearchException);
         } catch (Exception e) {
-            throw new ElasticsearchException("Amazon Bedrock client invokeModel call failed", e);
+            responseListener.onFailure(new ElasticsearchException(e));
         }
     }
 
     // allow this to be overridden for test mocks
-    protected AmazonBedrockRuntime createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+    protected AmazonBedrockRuntimeAsync createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         var secretSettings = model.getSecretSettings();
         var credentials = new BasicAWSCredentials(secretSettings.accessKey.toString(), secretSettings.secretKey.toString());
         var credentialsProvider = new AWSStaticCredentialsProvider(credentials);
@@ -104,8 +112,8 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
 
         try {
             SpecialPermission.check();
-            AmazonBedrockRuntimeClientBuilder builder = AccessController.doPrivileged(
-                (PrivilegedExceptionAction<AmazonBedrockRuntimeClientBuilder>) () -> AmazonBedrockRuntimeClientBuilder.standard()
+            AmazonBedrockRuntimeAsyncClientBuilder builder = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<AmazonBedrockRuntimeAsyncClientBuilder>) () -> AmazonBedrockRuntimeAsyncClientBuilder.standard()
                     .withCredentials(credentialsProvider)
                     .withRegion(serviceSettings.region())
                     .withClientConfiguration(clientConfig)
@@ -123,13 +131,13 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     }
 
     private void setExpiryTimestamp() {
-        this.expiryTimestamp = (new Instant()).withDurationAdded(CACHE_EXPIRY_ADD_MS, 1);
+        this.expiryTimestamp = Instant.now().plus(Duration.ofMinutes(CLIENT_CACHE_EXPIRY_MINUTES));
     }
 
     @Override
     public boolean isExpired(Instant currentTimestampMs) {
         Objects.requireNonNull(currentTimestampMs);
-        return (this.expiryTimestamp.compareTo(currentTimestampMs) < 0);
+        return currentTimestampMs.isAfter(expiryTimestamp);
     }
 
     public void resetExpiration() {

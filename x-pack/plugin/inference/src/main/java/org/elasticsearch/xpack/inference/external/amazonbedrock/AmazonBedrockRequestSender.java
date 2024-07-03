@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockRequestExecutorService;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -46,7 +45,7 @@ public class AmazonBedrockRequestSender implements Sender {
             return createSender(new AmazonBedrockExecuteOnlyRequestSender(clientCache));
         }
 
-        Sender createSender(RequestSender requestSender) {
+        Sender createSender(AmazonBedrockExecuteOnlyRequestSender requestSender) {
             var sender = new AmazonBedrockRequestSender(
                 serviceComponents.threadPool(),
                 clusterService,
@@ -70,7 +69,7 @@ public class AmazonBedrockRequestSender implements Sender {
         ThreadPool threadPool,
         ClusterService clusterService,
         Settings settings,
-        RequestSender requestSender
+        AmazonBedrockExecuteOnlyRequestSender requestSender
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         executorService = new AmazonBedrockRequestExecutorService(

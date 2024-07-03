@@ -20,10 +20,16 @@ import java.util.ArrayList;
 
 public class AmazonBedrockChatCompletionResponse extends AmazonBedrockResponse {
 
+    private final ConverseResult result;
+
+    public AmazonBedrockChatCompletionResponse(ConverseResult responseResult) {
+        this.result = responseResult;
+    }
+
     @Override
     public InferenceServiceResults accept(AmazonBedrockRequest request) {
         if (request instanceof AmazonBedrockChatCompletionRequest asChatCompletionRequest) {
-            return fromResponse(asChatCompletionRequest.result());
+            return fromResponse(result);
         }
 
         throw new ElasticsearchException("unexpected request type [" + request.getClass() + "]");

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockExecuteOnlyRequestSender;
-import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -19,27 +18,25 @@ import java.util.concurrent.CountDownLatch;
  */
 public class AmazonBedrockRequestExecutorService extends RequestExecutorService {
 
-    private final RequestSender localRequestSender;
+    private final AmazonBedrockExecuteOnlyRequestSender requestSender;
 
     public AmazonBedrockRequestExecutorService(
         ThreadPool threadPool,
         CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
-        RequestSender requestSender
+        AmazonBedrockExecuteOnlyRequestSender requestSender
     ) {
         super(threadPool, startupLatch, settings, requestSender);
-        this.localRequestSender = requestSender;
+        this.requestSender = requestSender;
     }
 
     @Override
     public void shutdown() {
         super.shutdown();
-        if (localRequestSender instanceof AmazonBedrockExecuteOnlyRequestSender amazonExecuteSender) {
-            try {
-                amazonExecuteSender.shutdown();
-            } catch (IOException e) {
-                // swallow the exception
-            }
+        try {
+            requestSender.shutdown();
+        } catch (IOException e) {
+            // swallow the exception
         }
     }
 }

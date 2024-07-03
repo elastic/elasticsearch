@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion;
 
 import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
-import com.amazonaws.services.bedrockruntime.model.ConverseResult;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
+import org.elasticsearch.xpack.inference.external.response.amazonbedrock.completion.AmazonBedrockChatCompletionResponseListener;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 
 import java.io.IOException;
@@ -23,7 +23,7 @@ import java.util.Objects;
 public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     public static final String USER_ROLE = "user";
     private final AmazonBedrockConverseRequestEntity requestEntity;
-    private ConverseResult result;
+    private AmazonBedrockChatCompletionResponseListener listener;
 
     public AmazonBedrockChatCompletionRequest(
         AmazonBedrockChatCompletionModel model,
@@ -34,18 +34,14 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         this.requestEntity = Objects.requireNonNull(requestEntity);
     }
 
-    public ConverseResult result() {
-        return result;
-    }
-
     @Override
-    public void executeRequest(AmazonBedrockBaseClient client) {
+    protected void executeRequest(AmazonBedrockBaseClient client) {
         var converseRequest = getConverseRequest();
 
         try {
-            result = SocketAccess.doPrivileged(() -> client.converse(converseRequest));
+            SocketAccess.doPrivileged(() -> client.converse(converseRequest, listener));
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            listener.onFailure(new RuntimeException(e));
         }
     }
 
@@ -55,5 +51,13 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         converseRequest = requestEntity.addInferenceConfig(converseRequest);
         converseRequest = requestEntity.addAdditionalModelFields(converseRequest);
         return converseRequest;
+    }
+
+    public void executeChatCompletionRequest(
+        AmazonBedrockBaseClient awsBedrockClient,
+        AmazonBedrockChatCompletionResponseListener chatCompletionResponseListener
+    ) {
+        this.listener = chatCompletionResponseListener;
+        this.executeRequest(awsBedrockClient);
     }
 }

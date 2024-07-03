@@ -13,7 +13,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
+import org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings.AmazonBedrockEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
+import org.elasticsearch.xpack.inference.external.response.amazonbedrock.completion.AmazonBedrockChatCompletionResponseListener;
+import org.elasticsearch.xpack.inference.external.response.amazonbedrock.embeddings.AmazonBedrockEmbeddingsResponseListener;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
 import java.util.Objects;
@@ -25,7 +29,7 @@ public class AmazonBedrockExecutor implements Runnable {
     protected final Logger logger;
     protected final AmazonBedrockRequest request;
     protected final Supplier<Boolean> hasRequestCompletedFunction;
-    protected final ActionListener<InferenceServiceResults> listener;
+    protected final ActionListener<InferenceServiceResults> inferenceResultsListener;
     private final AmazonBedrockClientCache clientCache;
 
     public AmazonBedrockExecutor(
@@ -34,7 +38,7 @@ public class AmazonBedrockExecutor implements Runnable {
         AmazonBedrockResponseHandler responseHandler,
         Logger logger,
         Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener,
+        ActionListener<InferenceServiceResults> inferenceResultsListener,
         AmazonBedrockClientCache clientCache
     ) {
         this.baseModel = Objects.requireNonNull(model);
@@ -42,7 +46,7 @@ public class AmazonBedrockExecutor implements Runnable {
         this.logger = Objects.requireNonNull(logger);
         this.request = Objects.requireNonNull(request);
         this.hasRequestCompletedFunction = Objects.requireNonNull(hasRequestCompletedFunction);
-        this.listener = Objects.requireNonNull(listener);
+        this.inferenceResultsListener = Objects.requireNonNull(inferenceResultsListener);
         this.clientCache = Objects.requireNonNull(clientCache);
     }
 
@@ -57,12 +61,35 @@ public class AmazonBedrockExecutor implements Runnable {
 
         try {
             var awsBedrockClient = clientCache.getOrCreateClient(baseModel, request.timeout());
-            request.executeRequest(awsBedrockClient);
-            listener.onResponse(responseHandler.parseResult(request, null));
+            executeClientRequest(awsBedrockClient);
         } catch (Exception e) {
             var errorMessage = Strings.format("Failed to send request from inference entity id [%s]", inferenceEntityId);
             logger.warn(errorMessage, e);
-            listener.onFailure(new ElasticsearchException(errorMessage, e));
+            inferenceResultsListener.onFailure(new ElasticsearchException(errorMessage, e));
         }
+    }
+
+    private void executeClientRequest(AmazonBedrockBaseClient awsBedrockClient) {
+        if (request instanceof AmazonBedrockChatCompletionRequest chatCompletionRequest) {
+            var chatCompletionResponseListener = new AmazonBedrockChatCompletionResponseListener(
+                chatCompletionRequest,
+                responseHandler,
+                inferenceResultsListener
+            );
+            chatCompletionRequest.executeChatCompletionRequest(awsBedrockClient, chatCompletionResponseListener);
+            return;
+        }
+
+        if (request instanceof AmazonBedrockEmbeddingsRequest embeddingsRequest) {
+            var embeddingsResponseListener = new AmazonBedrockEmbeddingsResponseListener(
+                embeddingsRequest,
+                responseHandler,
+                inferenceResultsListener
+            );
+            embeddingsRequest.executeEmbeddingsRequest(awsBedrockClient, embeddingsResponseListener);
+            return;
+        }
+
+        throw new ElasticsearchException("Unsupported request type [" + request.getClass() + "]");
     }
 }

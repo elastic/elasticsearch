@@ -55,8 +55,8 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
         var serviceSettings = embeddingsModel.getServiceSettings();
         var truncatedInput = truncate(input, serviceSettings.maxInputTokens());
         var requestEntity = AmazonBedrockEmbeddingsEntityFactory.createEntity(embeddingsModel, truncatedInput);
-        var request = new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, embeddingsModel, requestEntity, timeout);
         var responseHandler = new AmazonBedrockEmbeddingsResponseHandler();
+        var request = new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, embeddingsModel, requestEntity, timeout);
         var inferenceRequest = new ExecutableInferenceRequest(
             requestSender,
             logger,

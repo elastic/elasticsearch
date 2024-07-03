@@ -13,12 +13,15 @@ import com.amazonaws.services.bedrockruntime.model.InvokeModelRequest;
 import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 
 import org.elasticsearch.ElasticsearchException;
-import org.joda.time.Instant;
+import org.elasticsearch.action.ActionListener;
+
+import java.time.Instant;
 
 public interface AmazonBedrockClient {
-    ConverseResult converse(ConverseRequest converseRequest) throws ElasticsearchException;
+    void converse(ConverseRequest converseRequest, ActionListener<ConverseResult> responseListener) throws ElasticsearchException;
 
-    InvokeModelResult invokeModel(InvokeModelRequest invokeModelRequest) throws ElasticsearchException;
+    void invokeModel(InvokeModelRequest invokeModelRequest, ActionListener<InvokeModelResult> responseListener)
+        throws ElasticsearchException;
 
     boolean isExpired(Instant currentTimestampMs);
 

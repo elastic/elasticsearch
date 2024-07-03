@@ -75,6 +75,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -649,7 +650,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
      * are assumed to be at WARNING level.
-     * @param expectedWarnings expected general deprecation warnings.
+     * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertWarnings(String... expectedWarnings) {
         assertWarnings(
@@ -663,7 +664,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
      * are assumed to be at CRITICAL level.
-     * @param expectedWarnings expected general deprecation warnings.
+     * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertCriticalWarnings(String... expectedWarnings) {
         assertWarnings(
@@ -2288,6 +2289,34 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.currentThread().interrupt();
             fail(e, "safeSleep: interrupted");
         }
+    }
+
+    /**
+     * Wait for all tasks currently running or enqueued on the given executor to complete.
+     */
+    public static void flushThreadPoolExecutor(ThreadPool threadPool, String executorName) {
+        final var maxThreads = threadPool.info(executorName).getMax();
+        final var barrier = new CyclicBarrier(maxThreads + 1);
+        final var executor = threadPool.executor(executorName);
+        for (int i = 0; i < maxThreads; i++) {
+            executor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    safeAwait(barrier);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e, "unexpected");
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+            });
+        }
+        safeAwait(barrier);
     }
 
     protected static boolean isTurkishLocale() {

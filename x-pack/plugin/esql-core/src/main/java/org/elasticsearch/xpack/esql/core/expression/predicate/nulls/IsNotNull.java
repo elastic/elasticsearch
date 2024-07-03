@@ -11,9 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -53,11 +51,6 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
     @Override
     public Object fold() {
         return field().fold() != null && DataType.isNull(field().dataType()) == false;
-    }
-
-    @Override
-    protected Processor makeProcessor() {
-        return new CheckNullProcessor(CheckNullOperation.IS_NOT_NULL);
     }
 
     @Override

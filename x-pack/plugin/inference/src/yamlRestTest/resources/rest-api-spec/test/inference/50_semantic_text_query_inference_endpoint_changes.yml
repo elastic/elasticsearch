@@ -78,12 +78,10 @@ setup:
         refresh: true
 ---
 "sparse_embedding changed to text_embedding":
-  - skip:
-      reason: "This test is failing on delete due to the new delete logic, and the test needs to be reworked but I am not sure what it is actually trying to do"
-      features: delete
   - do:
       inference.delete:
         inference_id: sparse-inference-id
+        force: true
 
   - do:
       inference.put:
@@ -119,12 +117,10 @@ setup:
 
 ---
 "text_embedding changed to sparse_embedding":
-  - skip:
-      reason: "This test is failing on delete due to the new delete logic, and the test needs to be reworked but I am not sure what it is actually trying to do"
-      features: delete
   - do:
       inference.delete:
         inference_id: dense-inference-id
+        force: true
 
   - do:
       inference.put:
@@ -158,12 +154,10 @@ setup:
 
 ---
 "text_embedding dimension count changed":
-  - skip:
-      reason: "This test is failing on delete due to the new delete logic, and the test needs to be reworked but I am not sure what it is actually trying to do"
-      features: delete
   - do:
       inference.delete:
         inference_id: dense-inference-id
+        force: true
 
   - do:
       inference.put:

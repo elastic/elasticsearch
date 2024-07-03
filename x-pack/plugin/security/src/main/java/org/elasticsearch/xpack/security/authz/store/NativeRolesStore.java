@@ -78,7 +78,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -370,17 +369,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
-            bulkResponseWithOnlyValidationErrors(
-                roleNames,
-                roleNames.stream()
-                    .collect(
-                        Collectors.toMap(
-                            roleName -> roleName,
-                            roleName -> new IllegalArgumentException("Role [" + roleName + "] not found")
-                        )
-                    ),
-                listener
-            );
+            logger.debug("security index does not exist");
+            listener.onResponse(new BulkRolesResponse(List.of()));
         } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {

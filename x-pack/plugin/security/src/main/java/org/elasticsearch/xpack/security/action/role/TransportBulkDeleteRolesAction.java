@@ -13,21 +13,22 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
-import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
-public class TransportBulkPutRolesAction extends TransportAction<BulkPutRolesRequest, BulkRolesResponse> {
+public class TransportBulkDeleteRolesAction extends TransportAction<BulkDeleteRolesRequest, BulkRolesResponse> {
+
     private final NativeRolesStore rolesStore;
 
     @Inject
-    public TransportBulkPutRolesAction(ActionFilters actionFilters, NativeRolesStore rolesStore, TransportService transportService) {
-        super(ActionTypes.BULK_PUT_ROLES.name(), actionFilters, transportService.getTaskManager());
+    public TransportBulkDeleteRolesAction(ActionFilters actionFilters, NativeRolesStore rolesStore, TransportService transportService) {
+        super(ActionTypes.BULK_DELETE_ROLES.name(), actionFilters, transportService.getTaskManager());
         this.rolesStore = rolesStore;
     }
 
     @Override
-    protected void doExecute(Task task, final BulkPutRolesRequest request, final ActionListener<BulkRolesResponse> listener) {
-        rolesStore.putRoles(request.getRefreshPolicy(), request.getRoles(), listener);
+    protected void doExecute(Task task, BulkDeleteRolesRequest request, ActionListener<BulkRolesResponse> listener) {
+        rolesStore.deleteRoles(request.getRoleNames(), request.getRefreshPolicy(), listener);
     }
 }

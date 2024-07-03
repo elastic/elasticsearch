@@ -146,11 +146,19 @@ mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mo
 mockito-subclass = { group = "org.mockito", name = "mockito-subclass", version.ref = "mockito" }
 mocksocket = "org.elasticsearch:mocksocket:1.2"
 mustache-compiler = "com.github.spullara.mustache.java:compiler:0.9.10"
+netty-buffer = { group = "io.netty", name = "netty-buffer", version.ref = "netty" }
+netty-codec = { group = "io.netty", name = "netty-codec", version.ref = "netty" }
 netty-codec-dns = { group = "io.netty", name = "netty-codec-dns", version.ref = "netty" }
+netty-codec-http = { group = "io.netty", name = "netty-codec-http", version.ref = "netty" }
 netty-codec-http2 = { group = "io.netty", name = "netty-codec-http2", version.ref = "netty" }
 netty-codec-socks = { group = "io.netty", name = "netty-codec-socks", version.ref = "netty" }
+netty-common = { group = "io.netty", name = "netty-common", version.ref = "netty" }
+netty-handler = { group = "io.netty", name = "netty-handler", version.ref = "netty" }
 netty-handler-proxy = { group = "io.netty", name = "netty-handler-proxy", version.ref = "netty" }
+netty-resolver = { group = "io.netty", name = "netty-resolver", version.ref = "netty" }
 netty-resolver-dns = { group = "io.netty", name = "netty-resolver-dns", version.ref = "netty" }
+netty-transport = { group = "io.netty", name = "netty-transport", version.ref = "netty" }
+netty-transport-native-unix-common = { group = "io.netty", name = "netty-transport-native-unix-common", version.ref = "netty" }
 objenesis = { group = "org.objenesis", name = "objenesis", version.ref = "objenesis" }
 opencensus-api = { group = "io.opencensus", name = "opencensus-api", version = "0.31.1" }
 opencensus-contrib-http-util = { group = "io.opencensus", name = "opencensus-contrib-http-util", version = "0.31.1" }

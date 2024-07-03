@@ -108,7 +108,9 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
                         config().getMapperService(),
                         DocumentSizeAccumulator.EMPTY_INSTANCE
                     );
-                    documentParsingReporter.onIndexingCompleted(index.parsedDoc());
+                    ParsedDocument parsedDocument = index.parsedDoc();
+                    DocumentSizeObserver documentSizeObserver = parsedDocument.getDocumentSizeObserver();
+                    documentParsingReporter.onIndexingCompleted(documentSizeObserver);
 
                     return result;
                 }
@@ -149,8 +151,8 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         }
 
         @Override
-        public void onIndexingCompleted(ParsedDocument parsedDocument) {
-            DocumentSizeObserver documentSizeObserver = parsedDocument.getDocumentSizeObserver();
+        public void onIndexingCompleted(DocumentSizeObserver documentSizeObserver) {
+            DocumentSizeObserver documentSizeObserver = documentSizeObserver.getDocumentSizeObserver();
             COUNTER.addAndGet(documentSizeObserver.normalisedBytesParsed());
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
         }

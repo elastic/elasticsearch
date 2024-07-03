@@ -146,7 +146,6 @@ public class PlainActionFutureTests extends ESTestCase {
     }
 
     public void testAssertCompleteAllowedAllowsConcurrentCompletesFromSamePool() {
-        assumeTrue("Assertions need to be enabled for assertCompleteAllowed to be invoked", Assertions.ENABLED);
         final AtomicReference<PlainActionFuture<?>> futureReference = new AtomicReference<>(new PlainActionFuture<>());
         final var executorName = randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.MANAGEMENT);
         final var running = new AtomicBoolean(true);

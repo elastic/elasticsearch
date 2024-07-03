@@ -12,10 +12,14 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-public class BlobCacheMetrics {
-    private final LongCounter cacheMissCounter;
-    private final LongCounter evictedCountNonZeroFrequency;
-    private final LongHistogram cacheMissLoadTimes;
+public record BlobCacheMetrics(
+    LongCounter cacheMissCounter,
+    LongCounter evictedCountNonZeroFrequency,
+    LongCounter skippedLoadingDueToNoFreeRegionsCounter,
+    LongHistogram cacheMissLoadTimes
+) {
+
+    public static BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
         this(
@@ -29,31 +33,16 @@ public class BlobCacheMetrics {
                 "The number of times a cache entry was evicted where the frequency was not zero",
                 "entries"
             ),
+            meterRegistry.registerLongCounter(
+                "es.blob_cache.count_of_skipped_loads_no_empty_regions.total",
+                "The number of times a cache entry was not loaded as there were no free regions",
+                "entries"
+            ),
             meterRegistry.registerLongHistogram(
                 "es.blob_cache.cache_miss_load_times.histogram",
                 "The time in microseconds for populating entries in the blob store resulting from a cache miss, expressed as a histogram.",
                 "micros"
             )
         );
-    }
-
-    BlobCacheMetrics(LongCounter cacheMissCounter, LongCounter evictedCountNonZeroFrequency, LongHistogram cacheMissLoadTimes) {
-        this.cacheMissCounter = cacheMissCounter;
-        this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
-        this.cacheMissLoadTimes = cacheMissLoadTimes;
-    }
-
-    public static BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
-
-    public LongCounter getCacheMissCounter() {
-        return cacheMissCounter;
-    }
-
-    public LongCounter getEvictedCountNonZeroFrequency() {
-        return evictedCountNonZeroFrequency;
-    }
-
-    public LongHistogram getCacheMissLoadTimes() {
-        return cacheMissLoadTimes;
     }
 }

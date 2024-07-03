@@ -327,12 +327,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             indexDocs(indexName, randomIntBetween(1, 100));
         }
 
-        var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNode);
+        var translogReplicator = getTranslogReplicator(indexNode);
 
         Set<TranslogReplicator.BlobTranslogFile> activeTranslogFiles = translogReplicator.getActiveTranslogFiles();
         assertThat(activeTranslogFiles.size(), greaterThan(0));
 
-        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var indexObjectStoreService = getObjectStoreService(indexNode);
         assertTranslogBlobsExist(activeTranslogFiles, indexObjectStoreService);
 
         flush(indexName);
@@ -363,12 +363,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             indexDocs(indexName, randomIntBetween(1, 100));
         }
 
-        var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNode);
+        var translogReplicator = getTranslogReplicator(indexNode);
 
         Set<TranslogReplicator.BlobTranslogFile> activeTranslogFiles = translogReplicator.getActiveTranslogFiles();
         assertThat(activeTranslogFiles.size(), greaterThan(0));
 
-        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var indexObjectStoreService = getObjectStoreService(indexNode);
         var blobContainer = indexObjectStoreService.getTranslogBlobContainer();
 
         internalCluster().stopNode(indexNode);
@@ -396,12 +396,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             indexDocs(indexName, randomIntBetween(1, 100));
         }
 
-        var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNode);
+        var translogReplicator = getTranslogReplicator(indexNode);
 
         Set<TranslogReplicator.BlobTranslogFile> activeTranslogFiles = translogReplicator.getActiveTranslogFiles();
         assertThat(activeTranslogFiles.size(), greaterThan(0));
 
-        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var indexObjectStoreService = getObjectStoreService(indexNode);
         var blobContainer = indexObjectStoreService.getTranslogBlobContainer();
 
         Exception shardFailed = new Exception("Shard Failed");
@@ -452,12 +452,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             indexDocs(indexName, randomIntBetween(1, 100));
         }
 
-        var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNodeA);
+        var translogReplicator = getTranslogReplicator(indexNodeA);
 
         Set<TranslogReplicator.BlobTranslogFile> activeTranslogFiles = translogReplicator.getActiveTranslogFiles();
         assertThat(activeTranslogFiles.size(), greaterThan(0));
 
-        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeA);
+        var indexObjectStoreService = getObjectStoreService(indexNodeA);
         assertTranslogBlobsExist(activeTranslogFiles, indexObjectStoreService);
 
         long millisBeforeDeletions = System.currentTimeMillis();
@@ -499,8 +499,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             indexDocs(indexNameB, randomIntBetween(1, 100));
         }
 
-        var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNode);
-        var objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var translogReplicator = getTranslogReplicator(indexNode);
+        var objectStoreService = getObjectStoreService(indexNode);
 
         Set<TranslogReplicator.BlobTranslogFile> activeTranslogFiles = translogReplicator.getActiveTranslogFiles();
         logger.info("--> activeTranslogFiles {}", activeTranslogFiles);
@@ -564,15 +564,15 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         ensureStableCluster(3);
 
-        var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNodeA);
+        var translogReplicator = getTranslogReplicator(indexNodeA);
 
         Set<TranslogReplicator.BlobTranslogFile> activeTranslogFiles = translogReplicator.getActiveTranslogFiles();
         assertThat(activeTranslogFiles.size(), greaterThan(0));
 
         final MockTransportService indexNodeTransportService = MockTransportService.getInstance(indexNodeA);
         final MockTransportService masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
-        ObjectStoreService indexNodeAObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeA);
-        ObjectStoreService indexNodeBObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
+        ObjectStoreService indexNodeAObjectStoreService = getObjectStoreService(indexNodeA);
+        ObjectStoreService indexNodeBObjectStoreService = getObjectStoreService(indexNodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(indexNodeBObjectStoreService);
         repository.setBlockOnAnyFiles();
 
@@ -679,7 +679,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             equalTo((long) finalTotalDocs)
         );
 
-        var indexNodeObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var indexNodeObjectStoreService = getObjectStoreService(indexNode);
         // awaits #793
         // assertBusy(
         // () -> assertThat(
@@ -1139,9 +1139,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         AtomicBoolean enableChecks = new AtomicBoolean(true);
         CountDownLatch commitRegistrationStarted = new CountDownLatch(1);
-        MockRepository searchNode2Repository = ObjectStoreTestUtils.getObjectStoreMockRepository(
-            internalCluster().getInstance(ObjectStoreService.class, searchNode2)
-        );
+        MockRepository searchNode2Repository = ObjectStoreTestUtils.getObjectStoreMockRepository(getObjectStoreService(searchNode2));
         CountDownLatch getVbccChunkLatch = new CountDownLatch(1);
 
         Runnable blockGetVbccChunk = () -> MockTransportService.getInstance(indexNode)

@@ -29,7 +29,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -44,7 +43,6 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -254,11 +252,11 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
     }
 
     private void blockCommitUploads() {
-        internalCluster().getDataNodeInstance(TestObjectStoreService.class).block();
+        asInstanceOf(TestObjectStoreService.class, getCurrentMasterObjectStoreService()).block();
     }
 
     private void unblockCommitUploads() {
-        internalCluster().getDataNodeInstance(TestObjectStoreService.class).unblock();
+        asInstanceOf(TestObjectStoreService.class, getCurrentMasterObjectStoreService()).unblock();
     }
 
     private static List<IndexingDiskController.ShardDiskUsage> shardDiskUsages() {
@@ -326,15 +324,6 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
         }
 
         @Override
-        public Collection<Object> createComponents(PluginServices services) {
-            Collection<Object> components = super.createComponents(services);
-            // TODO remove this Guice magic once MockRepository can block commit files only
-            var optional = components.stream().filter(o -> o instanceof TestObjectStoreService).findFirst();
-            components.add(new PluginComponentBinding<>(ObjectStoreService.class, optional.get()));
-            return components;
-        }
-
-        @Override
         protected ObjectStoreService createObjectStoreService(
             Settings settings,
             RepositoriesService repositoriesService,
@@ -353,7 +342,6 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
         private final List<BlockedListener<Void>> blockedListeners = new ArrayList<>();
         private boolean blocked;
 
-        @Inject
         public TestObjectStoreService(
             Settings settings,
             RepositoriesService repositoriesService,

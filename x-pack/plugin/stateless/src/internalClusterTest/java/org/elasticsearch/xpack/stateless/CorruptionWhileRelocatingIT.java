@@ -20,7 +20,6 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
@@ -179,7 +178,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         // Pause to let merge potentially succeed
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(300));
 
-        var objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
+        var objectStoreService = getCurrentMasterObjectStoreService();
         var blobContainer = objectStoreService.getBlobContainer(sourceShard.shardId(), primaryTerm);
 
         // Check that the blob has not been uploaded

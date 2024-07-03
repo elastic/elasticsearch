@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.StatelessComponents;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -255,7 +256,8 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
     }
 
     private long getShardSizeFromObjectStore(IndexShard shard) throws IOException {
-        ObjectStoreService objectStoreService = internalCluster().getAnyMasterNodeInstance(ObjectStoreService.class);
+        ObjectStoreService objectStoreService = internalCluster().getAnyMasterNodeInstance(StatelessComponents.class)
+            .getObjectStoreService();
         BlobContainer blobContainerForCommit = objectStoreService.getBlobContainer(shard.shardId(), shard.getOperationPrimaryTerm());
         SegmentInfos segmentInfos = Lucene.readSegmentInfos(shard.store().directory());
         String commitFile = StatelessCompoundCommit.blobNameFromGeneration(segmentInfos.getGeneration());

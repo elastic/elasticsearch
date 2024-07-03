@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.metering.action;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.StatelessComponents;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.FailedNodeException;
@@ -54,7 +55,7 @@ public class TransportGetBlobStoreStatsAction extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        ObjectStoreService objectStoreService,
+        StatelessComponents statelessComponents,
         RepositoriesService repositoriesService
     ) {
         super(
@@ -65,7 +66,7 @@ public class TransportGetBlobStoreStatsAction extends TransportNodesAction<
             GetBlobStoreStatsNodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.objectStoreService = objectStoreService;
+        this.objectStoreService = statelessComponents.getObjectStoreService();
         this.repositoriesService = repositoriesService;
     }
 

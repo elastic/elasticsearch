@@ -23,7 +23,6 @@ import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -162,7 +161,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         Index index = resolveIndex(indexName);
         IndexShard indexShard = findShard(index, 0, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeName);
+        ObjectStoreService objectStoreService = getObjectStoreService(indexNodeName);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, indexNodeName);
         var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
         final long directoryGeneration = Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
@@ -313,7 +312,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, 1);
 
         // Check that the translog on the object store contains the correct sequence numbers and number of operations
-        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode.getName());
+        var indexObjectStoreService = getObjectStoreService(indexNode.getName());
         var reader = new TranslogReplicatorReader(indexObjectStoreService.getTranslogBlobContainer(), shardId);
         long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         long totalOps = 0;
@@ -345,7 +344,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         assertTrue(index.isPresent());
 
         // Ensure that an automatic flush cannot clean translog
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        ObjectStoreService objectStoreService = getObjectStoreService(indexNode);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
@@ -418,7 +417,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         // Ensure that an automatic flush cannot clean translog
         for (String indexingNode : indexingNodes) {
-            ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexingNode);
+            ObjectStoreService objectStoreService = getObjectStoreService(indexingNode);
             MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
             repository.setRandomControlIOExceptionRate(1.0);
             repository.setRandomDataFileIOExceptionRate(1.0);
@@ -435,7 +434,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         // Allow flushes again
         for (String indexingNode : indexingNodes) {
-            ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexingNode);
+            ObjectStoreService objectStoreService = getObjectStoreService(indexingNode);
             MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
             repository.setRandomControlIOExceptionRate(0.0);
             repository.setRandomDataFileIOExceptionRate(0.0);
@@ -522,13 +521,13 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testSetsRecyclableBigArraysInTranslogReplicator() throws Exception {
-        startMasterAndIndexNode();
+        final String masterAndIndexNode = startMasterAndIndexNode();
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
         assertBusy(() -> {
-            var bigArrays = internalCluster().getInstance(TranslogReplicator.class).bigArrays();
+            var bigArrays = getTranslogReplicator(masterAndIndexNode).bigArrays();
             assertNotNull(bigArrays);
             assertNotNull(bigArrays.breakerService());
         });

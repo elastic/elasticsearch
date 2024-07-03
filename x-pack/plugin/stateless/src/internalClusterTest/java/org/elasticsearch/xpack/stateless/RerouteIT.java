@@ -75,7 +75,7 @@ public class RerouteIT extends AbstractStatelessIntegTestCase {
         logger.info("--> started index node B [{}]", nodeB);
 
         logger.info("--> blocking recoveries on " + nodeB);
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, nodeB);
+        ObjectStoreService objectStoreService = getObjectStoreService(nodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setBlockOnAnyFiles();
 
@@ -183,7 +183,7 @@ public class RerouteIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> assertNodeHasNoCurrentRecoveries(nodeB));
         assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("4").get().isTimedOut()); // including master node
 
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, nodeC);
+        ObjectStoreService objectStoreService = getObjectStoreService(nodeC);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         logger.info("--> block recoveries on " + nodeC);
         repository.setBlockOnAnyFiles();

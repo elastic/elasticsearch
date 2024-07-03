@@ -109,7 +109,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         IndexShard indexShard = findIndexShard(indexName);
         IndexEngine shardEngine = getShardEngine(indexShard, IndexEngine.class);
         final long generationToBlock = shardEngine.getCurrentGeneration() + 1;
-        final var mockRepository = getObjectStoreMockRepository(internalCluster().getInstance(ObjectStoreService.class, indexNodeA));
+        final var mockRepository = getObjectStoreMockRepository(getObjectStoreService(indexNodeA));
         final var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         commitService.addConsumerForNewUploadedBcc(indexShard.shardId(), bccInfo -> {
@@ -347,7 +347,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .findFirst()
             .orElseThrow(() -> new AssertionError(TestStateless.class.getName() + " plugin not found"))
             .getSharedBlobCacheWarmingService();
-        final var mockRepositoryB = getObjectStoreMockRepository(internalCluster().getInstance(ObjectStoreService.class, node));
+        final var mockRepositoryB = getObjectStoreMockRepository(getObjectStoreService(node));
         final var transportService = MockTransportService.getInstance(node);
         warmingService.addListener(ActionListener.running(() -> {
             logger.info("--> fail object store repository after warming");

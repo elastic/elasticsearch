@@ -101,7 +101,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
      * Returns a list of term directory names (1/, 2/, etc.) that are present in the blob store.
      */
     public static List<String> getTermDirectories() throws IOException {
-        var objectStoreService = internalCluster().getInstance(ObjectStoreService.class, internalCluster().getRandomNodeName());
+        var objectStoreService = getObjectStoreService(internalCluster().getRandomNodeName());
         var blobContainerForClusterState = objectStoreService.getClusterStateBlobContainer();
         var clusterStateDirectories = blobContainerForClusterState.children(OperationPurpose.CLUSTER_STATE);
         return clusterStateDirectories.keySet()

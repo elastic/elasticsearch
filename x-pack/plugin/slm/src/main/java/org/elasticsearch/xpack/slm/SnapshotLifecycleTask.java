@@ -101,84 +101,93 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             submitUnbatchedTask(
                 clusterService,
                 "slm-pre-register-snapshot-" + policyMetadata.getPolicy().getId(),
-                new PreRegisterSLMRun(policyMetadata.getPolicy().getId(), request.snapshot())
+                new PreRegisterSLMRun(policyMetadata.getPolicy().getId(), request.snapshot(), new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        final LifecyclePolicySecurityClient clientWithHeaders = new LifecyclePolicySecurityClient(
+                            client,
+                            ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+                            policyMetadata.getHeaders()
+                        );
+                        logger.info(
+                            "snapshot lifecycle policy [{}] issuing create snapshot [{}]",
+                            policyMetadata.getPolicy().getId(),
+                            request.snapshot()
+                        );
+                        clientWithHeaders.admin().cluster().createSnapshot(request, new ActionListener<>() {
+                            @Override
+                            public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                                logger.debug(
+                                    "snapshot response for [{}]: {}",
+                                    policyMetadata.getPolicy().getId(),
+                                    Strings.toString(createSnapshotResponse)
+                                );
+                                final SnapshotInfo snapInfo = createSnapshotResponse.getSnapshotInfo();
+                                // Check that there are no failed shards, since the request may not entirely
+                                // fail, but may still have failures (such as in the case of an aborted snapshot)
+                                if (snapInfo.failedShards() == 0) {
+                                    long snapshotStartTime = snapInfo.startTime();
+                                    final long timestamp = Instant.now().toEpochMilli();
+                                    submitUnbatchedTask(
+                                        clusterService,
+                                        "slm-record-success-" + policyMetadata.getPolicy().getId(),
+                                        WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), snapshotStartTime, timestamp)
+                                    );
+                                    historyStore.putAsync(
+                                        SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(), request.snapshot())
+                                    );
+                                } else {
+                                    int failures = snapInfo.failedShards();
+                                    int total = snapInfo.totalShards();
+                                    final SnapshotException e = new SnapshotException(
+                                        request.repository(),
+                                        request.snapshot(),
+                                        "failed to create snapshot successfully, " + failures + " out of " + total + " total shards failed"
+                                    );
+                                    // Call the failure handler to register this as a failure and persist it
+                                    onFailure(e);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.error("failed to create snapshot for snapshot lifecycle policy [{}]: {}", policyMetadata.getPolicy().getId(), e);
+                                final long timestamp = Instant.now().toEpochMilli();
+                                submitUnbatchedTask(
+                                    clusterService,
+                                    "slm-record-failure-" + policyMetadata.getPolicy().getId(),
+                                    WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e)
+                                );
+                                final SnapshotHistoryItem failureRecord;
+                                try {
+                                    failureRecord = SnapshotHistoryItem.creationFailureRecord(
+                                        timestamp,
+                                        policyMetadata.getPolicy(),
+                                        request.snapshot(),
+                                        e
+                                    );
+                                    historyStore.putAsync(failureRecord);
+                                } catch (IOException ex) {
+                                    // This shouldn't happen unless there's an issue with serializing the original exception, which shouldn't happen
+                                    logger.error(
+                                        () -> format(
+                                            "failed to record snapshot creation failure for snapshot lifecycle policy [%s]",
+                                            policyMetadata.getPolicy().getId()
+                                        ),
+                                        e
+                                    );
+                                }
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("failed to start snapshot for snapshot lifecycle policy [{}]: {}", policyMetadata.getPolicy().getId(), e);
+                    }
+                })
             );
 
-            final LifecyclePolicySecurityClient clientWithHeaders = new LifecyclePolicySecurityClient(
-                client,
-                ClientHelper.INDEX_LIFECYCLE_ORIGIN,
-                policyMetadata.getHeaders()
-            );
-            logger.info(
-                "snapshot lifecycle policy [{}] issuing create snapshot [{}]",
-                policyMetadata.getPolicy().getId(),
-                request.snapshot()
-            );
-            clientWithHeaders.admin().cluster().createSnapshot(request, new ActionListener<>() {
-                @Override
-                public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
-                    logger.debug(
-                        "snapshot response for [{}]: {}",
-                        policyMetadata.getPolicy().getId(),
-                        Strings.toString(createSnapshotResponse)
-                    );
-                    final SnapshotInfo snapInfo = createSnapshotResponse.getSnapshotInfo();
-                    // Check that there are no failed shards, since the request may not entirely
-                    // fail, but may still have failures (such as in the case of an aborted snapshot)
-                    if (snapInfo.failedShards() == 0) {
-                        long snapshotStartTime = snapInfo.startTime();
-                        final long timestamp = Instant.now().toEpochMilli();
-                        submitUnbatchedTask(
-                            clusterService,
-                            "slm-record-success-" + policyMetadata.getPolicy().getId(),
-                            WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), snapshotStartTime, timestamp)
-                        );
-                        historyStore.putAsync(
-                            SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(), request.snapshot())
-                        );
-                    } else {
-                        int failures = snapInfo.failedShards();
-                        int total = snapInfo.totalShards();
-                        final SnapshotException e = new SnapshotException(
-                            request.repository(),
-                            request.snapshot(),
-                            "failed to create snapshot successfully, " + failures + " out of " + total + " total shards failed"
-                        );
-                        // Call the failure handler to register this as a failure and persist it
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("failed to create snapshot for snapshot lifecycle policy [{}]: {}", policyMetadata.getPolicy().getId(), e);
-                    final long timestamp = Instant.now().toEpochMilli();
-                    submitUnbatchedTask(
-                        clusterService,
-                        "slm-record-failure-" + policyMetadata.getPolicy().getId(),
-                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e)
-                    );
-                    final SnapshotHistoryItem failureRecord;
-                    try {
-                        failureRecord = SnapshotHistoryItem.creationFailureRecord(
-                            timestamp,
-                            policyMetadata.getPolicy(),
-                            request.snapshot(),
-                            e
-                        );
-                        historyStore.putAsync(failureRecord);
-                    } catch (IOException ex) {
-                        // This shouldn't happen unless there's an issue with serializing the original exception, which shouldn't happen
-                        logger.error(
-                            () -> format(
-                                "failed to record snapshot creation failure for snapshot lifecycle policy [%s]",
-                                policyMetadata.getPolicy().getId()
-                            ),
-                            e
-                        );
-                    }
-                }
-            });
             return request.snapshot();
         }).orElse(null);
 
@@ -231,10 +240,17 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     private static class PreRegisterSLMRun extends ClusterStateUpdateTask {
         private final String policyName;
         private final String snapshotName;
+        private final ActionListener<Void> listener;
 
-        PreRegisterSLMRun(String policyName, String snapshotName) {
+        PreRegisterSLMRun(String policyName, String snapshotName, ActionListener<Void> listener) {
             this.policyName = policyName;
             this.snapshotName = snapshotName;
+            this.listener = listener;
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            listener.onResponse(null);
         }
 
         @Override

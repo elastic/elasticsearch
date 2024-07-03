@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesResponse;
+import org.elasticsearch.xpack.core.security.action.role.QueryRoleResponse;
 import org.elasticsearch.xpack.core.security.action.user.QueryUserResponse;
 
 /**
@@ -23,4 +25,6 @@ public final class ActionTypes {
     );
 
     public static final ActionType<QueryUserResponse> QUERY_USER_ACTION = new ActionType<>("cluster:admin/xpack/security/user/query");
+    public static final ActionType<QueryRoleResponse> QUERY_ROLE_ACTION = new ActionType<>("cluster:admin/xpack/security/role/query");
+    public static final ActionType<BulkPutRolesResponse> BULK_PUT_ROLES = new ActionType<>("cluster:admin/xpack/security/role/bulk_put");
 }

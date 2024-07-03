@@ -258,10 +258,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfo("max(rate(request_count))", "double"),
-                        new ColumnInfo("min(rate(request_count))", "double"),
-                        new ColumnInfo("min(cpu)", "double"),
-                        new ColumnInfo("max(cpu)", "double")
+                        new ColumnInfoImpl("max(rate(request_count))", "double"),
+                        new ColumnInfoImpl("min(rate(request_count))", "double"),
+                        new ColumnInfoImpl("min(cpu)", "double"),
+                        new ColumnInfoImpl("max(cpu)", "double")
                     )
                 )
             );
@@ -629,10 +629,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfo("sum(rate(request_count))", "double"),
-                        new ColumnInfo("max(cpu)", "double"),
-                        new ColumnInfo("ts", "date"),
-                        new ColumnInfo("cluster", "keyword")
+                        new ColumnInfoImpl("sum(rate(request_count))", "double"),
+                        new ColumnInfoImpl("max(cpu)", "double"),
+                        new ColumnInfoImpl("ts", "date"),
+                        new ColumnInfoImpl("cluster", "keyword")
                     )
                 )
             );
@@ -666,10 +666,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfo("sum(rate(request_count))", "double"),
-                        new ColumnInfo("avg(cpu)", "double"),
-                        new ColumnInfo("ts", "date"),
-                        new ColumnInfo("cluster", "keyword")
+                        new ColumnInfoImpl("sum(rate(request_count))", "double"),
+                        new ColumnInfoImpl("avg(cpu)", "double"),
+                        new ColumnInfoImpl("ts", "date"),
+                        new ColumnInfoImpl("cluster", "keyword")
                     )
                 )
             );

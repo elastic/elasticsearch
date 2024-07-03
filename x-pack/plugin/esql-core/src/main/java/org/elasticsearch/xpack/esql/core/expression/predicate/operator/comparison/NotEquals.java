@@ -6,17 +6,29 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.io.IOException;
 import java.time.ZoneId;
 
 public class NotEquals extends BinaryComparison implements Negatable<BinaryComparison> {
 
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonOperation.NEQ, zoneId);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

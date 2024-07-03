@@ -24,7 +24,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class TopFloatGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("topList", ElementType.FLOAT)  );
+      new IntermediateStateDesc("top", ElementType.FLOAT)  );
 
   private final TopFloatAggregator.GroupingState state;
 
@@ -37,8 +37,8 @@ public final class TopFloatGroupingAggregatorFunction implements GroupingAggrega
   private final boolean ascending;
 
   public TopFloatGroupingAggregatorFunction(List<Integer> channels,
-                                            TopFloatAggregator.GroupingState state, DriverContext driverContext, int limit,
-                                            boolean ascending) {
+      TopFloatAggregator.GroupingState state, DriverContext driverContext, int limit,
+      boolean ascending) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -47,7 +47,7 @@ public final class TopFloatGroupingAggregatorFunction implements GroupingAggrega
   }
 
   public static TopFloatGroupingAggregatorFunction create(List<Integer> channels,
-                                                          DriverContext driverContext, int limit, boolean ascending) {
+      DriverContext driverContext, int limit, boolean ascending) {
     return new TopFloatGroupingAggregatorFunction(channels, TopFloatAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
   }
 
@@ -154,14 +154,14 @@ public final class TopFloatGroupingAggregatorFunction implements GroupingAggrega
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block topListUncast = page.getBlock(channels.get(0));
-    if (topListUncast.areAllValuesNull()) {
+    Block topUncast = page.getBlock(channels.get(0));
+    if (topUncast.areAllValuesNull()) {
       return;
     }
-    FloatBlock topList = (FloatBlock) topListUncast;
+    FloatBlock top = (FloatBlock) topUncast;
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      TopFloatAggregator.combineIntermediate(state, groupId, topList, groupPosition + positionOffset);
+      TopFloatAggregator.combineIntermediate(state, groupId, top, groupPosition + positionOffset);
     }
   }
 

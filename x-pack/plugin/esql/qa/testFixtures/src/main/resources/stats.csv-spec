@@ -575,42 +575,60 @@ ca:l | cx:l | l:i
 1    | 1    | null
 ;
 
+///////////////////////////////////////////////////////////////
+// Test edge case interaction with push down optimization rules
+// https://github.com/elastic/elasticsearch/issues/108008
+///////////////////////////////////////////////////////////////
+
+// TODO: we update capabilities
 countSameFieldWithEval
-from employees | stats  b = count(gender), c = count(gender) by gender | eval b = gender
+from employees | stats  b = count(gender), c = count(gender) by gender | eval b = gender | sort c asc
 ;
 
 c:l | gender:s | b:s
 0   | null     | null
-57  | M        | M
 33  | F        | F
+57  | M        | M
 ;
 
 countSameFieldWithDissect
-from employees | stats b = count(gender), c = count(gender) by gender | dissect gender "%{b}"
+from employees | stats b = count(gender), c = count(gender) by gender | dissect gender "%{b}" | sort c asc
 ;
 
 c:l | gender:s | b:s
 0   | null     | null
-57  | M        | M
 33  | F        | F
+57  | M        | M
 ;
 
 countSameFieldWithGrok
-from employees | stats  b = count(gender), c = count(gender) by gender | grok gender "%{USERNAME:b}"
+from employees | stats  b = count(gender), c = count(gender) by gender | grok gender "%{USERNAME:b}" | sort c asc
 ;
 
 c:l | gender:s | b:s
 0   | null     | null
-57  | M        | M
 33  | F        | F
+57  | M        | M
 ;
 
 countSameFieldWithEnrich
-from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | limit 0
+required_capability: enrich_load
+from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | null
+57  | M        | null
+;
+
+countSameFieldWithEnrichLimit0
+from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc | limit 0
 ;
 
 c:l | gender:s | b:s
 ;
+///////////////////////////////////////////////////////////////
 
 aggsWithoutStats
 from employees | stats by gender | sort gender;

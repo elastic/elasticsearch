@@ -2041,6 +2041,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             new Tuple<>(PutUserAction.NAME, new PutUserRequest()),
             new Tuple<>(PutRoleAction.NAME, new PutRoleRequest()),
             new Tuple<>(ActionTypes.BULK_PUT_ROLES.name(), new BulkPutRolesRequest()),
+            new Tuple<>(ActionTypes.BULK_DELETE_ROLES.name(), new BulkDeleteRolesRequest(List.of())),
             new Tuple<>(PutRoleMappingAction.NAME, new PutRoleMappingRequest()),
             new Tuple<>(TransportSetEnabledAction.TYPE.name(), new SetEnabledRequest()),
             new Tuple<>(TransportChangePasswordAction.TYPE.name(), new ChangePasswordRequest()),

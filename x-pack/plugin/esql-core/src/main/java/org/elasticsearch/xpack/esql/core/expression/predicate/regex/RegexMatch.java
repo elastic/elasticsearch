@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStringAndExact;
@@ -69,6 +71,11 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
             val = br.utf8ToString();
         }
         return RegexOperation.match(val, pattern().asJavaRegex());
+    }
+
+    @Override
+    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+        return isAttributePushable(field(), this instanceof WildcardLike, hasIdenticalDelegate);
     }
 
     @Override

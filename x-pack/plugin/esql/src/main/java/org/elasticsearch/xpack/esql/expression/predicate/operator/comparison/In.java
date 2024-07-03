@@ -144,6 +144,6 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
 
     @Override
     public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
-        return isAttributePushable(value(), null, hasIdenticalDelegate) && Expressions.foldable(list());
+        return isAttributePushable(value(), true, hasIdenticalDelegate) && Expressions.foldable(list());
     }
 }

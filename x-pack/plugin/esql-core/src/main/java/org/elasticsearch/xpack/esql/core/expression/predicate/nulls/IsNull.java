@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.nulls;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "IsNull", IsNull::new);
@@ -62,5 +64,13 @@ public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalar
     @Override
     public UnaryScalarFunction negate() {
         return new IsNotNull(source(), field());
+    }
+
+    @Override
+    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+        if (field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
+            return true;
+        }
+        return isAttributePushable(field(), false, hasIdenticalDelegate);
     }
 }

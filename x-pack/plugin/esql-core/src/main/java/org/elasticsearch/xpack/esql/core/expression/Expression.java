@@ -11,9 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -222,18 +219,14 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
 
     protected static boolean isAttributePushable(
         Expression expression,
-        Expression operation,
+        boolean supportMetadataFields,
         Predicate<FieldAttribute> hasIdenticalDelegate
     ) {
         if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
             return true;
         }
         if (expression instanceof MetadataAttribute ma && ma.searchable()) {
-            return operation == null
-                // no range or regex queries supported with metadata fields
-                || operation instanceof Equals
-                || operation instanceof NotEquals
-                || operation instanceof WildcardLike;
+            return supportMetadataFields;
         }
         return false;
     }

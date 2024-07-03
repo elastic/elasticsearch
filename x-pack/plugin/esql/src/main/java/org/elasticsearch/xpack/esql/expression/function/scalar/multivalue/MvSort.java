@@ -29,7 +29,6 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.common.Failure;
 import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -152,12 +151,16 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     ) {
         boolean ordering = true;
         if (isValidOrder() == false) {
-            throw new InvalidArgumentException(
-                invalidOrderError,
-                sourceText(),
-                ASC.value(),
-                DESC.value(),
-                ((BytesRef) order.fold()).utf8ToString()
+            throw new IllegalArgumentException(
+                "Invalid order value in ["
+                    + sourceText()
+                    + "], expected one of ["
+                    + ASC.value()
+                    + ", "
+                    + DESC.value()
+                    + "] but got ["
+                    + ((BytesRef) order.fold()).utf8ToString()
+                    + "]"
             );
         }
         if (order != null && order.foldable()) {

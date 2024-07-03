@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -5510,12 +5509,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             e.getMessage().substring(header.length())
         );
 
-        InvalidArgumentException iae = expectThrows(InvalidArgumentException.class, () -> plan("""
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> plan("""
             row v = [1, 2, 3] | EVAL sd = mv_sort(v, "dsc")
             """));
         assertEquals("Invalid order value in [mv_sort(v, \"dsc\")], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
 
-        iae = expectThrows(InvalidArgumentException.class, () -> plan("""
+        iae = expectThrows(IllegalArgumentException.class, () -> plan("""
             row v = [1, 2, 3], o = concat("d", "sc") | EVAL sd = mv_sort(v, o)
             """));
         assertEquals("Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());

@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -189,8 +188,8 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
     public void testInvalidOrder() {
         String invalidOrder = randomAlphaOfLength(10);
         DriverContext driverContext = driverContext();
-        InvalidArgumentException e = expectThrows(
-            InvalidArgumentException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> evaluator(
                 new MvSort(
                     Source.EMPTY,

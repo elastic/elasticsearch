@@ -359,7 +359,7 @@ public final class DateFieldMapper extends FieldMapper {
             );
 
             Long nullTimestamp = parseNullValue(ft);
-            if (leafName().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            if (ft.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                 && context.isDataStream()
                 && ignoreMalformed.isConfigured() == false) {
                 ignoreMalformed.setValue(false);

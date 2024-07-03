@@ -475,6 +475,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     protected ReaderContext removeReaderContext(long id) {
+        logger.trace("removing reader context [{}]", id);
         return activeReaders.remove(id);
     }
 
@@ -1175,6 +1176,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public boolean freeReaderContext(ShardSearchContextId contextId) {
+        logger.trace("freeing reader context [{}]", contextId);
         if (sessionId.equals(contextId.getSessionId())) {
             try (ReaderContext context = removeReaderContext(contextId.getId())) {
                 return context != null;

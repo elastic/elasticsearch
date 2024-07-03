@@ -18,11 +18,9 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
-import java.util.ArrayList;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -154,27 +152,24 @@ public class PlainActionFutureTests extends ESTestCase {
         final var threadCount = 4;
         final var running = new AtomicBoolean(true);
         final var startBarrier = new CyclicBarrier(threadCount + 1);
-        final var futures = new ArrayList<Future<?>>();
         try (TestThreadPool threadPool = new TestThreadPool(getTestName())) {
             assert threadPool.info(executorName).getMax() >= threadCount : "Not enough threads in pool";
-            // N threads competing to complete the future
+            // N threads competing to complete the futures
             for (int i = 0; i < threadCount; i++) {
-                futures.add(threadPool.executor(executorName).submit(() -> {
+                threadPool.executor(executorName).submit(() -> {
                     safeAwait(startBarrier);
                     while (running.get()) {
                         futureReference.get().onResponse(null);
                     }
-                }, null));
+                }, null);
             }
-            // continually create new futures to complete
+            // create new futures to complete
             safeAwait(startBarrier);
-            long endTime = System.currentTimeMillis() + 20;
-            while (System.currentTimeMillis() < endTime) {
+            for (int i = 0; i < 20; i++) {
                 futureReference.set(new PlainActionFuture<>());
                 safeSleep(1);
             }
             running.set(false);
-            futures.forEach(ESTestCase::safeGet);
         }
     }
 

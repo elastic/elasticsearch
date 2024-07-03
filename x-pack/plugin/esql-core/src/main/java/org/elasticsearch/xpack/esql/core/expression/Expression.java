@@ -231,7 +231,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
         return false;
     }
 
-    private static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    public static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
             return fa.dataType() != DataType.TEXT || hasIdenticalDelegate.test(fa);
         }

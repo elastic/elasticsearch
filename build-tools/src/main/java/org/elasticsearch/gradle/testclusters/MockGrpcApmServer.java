@@ -8,25 +8,9 @@
 
 package org.elasticsearch.gradle.testclusters;
 
-import com.google.protobuf.ByteString;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
-
-import io.grpc.BindableService;
-import io.grpc.CallOptions;
-import io.grpc.Channel;
-import io.grpc.MethodDescriptor;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import io.grpc.ServerServiceDefinition;
-import io.grpc.protobuf.ProtoUtils;
-import io.grpc.stub.ServerCalls;
 import io.grpc.stub.StreamObserver;
-import com.google.protobuf.Any;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.StringValue;
-
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
@@ -37,11 +21,7 @@ import io.opentelemetry.proto.collector.trace.v1.TraceServiceGrpc;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
 
 /**
  * This is a server which just accepts lines of JSON code and if the JSON
@@ -72,11 +52,13 @@ public class MockGrpcApmServer {
         server.start();
         server.blockUntilShutdown();
     }
+
     private void blockUntilShutdown() throws InterruptedException {
         if (server != null) {
             server.awaitTermination();
         }
     }
+
     private Server server;
 
     /**
@@ -88,16 +70,11 @@ public class MockGrpcApmServer {
     public synchronized int start() throws IOException {
         if (server != null) {
             int port = server.getPort();
-            logger.lifecycle("MockApmServer is already running. Reusing on address:port "+ port);
+            logger.lifecycle("MockApmServer is already running. Reusing on address:port " + port);
             return port;
         }
 
-
-        server = ServerBuilder.forPort(port)
-            .addService(new TraceServiceImpl())
-            .addService(new MetricsServiceImpl())
-            .build()
-            .start();
+        server = ServerBuilder.forPort(port).addService(new TraceServiceImpl()).addService(new MetricsServiceImpl()).build().start();
         System.out.println("Server started, listening on " + port);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.err.println("*** shutting down gRPC server since JVM is shutting down");
@@ -125,14 +102,14 @@ public class MockGrpcApmServer {
         @Override
         public void export(ExportTraceServiceRequest request, StreamObserver<ExportTraceServiceResponse> responseObserver) {
             super.export(request, responseObserver);
-            System.out.println("TRACE SERVICE RECEIVED "+request.toString());
+            System.out.println("TRACE SERVICE RECEIVED " + request.toString());
         }
     }
 
     static class MetricsServiceImpl extends MetricsServiceGrpc.MetricsServiceImplBase {
         @Override
         public void export(ExportMetricsServiceRequest request, StreamObserver<ExportMetricsServiceResponse> responseObserver) {
-            System.out.println("METRICS SERVICE RECEIVED "+request.toString());
+            System.out.println("METRICS SERVICE RECEIVED " + request.toString());
         }
     }
 }

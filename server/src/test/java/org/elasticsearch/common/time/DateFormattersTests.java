@@ -102,22 +102,24 @@ public class DateFormattersTests extends ESTestCase {
         // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
         assertThat(DateFormatters.from(dateFormatter.parse("2015")), equalTo(ZonedDateTime.of(2014, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC)));
     }
+
     public void testUtc() throws ParseException {
         Date d;
         Locale locale = Locale.forLanguageTag("sd-Arab");
-        //8u391 - 12:39:24 PM BST
-//        d = new SimpleDateFormat("hh:mm:ss a z", locale).parse("12:39:24 PM BST"); //Unparseable date: "12:39:24 PM BST"
-//        System.out.println(d);
-        //11.0.22 - 12:59:58 منجهند، شام GMT+٠١:٠٠
+        // 8u391 - 12:39:24 PM BST
+        // d = new SimpleDateFormat("hh:mm:ss a z", locale).parse("12:39:24 PM BST"); //Unparseable date: "12:39:24 PM BST"
+        // System.out.println(d);
+        // 11.0.22 - 12:59:58 منجهند، شام GMT+٠١:٠٠
         d = new SimpleDateFormat("hh:mm:ss a z", locale).parse("12:59:58 منجهند، شام GMT+٠١:٠٠");
         System.out.println(d);
-        //17.0.11 - 01:04:51 منجهند، شام GMT+٠١:٠٠
+        // 17.0.11 - 01:04:51 منجهند، شام GMT+٠١:٠٠
         d = new SimpleDateFormat("hh:mm:ss a z", locale).parse("01:04:51 منجهند، شام GMT+٠١:٠٠");
         System.out.println(d);
-        //22.0.1 - 01:09:33 منجهند، شام BST
+        // 22.0.1 - 01:09:33 منجهند، شام BST
         d = new SimpleDateFormat("hh:mm:ss a z", locale).parse("01:09:33 منجهند، شام");
         System.out.println(d);
     }
+
     public void testEpochMillisParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
         {

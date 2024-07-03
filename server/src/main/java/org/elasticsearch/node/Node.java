@@ -430,7 +430,6 @@ public class Node implements Closeable {
         injector.getInstance(NodeMetrics.class).start();
         injector.getInstance(HealthPeriodicLogger.class).start();
 
-
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);

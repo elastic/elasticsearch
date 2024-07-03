@@ -7,16 +7,16 @@
  */
 
 package org.elasticsearch.gradle.testclusters;
-import com.google.protobuf.Any;
-import com.google.protobuf.StringValue;
 
 import io.grpc.CallOptions;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.MethodDescriptor;
-import io.grpc.stub.ClientCalls;
-import io.grpc.stub.StreamObserver;
 import io.grpc.protobuf.ProtoUtils;
+import io.grpc.stub.ClientCalls;
+
+import com.google.protobuf.Any;
+import com.google.protobuf.StringValue;
 
 public class DynamicGrpcClient {
     private final ManagedChannel channel;
@@ -54,9 +54,9 @@ public class DynamicGrpcClient {
     public static void main(String[] args) {
 
         DynamicGrpcClient client = new DynamicGrpcClient("localhost", 9999);
-//        client.
-//        String response = client.sendMessage("Hello, dynamic message!");
-//        System.out.println("Response: " + response);
-//        client.shutdown();
+        // client.
+        // String response = client.sendMessage("Hello, dynamic message!");
+        // System.out.println("Response: " + response);
+        // client.shutdown();
     }
 }

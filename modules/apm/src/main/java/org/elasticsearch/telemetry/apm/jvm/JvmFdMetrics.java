@@ -27,9 +27,10 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
+
 import javax.annotation.Nullable;
 
-public class JvmFdMetrics /*extends AbstractLifecycleListener */{
+public class JvmFdMetrics /*extends AbstractLifecycleListener */ {
 
     // using method handles to avoid direct reference to `com.sun.*` classes which we can't reference directly
     // as it is not available on all JDKs this is further enforced by the animal sniffer plugin
@@ -57,10 +58,9 @@ public class JvmFdMetrics /*extends AbstractLifecycleListener */{
         if (methodHandle == NOOP) {
             return;
         }
-        registry.registerLongGauge("es."+name+".total", "","count",()-> {
+        registry.registerLongGauge("es." + name + ".total", "", "count", () -> {
             return new LongWithAttributes(getLongWithAttributes(mxBean, methodHandle));
-            }
-        );
+        });
 
     }
 

@@ -74,6 +74,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -310,24 +311,23 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         }
 
         if (bulkRequest.numberOfActions() == 0) {
-            BulkRolesResponse.Builder bulkDeleteRolesResponseBuilder = new BulkRolesResponse.Builder();
-            roleNames.stream()
-                .map(roleName -> BulkRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName)))
-                .forEach(bulkDeleteRolesResponseBuilder::addItem);
-
-            listener.onResponse(bulkDeleteRolesResponseBuilder.build());
+            bulkResponseWithOnlyValidationErrors(roleNames, validationErrorByRoleName, listener);
             return;
         }
 
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
-            BulkRolesResponse.Builder bulkDeleteRolesResponseBuilder = new BulkRolesResponse.Builder();
-            roleNames.stream()
-                .map(
-                    roleName -> BulkRolesResponse.Item.failure(roleName, new IllegalArgumentException("Role [" + roleName + "] not found"))
-                )
-                .forEach(bulkDeleteRolesResponseBuilder::addItem);
-            listener.onResponse(bulkDeleteRolesResponseBuilder.build());
+            bulkResponseWithOnlyValidationErrors(
+                roleNames,
+                roleNames.stream()
+                    .collect(
+                        Collectors.toMap(
+                            roleName -> roleName,
+                            roleName -> new IllegalArgumentException("Role [" + roleName + "] not found")
+                        )
+                    ),
+                listener
+            );
         } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
@@ -340,7 +340,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     new ActionListener<BulkResponse>() {
                         @Override
                         public void onResponse(BulkResponse bulkResponse) {
-                            buildBulkResponseAndRefreshRolesCache(roleNames, bulkResponse, validationErrorByRoleName, listener);
+                            bulkResponseAndRefreshRolesCache(roleNames, bulkResponse, validationErrorByRoleName, listener);
                         }
 
                         @Override
@@ -355,7 +355,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         }
     }
 
-    private void buildBulkResponseAndRefreshRolesCache(
+    private void bulkResponseAndRefreshRolesCache(
         List<String> roleNames,
         BulkResponse bulkResponse,
         Map<String, Exception> validationErrorByRoleName,
@@ -381,6 +381,19 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         clearRoleCache(rolesToRefreshInCache.toArray(String[]::new), ActionListener.wrap(res -> {
             listener.onResponse(bulkPutRolesResponseBuilder.build());
         }, listener::onFailure), bulkResponse);
+    }
+
+    private void bulkResponseWithOnlyValidationErrors(
+        List<String> roleNames,
+        Map<String, Exception> validationErrorByRoleName,
+        ActionListener<BulkRolesResponse> listener
+    ) {
+        BulkRolesResponse.Builder bulkRolesResponseBuilder = new BulkRolesResponse.Builder();
+        roleNames.stream()
+            .map(roleName -> BulkRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName)))
+            .forEach(bulkRolesResponseBuilder::addItem);
+
+        listener.onResponse(bulkRolesResponseBuilder.build());
     }
 
     private void executeAsyncRolesBulkRequest(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
@@ -506,14 +519,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         List<String> roleNames = roles.stream().map(RoleDescriptor::getName).toList();
 
         if (bulkRequest.numberOfActions() == 0) {
-            BulkRolesResponse.Builder bulkPutRolesResponseBuilder = new BulkRolesResponse.Builder();
-            roleNames.stream()
-                .map(roleName -> BulkRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName)))
-                .forEach(bulkPutRolesResponseBuilder::addItem);
-
-            listener.onResponse(bulkPutRolesResponseBuilder.build());
+            bulkResponseWithOnlyValidationErrors(roleNames, validationErrorByRoleName, listener);
             return;
         }
+
         securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(
@@ -523,7 +532,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse bulkResponse) {
-                        buildBulkResponseAndRefreshRolesCache(roleNames, bulkResponse, validationErrorByRoleName, listener);
+                        bulkResponseAndRefreshRolesCache(roleNames, bulkResponse, validationErrorByRoleName, listener);
                     }
 
                     @Override

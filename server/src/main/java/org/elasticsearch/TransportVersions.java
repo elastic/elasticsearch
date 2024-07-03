@@ -207,7 +207,8 @@ public class TransportVersions {
     public static final TransportVersion K_FOR_KNN_QUERY_ADDED = def(8_698_00_0);
     public static final TransportVersion TEXT_SIMILARITY_RERANKER_RETRIEVER = def(8_699_00_0);
     public static final TransportVersion ML_INFERENCE_GOOGLE_VERTEX_AI_RERANKING_ADDED = def(8_700_00_0);
-    public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_701_00_0);
+    public static final TransportVersion VERSIONED_MASTER_NODE_REQUESTS = def(8_701_00_0);
+    public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_702_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

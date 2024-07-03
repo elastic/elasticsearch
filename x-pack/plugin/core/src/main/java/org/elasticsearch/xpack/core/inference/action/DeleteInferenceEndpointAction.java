@@ -116,21 +116,18 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ENHANCE_DELETE_ENDPOINT)) {
                 pipelineIds = in.readCollectionAsSet(StreamInput::readString);
-                indexes = in.readCollectionAsSet(StreamInput::readString);
             } else {
                 pipelineIds = Set.of();
-                indexes = Set.of();
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ENHANCE_DELETE_ENDPOINT)) {
                 out.writeCollection(pipelineIds, StreamOutput::writeString);
-                out.writeCollection(indexes, StreamOutput::writeString);
             }
         }
 

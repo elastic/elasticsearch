@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -20,8 +23,10 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
@@ -36,6 +41,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isDat
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class DateTrunc extends EsqlScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "DateTrunc",
+        DateTrunc::new
+    );
+
     private final Expression interval;
     private final Expression timestampField;
     protected static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
@@ -67,6 +78,30 @@ public class DateTrunc extends EsqlScalarFunction {
         super(source, List.of(interval, field));
         this.interval = interval;
         this.timestampField = field;
+    }
+
+    private DateTrunc(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(interval);
+        out.writeNamedWriteable(timestampField);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    Expression interval() {
+        return interval;
+    }
+
+    Expression field() {
+        return timestampField;
     }
 
     @Override

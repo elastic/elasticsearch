@@ -89,9 +89,9 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public DoubleVector eval(int positionCount, DoubleVector valVector, LongVector decimalsVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Round.process(valVector.getDouble(p), decimalsVector.getLong(p)));
+        result.appendDouble(p, Round.process(valVector.getDouble(p), decimalsVector.getLong(p)));
       }
       return result.build();
     }

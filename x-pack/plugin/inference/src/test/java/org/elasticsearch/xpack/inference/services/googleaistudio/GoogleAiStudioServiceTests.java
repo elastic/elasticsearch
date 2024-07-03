@@ -22,7 +22,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -32,7 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -58,6 +57,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
+import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -710,8 +710,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             // first result
             {
-                assertThat(results.get(0), instanceOf(ChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(results.get(0), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(0), floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.0123f, -0.0123f }, floatResult.chunks().get(0).embedding()));
@@ -719,8 +719,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             // second result
             {
-                assertThat(results.get(1), instanceOf(ChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(1);
+                assertThat(results.get(1), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(1), floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.0456f, -0.0456f }, floatResult.chunks().get(0).embedding()));
@@ -944,26 +944,4 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
     private GoogleAiStudioService createGoogleAiStudioService() {
         return new GoogleAiStudioService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
     }
-
-    private PersistedConfig getPersistedConfigMap(
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings
-    ) {
-
-        return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
-        );
-    }
-
-    private PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
-        return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            null
-        );
-    }
-
-    private record PersistedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
-
 }

@@ -46,6 +46,9 @@ $endif$
     }
 
     static $Type$BigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+$if(float)$
+        throw new UnsupportedOperationException();
+$else$
 $if(boolean)$
         $Array$ values = new BitArray(blockFactory.bigArrays(), true, in);
 $else$
@@ -65,10 +68,15 @@ $endif$
                 values.close();
             }
         }
+$endif$
     }
 
     void writeArrayVector(int positions, StreamOutput out) throws IOException {
+$if(float)$
+        throw new UnsupportedOperationException();
+$else$
         values.writeTo(out);
+$endif$
     }
 
     @Override

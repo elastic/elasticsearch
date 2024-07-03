@@ -390,7 +390,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      */
     public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
         if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping, metrics);
+            return new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics);
         }
         return SourceLoader.FROM_STORED_SOURCE;
     }

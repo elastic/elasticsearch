@@ -100,22 +100,11 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     }
 
     public static class CancellableNodesRequest extends BaseNodesRequest<CancellableNodesRequest> {
-        private String requestName;
-
-        private CancellableNodesRequest(StreamInput in) throws IOException {
-            super(in);
-            requestName = in.readString();
-        }
+        private final String requestName;
 
         public CancellableNodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(requestName);
         }
 
         @Override
@@ -147,7 +136,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             boolean shouldBlock,
             CountDownLatch actionStartedLatch
         ) {
-            super(actionName, threadPool, clusterService, transportService, CancellableNodesRequest::new, CancellableNodeRequest::new);
+            super(actionName, threadPool, clusterService, transportService, CancellableNodeRequest::new);
             this.shouldBlock = shouldBlock;
             this.actionStartedLatch = actionStartedLatch;
         }

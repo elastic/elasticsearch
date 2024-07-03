@@ -127,7 +127,7 @@ public final class EvalMapper {
                     int positionCount = lhs.getPositionCount();
                     try (var result = lhs.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
                         for (int p = 0; p < positionCount; p++) {
-                            result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
+                            result.appendBoolean(p, bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
                         }
                         return result.build().asBlock();
                     }
@@ -264,7 +264,7 @@ public final class EvalMapper {
                     }
                     try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendBoolean(fieldBlock.isNull(p));
+                            builder.appendBoolean(p, fieldBlock.isNull(p));
                         }
                         return builder.build().asBlock();
                     }
@@ -313,7 +313,7 @@ public final class EvalMapper {
                     }
                     try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendBoolean(fieldBlock.isNull(p) == false);
+                            builder.appendBoolean(p, fieldBlock.isNull(p) == false);
                         }
                         return builder.build().asBlock();
                     }

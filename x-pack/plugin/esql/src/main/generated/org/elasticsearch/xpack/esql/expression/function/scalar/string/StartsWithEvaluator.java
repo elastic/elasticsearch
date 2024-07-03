@@ -93,11 +93,11 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector prefixVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef prefixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)));
+        result.appendBoolean(p, StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)));
       }
       return result.build();
     }

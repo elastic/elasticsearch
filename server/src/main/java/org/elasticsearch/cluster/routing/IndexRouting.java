@@ -151,13 +151,12 @@ public abstract class IndexRouting {
 
         @Override
         public void process(IndexRequest indexRequest) {
-            if ("".equals(indexRequest.id())) {
-                throw new IllegalArgumentException("if _id is specified it must not be empty");
-            }
-
             // generate id if not already provided
-            if (indexRequest.id() == null) {
+            final String id = indexRequest.id();
+            if (id == null) {
                 indexRequest.autoGenerateId();
+            } else if (id.isEmpty()) {
+                throw new IllegalArgumentException("if _id is specified it must not be empty");
             }
         }
 

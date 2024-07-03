@@ -424,6 +424,89 @@ dynamic templates - conflicting aliases:
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
+dynamic templates - conflicting aliases with top-level field:
+  - requires:
+      cluster_features: ["mapper.pass_through_priority"]
+      reason: support for priority in passthrough objects
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [otel] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [otel]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                body:
+                  type: match_only_text
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 1
+                scope:
+                  properties:
+                    attributes:
+                      type: passthrough
+                      dynamic: true
+                      time_series_dimension: true
+                      priority: 2
+                resource:
+                  properties:
+                    attributes:
+                      type: passthrough
+                      dynamic: true
+                      time_series_dimension: true
+                      priority: 3
+                metrics:
+                  type: passthrough
+                  dynamic: true
+                  priority: 0
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+                      ignore_malformed: true
+                - strings_as_keyword:
+                    mapping:
+                      type: keyword
+                      ignore_above: 1024
+                      match_mapping_type: string
+                      path_match: "*attributes.*"
+
+  - do:
+      bulk:
+        index: otel
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "metrics.data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "metrics": {"data": "10"}, "body": "top-level", "attributes": {"body": "attribute"}, "scope": {"attributes": {"body": "scope" }}, "resource": {"attributes": {"body": "resource" }}}'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: otel
+        body:
+          size: 1
+          fields: ["*"]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.body: [ top-level ] }
+  - match: { hits.hits.0.fields.attributes\.body: [ attribute ] }
+  - match: { hits.hits.0.fields.scope\.attributes\.body: [ scope ] }
+  - match: { hits.hits.0.fields.resource\.attributes\.body: [ resource ] }
+
+---
 dynamic templates with nesting:
   - requires:
       cluster_features: ["mapper.pass_through_priority"]
@@ -875,3 +958,97 @@ passthrough objects with duplicate priority:
                 resource.attributes:
                   type: passthrough
                   priority: 1
+
+---
+dimensions with ignore_malformed and ignore_above:
+  - requires:
+      cluster_features: ["mapper.keyword_dimension_ignore_above"]
+      reason: support for ignore_above on keyword dimensions
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  time_series_dimension: true
+                  priority: 0
+                  properties:
+                    keyword_dim:
+                      type: keyword
+                    keyword_dim_ignored:
+                      type: keyword
+                      ignore_above: 2
+                    long_dim_ignored:
+                      type: long
+                      ignore_malformed: true
+                data:
+                  type: long
+                  time_series_metric: gauge
+                  ignore_malformed: true
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 10, "attributes.keyword_dim": "foo", "attributes.keyword_dim_ignored": "ignored", "attributes.long_dim_ignored": "ignored" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 20, "attributes.keyword_dim": "foo", "attributes.keyword_dim_ignored": "ignored too", "attributes.long_dim_ignored": "ignored" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 30, "attributes.keyword_dim_ignored": "ignored 3" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 40, "attributes.keyword_dim_ignored": "ignored 4" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 50, "attributes.keyword_dim_ignored": "duplicate" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 60, "attributes.keyword_dim_ignored": "duplicate" }'
+  - match: { errors: true }
+  - match: { items.0.create.result: created }
+  - match: { items.1.create.result: created }
+  - match: { items.2.create.result: created }
+  - match: { items.3.create.result: created }
+  - match: { items.4.create.result: created }
+  - match: { items.5.create.error.type: version_conflict_engine_exception }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          sort:
+            - data: asc
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._ignored: ["attributes.keyword_dim_ignored", "attributes.long_dim_ignored"]}
+  - match: { hits.hits.1._ignored: ["attributes.keyword_dim_ignored", "attributes.long_dim_ignored"]}
+  - match: { hits.hits.2._ignored: ["attributes.keyword_dim_ignored"]}
+  - match: { hits.hits.3._ignored: ["attributes.keyword_dim_ignored"]}
+  - match: { hits.hits.4._ignored: ["attributes.keyword_dim_ignored"]}
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            keyword_dims:
+              terms:
+                field: keyword_dim
+
+  - length: { aggregations.keyword_dims.buckets: 1 }
+  - match: { aggregations.keyword_dims.buckets.0.key: "foo" }
+  - match: { aggregations.keyword_dims.buckets.0.doc_count: 2 }

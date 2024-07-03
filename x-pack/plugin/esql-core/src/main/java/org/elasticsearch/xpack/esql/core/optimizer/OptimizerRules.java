@@ -12,11 +12,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.SurrogateFunction;
-import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
@@ -33,7 +31,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
@@ -60,20 +57,8 @@ import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 
 public final class OptimizerRules {
 
-    public static final class ConstantFolding extends OptimizerExpressionRule<Expression> {
-
-        public ConstantFolding() {
-            super(TransformDirection.DOWN);
-        }
-
-        @Override
-        public Expression rule(Expression e) {
-            return e.foldable() ? Literal.of(e) : e;
-        }
-    }
-
     /**
-     * This rule must always be placed after {@link LiteralsOnTheRight}, since it looks at TRUE/FALSE literals' existence
+     * This rule must always be placed after LiteralsOnTheRight, since it looks at TRUE/FALSE literals' existence
      * on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
      */
     public static final class BooleanFunctionEqualsElimination extends OptimizerExpressionRule<BinaryComparison> {
@@ -235,18 +220,6 @@ public final class OptimizerRules {
         }
     }
 
-    public static final class LiteralsOnTheRight extends OptimizerExpressionRule<BinaryOperator<?, ?, ?, ?>> {
-
-        public LiteralsOnTheRight() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        public BinaryOperator<?, ?, ?, ?> rule(BinaryOperator<?, ?, ?, ?> be) {
-            return be.left() instanceof Literal && (be.right() instanceof Literal) == false ? be.swapLeftAndRight() : be;
-        }
-    }
-
     /**
      * Combine disjunctions on the same field into an In expression.
      * This rule looks for both simple equalities:
@@ -380,32 +353,6 @@ public final class OptimizerRules {
                 }
             }
             return binaryLogic;
-        }
-    }
-
-    public static final class PruneLiteralsInOrderBy extends OptimizerRule<OrderBy> {
-
-        @Override
-        protected LogicalPlan rule(OrderBy ob) {
-            List<Order> prunedOrders = new ArrayList<>();
-
-            for (Order o : ob.order()) {
-                if (o.child().foldable()) {
-                    prunedOrders.add(o);
-                }
-            }
-
-            // everything was eliminated, the order isn't needed anymore
-            if (prunedOrders.size() == ob.order().size()) {
-                return ob.child();
-            }
-            if (prunedOrders.size() > 0) {
-                List<Order> newOrders = new ArrayList<>(ob.order());
-                newOrders.removeAll(prunedOrders);
-                return new OrderBy(ob.source(), ob.child(), newOrders);
-            }
-
-            return ob;
         }
     }
 
@@ -568,21 +515,6 @@ public final class OptimizerRules {
         // placeholder for non-null
         protected Expression nonNullify(Expression exp, Expression nonNullExp) {
             return exp;
-        }
-    }
-
-    public static final class SetAsOptimized extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            plan.forEachUp(SetAsOptimized::rule);
-            return plan;
-        }
-
-        private static void rule(LogicalPlan plan) {
-            if (plan.optimized() == false) {
-                plan.setOptimized();
-            }
         }
     }
 

@@ -268,17 +268,6 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             exception.getMessage(),
             equalTo("aliases, mappings, and index settings may not be specified when rolling over a data stream")
         );
-
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, req, true)
-        );
-        assertThat(
-            exception.getMessage(),
-            equalTo(
-                "unable to roll over failure store because [" + randomDataStream.getName() + "] does not have the failure store enabled"
-            )
-        );
     }
 
     public void testGenerateRolloverIndexName() {

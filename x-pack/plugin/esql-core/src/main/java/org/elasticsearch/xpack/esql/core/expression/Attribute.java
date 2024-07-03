@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -30,7 +29,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.splitQualifiedI
  * is a named expression (an {@code Alias} will be created automatically for it).
  * The rest are not as they are not part of the projection and thus are not part of the derived table.
  */
-public abstract class Attribute extends NamedExpression implements NamedWriteable {
+public abstract class Attribute extends NamedExpression {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         // TODO add UnsupportedAttribute when these are moved to the same project
         return List.of(FieldAttribute.ENTRY, MetadataAttribute.ENTRY, ReferenceAttribute.ENTRY);

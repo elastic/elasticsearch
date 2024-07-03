@@ -407,7 +407,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     );
                 }
                 int queryCount = source.subSearches().size() + source.knnSearch().size();
-                if (queryCount < 2) {
+                if (source.rankBuilder().isCompoundBuilder() && queryCount < 2) {
                     validationException = addValidationError(
                         "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
                         validationException
@@ -433,12 +433,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 }
                 if (source.pointInTimeBuilder() != null) {
                     validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
-                }
-                if (source.profile()) {
-                    validationException = addValidationError("[rank] requires [profile] is [false]", validationException);
-                }
-                if (source.explain() != null && source.explain()) {
-                    validationException = addValidationError("[rank] requires [explain] is [false]", validationException);
                 }
             }
             if (source.rescores() != null) {

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.response.huggingface;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -23,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
 public class HuggingFaceElserResponseEntity {
@@ -65,7 +66,7 @@ public class HuggingFaceElserResponseEntity {
             moveToFirstToken(jsonParser);
 
             var truncationResults = request.getTruncationInfo();
-            List<SparseEmbeddingResults.Embedding> parsedEmbeddings = XContentParserUtils.parseList(
+            List<SparseEmbeddingResults.Embedding> parsedEmbeddings = parseList(
                 jsonParser,
                 (parser, index) -> HuggingFaceElserResponseEntity.parseExpansionResult(truncationResults, parser, index)
             );
@@ -81,14 +82,14 @@ public class HuggingFaceElserResponseEntity {
     private static SparseEmbeddingResults.Embedding parseExpansionResult(boolean[] truncationResults, XContentParser parser, int index)
         throws IOException {
         XContentParser.Token token = parser.currentToken();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         List<WeightedToken> weightedTokens = new ArrayList<>();
         token = parser.nextToken();
         while (token != null && token != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             var floatToken = parser.nextToken();
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, floatToken, parser);
+            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, floatToken, parser);
 
             weightedTokens.add(new WeightedToken(parser.currentName(), parser.floatValue()));
 

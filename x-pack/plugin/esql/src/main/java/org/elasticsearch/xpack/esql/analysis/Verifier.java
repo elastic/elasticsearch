@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -124,7 +126,21 @@ public class Verifier {
                 var aggs = agg.aggregates();
                 int size = aggs.size() - groupings.size();
                 aggs.subList(0, size).forEach(unresolvedExpressions);
-            } else {
+            }
+            // similar approach for Lookup
+            else if (p instanceof Lookup lookup) {
+                // first check the table
+                var tableName = lookup.tableName();
+                if (tableName instanceof Unresolvable u) {
+                    failures.add(fail(tableName, u.unresolvedMessage()));
+                }
+                // only after that check the match fields
+                else {
+                    lookup.matchFields().forEach(unresolvedExpressions);
+                }
+            }
+
+            else {
                 p.forEachExpression(unresolvedExpressions);
             }
         });
@@ -193,7 +209,7 @@ public class Verifier {
                 if (attr != null) {
                     groupRefs.add(attr);
                 }
-                if (e instanceof FieldAttribute f && EsqlDataTypes.isCounterType(f.dataType())) {
+                if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
                     failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
                 }
             });
@@ -210,11 +226,39 @@ public class Verifier {
                 // traverse the tree to find invalid matches
                 checkInvalidNamedExpressionUsage(exp, groupings, groupRefs, failures, 0);
             });
+            if (agg.aggregateType() == Aggregate.AggregateType.METRICS) {
+                aggs.forEach(a -> checkRateAggregates(a, 0, failures));
+            } else {
+                agg.forEachExpression(
+                    Rate.class,
+                    r -> failures.add(fail(r, "the rate aggregate[{}] can only be used within the metrics command", r.sourceText()))
+                );
+            }
         } else {
             p.forEachExpression(
                 GroupingFunction.class,
                 gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
             );
+        }
+    }
+
+    private static void checkRateAggregates(Expression expr, int nestedLevel, Set<Failure> failures) {
+        if (expr instanceof AggregateFunction) {
+            nestedLevel++;
+        }
+        if (expr instanceof Rate r) {
+            if (nestedLevel != 2) {
+                failures.add(
+                    fail(
+                        expr,
+                        "the rate aggregate [{}] can only be used within the metrics command and inside another aggregate",
+                        r.sourceText()
+                    )
+                );
+            }
+        }
+        for (Expression child : expr.children()) {
+            checkRateAggregates(child, nestedLevel, failures);
         }
     }
 
@@ -230,7 +274,10 @@ public class Verifier {
         // found an aggregate, constant or a group, bail out
         if (e instanceof AggregateFunction af) {
             af.field().forEachDown(AggregateFunction.class, f -> {
-                failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
+                // rate aggregate is allowed to be inside another aggregate
+                if (f instanceof Rate == false) {
+                    failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
+                }
             });
         } else if (e instanceof GroupingFunction gf) {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
@@ -322,7 +369,11 @@ public class Verifier {
                 }
                 // check no aggregate functions are used
                 field.forEachDown(AggregateFunction.class, af -> {
-                    failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
+                    if (af instanceof Rate) {
+                        failures.add(fail(af, "aggregate function [{}] not allowed outside METRICS command", af.sourceText()));
+                    } else {
+                        failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
+                    }
                 });
             });
         }

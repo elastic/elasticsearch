@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
@@ -652,6 +653,55 @@ public class EsExecutorsTests extends ESTestCase {
             assertThat(EsExecutors.executorName("LuceneTestCase" + thread.getName()), is(nullValue()));
         } finally {
             thread.join();
+        }
+    }
+
+    public void testScalingWithTaskTimeTracking() {
+        final int min = between(1, 3);
+        final int max = between(min + 1, 6);
+
+        {
+            ThreadPoolExecutor pool = EsExecutors.newScaling(
+                getClass().getName() + "/" + getTestName(),
+                min,
+                max,
+                between(1, 100),
+                randomTimeUnit(),
+                randomBoolean(),
+                EsExecutors.daemonThreadFactory("test"),
+                threadContext,
+                new EsExecutors.TaskTrackingConfig(randomBoolean(), randomDoubleBetween(0.01, 0.1, true))
+            );
+            assertThat(pool, instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+        }
+
+        {
+            ThreadPoolExecutor pool = EsExecutors.newScaling(
+                getClass().getName() + "/" + getTestName(),
+                min,
+                max,
+                between(1, 100),
+                randomTimeUnit(),
+                randomBoolean(),
+                EsExecutors.daemonThreadFactory("test"),
+                threadContext
+            );
+            assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
+        }
+
+        {
+            ThreadPoolExecutor pool = EsExecutors.newScaling(
+                getClass().getName() + "/" + getTestName(),
+                min,
+                max,
+                between(1, 100),
+                randomTimeUnit(),
+                randomBoolean(),
+                EsExecutors.daemonThreadFactory("test"),
+                threadContext,
+                DO_NOT_TRACK
+            );
+            assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
         }
     }
 

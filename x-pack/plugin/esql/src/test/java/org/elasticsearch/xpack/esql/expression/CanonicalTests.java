@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.TestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -41,13 +41,13 @@ import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.TestUtils.equalsOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.fieldAttribute;
-import static org.elasticsearch.xpack.esql.core.TestUtils.greaterThanOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.greaterThanOrEqualOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.lessThanOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.notEqualsOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.notEqualsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class CanonicalTests extends ESTestCase {
@@ -114,7 +114,7 @@ public class CanonicalTests extends ESTestCase {
     }
 
     private void testBinaryLogic(Function<List<Expression>, Expression> combiner) {
-        List<Expression> children = randomList(2, 128, TestUtils::fieldAttribute);
+        List<Expression> children = randomList(2, 128, EsqlTestUtils::fieldAttribute);
         Expression expression = combiner.apply(children);
         Collections.shuffle(children, random());
         Expression shuffledExpression = combiner.apply(children);

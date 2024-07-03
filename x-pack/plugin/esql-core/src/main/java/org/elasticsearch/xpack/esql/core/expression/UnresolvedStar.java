@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -23,6 +25,16 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     public UnresolvedStar(Source source, UnresolvedAttribute qualifier) {
         super(source, emptyList());
         this.qualifier = qualifier;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("doesn't escape the node");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("doesn't escape the node");
     }
 
     @Override

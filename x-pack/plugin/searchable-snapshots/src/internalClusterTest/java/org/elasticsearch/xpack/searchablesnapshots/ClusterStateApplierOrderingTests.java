@@ -96,7 +96,7 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
                 for (RoutingNode routingNode : event.state().getRoutingNodes()) {
                     for (ShardRouting shardRouting : routingNode) {
                         if (shardRouting.unassignedInfo() != null) {
-                            unassignedReasons.add(shardRouting.unassignedInfo().getReason());
+                            unassignedReasons.add(shardRouting.unassignedInfo().reason());
                         }
                     }
                 }

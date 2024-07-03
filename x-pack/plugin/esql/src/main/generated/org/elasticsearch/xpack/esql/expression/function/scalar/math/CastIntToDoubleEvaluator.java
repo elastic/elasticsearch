@@ -69,9 +69,9 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   }
 
   public DoubleVector eval(int positionCount, IntVector vVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Cast.castIntToDouble(vVector.getInt(p)));
+        result.appendDouble(p, Cast.castIntToDouble(vVector.getInt(p)));
       }
       return result.build();
     }

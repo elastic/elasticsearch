@@ -44,7 +44,7 @@ class ReleasableDoubleArray implements DoubleArray {
     }
 
     @Override
-    public double set(long index, double value) {
+    public void set(long index, double value) {
         throw new UnsupportedOperationException();
     }
 

@@ -1336,12 +1336,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     private void testBlockLoaderFromParent(boolean columnReader, boolean syntheticSource) throws IOException {
         boolean storeParent = randomBoolean();
-        KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(
-            null,
-            storeParent,
-            null,
-            false == storeParent
-        );
+        KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(null, storeParent, null, false);
         SyntheticSourceExample example = kwdSupport.example(5);
         CheckedConsumer<XContentBuilder, IOException> buildFields = b -> {
             b.startObject("field");

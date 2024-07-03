@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -27,8 +30,10 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -40,6 +45,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  * Function returning the first non-null value.
  */
 public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Coalesce", Coalesce::new);
+
     private DataType dataType;
 
     @FunctionInfo(
@@ -54,7 +61,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "ip",
             "keyword",
             "long",
-            "text" },
+            "text",
+            "version" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
@@ -73,7 +81,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "ip",
                 "keyword",
                 "long",
-                "text" },
+                "text",
+                "version" },
             description = "Expression to evaluate."
         ) Expression first,
         @Param(
@@ -89,12 +98,33 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "ip",
                 "keyword",
                 "long",
-                "text" },
+                "text",
+                "version" },
             description = "Other expression to evaluate.",
             optional = true
         ) List<Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
+    }
+
+    private Coalesce(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(children().get(0));
+        out.writeNamedWriteableCollection(children().subList(1, children().size()));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

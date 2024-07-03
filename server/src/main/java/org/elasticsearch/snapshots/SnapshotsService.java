@@ -395,7 +395,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             @Override
             public void onFailure(Exception e) {
                 initializingClones.remove(snapshot);
-                logger.warn(() -> format("[%s][%s] failed to clone snapshot", repositoryName, snapshotName), e);
+                logSnapshotFailure("clone", snapshot, e);
                 listener.onFailure(e);
             }
 
@@ -1996,8 +1996,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     /**
      * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
      *
+     * When <code>wait_for_completion</code> is set to true, the passed action listener will only complete when all
+     * matching snapshots are deleted, when it is false it will complete as soon as the deletes are scheduled
+     *
      * @param request         delete snapshot request
-     * @param listener        listener
+     * @param listener        listener a listener which will be resolved according to the wait_for_completion parameter
      */
     public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<Void> listener) {
         final String repositoryName = request.repository();
@@ -2190,10 +2193,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         Runnable::run
                     );
                 }
-                if (newDelete == null) {
+                if (newDelete == null || request.waitForCompletion() == false) {
                     listener.onResponse(null);
                 } else {
                     addDeleteListener(newDelete.uuid(), listener);
+                }
+                if (newDelete != null) {
                     if (reusedExistingDelete) {
                         return;
                     }
@@ -3845,25 +3850,30 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
         @Override
         public void onFailure(Exception e) {
-            final var logLevel = snapshotFailureLogLevel(e);
-            if (logLevel == Level.INFO && logger.isDebugEnabled() == false) {
-                // suppress stack trace at INFO unless extra verbosity is configured
-                logger.info(
-                    format(
-                        "[%s][%s] failed to create snapshot: %s",
-                        snapshot.getRepository(),
-                        snapshot.getSnapshotId().getName(),
-                        e.getMessage()
-                    )
-                );
-            } else {
-                logger.log(
-                    logLevel,
-                    () -> format("[%s][%s] failed to create snapshot", snapshot.getRepository(), snapshot.getSnapshotId().getName()),
-                    e
-                );
-            }
+            logSnapshotFailure("create", snapshot, e);
             listener.onFailure(e);
+        }
+    }
+
+    private static void logSnapshotFailure(String operation, Snapshot snapshot, Exception e) {
+        final var logLevel = snapshotFailureLogLevel(e);
+        if (logLevel == Level.INFO && logger.isDebugEnabled() == false) {
+            // suppress stack trace at INFO unless extra verbosity is configured
+            logger.info(
+                format(
+                    "[%s][%s] failed to %s snapshot: %s",
+                    snapshot.getRepository(),
+                    snapshot.getSnapshotId().getName(),
+                    operation,
+                    e.getMessage()
+                )
+            );
+        } else {
+            logger.log(
+                logLevel,
+                () -> format("[%s][%s] failed to %s snapshot", snapshot.getRepository(), snapshot.getSnapshotId().getName(), operation),
+                e
+            );
         }
     }
 

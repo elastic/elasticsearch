@@ -152,7 +152,6 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
         @Override
         public void onIndexingCompleted(DocumentSizeObserver documentSizeObserver) {
-            DocumentSizeObserver documentSizeObserver = documentSizeObserver.getDocumentSizeObserver();
             COUNTER.addAndGet(documentSizeObserver.normalisedBytesParsed());
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
         }

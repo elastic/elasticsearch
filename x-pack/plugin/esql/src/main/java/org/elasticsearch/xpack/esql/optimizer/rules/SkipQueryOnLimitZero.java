@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public final class SkipQueryOnLimitZero extends OptimizerRules.OptimizerRule<Limit> {
     @Override

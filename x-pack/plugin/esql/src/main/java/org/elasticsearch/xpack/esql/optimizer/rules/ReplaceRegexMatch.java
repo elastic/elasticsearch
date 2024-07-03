@@ -15,8 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPatter
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 
-public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionRule<
-    RegexMatch<?>> {
+public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionRule<RegexMatch<?>> {
 
     public ReplaceRegexMatch() {
         super(OptimizerRules.TransformDirection.DOWN);

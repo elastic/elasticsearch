@@ -86,9 +86,9 @@ Some <<mapping-types,field types>> are not supported in all contexts:
 ** `cartesian_shape`
 
 In addition, when <<esql-multi-index, querying multiple indexes>>,
-it is possible that the same field is mapped to multiple types.
-Such a field cannot be directly used in the query, nor be returned in the results,
-except if <<esql-multi-index-union-types, explicitly converted to a single type>>.
+it's possible for the same field to be mapped to multiple types.
+These fields cannot be directly used in queries or returned in results,
+unless they're <<esql-multi-index-union-types, explicitly converted to a single type>>.
 
 [discrete]
 [[esql-_source-availability]]

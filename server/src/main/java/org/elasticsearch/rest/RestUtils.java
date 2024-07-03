@@ -23,7 +23,7 @@ import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.action.support.master.AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
-import static org.elasticsearch.rest.RestRequest.ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS;
+import static org.elasticsearch.rest.RestRequest.USE_SERVERLESS_PARTIAL_API_RESTRICTIONS;
 
 public class RestUtils {
 
@@ -85,8 +85,8 @@ public class RestUtils {
     }
 
     private static void addParam(Map<String, String> params, String name, String value) {
-        if (ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS.equalsIgnoreCase(name)) {
-            throw new IllegalArgumentException("parameter [" + ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS + "] is reserved and may not set");
+        if (USE_SERVERLESS_PARTIAL_API_RESTRICTIONS.equalsIgnoreCase(name)) {
+            throw new IllegalArgumentException("parameter [" + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS + "] is reserved and may not set");
         }
         params.put(name, value);
     }

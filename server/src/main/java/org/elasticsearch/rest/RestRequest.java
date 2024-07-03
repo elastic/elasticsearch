@@ -48,7 +48,18 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params, Traceable {
 
-    public static final String ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS = "nonOperatorRequest";
+    /**
+     * This internal parameter indicates that APIs that have partial API restrictions in Serverless mode should apply them to the request.
+     * Partial API restrictions are for APIs that are public in Serverless but prevent the use of certain fields in the request, omit
+     * fields from the response, or otherwise partially restrict functionality.
+     *
+     * This parameter is set for all request that are made in Serverless mode against a public API by non-operator users.
+     *
+     * If you have an API with partial restrictions, use this flag to check if you need to apply them or not (i.e., if the request is
+     * subject to them, or is exempt). You can check for the presence of this parameter among the REST parameters of the request instance,
+     * or use {@link #shouldUseServerlessPartialApiRestrictions()}.
+     */
+    public static final String USE_SERVERLESS_PARTIAL_API_RESTRICTIONS = "useServerlessPartialApiRestrictions";
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -616,22 +627,21 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return restApiVersion.isPresent();
     }
 
-    public void markApiRestrictionsActiveFor(String environment) {
-        if (params.containsKey(ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS)) {
-            throw new IllegalArgumentException("The parameter [" + ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS + "] is already defined.");
+    public void setUseServerlessPartialApiRestrictions() {
+        if (params.containsKey(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS)) {
+            throw new IllegalArgumentException("The parameter [" + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS + "] is already defined.");
         }
-        params.put(ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS, environment);
+        params.put(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS, "");
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
-        consumedParams.add(ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS);
+        consumedParams.add(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS);
     }
 
-    public void markServerlessApiRestrictionsActive() {
-        markApiRestrictionsActiveFor("serverless");
-    }
-
-    public boolean serverlessApiRestrictionsActive() {
-        final boolean hasParam = hasParam(ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS);
-        assert false == hasParam || params.get(ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS).equals("serverless");
+    /**
+     * @see #USE_SERVERLESS_PARTIAL_API_RESTRICTIONS
+     */
+    public boolean shouldUseServerlessPartialApiRestrictions() {
+        final boolean hasParam = hasParam(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS);
+        assert false == hasParam || params.get(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS).equals("");
         return hasParam;
     }
 

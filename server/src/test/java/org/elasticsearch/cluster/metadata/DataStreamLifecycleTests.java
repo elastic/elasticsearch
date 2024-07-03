@@ -39,7 +39,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DATA_STREAM_CONFIGURATION;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION;
-import static org.elasticsearch.rest.RestRequest.ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS;
+import static org.elasticsearch.rest.RestRequest.USE_SERVERLESS_PARTIAL_API_RESTRICTIONS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -354,7 +354,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
         {
             ToXContent.Params params = DataStreamLifecycle.maybeAddEffectiveRetentionParams(
-                new ToXContent.MapParams(Map.of(ENVIRONMENT_WITH_ACTIVE_API_RESTRICTIONS, randomAlphaOfLength(10)))
+                new ToXContent.MapParams(Map.of(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS, ""))
             );
             assertThat(params.paramAsBoolean(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false), equalTo(true));
         }

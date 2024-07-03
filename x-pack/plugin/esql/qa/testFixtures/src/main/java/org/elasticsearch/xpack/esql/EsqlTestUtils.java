@@ -27,10 +27,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
@@ -155,10 +157,6 @@ public final class EsqlTestUtils {
         return of(Source.EMPTY, value);
     }
 
-    public static Configuration randomConfiguration() {
-        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10));
-    }
-
     /**
      * Utility method for creating 'in-line' Literals (out of values instead of expressions).
      */
@@ -169,8 +167,20 @@ public final class EsqlTestUtils {
         return new Literal(source, value, DataType.fromJava(value));
     }
 
+    public static ReferenceAttribute referenceAttribute(String name, DataType type) {
+        return new ReferenceAttribute(EMPTY, name, type);
+    }
+
+    public static Alias sameNameAlias(ReferenceAttribute ref) {
+        return new Alias(ref.source(), ref.name(), ref);
+    }
+
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
         return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
+    }
+
+    public static Configuration randomConfiguration() {
+        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public static EsRelation relation() {

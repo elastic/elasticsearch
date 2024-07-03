@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -120,10 +119,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     ) {
         assert task instanceof CancellableTask : task + " not cancellable";
 
+        final var resolvedRepositories = ResolvedRepositories.resolve(state, request.repositories());
+        if (resolvedRepositories.hasMissingRepositories()) {
+            throw new RepositoryMissingException(String.join(", ", resolvedRepositories.missing()));
+        }
+
         new GetSnapshotsOperation(
             (CancellableTask) task,
-            ResolvedRepositories.resolve(state, request.repositories()),
-            request.isSingleRepositoryRequest() == false,
+            resolvedRepositories.repositoryMetadata(),
             request.snapshots(),
             request.ignoreUnavailable(),
             request.policies(),
@@ -151,7 +154,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         // repositories
         private final List<RepositoryMetadata> repositories;
-        private final boolean isMultiRepoRequest;
 
         // snapshots selection
         private final SnapshotNamePredicate snapshotNamePredicate;
@@ -179,7 +181,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final GetSnapshotInfoExecutor getSnapshotInfoExecutor;
 
         // results
-        private final Map<String, ElasticsearchException> failuresByRepository = ConcurrentCollections.newConcurrentMap();
         private final Queue<List<SnapshotInfo>> allSnapshotInfos = ConcurrentCollections.newQueue();
 
         /**
@@ -195,8 +196,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         GetSnapshotsOperation(
             CancellableTask cancellableTask,
-            ResolvedRepositories resolvedRepositories,
-            boolean isMultiRepoRequest,
+            List<RepositoryMetadata> repositories,
             String[] snapshots,
             boolean ignoreUnavailable,
             String[] policies,
@@ -211,8 +211,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             boolean indices
         ) {
             this.cancellableTask = cancellableTask;
-            this.repositories = resolvedRepositories.repositoryMetadata();
-            this.isMultiRepoRequest = isMultiRepoRequest;
+            this.repositories = repositories;
             this.ignoreUnavailable = ignoreUnavailable;
             this.sortBy = sortBy;
             this.order = order;
@@ -232,10 +231,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 threadPool.info(ThreadPool.Names.SNAPSHOT_META).getMax(),
                 cancellableTask::isCancelled
             );
-
-            for (final var missingRepo : resolvedRepositories.missing()) {
-                failuresByRepository.put(missingRepo, new RepositoryMissingException(missingRepo));
-            }
         }
 
         void getMultipleReposSnapshotInfo(ActionListener<GetSnapshotsResponse> listener) {
@@ -247,6 +242,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                             final String repoName = repository.name();
                             if (skipRepository(repoName)) {
                                 continue;
+                            }
+
+                            if (listeners.isFailing()) {
+                                return;
                             }
 
                             SubscribableListener
@@ -261,14 +260,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
                                 .<Void>andThen((l, repositoryData) -> loadSnapshotInfos(repoName, repositoryData, l))
 
-                                .addListener(listeners.acquire().delegateResponse((l, e) -> {
-                                    if (isMultiRepoRequest && e instanceof ElasticsearchException elasticsearchException) {
-                                        failuresByRepository.put(repoName, elasticsearchException);
-                                        l.onResponse(null);
-                                    } else {
-                                        l.onFailure(e);
-                                    }
-                                }));
+                                .addListener(listeners.acquire());
                         }
                     }
                 })
@@ -503,7 +495,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
             return new GetSnapshotsResponse(
                 snapshotInfos,
-                failuresByRepository,
+                null,
                 remaining > 0 ? sortBy.encodeAfterQueryParam(snapshotInfos.get(snapshotInfos.size() - 1)) : null,
                 totalCount.get(),
                 remaining

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -55,13 +54,13 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
     }
 
     private WildcardLike(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression(), new WildcardPattern(in.readString()));
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), new WildcardPattern(in.readString()));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(field());
+        out.writeNamedWriteable(field());
         out.writeString(pattern().pattern());
     }
 

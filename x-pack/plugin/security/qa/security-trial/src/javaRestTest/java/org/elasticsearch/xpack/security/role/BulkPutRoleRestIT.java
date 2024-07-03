@@ -7,14 +7,11 @@
 
 package org.elasticsearch.xpack.security.role;
 
-import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -213,19 +210,4 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             assertEquals(3, items.size());
         }
     }
-
-    protected Map<String, Object> upsertRoles(String roleDescriptorsByName) throws IOException {
-        Request request = rolesRequest(roleDescriptorsByName);
-        Response response = adminClient().performRequest(request);
-        assertOK(response);
-        return responseAsMap(response);
-    }
-
-    protected Request rolesRequest(String roleDescriptorsByName) {
-        Request rolesRequest;
-        rolesRequest = new Request(HttpPost.METHOD_NAME, "/_security/role");
-        rolesRequest.setJsonEntity(org.elasticsearch.core.Strings.format(roleDescriptorsByName));
-        return rolesRequest;
-    }
-
 }

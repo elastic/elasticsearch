@@ -14,10 +14,10 @@ esplugin {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analysis-morfologik:${versions.lucene}"
-  api "org.carrot2:morfologik-stemming:2.1.1"
-  api "org.carrot2:morfologik-fsa:2.1.1"
-  api "ua.net.nlp:morfologik-ukrainian-search:3.7.5"
+  api libs.lucene.analysis.morfologik
+  api libs.morfologik.stemming
+  api libs.morfologik.fsa
+  api libs.morfologik.ukrainian.search
 }
 
 restResources {

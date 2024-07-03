@@ -45,7 +45,6 @@ dependencies {
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
   api libs.jmh.core
-  //"org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor libs.jmh.generator.annprocess
   // Dependencies of JMH
   runtimeOnly libs.jopt.simple

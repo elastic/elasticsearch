@@ -3,6 +3,7 @@ antlr4 = "4.13.1"
 asm = "9.7"
 bytebuddy = "1.14.12"
 httpcore = "4.4.13"
+icu4j = "68.2"
 jackson = "2.15.0"
 jmh = "1.26"
 jna = "5.12.1"
@@ -97,6 +98,7 @@ httpasyncclient = { group = "org.apache.httpcomponents", name = "httpasyncclient
 httpclient = { group = "org.apache.httpcomponents", name = "httpclient", version = "4.5.14" }
 httpcore = { group = "org.apache.httpcomponents", name = "httpcore", version.ref = "httpcore" }
 httpcore-nio = { group = "org.apache.httpcomponents", name = "httpcore-nio", version.ref = "httpcore" }
+icu4j = { group = "com.ibm.icu", name = "icu4j", version.ref = "icu4j" }
 jackson-core = { group = "com.fasterxml.jackson.core", name = "jackson-core", version.ref = "jackson" }
 jackson-annotations = { group = "com.fasterxml.jackson.core", name = "jackson-annotations", version.ref = "jackson" }
 jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }
@@ -126,6 +128,13 @@ log4j-api = { group = "org.apache.logging.log4j", name = "log4j-api", version.re
 log4j-core = { group = "org.apache.logging.log4j", name = "log4j-core", version.ref = "log4j" }
 lucene-core = { group = "org.apache.lucene", name = "lucene-core", version.ref = "lucene" }
 lucene-analysis-common = { group = "org.apache.lucene", name = "lucene-analysis-common", version.ref = "lucene" }
+lucene-analysis-icu = { group = "org.apache.lucene", name = "lucene-analysis-icu", version.ref = "lucene" }
+lucene-analysis-kuromoji = { group = "org.apache.lucene", name = "lucene-analysis-kuromoji", version.ref = "lucene" }
+lucene-analysis-morfologik = { group = "org.apache.lucene", name = "lucene-analysis-morfologik", version.ref = "lucene" }
+lucene-analysis-nori = { group = "org.apache.lucene", name = "lucene-analysis-nori", version.ref = "lucene" }
+lucene-analysis-phonetic = { group = "org.apache.lucene", name = "lucene-analysis-phonetic", version.ref = "lucene" }
+lucene-analysis-smartcn = { group = "org.apache.lucene", name = "lucene-analysis-smartcn", version.ref = "lucene" }
+lucene-analysis-stempel = { group = "org.apache.lucene", name = "lucene-analysis-stempel", version.ref = "lucene" }
 lucene-backward-codecs = { group = "org.apache.lucene", name = "lucene-backward-codecs", version.ref = "lucene" }
 lucene-codecs = { group = "org.apache.lucene", name = "lucene-codecs", version.ref = "lucene" }
 lucene-expressions = { group = "org.apache.lucene", name = "lucene-expressions", version.ref = "lucene" }
@@ -145,6 +154,10 @@ maxmind-db = "com.maxmind.db:maxmind-db:3.1.0"
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 mockito-subclass = { group = "org.mockito", name = "mockito-subclass", version.ref = "mockito" }
 mocksocket = "org.elasticsearch:mocksocket:1.2"
+morfologik-stemming = "org.carrot2:morfologik-stemming:2.1.1"
+morfologik-fsa = "org.carrot2:morfologik-fsa:2.1.1"
+morfologik-ukrainian-search = "ua.net.nlp:morfologik-ukrainian-search:3.7.5"
+
 mustache-compiler = "com.github.spullara.mustache.java:compiler:0.9.10"
 netty-buffer = { group = "io.netty", name = "netty-buffer", version.ref = "netty" }
 netty-codec = { group = "io.netty", name = "netty-codec", version.ref = "netty" }

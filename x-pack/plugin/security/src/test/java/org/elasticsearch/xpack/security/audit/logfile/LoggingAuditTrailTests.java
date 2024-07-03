@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAct
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
@@ -137,7 +138,6 @@ import org.junit.BeforeClass;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
-import javax.swing.*;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -843,6 +843,42 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_role");
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedDeleteRoleAuditEventString, checkedFields);
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        BulkDeleteRolesRequest bulkDeleteRolesRequest = new BulkDeleteRolesRequest(
+            allTestRoleDescriptors.stream().map(RoleDescriptor::getName).toList()
+        );
+        bulkDeleteRolesRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        auditTrail.accessGranted(
+            requestId,
+            authentication,
+            ActionTypes.BULK_DELETE_ROLES.name(),
+            bulkDeleteRolesRequest,
+            authorizationInfo
+        );
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedBulkDeleteRoleAuditEventString = output.get(1);
+
+        String expectedBulkDeleteRoleAuditEventString = Strings.format(
+            """
+                "delete":{"roles":[%s]}}""",
+            String.join(",", bulkDeleteRolesRequest.getRoleNames().stream().map(role -> "\"" + role + "\"").toList())
+        );
+        assertThat(generatedBulkDeleteRoleAuditEventString, containsString(expectedBulkDeleteRoleAuditEventString));
+        generatedBulkDeleteRoleAuditEventString = generatedBulkDeleteRoleAuditEventString.replace(
+            ", " + expectedBulkDeleteRoleAuditEventString,
+            ""
+        );
+        checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "bulk_delete_role");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedBulkDeleteRoleAuditEventString, checkedFields);
     }
 
     public void testSecurityConfigChangeEventForCrossClusterApiKeys() throws IOException {

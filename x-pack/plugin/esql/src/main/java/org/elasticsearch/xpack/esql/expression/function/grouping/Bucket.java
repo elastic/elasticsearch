@@ -233,7 +233,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         if (field.dataType() == DataType.DATETIME) {
             Rounding.Prepared preparedRounding;
-            if (buckets.dataType().isInteger()) {
+            if (buckets.dataType().isWholeNumber()) {
                 int b = ((Number) buckets.fold()).intValue();
                 long f = foldToLong(from);
                 long t = foldToLong(to);
@@ -252,7 +252,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 double t = ((Number) to.fold()).doubleValue();
                 roundTo = pickRounding(b, f, t);
             } else {
-                assert buckets.dataType().isRational() : "Unexpected rounding data type [" + buckets.dataType() + "]";
+                assert buckets.dataType().isRationalNumber() : "Unexpected rounding data type [" + buckets.dataType() + "]";
                 roundTo = ((Number) buckets.fold()).doubleValue();
             }
             Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
@@ -323,21 +323,21 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         if (fieldType == DataType.DATETIME) {
             TypeResolution resolution = isType(
                 buckets,
-                dt -> dt.isInteger() || EsqlDataTypes.isTemporalAmount(dt),
+                dt -> dt.isWholeNumber() || EsqlDataTypes.isTemporalAmount(dt),
                 sourceText(),
                 SECOND,
                 "integral",
                 "date_period",
                 "time_duration"
             );
-            return bucketsType.isInteger()
+            return bucketsType.isWholeNumber()
                 ? resolution.and(checkArgsCount(4))
                     .and(() -> isStringOrDate(from, sourceText(), THIRD))
                     .and(() -> isStringOrDate(to, sourceText(), FOURTH))
                 : resolution.and(checkArgsCount(2)); // temporal amount
         }
         if (fieldType.isNumeric()) {
-            return bucketsType.isInteger()
+            return bucketsType.isWholeNumber()
                 ? checkArgsCount(4).and(() -> isNumeric(from, sourceText(), THIRD)).and(() -> isNumeric(to, sourceText(), FOURTH))
                 : isNumeric(buckets, sourceText(), SECOND).and(checkArgsCount(2));
         }

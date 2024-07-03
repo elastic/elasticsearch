@@ -727,7 +727,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Dissect dissect = (Dissect) cmd;
         assertEquals("%{foo}", dissect.parser().pattern());
         assertEquals("", dissect.parser().appendSeparator());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+        assertEquals(List.of(sameNameAlias(referenceAttribute("foo", KEYWORD))), dissect.extractedFields());
 
         for (String separatorName : List.of("append_separator", "APPEND_SEPARATOR", "AppEnd_SeparAtor")) {
             cmd = processingCommand("dissect a \"%{foo}\" " + separatorName + "=\",\"");
@@ -735,7 +735,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             dissect = (Dissect) cmd;
             assertEquals("%{foo}", dissect.parser().pattern());
             assertEquals(",", dissect.parser().appendSeparator());
-            assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+            assertEquals(List.of(sameNameAlias(referenceAttribute("foo", KEYWORD))), dissect.extractedFields());
         }
 
         for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
@@ -760,7 +760,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(Grok.class, cmd.getClass());
         Grok dissect = (Grok) cmd;
         assertEquals("%{WORD:foo}", dissect.parser().pattern());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+        assertEquals(List.of(sameNameAlias(referenceAttribute("foo", KEYWORD))), dissect.extractedFields());
 
         ParsingException pe = expectThrows(ParsingException.class, () -> statement("row a = \"foo bar\" | grok a \"%{_invalid_:x}\""));
         assertThat(

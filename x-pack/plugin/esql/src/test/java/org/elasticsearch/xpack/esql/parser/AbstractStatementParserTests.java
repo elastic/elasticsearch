@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -57,6 +58,10 @@ abstract class AbstractStatementParserTests extends ESTestCase {
 
     static ReferenceAttribute referenceAttribute(String name, DataType type) {
         return new ReferenceAttribute(EMPTY, name, type);
+    }
+
+    static Alias sameNameAlias(ReferenceAttribute ref) {
+        return new Alias(ref.source(), ref.name(), ref);
     }
 
     static Literal integer(int i) {

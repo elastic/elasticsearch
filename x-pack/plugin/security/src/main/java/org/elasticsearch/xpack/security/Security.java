@@ -259,6 +259,7 @@ import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheActi
 import org.elasticsearch.xpack.security.action.role.TransportDeleteRoleAction;
 import org.elasticsearch.xpack.security.action.role.TransportGetRolesAction;
 import org.elasticsearch.xpack.security.action.role.TransportPutRoleAction;
+import org.elasticsearch.xpack.security.action.role.TransportQueryRoleAction;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 import org.elasticsearch.xpack.security.action.rolemapping.TransportDeleteRoleMappingAction;
 import org.elasticsearch.xpack.security.action.rolemapping.TransportGetRoleMappingsAction;
@@ -377,6 +378,7 @@ import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheActi
 import org.elasticsearch.xpack.security.rest.action.role.RestDeleteRoleAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestGetRolesAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestPutRoleAction;
+import org.elasticsearch.xpack.security.rest.action.role.RestQueryRoleAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestDeleteRoleMappingAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestGetRoleMappingsAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappingAction;
@@ -1535,6 +1537,7 @@ public class Security extends Plugin
             new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
             new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
             new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
+            new ActionHandler<>(ActionTypes.QUERY_ROLE_ACTION, TransportQueryRoleAction.class),
             new ActionHandler<>(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
             new ActionHandler<>(ActionTypes.BULK_PUT_ROLES, TransportBulkPutRolesAction.class),
             new ActionHandler<>(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
@@ -1630,6 +1633,7 @@ public class Security extends Plugin
             new RestPutUserAction(settings, getLicenseState()),
             new RestDeleteUserAction(settings, getLicenseState()),
             new RestGetRolesAction(settings, getLicenseState()),
+            new RestQueryRoleAction(settings, getLicenseState()),
             new RestBulkPutRolesAction(settings, getLicenseState(), bulkPutRoleRequestBuilderFactory.get()),
             new RestPutRoleAction(settings, getLicenseState(), putRoleRequestBuilderFactory.get()),
             new RestDeleteRoleAction(settings, getLicenseState()),

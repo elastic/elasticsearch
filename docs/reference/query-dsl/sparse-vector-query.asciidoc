@@ -57,27 +57,33 @@ GET _search
 [[sparse-vector-field-params]]
 === Top level parameters for `sparse_vector`
 
-`<field>`:::
-(Required, object) The name of the field that contains the token-weight pairs to be searched against.
+`field`::
+(Required, string) The name of the field that contains the token-weight pairs to be searched against.
 
-`inference_id`::::
+`inference_id`::
 (Optional, string) The <<inference-apis,inference ID>> to use to convert the query text into token-weight pairs.
 It must be the same inference ID that was used to create the tokens from the input text.
 Only one of `inference_id` and `query_vector` is allowed.
 If `inference_id` is specified, `query` must also be specified.
 
-`query`::::
+`query`::
 (Optional, string) The query text you want to use for search.
 If `inference_id` is specified, `query` must also be specified.
+If `query_vector` is specified, `query` must not be specified.
 
-`prune` ::::
+`query_vector`::
+(Optional, dictionary) A dictionary of token-weight pairs representing the precomputed query vector to search.
+Searching using this query vector will bypass additional inference.
+Only one of `inference_id` and `query_vector` is allowed.
+
+`prune` ::
 (Optional, boolean)
 preview:[]
 Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance.
 If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used.
 Default: false.
 
-`pruning_config` ::::
+`pruning_config` ::
 (Optional, object)
 preview:[]
 Optional pruning configuration.
@@ -86,7 +92,7 @@ This is only used if `prune` is set to `true`.
 If `prune` is set to `true` but `pruning_config` is not specified, default values will be used.
 +
 --
-Parameters for `<pruning_config>` are:
+Parameters for `pruning_config` are:
 
 `tokens_freq_ratio_threshold`::
 (Optional, integer)
@@ -285,3 +291,5 @@ GET my-index/_search
 //TEST[skip: Requires inference]
 
 NOTE: When performing <<modules-cross-cluster-search, cross-cluster search>>, inference is performed on the local cluster.
+
+

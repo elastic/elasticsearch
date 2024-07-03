@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
@@ -135,6 +136,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC;
@@ -3486,7 +3488,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             "ST_DISTANCE(TO_GEOPOINT(\"POINT(12.565 55.673)\"), location)" }) {
 
             for (boolean reverse : new Boolean[] { false, true }) {
-                for (String op : new String[] { "<", "<=", ">", ">=" }) {
+                for (String op : new String[] { "<", "<=", ">", ">=", "==" }) {
                     var expected = ExpectedComparison.from(op, reverse, 600000.0);
                     var predicate = reverse ? "600000 " + op + " " + distanceFunction : distanceFunction + " " + op + " 600000";
                     var query = "FROM airports | WHERE " + predicate + " AND scalerank > 1";
@@ -3511,19 +3513,30 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
                     assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
                     assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
-                    var shapeQueryBuilders = bool.filter()
-                        .stream()
-                        .filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder)
-                        .toList();
-                    assertThat("Expected one shape query builder", shapeQueryBuilders.size(), equalTo(1));
-                    var condition = as(shapeQueryBuilders.get(0), SpatialRelatesQuery.ShapeQueryBuilder.class);
-                    assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
-                    assertThat("Spatial relationship", condition.relation(), equalTo(expected.shapeRelation()));
-                    assertThat("Geometry is Circle", condition.shape().type(), equalTo(ShapeType.CIRCLE));
-                    var circle = as(condition.shape(), Circle.class);
-                    assertThat("Circle center-x", circle.getX(), equalTo(12.565));
-                    assertThat("Circle center-y", circle.getY(), equalTo(55.673));
-                    assertThat("Circle radius for predicate " + predicate, circle.getRadiusMeters(), equalTo(expected.value));
+                    if (op.equals("==")) {
+                        var boolQueryBuilders = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+                        assertThat("Expected one sub-bool query builder", boolQueryBuilders.size(), equalTo(1));
+                        var bool2 = as(boolQueryBuilders.get(0), BoolQueryBuilder.class);
+                        var shapeQueryBuilders = bool2.must()
+                            .stream()
+                            .filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder)
+                            .toList();
+                        assertShapeQueryRange(shapeQueryBuilders, Math.nextDown(expected.value), expected.value);
+                    } else {
+                        var shapeQueryBuilders = bool.filter()
+                            .stream()
+                            .filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder)
+                            .toList();
+                        assertThat("Expected one shape query builder", shapeQueryBuilders.size(), equalTo(1));
+                        var condition = as(shapeQueryBuilders.get(0), SpatialRelatesQuery.ShapeQueryBuilder.class);
+                        assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+                        assertThat("Spatial relationship", condition.relation(), equalTo(expected.shapeRelation()));
+                        assertThat("Geometry is Circle", condition.shape().type(), equalTo(ShapeType.CIRCLE));
+                        var circle = as(condition.shape(), Circle.class);
+                        assertThat("Circle center-x", circle.getX(), equalTo(12.565));
+                        assertThat("Circle center-y", circle.getY(), equalTo(55.673));
+                        assertThat("Circle radius for predicate " + predicate, circle.getRadiusMeters(), equalTo(expected.value));
+                    }
                 }
             }
         }
@@ -3559,11 +3572,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
         assertThat("Expected zero range query builder", rangeQueryBuilders.size(), equalTo(0));
         var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 400000.0, 600000.0);
+    }
+
+    private void assertShapeQueryRange(List<QueryBuilder> shapeQueryBuilders, double min, double max) {
         assertThat("Expected two shape query builders", shapeQueryBuilders.size(), equalTo(2));
         var relationStats = new HashMap<ShapeRelation, Integer>();
         for (var builder : shapeQueryBuilders) {
             var condition = as(builder, SpatialRelatesQuery.ShapeQueryBuilder.class);
-            var expected = condition.relation() == ShapeRelation.INTERSECTS ? 600000.0 : 400000.0;
+            var expected = condition.relation() == ShapeRelation.INTERSECTS ? max : min;
             relationStats.compute(condition.relation(), (r, c) -> c == null ? 1 : c + 1);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Geometry is Circle", condition.shape().type(), equalTo(ShapeType.CIRCLE));
@@ -3572,6 +3589,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertThat("Circle center-y", circle.getY(), equalTo(55.673));
             assertThat("Circle radius for shape relation " + condition.relation(), circle.getRadiusMeters(), equalTo(expected));
         }
+        assertThat("Expected one INTERSECTS and one DISJOINT", relationStats.size(), equalTo(2));
+        assertThat("Expected one INTERSECTS", relationStats.get(ShapeRelation.INTERSECTS), equalTo(1));
+        assertThat("Expected one DISJOINT", relationStats.get(ShapeRelation.DISJOINT), equalTo(1));
     }
 
     private record ExpectedComparison(Class<? extends EsqlBinaryComparison> comp, double value) {
@@ -4213,10 +4233,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupSimple() {
-        PhysicalPlan plan = physicalPlan("""
-              FROM test |
-            RENAME languages AS int |
-            LOOKUP int_number_names ON int""");
+        String query = """
+            FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int""";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        PhysicalPlan plan = physicalPlan(query);
         var join = as(plan, HashJoinExec.class);
         assertMap(join.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertMap(
@@ -4252,14 +4278,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLookupThenProject() {
-        PhysicalPlan plan = optimizedPlan(physicalPlan("""
+        String query = """
             FROM employees
             | SORT emp_no
             | LIMIT 4
             | RENAME languages AS int
             | LOOKUP int_number_names ON int
             | RENAME int AS languages, name AS lang_name
-            | KEEP emp_no, languages, lang_name"""));
+            | KEEP emp_no, languages, lang_name""";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 5:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        PhysicalPlan plan = optimizedPlan(physicalPlan(query));
 
         var outerProject = as(plan, ProjectExec.class);
         assertThat(outerProject.projections().toString(), containsString("AS lang_name"));
@@ -4304,14 +4336,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }</pre>
      */
     public void testLookupThenTopN() {
-        var plan = physicalPlan("""
-                  FROM employees
-                | RENAME languages AS int
-                | LOOKUP int_number_names ON int
-                | RENAME name AS languages
-                | KEEP languages, emp_no
-                | SORT languages ASC, emp_no ASC
-            """);
+        String query = """
+            FROM employees
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            | RENAME name AS languages
+            | KEEP languages, emp_no
+            | SORT languages ASC, emp_no ASC""";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        var plan = physicalPlan(query);
 
         ProjectExec outerProject = as(plan, ProjectExec.class);
         TopNExec outerTopN = as(outerProject.child(), TopNExec.class);

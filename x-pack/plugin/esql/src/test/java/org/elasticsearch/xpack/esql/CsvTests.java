@@ -240,6 +240,15 @@ public class CsvTests extends ESTestCase {
                     testCase.requiredCapabilities,
                     everyItem(in(EsqlCapabilities.CAPABILITIES))
                 );
+            } else {
+                for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
+                    if (c.snapshotOnly()) {
+                        assumeFalse(
+                            c.capabilityName() + " is not supported in non-snapshot releases",
+                            testCase.requiredCapabilities.contains(c.capabilityName())
+                        );
+                    }
+                }
             }
 
             doTest();

@@ -7,20 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractVarargsSerializationTests;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
 import java.util.List;
 
 public class GreatestSerializationTests extends AbstractVarargsSerializationTests<Greatest> {
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return EsqlScalarFunction.getNamedWriteables();
-    }
-
     @Override
     protected Greatest create(Source source, Expression first, List<Expression> rest) {
         return new Greatest(source, first, rest);

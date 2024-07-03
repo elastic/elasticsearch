@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
@@ -2068,6 +2068,20 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[+] has arguments with incompatible types [datetime] and [datetime]"));
     }
 
+    public void testRateRequiresCounterTypes() {
+        assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var query = "METRICS test avg(rate(network.connections))";
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "first argument of [rate(network.connections)] must be"
+                    + " [counter_long, counter_integer or counter_double], found value [network.connections] type [long]"
+            )
+        );
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }
@@ -2106,7 +2120,7 @@ public class AnalyzerTests extends ESTestCase {
     private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true));
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
-        IndexResolution resolution = new EsqlIndexResolver(null, EsqlDataTypeRegistry.INSTANCE).mergedMappings("test*", caps);
+        IndexResolution resolution = new IndexResolver(null, EsqlDataTypeRegistry.INSTANCE).mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }

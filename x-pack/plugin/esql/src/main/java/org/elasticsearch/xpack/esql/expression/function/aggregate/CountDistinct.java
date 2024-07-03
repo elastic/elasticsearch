@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctBytesRefAggregatorFunctionSupplier;
@@ -28,8 +31,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -39,6 +45,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isInt
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "CountDistinct",
+        CountDistinct::new
+    );
+
     private static final int DEFAULT_PRECISION = 3000;
     private final Expression precision;
 
@@ -54,6 +66,26 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     ) {
         super(source, field, precision != null ? List.of(precision) : List.of());
         this.precision = precision;
+    }
+
+    private CountDistinct(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            ((PlanStreamInput) in).readExpression(),
+            in.readOptionalWriteable(i -> ((PlanStreamInput) i).readExpression())
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(field());
+        ((PlanStreamOutput) out).writeOptionalExpression(precision);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

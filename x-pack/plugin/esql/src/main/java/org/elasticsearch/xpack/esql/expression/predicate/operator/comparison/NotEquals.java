@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -19,6 +20,12 @@ import java.time.ZoneId;
 import java.util.Map;
 
 public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "NotEquals",
+        EsqlBinaryComparison::readFrom
+    );
+
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, NotEqualsBoolsEvaluator.Factory::new),
         Map.entry(DataType.INTEGER, NotEqualsIntsEvaluator.Factory::new),
@@ -42,6 +49,11 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
 
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonOperation.NEQ, zoneId, evaluatorMap);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Evaluator(extraName = "Ints")

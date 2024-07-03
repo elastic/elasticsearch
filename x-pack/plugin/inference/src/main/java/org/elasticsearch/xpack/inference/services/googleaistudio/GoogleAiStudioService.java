@@ -260,7 +260,8 @@ public class GoogleAiStudioService extends SenderService {
         GoogleAiStudioModel googleAiStudioModel = (GoogleAiStudioModel) model;
         var actionCreator = new GoogleAiStudioActionCreator(getSender(), getServiceComponents());
 
-        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE).batchRequestsWithListeners(listener);
+        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE, EmbeddingRequestChunker.EmbeddingType.FLOAT)
+            .batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var action = googleAiStudioModel.accept(actionCreator, taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());

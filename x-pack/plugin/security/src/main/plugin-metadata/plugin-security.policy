@@ -1,6 +1,12 @@
 grant {
   permission java.lang.RuntimePermission "setFactory";
 
+  // secure the users file from other things (current and legacy locations)
+  permission org.elasticsearch.SecuredConfigFileAccessPermission "users";
+  permission org.elasticsearch.SecuredConfigFileAccessPermission "x-pack/users";
+  // other security files specified by settings
+  permission org.elasticsearch.SecuredConfigFileSettingAccessPermission "xpack.security.authc.realms.ldap.*.files.role_mapping";
+
   // needed for SAML
   permission java.util.PropertyPermission "org.apache.xml.security.ignoreLineBreaks", "read,write";
 

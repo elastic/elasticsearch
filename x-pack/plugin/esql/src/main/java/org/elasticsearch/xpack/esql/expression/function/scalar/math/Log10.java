@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -28,6 +31,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 public class Log10 extends UnaryScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Log10", Log10::new);
+
     @FunctionInfo(
         returnType = "double",
         description = "Returns the logarithm of a value to base 10. The input can "
@@ -45,6 +50,15 @@ public class Log10 extends UnaryScalarFunction {
         ) Expression n
     ) {
         super(source, n);
+    }
+
+    private Log10(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

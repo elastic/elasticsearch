@@ -191,6 +191,48 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         );
     }
 
+    /**
+     * Make sure we still take into account component templates during validation (and not just the index template).
+     */
+    public void testValidateLifecycleComponentTemplateWithWarning() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
+        MetadataIndexTemplateService.validateLifecycle(
+            Metadata.builder()
+                .componentTemplates(
+                    Map.of(
+                        "component-template",
+                        new ComponentTemplate(
+                            new Template(
+                                null,
+                                null,
+                                null,
+                                new DataStreamLifecycle(
+                                    new DataStreamLifecycle.Retention(randomTimeValue(2, 100, TimeUnit.DAYS)),
+                                    null,
+                                    null
+                                )
+                            ),
+                            null,
+                            null
+                        )
+                    )
+                )
+                .build(),
+            randomAlphaOfLength(10),
+            ComposableIndexTemplate.builder()
+                .template(new Template(null, null, null, DataStreamLifecycle.DEFAULT))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .indexPatterns(List.of(randomAlphaOfLength(10)))
+                .componentTemplates(List.of("component-template"))
+                .build(),
+            new DataStreamGlobalRetention(defaultRetention, null)
+        );
+        Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        assertThat(responseHeaders.size(), is(0));
+    }
+
     public void testValidateLifecycleInComponentTemplate() throws Exception {
         IndicesService indicesService = mock(IndicesService.class);
         IndexService indexService = mock(IndexService.class);

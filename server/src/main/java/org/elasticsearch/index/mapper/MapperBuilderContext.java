@@ -37,10 +37,6 @@ public class MapperBuilderContext {
     private final ObjectMapper.Dynamic dynamic;
     private final MergeReason mergeReason;
 
-    MapperBuilderContext(String path) {
-        this(path, false, false, false, ObjectMapper.Defaults.DYNAMIC, MergeReason.MAPPING_UPDATE);
-    }
-
     MapperBuilderContext(
         String path,
         boolean isSourceSynthetic,
@@ -137,5 +133,9 @@ public class MapperBuilderContext {
      */
     public MergeReason getMergeReason() {
         return mergeReason;
+    }
+
+    public boolean isNested() {
+        return false;
     }
 }

@@ -223,6 +223,7 @@ public class SingleValueQuery extends Query {
     private static class LuceneQuery extends org.apache.lucene.search.Query {
         final org.apache.lucene.search.Query next;
         private final IndexFieldData<?> fieldData;
+        // mutable object for collecting stats and warnings, not really part of the query
         private final Stats stats;
         private final Warnings warnings;
 
@@ -267,14 +268,12 @@ public class SingleValueQuery extends Query {
                 return false;
             }
             SingleValueQuery.LuceneQuery other = (SingleValueQuery.LuceneQuery) obj;
-            return next.equals(other.next)
-                && fieldData.getFieldName().equals(other.fieldData.getFieldName())
-                && warnings.equals(other.warnings);
+            return next.equals(other.next) && fieldData.getFieldName().equals(other.fieldData.getFieldName());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classHash(), next, fieldData, warnings);
+            return Objects.hash(classHash(), next, fieldData.getFieldName());
         }
 
         @Override
@@ -437,7 +436,8 @@ public class SingleValueQuery extends Query {
 
         @Override
         public boolean isCacheable(LeafReaderContext ctx) {
-            return next.isCacheable(ctx);
+            // we cannot cache this query because we loose the ability of emitting warnings
+            return false;
         }
     }
 

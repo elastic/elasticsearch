@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
@@ -20,13 +22,28 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 
+import java.io.IOException;
 import java.util.List;
 
 public class Min extends NumericAggregate implements SurrogateExpression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Min", Min::new);
 
-    @FunctionInfo(returnType = { "double", "integer", "long" }, description = "The minimum value of a numeric field.", isAggregation = true)
-    public Min(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "date" },
+        description = "The minimum value of a numeric field.",
+        isAggregation = true
+    )
+    public Min(Source source, @Param(name = "number", type = { "double", "integer", "long", "date" }) Expression field) {
         super(source, field);
+    }
+
+    private Min(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

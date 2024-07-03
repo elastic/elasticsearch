@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -29,8 +32,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -53,6 +59,8 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * In the former case, two parameters will be provided, in the latter four.
  */
 public class Bucket extends GroupingFunction implements Validatable, TwoOptionalArguments {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
+
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
     private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
@@ -191,6 +199,31 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         this.buckets = buckets;
         this.from = from;
         this.to = to;
+    }
+
+    private Bucket(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            ((PlanStreamInput) in).readExpression(),
+            ((PlanStreamInput) in).readExpression(),
+            ((PlanStreamInput) in).readOptionalNamed(Expression.class),
+            ((PlanStreamInput) in).readOptionalNamed(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(field);
+        ((PlanStreamOutput) out).writeExpression(buckets);
+        ((PlanStreamOutput) out).writeOptionalExpression(from);
+        ((PlanStreamOutput) out).writeOptionalExpression(to);
+
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

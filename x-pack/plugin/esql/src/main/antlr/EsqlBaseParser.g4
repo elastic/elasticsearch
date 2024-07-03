@@ -106,11 +106,21 @@ field
     ;
 
 fromCommand
-    : FROM indexIdentifier (COMMA indexIdentifier)* metadata?
+    : FROM indexPattern (COMMA indexPattern)* metadata?
     ;
 
-indexIdentifier
-    : INDEX_UNQUOTED_IDENTIFIER
+indexPattern
+    : clusterString COLON indexString
+    | indexString
+    ;
+
+clusterString
+    : UNQUOTED_SOURCE
+    ;
+
+indexString
+    : UNQUOTED_SOURCE
+    | QUOTED_STRING
     ;
 
 metadata
@@ -119,7 +129,7 @@ metadata
     ;
 
 metadataOption
-    : METADATA indexIdentifier (COMMA indexIdentifier)*
+    : METADATA UNQUOTED_SOURCE (COMMA UNQUOTED_SOURCE)*
     ;
 
 deprecated_metadata
@@ -127,7 +137,7 @@ deprecated_metadata
     ;
 
 metricsCommand
-    : METRICS indexIdentifier (COMMA indexIdentifier)* aggregates=fields? (BY grouping=fields)?
+    : METRICS indexPattern (COMMA indexPattern)* aggregates=fields? (BY grouping=fields)?
     ;
 
 evalCommand
@@ -170,11 +180,16 @@ constant
     | decimalValue                                                                      #decimalLiteral
     | integerValue                                                                      #integerLiteral
     | booleanValue                                                                      #booleanLiteral
-    | PARAM                                                                             #inputParam
+    | params                                                                            #inputParams
     | string                                                                            #stringLiteral
     | OPENING_BRACKET numericValue (COMMA numericValue)* CLOSING_BRACKET                #numericArrayLiteral
     | OPENING_BRACKET booleanValue (COMMA booleanValue)* CLOSING_BRACKET                #booleanArrayLiteral
     | OPENING_BRACKET string (COMMA string)* CLOSING_BRACKET                            #stringArrayLiteral
+    ;
+
+params
+    : PARAM                        #inputParam
+    | NAMED_OR_POSITIONAL_PARAM    #inputNamedOrPositionalParam
     ;
 
 limitCommand
@@ -275,5 +290,5 @@ enrichWithClause
     ;
 
 lookupCommand
-    : LOOKUP tableName=INDEX_UNQUOTED_IDENTIFIER ON matchFields=qualifiedNamePatterns
+    : LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
     ;

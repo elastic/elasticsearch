@@ -205,6 +205,11 @@ public class GeometryTestUtils {
         return randomGeometry(0, hasAlt);
     }
 
+    public static Geometry randomGeometry(boolean hasAlt, int maxPoints) {
+        var pointCounter = new GeometryPointCountVisitor();
+        return randomValueOtherThanMany(g -> g.visit(pointCounter) > maxPoints, () -> randomGeometry(0, hasAlt));
+    }
+
     protected static Geometry randomGeometry(int level, boolean hasAlt) {
         @SuppressWarnings("unchecked")
         Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(

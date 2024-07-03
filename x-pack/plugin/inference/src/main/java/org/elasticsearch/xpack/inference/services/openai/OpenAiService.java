@@ -238,7 +238,8 @@ public class OpenAiService extends SenderService {
         OpenAiModel openAiModel = (OpenAiModel) model;
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
-        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE).batchRequestsWithListeners(listener);
+        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE, EmbeddingRequestChunker.EmbeddingType.FLOAT)
+            .batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var action = openAiModel.accept(actionCreator, taskSettings);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());

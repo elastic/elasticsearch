@@ -47,13 +47,11 @@ final class BigByteArray extends AbstractBigByteArray implements ByteArray {
     }
 
     @Override
-    public byte set(long index, byte value) {
+    public void set(long index, byte value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = getPageForWriting(pageIndex);
-        final byte ret = page[indexInPage];
         page[indexInPage] = value;
-        return ret;
     }
 
     @Override

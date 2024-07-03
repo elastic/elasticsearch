@@ -788,6 +788,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Assert that at least one leak was detected, also clear the list of detected leaks
+     * so the test won't fail for leaks detected up until this point.
+     */
+    protected static void assertLeakDetected() {
+        synchronized (loggedLeaks) {
+            assertFalse("No leaks have been detected", loggedLeaks.isEmpty());
+            loggedLeaks.clear();
+        }
+    }
+
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
     public final void ensureAllSearchContextsReleased() throws Exception {
         assertBusy(() -> MockSearchService.assertNoInFlightContext());
@@ -988,6 +999,35 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static float randomFloat() {
         return random().nextFloat();
+    }
+
+    /**
+     * Returns a float value in the interval [start, end) if lowerInclusive is
+     * set to true, (start, end) otherwise.
+     *
+     * @param start          lower bound of interval to draw uniformly distributed random numbers from
+     * @param end            upper bound
+     * @param lowerInclusive whether or not to include lower end of the interval
+     */
+    public static float randomFloatBetween(float start, float end, boolean lowerInclusive) {
+        float result;
+
+        if (start == -Float.MAX_VALUE || end == Float.MAX_VALUE) {
+            // formula below does not work with very large floats
+            result = Float.intBitsToFloat(randomInt());
+            while (result < start || result > end || Double.isNaN(result)) {
+                result = Float.intBitsToFloat(randomInt());
+            }
+        } else {
+            result = randomFloat();
+            if (lowerInclusive == false) {
+                while (result <= 0.0f) {
+                    result = randomFloat();
+                }
+            }
+            result = result * end + (1.0f - result) * start;
+        }
+        return result;
     }
 
     public static double randomDouble() {
@@ -2195,14 +2235,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static void safeAcquire(Semaphore semaphore) {
+        safeAcquire(1, semaphore);
+    }
+
+    public static void safeAcquire(int permits, Semaphore semaphore) {
         try {
             assertTrue(
                 "safeAcquire: Semaphore did not acquire permit within the timeout",
-                semaphore.tryAcquire(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+                semaphore.tryAcquire(permits, SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
             );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire permit");
+            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire " + permits + " permit(s)");
         }
     }
 

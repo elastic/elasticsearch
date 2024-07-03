@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;

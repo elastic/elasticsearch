@@ -50,10 +50,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterServiceTests.shutdownMetadata;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -116,16 +119,42 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
     }
 
     private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService) throws InterruptedException {
-        loadQueuedModels(trainedModelAssignmentNodeService, 1);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
+    }
+
+    private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService, boolean expectedRunImmediately) {
+        trainedModelAssignmentNodeService.loadQueuedModels(ActionListener.wrap(actualRunImmediately -> {
+            assertThat(
+                "We should rerun immediately if there are still model loading tasks to process.",
+                actualRunImmediately,
+                equalTo(expectedRunImmediately)
+            );
+        }, e -> fail("We should never call the onFailure method of this listener.")));
     }
 
     private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService, int times)
         throws InterruptedException {
-        var latch = new CountDownLatch(1);
-        var chain = SubscribableListener.newForked(l -> trainedModelAssignmentNodeService.loadQueuedModels(() -> l.onResponse(null)));
+        var modelQueueSize = new AtomicInteger(times);
+        BiConsumer<ActionListener<Object>, Boolean> verifyRerunningImmediately = (listener, result) -> {
+            var runImmediately = modelQueueSize.decrementAndGet() > 0;
+            assertThat(
+                "We should rerun immediately if there are still model loading tasks to process.  Models remaining: " + modelQueueSize.get(),
+                result,
+                is(runImmediately)
+            );
+            listener.onResponse(null);
+        };
+
+        var chain = SubscribableListener.newForked(
+            l -> trainedModelAssignmentNodeService.loadQueuedModels(l.delegateFailure(verifyRerunningImmediately))
+        );
         for (int i = 1; i < times; i++) {
-            chain = chain.andThen((l, r) -> trainedModelAssignmentNodeService.loadQueuedModels(() -> l.onResponse(null)));
+            chain = chain.andThen(
+                (l, r) -> trainedModelAssignmentNodeService.loadQueuedModels(l.delegateFailure(verifyRerunningImmediately))
+            );
         }
+
+        var latch = new CountDownLatch(1);
         chain.addListener(ActionListener.running(latch::countDown));
         assertTrue("Timed out waiting for loadQueuedModels to finish.", latch.await(10, TimeUnit.SECONDS));
     }
@@ -144,7 +173,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(anotherDeployment, anotherModel));
 
-        loadQueuedModels(trainedModelAssignmentNodeService, 2);
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         ArgumentCaptor<TrainedModelDeploymentTask> taskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -182,7 +212,9 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(failedDeploymentId, failedModelToLoad));
 
-        loadQueuedModels(trainedModelAssignmentNodeService, 3);
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -215,7 +247,9 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(modelToLoad, modelToLoad));
         trainedModelAssignmentNodeService.stop();
 
-        trainedModelAssignmentNodeService.loadQueuedModels(() -> fail("When stopped, then loadQueuedModels should never run."));
+        trainedModelAssignmentNodeService.loadQueuedModels(
+            ActionListener.running(() -> fail("When stopped, then loadQueuedModels should never run."))
+        );
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
@@ -237,7 +271,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(loadingDeploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(stoppedLoadingDeploymentId, stoppedModelToLoad));
         trainedModelAssignmentNodeService.getTask(stoppedLoadingDeploymentId).stop("testing", false, ActionListener.noop());
-        loadQueuedModels(trainedModelAssignmentNodeService);
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         assertBusy(() -> {
             ArgumentCaptor<TrainedModelDeploymentTask> stoppedTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
@@ -289,7 +324,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(loadingDeploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(failedLoadingDeploymentId, failedModelToLoad));
 
-        loadQueuedModels(trainedModelAssignmentNodeService, 2);
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -703,7 +739,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         );
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        loadQueuedModels(trainedModelAssignmentNodeService);
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         assertBusy(() -> {
             ArgumentCaptor<TrainedModelDeploymentTask> stoppedTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
@@ -761,7 +798,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         givenAssignmentsInClusterStateForModels(List.of(deploymentOne, deploymentTwo), List.of(modelOne, modelTwo));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentOne, modelOne));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentTwo, modelTwo));
-        loadQueuedModels(trainedModelAssignmentNodeService, 2);
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         ClusterChangedEvent event = new ClusterChangedEvent(
             "shouldUpdateAllocations",

@@ -154,19 +154,24 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     void start() {
         stopped = false;
-        schedule();
+        schedule(false);
     }
 
-    private void schedule() {
+    private void schedule(boolean runImmediately) {
         if (stopped) {
             // do not schedule when stopped
             return;
         }
-        scheduledFuture = threadPool.schedule(
-            () -> loadQueuedModels(this::schedule),
-            MODEL_LOADING_CHECK_INTERVAL,
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-        );
+
+        var rescheduleListener = ActionListener.wrap(this::schedule, e -> this.schedule(false));
+        Runnable loadQueuedModels = () -> loadQueuedModels(rescheduleListener);
+        var executor = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
+
+        if (runImmediately) {
+            executor.execute(loadQueuedModels);
+        } else {
+            scheduledFuture = threadPool.schedule(loadQueuedModels, MODEL_LOADING_CHECK_INTERVAL, executor);
+        }
     }
 
     void stop() {
@@ -177,7 +182,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         }
     }
 
-    void loadQueuedModels(Runnable onFinish) {
+    void loadQueuedModels(ActionListener<Boolean> rescheduleImmediately) {
         if (stopped) {
             return;
         }
@@ -193,22 +198,26 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             );
             if (unassignedIndices.size() > 0) {
                 logger.trace("not loading models as indices {} primary shards are unassigned", unassignedIndices);
-                onFinish.run();
+                rescheduleImmediately.onResponse(false);
                 return;
             }
         }
 
         var loadingTask = loadingModels.poll();
         if (loadingTask == null) {
-            onFinish.run();
+            rescheduleImmediately.onResponse(false);
             return;
         }
 
-        loadModel(loadingTask, ActionListener.runAfter(ActionListener.wrap(retry -> {
+        loadModel(loadingTask, ActionListener.wrap(retry -> {
             if (retry != null && retry) {
                 loadingModels.offer(loadingTask);
+                // don't reschedule immediately if the next task is the one we just queued, instead wait a bit to retry
+                rescheduleImmediately.onResponse(loadingModels.peek() != loadingTask);
+            } else {
+                rescheduleImmediately.onResponse(loadingModels.isEmpty() == false);
             }
-        }, e -> {}), onFinish));
+        }, e -> rescheduleImmediately.onResponse(loadingModels.isEmpty() == false)));
     }
 
     void loadModel(TrainedModelDeploymentTask loadingTask, ActionListener<Boolean> retryListener) {

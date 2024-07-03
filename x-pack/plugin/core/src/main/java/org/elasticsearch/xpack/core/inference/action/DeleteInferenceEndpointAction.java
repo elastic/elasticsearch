@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -110,7 +111,7 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
         private final String DRY_RUN_MESSAGE = "error_message"; // error message only returned in response for dry_run
         String dryRunMessage;
 
-        public Response(boolean acknowledged, Set<String> pipelineIds, Set<String> semanticTextIndexes, String dryRunMessage) {
+        public Response(boolean acknowledged, Set<String> pipelineIds, Set<String> semanticTextIndexes, @Nullable String dryRunMessage) {
             super(acknowledged);
             this.pipelineIds = pipelineIds;
             this.indexes = semanticTextIndexes;

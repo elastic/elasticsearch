@@ -89,24 +89,17 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
                 listener.onFailure(InferenceExceptions.mismatchedTaskTypeException(request.getTaskType(), unparsedModel.taskType()));
                 return;
             }
+
             if (request.isDryRun()) {
-
-                Set<String> pipelines = InferenceProcessorInfoExtractor.pipelineIdsForResource(
-                    state,
-                    Set.of(request.getInferenceEndpointId())
-                );
-
-                Set<String> indexesReferencedBySemanticText = extractIndexesReferencingInferenceEndpoints(
-                    state.getMetadata(),
-                    Set.of(request.getInferenceEndpointId())
-                );
-
-                masterListener.onResponse(new DeleteInferenceEndpointAction.Response(false, pipelines, indexesReferencedBySemanticText));
+                handleDryRun(request, state, masterListener);
                 return;
-            } else if (request.isForceDelete() == false
-                && endpointIsReferencedInPipelinesOrIndexes(state, request.getInferenceEndpointId(), listener)) {
-                    return;
+            } else if (request.isForceDelete() == false) {
+                var errorString = endpointIsReferencedInPipelinesOrIndexes(state, request.getInferenceEndpointId());
+                if (errorString != null) {
+                    listener.onFailure(new ElasticsearchStatusException(errorString, RestStatus.CONFLICT));
                 }
+                return;
+            }
 
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
@@ -134,49 +127,69 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
             .addListener(
                 masterListener.delegateFailure(
                     (l3, didDeleteModel) -> masterListener.onResponse(
-                        new DeleteInferenceEndpointAction.Response(didDeleteModel, Set.of(), Set.of())
+                        new DeleteInferenceEndpointAction.Response(didDeleteModel, Set.of(), Set.of(), null)
                     )
                 )
             );
     }
 
-    private static boolean endpointIsReferencedInPipelinesOrIndexes(
-        final ClusterState state,
-        final String inferenceEndpointId,
-        final ActionListener<Boolean> listener
+    private static void handleDryRun(
+        DeleteInferenceEndpointAction.Request request,
+        ClusterState state,
+        ActionListener<DeleteInferenceEndpointAction.Response> masterListener
     ) {
+        Set<String> pipelines = InferenceProcessorInfoExtractor.pipelineIdsForResource(state, Set.of(request.getInferenceEndpointId()));
+
+        Set<String> indexesReferencedBySemanticText = extractIndexesReferencingInferenceEndpoints(
+            state.getMetadata(),
+            Set.of(request.getInferenceEndpointId())
+        );
+
+        masterListener.onResponse(
+            new DeleteInferenceEndpointAction.Response(
+                false,
+                pipelines,
+                indexesReferencedBySemanticText,
+                buildErrorString(request.getInferenceEndpointId(), pipelines, indexesReferencedBySemanticText)
+            )
+        );
+    }
+
+    private static String endpointIsReferencedInPipelinesOrIndexes(final ClusterState state, final String inferenceEndpointId) {
 
         var pipelines = endpointIsReferencedInPipelines(state, inferenceEndpointId);
         var indexes = endpointIsReferencedInIndex(state, inferenceEndpointId);
 
         if (pipelines.isEmpty() == false || indexes.isEmpty() == false) {
-            StringBuilder errorString = new StringBuilder();
-
-            if (pipelines.isEmpty() == false) {
-                errorString.append("Inference endpoint ")
-                    .append(inferenceEndpointId)
-                    .append(" is referenced by pipelines: ")
-                    .append(pipelines)
-                    .append(". ")
-                    .append("Ensure that no pipelines are using this inference endpoint, ")
-                    .append("or use force to ignore this warning and delete the inference endpoint.");
-            }
-
-            if (indexes.isEmpty() == false) {
-                errorString.append("Inference endpoint ")
-                    .append(inferenceEndpointId)
-                    .append(" is being used in the mapping for indexes: ")
-                    .append(indexes)
-                    .append(". ")
-                    .append("Ensure that no index mappings are using this inference endpoint, ")
-                    .append("or use force to ignore this warning and delete the inference endpoint.");
-            }
-
-            listener.onFailure(new ElasticsearchStatusException(errorString.toString(), RestStatus.CONFLICT));
-
-            return true;
+            return buildErrorString(inferenceEndpointId, pipelines, indexes);
         }
-        return false;
+        return null;
+    }
+
+    private static String buildErrorString(String inferenceEndpointId, Set<String> pipelines, Set<String> indexes) {
+        StringBuilder errorString = new StringBuilder();
+
+        if (pipelines.isEmpty() == false) {
+            errorString.append("Inference endpoint ")
+                .append(inferenceEndpointId)
+                .append(" is referenced by pipelines: ")
+                .append(pipelines)
+                .append(". ")
+                .append("Ensure that no pipelines are using this inference endpoint, ")
+                .append("or use force to ignore this warning and delete the inference endpoint.");
+        }
+
+        if (indexes.isEmpty() == false) {
+            errorString.append("Inference endpoint ")
+                .append(inferenceEndpointId)
+                .append(" is being used in the mapping for indexes: ")
+                .append(indexes)
+                .append(". ")
+                .append("Ensure that no index mappings are using this inference endpoint, ")
+                .append("or use force to ignore this warning and delete the inference endpoint.");
+        }
+
+        return errorString.toString();
     }
 
     private static Set<String> endpointIsReferencedInIndex(final ClusterState state, final String inferenceEndpointId) {

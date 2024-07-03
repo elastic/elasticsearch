@@ -158,6 +158,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -3924,17 +3925,29 @@ public class IndexShardTests extends IndexShardTestCase {
         logger.info("--> ensure search idle");
         assertTrue(primary.isSearchIdle());
         assertTrue(primary.searchIdleTime() >= TimeValue.ZERO.millis());
+        long periodicFlushesBefore = primary.flushStats().getPeriodic();
         primary.flushOnIdle(0);
+        assertBusy(() -> assertThat(primary.flushStats().getPeriodic(), greaterThan(periodicFlushesBefore)));
+
         logger.info("--> scheduledRefresh(future5)");
-        assertBusy(() -> {
-            PlainActionFuture<Boolean> future5 = new PlainActionFuture<>();
-            primary.scheduledRefresh(future5);
-            assertTrue(future5.actionGet()); // make sure we refresh once the shard is inactive
-        });
+        ensureNoPendingScheduledRefresh();
+        PlainActionFuture<Boolean> future5 = new PlainActionFuture<>();
+        primary.scheduledRefresh(future5);
+        assertTrue(future5.actionGet()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
         }
         closeShards(primary);
+    }
+
+    private void ensureNoPendingScheduledRefresh() {
+        var refreshThreadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.REFRESH);
+        int maximumPoolSize = refreshThreadPoolExecutor.getMaximumPoolSize();
+        var latch = new CountDownLatch(maximumPoolSize);
+        for (int i = 0; i < maximumPoolSize; i++) {
+            refreshThreadPoolExecutor.execute(latch::countDown);
+        }
+        safeAwait(latch);
     }
 
     public void testRefreshIsNeededWithRefreshListeners() throws IOException, InterruptedException {

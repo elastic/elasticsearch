@@ -47,6 +47,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAct
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
@@ -135,6 +137,7 @@ import org.junit.BeforeClass;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
+import javax.swing.*;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -786,6 +789,32 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_role");
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedPutRoleAuditEventString, checkedFields);
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        BulkPutRolesRequest bulkPutRolesRequest = new BulkPutRolesRequest();
+        bulkPutRolesRequest.setRoles(allTestRoleDescriptors);
+        bulkPutRolesRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        auditTrail.accessGranted(requestId, authentication, ActionTypes.BULK_PUT_ROLES.name(), bulkPutRolesRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedBulkPutRoleAuditEventString = output.get(1);
+        String roleMap = String.join(
+            ",",
+            allTestRoleDescriptors.stream().map(role -> "\"" + role.getName() + "\":" + auditedRolesMap.get(role.getName())).toList()
+        );
+        String expectedBulkPutRoleAuditEventString = Strings.format("""
+            "change":{"roles":{%s}}""", roleMap);
+        assertThat(generatedBulkPutRoleAuditEventString, containsString(expectedBulkPutRoleAuditEventString));
+        generatedBulkPutRoleAuditEventString = generatedBulkPutRoleAuditEventString.replace(", " + expectedBulkPutRoleAuditEventString, "");
+        checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "bulk_put_role");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedBulkPutRoleAuditEventString, checkedFields);
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
@@ -1975,6 +2004,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         Tuple<String, TransportRequest> actionAndRequest = randomFrom(
             new Tuple<>(PutUserAction.NAME, new PutUserRequest()),
             new Tuple<>(PutRoleAction.NAME, new PutRoleRequest()),
+            new Tuple<>(ActionTypes.BULK_PUT_ROLES.name(), new BulkPutRolesRequest()),
             new Tuple<>(PutRoleMappingAction.NAME, new PutRoleMappingRequest()),
             new Tuple<>(TransportSetEnabledAction.TYPE.name(), new SetEnabledRequest()),
             new Tuple<>(TransportChangePasswordAction.TYPE.name(), new ChangePasswordRequest()),

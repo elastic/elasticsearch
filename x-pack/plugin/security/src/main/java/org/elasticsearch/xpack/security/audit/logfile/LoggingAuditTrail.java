@@ -44,6 +44,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseSingleUpdateApiKeyRequest;
@@ -72,6 +73,7 @@ import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAct
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
@@ -291,6 +293,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         PutUserAction.NAME,
         PutRoleAction.NAME,
         PutRoleMappingAction.NAME,
+        ActionTypes.BULK_PUT_ROLES.name(),
         TransportSetEnabledAction.TYPE.name(),
         TransportChangePasswordAction.TYPE.name(),
         CreateApiKeyAction.NAME,
@@ -731,6 +734,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof PutRoleRequest) {
                     assert PutRoleAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleRequest) msg).build();
+                } else if (msg instanceof BulkPutRolesRequest) {
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((BulkPutRolesRequest) msg).build();
                 } else if (msg instanceof PutRoleMappingRequest) {
                     assert PutRoleMappingAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleMappingRequest) msg).build();
@@ -1175,6 +1180,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withRequestBody(BulkPutRolesRequest bulkPutRoleRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "bulk_put_role");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject().startObject("roles");
+
+            for (RoleDescriptor roleDescriptor : bulkPutRoleRequest.getRoles()) {
+                withRoleDescriptor(builder.field(roleDescriptor.getName()), roleDescriptor);
+            }
+
+            builder.endObject().endObject();
+            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
         LogEntryBuilder withRequestBody(PutRoleMappingRequest putRoleMappingRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "put_role_mapping");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
@@ -1350,7 +1369,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 withIndicesPrivileges(builder, indicesPrivileges);
             }
             builder.endArray();
-            // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
+            // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges} does a good job
             builder.xContentList(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), roleDescriptor.getApplicationPrivileges());
             builder.array(RoleDescriptor.Fields.RUN_AS.getPreferredName(), roleDescriptor.getRunAs());
             if (roleDescriptor.getMetadata() != null && false == roleDescriptor.getMetadata().isEmpty()) {

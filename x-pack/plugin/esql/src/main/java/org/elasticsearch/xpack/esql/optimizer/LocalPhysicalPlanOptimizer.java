@@ -29,16 +29,8 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
@@ -49,17 +41,12 @@ import org.elasticsearch.xpack.esql.core.util.Queries.Clause;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -244,7 +231,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 List<Expression> pushable = new ArrayList<>();
                 List<Expression> nonPushable = new ArrayList<>();
                 for (Expression exp : splitAnd(filterExec.condition())) {
-                    (canPushToSource(exp, x -> hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(exp);
+                    // can we get hold of an index searcher?
+                    (exp.canPushToSource(x -> hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(exp);
                 }
                 if (pushable.size() > 0) { // update the executable with pushable conditions
                     Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable));
@@ -270,62 +258,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
             return plan;
         }
-
-        public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
-            if (exp instanceof BinaryComparison bc) {
-                return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
-            } else if (exp instanceof InsensitiveBinaryComparison bc) {
-                return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
-            } else if (exp instanceof BinaryLogic bl) {
-                return canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
-            } else if (exp instanceof In in) {
-                return isAttributePushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
-            } else if (exp instanceof Not not) {
-                return canPushToSource(not.field(), hasIdenticalDelegate);
-            } else if (exp instanceof UnaryScalarFunction usf) {
-                if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
-                    if (usf instanceof IsNull || usf instanceof IsNotNull) {
-                        if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
-                            return true;
-                        }
-                    }
-                    return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
-                }
-            } else if (exp instanceof CIDRMatch cidrMatch) {
-                return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate)
-                    && Expressions.foldable(cidrMatch.matches());
-            } else if (exp instanceof SpatialRelatesFunction bc) {
-                return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
-            }
-            return false;
-        }
-
-        private static boolean isAttributePushable(
-            Expression expression,
-            Expression operation,
-            Predicate<FieldAttribute> hasIdenticalDelegate
-        ) {
-            if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
-                return true;
-            }
-            if (expression instanceof MetadataAttribute ma && ma.searchable()) {
-                return operation == null
-                    // no range or regex queries supported with metadata fields
-                    || operation instanceof Equals
-                    || operation instanceof NotEquals
-                    || operation instanceof WildcardLike;
-            }
-            return false;
-        }
-    }
-
-    /**
-     * this method is supposed to be used to define if a field can be used for exact push down (eg. sort or filter).
-     * "aggregatable" is the most accurate information we can have from field_caps as of now.
-     * Pushing down operations on fields that are not aggregatable would result in an error.
-     */
-    private static boolean isAggregatable(FieldAttribute f) {
-        return f.exactAttribute().field().isAggregatable();
     }
 
     private static class PushLimitToSource extends OptimizerRule<LimitExec> {
@@ -364,7 +296,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
             // allow only exact FieldAttributes (no expressions) for sorting
-            return orders.stream().allMatch(o -> isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
+            return orders.stream().allMatch(o -> o.child().canPushToSource(hasIdenticalDelegate));
         }
 
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {
@@ -473,13 +405,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     public static boolean hasIdenticalDelegate(FieldAttribute attr, SearchStats stats) {
         return stats.hasIdenticalDelegate(attr.name());
-    }
-
-    public static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
-        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
-            return fa.dataType() != DataType.TEXT || hasIdenticalDelegate.test(fa);
-        }
-        return false;
     }
 
     private static class SpatialDocValuesExtraction extends OptimizerRule<AggregateExec> {

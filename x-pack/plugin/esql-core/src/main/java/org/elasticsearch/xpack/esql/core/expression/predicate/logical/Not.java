@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
@@ -88,6 +90,11 @@ public class Not extends UnaryScalarFunction implements Negatable<Expression> {
     @Override
     public DataType dataType() {
         return DataType.BOOLEAN;
+    }
+
+    @Override
+    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+        return field().canPushToSource(hasIdenticalDelegate);
     }
 
     static Expression negate(Expression exp) {

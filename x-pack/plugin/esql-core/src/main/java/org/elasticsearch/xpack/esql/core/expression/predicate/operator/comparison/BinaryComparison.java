@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.time.ZoneId;
+import java.util.function.Predicate;
 
 // marker class to indicate operations that rely on values
 public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation> {
@@ -37,6 +39,11 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
     @Override
     public DataType dataType() {
         return DataType.BOOLEAN;
+    }
+
+    @Override
+    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+        return isAttributePushable(left(), this, hasIdenticalDelegate) && right().foldable();
     }
 
     public static Integer compare(Object left, Object right) {

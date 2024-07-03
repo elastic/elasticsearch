@@ -11,6 +11,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -18,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -198,6 +202,14 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
      */
     public abstract DataType dataType();
 
+    /**
+     * if the expression can be pushed down to lucene. By default nothing is pushed down so expressions that
+     * can be pushed down should override this method.
+     */
+    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+        return false;
+    }
+
     @Override
     public String toString() {
         return sourceText();
@@ -206,5 +218,39 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
     @Override
     public String propertiesToString(boolean skipIfChild) {
         return super.propertiesToString(false);
+    }
+
+    protected static boolean isAttributePushable(
+        Expression expression,
+        Expression operation,
+        Predicate<FieldAttribute> hasIdenticalDelegate
+    ) {
+        if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
+            return true;
+        }
+        if (expression instanceof MetadataAttribute ma && ma.searchable()) {
+            return operation == null
+                // no range or regex queries supported with metadata fields
+                || operation instanceof Equals
+                || operation instanceof NotEquals
+                || operation instanceof WildcardLike;
+        }
+        return false;
+    }
+
+    private static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
+        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
+            return fa.dataType() != DataType.TEXT || hasIdenticalDelegate.test(fa);
+        }
+        return false;
+    }
+
+    /**
+     * this method is supposed to be used to define if a field can be used for exact push down (eg. sort or filter).
+     * "aggregatable" is the most accurate information we can have from field_caps as of now.
+     * Pushing down operations on fields that are not aggregatable would result in an error.
+     */
+    protected static boolean isAggregatable(FieldAttribute f) {
+        return f.exactAttribute().field().isAggregatable();
     }
 }

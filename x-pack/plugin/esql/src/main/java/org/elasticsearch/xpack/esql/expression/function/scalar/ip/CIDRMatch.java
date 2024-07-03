@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -136,6 +138,11 @@ public class CIDRMatch extends EsqlScalarFunction {
     @Override
     public DataType dataType() {
         return DataType.BOOLEAN;
+    }
+
+    @Override
+    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
+        return isAttributePushable(ipField(), this, hasIdenticalDelegate) && Expressions.foldable(matches());
     }
 
     @Override

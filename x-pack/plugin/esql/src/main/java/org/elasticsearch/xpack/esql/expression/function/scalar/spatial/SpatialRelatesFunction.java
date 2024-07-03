@@ -66,18 +66,18 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     /**
      * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
      */
-    public boolean canPushToSource(Predicate<FieldAttribute> isAggregatable) {
+    @Override
+    public boolean canPushToSource(Predicate<FieldAttribute> hasIdenticalDelegate) {
         // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
         // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
         // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
-        return isPushableFieldAttribute(left(), isAggregatable) && right().foldable()
-            || isPushableFieldAttribute(right(), isAggregatable) && left().foldable();
+        return isPushableFieldAttribute(left()) && right().foldable() || isPushableFieldAttribute(right()) && left().foldable();
     }
 
-    private static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> isAggregatable) {
+    private static boolean isPushableFieldAttribute(Expression exp) {
         return exp instanceof FieldAttribute fa
             && fa.getExactInfo().hasExact()
-            && isAggregatable.test(fa)
+            && isAggregatable(fa)
             && EsqlDataTypes.isSpatial(fa.dataType());
     }
 

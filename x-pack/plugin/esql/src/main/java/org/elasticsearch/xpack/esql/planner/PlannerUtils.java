@@ -62,7 +62,6 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
-import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER;
 
 public class PlannerUtils {
@@ -202,7 +201,7 @@ public class PlannerUtils {
                         boolean matchesField = refs.removeIf(e -> fieldName.equals(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refs.isEmpty() && canPushToSource(exp, hasIdenticalDelegate)) {
+                        if (matchesField && refs.isEmpty() && exp.canPushToSource(hasIdenticalDelegate)) {
                             matches.add(exp);
                         }
                     }

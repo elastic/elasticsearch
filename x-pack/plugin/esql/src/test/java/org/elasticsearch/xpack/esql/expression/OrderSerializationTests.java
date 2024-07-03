@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
-import java.util.List;
 
 public class OrderSerializationTests extends AbstractExpressionSerializationTests<Order> {
     @Override
@@ -40,11 +38,6 @@ public class OrderSerializationTests extends AbstractExpressionSerializationTest
             case 2 -> nulls = randomValueOtherThan(nulls, OrderSerializationTests::randomNulls);
         }
         return new Order(source, child, direction, nulls);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(Order.ENTRY);
     }
 
     @Override

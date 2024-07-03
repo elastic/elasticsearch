@@ -25,11 +25,9 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.util.concurrent.Future;
 
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
@@ -62,6 +60,8 @@ import java.util.function.Consumer;
 
 import javax.net.ssl.SSLException;
 
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
+
 @ESTestCase.WithoutSecurityManager
 @SuppressForbidden(reason = "requires java.io.File for netty self-signed certificate")
 public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractHttpServerTransportTestCase {
@@ -93,17 +93,12 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
      * The server will not reply to request automatically, to send response poll the queue.
      */
     private HttpServer setupHttpServer(String tlsProtocols) throws CertificateException {
-        var ssc = new SelfSignedCertificate();
         var threadPool = new TestThreadPool("tls-close-notify");
         var dispatcher = new QueuedDispatcher();
-        var secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        var settings = Settings.builder()
-            .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.key", ssc.privateKey().getPath())
-            .put("xpack.security.http.ssl.certificate", ssc.certificate().getPath())
+        final Settings.Builder builder = Settings.builder();
+        addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", randomBoolean());
+        var settings = builder.put("xpack.security.http.ssl.enabled", true)
             .put("path.home", createTempDir())
-            .setSecureSettings(secureSettings)
             .put("xpack.security.http.ssl.supported_protocols", tlsProtocols)
             .build();
         var env = TestEnvironment.newEnvironment(settings);

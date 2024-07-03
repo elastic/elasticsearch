@@ -30,8 +30,6 @@ sort doc with nested object:
           - '{ "create": { } }'
           - '{ "name": "cccc", "nested_field": {"a": 3, "b": 4}, "nested_array": [{ "a": 30, "b": 40 }, { "a": 300, "b": 400 }], "other": { "value": "C"} }'
           - '{ "create": { } }'
-          - '{ "nested_field": {"a": 7, "b": 8}, "nested_array": [{ "a": 70, "b": 80 }, { "a": 700, "b": 800 }], "other": { "value": "D"} }'
-          - '{ "create": { } }'
           - '{ "name": "bbbb", "nested_field": {"a": 5, "b": 6}, "nested_array": [{ "a": 50, "b": 60 }, { "a": 500, "b": 600 }], "other": { "value": "B"} }'
 
   - do:
@@ -39,7 +37,7 @@ sort doc with nested object:
         index: test
         sort: name
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total.value: 3 }
   - match: { hits.hits.0._source.name: aaaa }
   - match: { hits.hits.0._source.nested_field.a: 1 }
   - match: { hits.hits.0._source.nested_field.b: 2 }
@@ -64,14 +62,6 @@ sort doc with nested object:
   - match: { hits.hits.2._source.nested_array.1.a: 300 }
   - match: { hits.hits.2._source.nested_array.1.b: 400 }
   - match: { hits.hits.2._source.other.value: C }
-  - is_false: hits.hits.3._source.name
-  - match: { hits.hits.3._source.nested_field.a: 7 }
-  - match: { hits.hits.3._source.nested_field.b: 8 }
-  - match: { hits.hits.3._source.nested_array.0.a: 70 }
-  - match: { hits.hits.3._source.nested_array.0.b: 80 }
-  - match: { hits.hits.3._source.nested_array.1.a: 700 }
-  - match: { hits.hits.3._source.nested_array.1.b: 800 }
-  - match: { hits.hits.3._source.other.value: D }
 
 
 ---

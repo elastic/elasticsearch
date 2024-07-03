@@ -10,13 +10,16 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -33,6 +36,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
+import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTaskWithId;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -200,4 +204,18 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             return builder;
         }
     }
+
+    /**
+     * Retrieves the geoip downloader's task state from the cluster state. This may return null in some circumstances,
+     * for example if the geoip downloader task hasn't been created yet (which it wouldn't be if it's disabled).
+     *
+     * @param state the cluster state to read the task state from
+     * @return the geoip downloader's task state or null if there is not a state to read
+     */
+    @Nullable
+    static GeoIpTaskState getGeoIpTaskState(ClusterState state) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(state, GeoIpDownloader.GEOIP_DOWNLOADER);
+        return (task == null) ? null : (GeoIpTaskState) task.getState();
+    }
+
 }

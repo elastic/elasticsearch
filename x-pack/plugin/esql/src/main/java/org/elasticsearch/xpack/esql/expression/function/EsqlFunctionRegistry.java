@@ -24,8 +24,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.TopList;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
@@ -198,8 +199,9 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Min.class, Min::new, "min"),
                 def(Percentile.class, Percentile::new, "percentile"),
                 def(Sum.class, Sum::new, "sum"),
-                def(TopList.class, TopList::new, "top_list"),
-                def(Values.class, Values::new, "values") },
+                def(Top.class, Top::new, "top"),
+                def(Values.class, Values::new, "values"),
+                def(WeightedAvg.class, WeightedAvg::new, "weighted_avg") },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),

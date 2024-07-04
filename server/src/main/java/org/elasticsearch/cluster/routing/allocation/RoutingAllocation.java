@@ -339,7 +339,13 @@ public class RoutingAllocation {
      * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
     public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
-        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable, clusterState.getMinTransportVersion());
+        DiscoveryNodes nodes = clusterState.nodes();
+        Metadata metadata = indexMetadataUpdater.applyChanges(
+            metadata(),
+            newRoutingTable,
+            n -> nodes.get(n).getMaxIndexVersion(),
+            clusterState.getMinTransportVersion()
+        );
         return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);
     }
 

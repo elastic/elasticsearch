@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Comparator;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -105,10 +107,16 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
      *
      * @param oldMetadata {@link Metadata} object from before the routing nodes was changed.
      * @param newRoutingTable {@link RoutingTable} object after routing changes were applied.
+     * @param getNodeIndexVersion Function to get the index version of the specified node.
      * @param minClusterTransportVersion minimum TransportVersion used between nodes of this cluster
      * @return adapted {@link Metadata}, potentially the original one if no change was needed.
      */
-    public Metadata applyChanges(Metadata oldMetadata, RoutingTable newRoutingTable, TransportVersion minClusterTransportVersion) {
+    public Metadata applyChanges(
+        Metadata oldMetadata,
+        RoutingTable newRoutingTable,
+        Function<String, IndexVersion> getNodeIndexVersion,
+        TransportVersion minClusterTransportVersion
+    ) {
         Map<Index, List<Map.Entry<ShardId, Updates>>> changesGroupedByIndex = shardChanges.entrySet()
             .stream()
             .collect(Collectors.groupingBy(e -> e.getKey().getIndex()));
@@ -129,9 +137,16 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                     updates,
                     minClusterTransportVersion
                 );
-                updatedIndexMetadata = updates.increaseTerm
-                    ? updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
-                    : updatedIndexMetadata;
+
+                // TODO: primaries? or replicas too?
+                IndexVersion allocatedNodeIndexVersion = getNodeIndexVersion.apply(
+                    newRoutingTable.shardRoutingTable(shardId).primaryShard().currentNodeId()
+                );
+                updatedIndexMetadata = updatedIndexMetadata.updateForAllocation(
+                    shardId.id(),
+                    updates.increaseTerm,
+                    allocatedNodeIndexVersion
+                );
             }
 
             if (updatedIndexMetadata != oldIndexMetadata) {

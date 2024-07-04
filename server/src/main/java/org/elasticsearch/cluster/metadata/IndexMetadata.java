@@ -878,20 +878,40 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Creates a copy of this instance that has the primary term for the given shard id incremented.
-     * @param shardId shard id to increment primary term for
-     * @return updated instance with incremented primary term
+     * Update this instance for a new node allocation.
+     * @param shardId shard id the allocation is for
+     * @param increaseTerm {@code true} if the primary term should be increased
+     * @param newNodeIndexVersion the index version of the new node
+     * @return instance suitable updated
      */
-    public IndexMetadata withIncrementedPrimaryTerm(int shardId) {
-        final long[] incremented = this.primaryTerms.clone();
-        incremented[shardId]++;
+    public IndexMetadata updateForAllocation(int shardId, boolean increaseTerm, IndexVersion newNodeIndexVersion) {
+        boolean modified = false;
+        long[] primaryTerms = this.primaryTerms;
+        if (increaseTerm) {
+            primaryTerms = primaryTerms.clone();
+            primaryTerms[shardId]++;
+            modified = true;
+        }
+        IndexVersion shardIndexVersion = shardReadVersions.getOrDefault(shardId, IndexVersions.ZERO);
+        Map<Integer, IndexVersion> shardReadVersions = this.shardReadVersions;
+        if (newNodeIndexVersion.after(shardIndexVersion)) {
+            shardReadVersions = new HashMap<>(shardReadVersions);
+            shardReadVersions.put(shardId, newNodeIndexVersion);
+            shardReadVersions = Map.copyOf(shardReadVersions);
+            modified = true;
+        }
+
+        if (modified == false) {
+            return this;
+        }
+
         return new IndexMetadata(
             this.index,
             this.version,
             this.mappingVersion,
             this.settingsVersion,
             this.aliasesVersion,
-            incremented,
+            primaryTerms,
             this.state,
             this.numberOfShards,
             this.numberOfReplicas,
@@ -907,7 +927,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.excludeFilters,
             this.indexCreatedVersion,
             this.mappingsUpdatedVersion,
-            this.shardReadVersions,
+            shardReadVersions,
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
@@ -1090,6 +1110,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public long getAliasesVersion() {
         return aliasesVersion;
+    }
+
+    public Map<Integer, IndexVersion> getShardReadVersion() {
+        return shardReadVersions;
     }
 
     public IndexVersion getShardReadVersion(int shardId) {

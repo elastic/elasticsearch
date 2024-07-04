@@ -775,20 +775,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.accessGranted(requestId, authentication, PutRoleAction.NAME, putRoleRequest, authorizationInfo);
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
-        String generatedPutRoleAuditEventString = output.get(1);
-        String expectedPutRoleAuditEventString = Strings.format("""
-            "put":{"role":{"name":"%s","role_descriptor":%s}}\
-            """, putRoleRequest.name(), auditedRolesMap.get(putRoleRequest.name()));
-        assertThat(generatedPutRoleAuditEventString, containsString(expectedPutRoleAuditEventString));
-        generatedPutRoleAuditEventString = generatedPutRoleAuditEventString.replace(", " + expectedPutRoleAuditEventString, "");
-        checkedFields = new HashMap<>(commonFields);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
-        checkedFields.put("type", "audit");
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
-        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_role");
-        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        assertMsg(generatedPutRoleAuditEventString, checkedFields);
+        assertPutRoleAuditLogLine(putRoleRequest.name(), output.get(1), auditedRolesMap, requestId);
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
@@ -797,24 +784,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
         bulkPutRolesRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         auditTrail.accessGranted(requestId, authentication, ActionTypes.BULK_PUT_ROLES.name(), bulkPutRolesRequest, authorizationInfo);
         output = CapturingLogger.output(logger.getName(), Level.INFO);
-        assertThat(output.size(), is(2));
-        String generatedBulkPutRoleAuditEventString = output.get(1);
-        String roleMap = String.join(
-            ",",
-            allTestRoleDescriptors.stream().map(role -> "\"" + role.getName() + "\":" + auditedRolesMap.get(role.getName())).toList()
-        );
-        String expectedBulkPutRoleAuditEventString = Strings.format("""
-            "change":{"roles":{%s}}""", roleMap);
-        assertThat(generatedBulkPutRoleAuditEventString, containsString(expectedBulkPutRoleAuditEventString));
-        generatedBulkPutRoleAuditEventString = generatedBulkPutRoleAuditEventString.replace(", " + expectedBulkPutRoleAuditEventString, "");
-        checkedFields = new HashMap<>(commonFields);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
-        checkedFields.put("type", "audit");
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
-        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "bulk_put_role");
-        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        assertMsg(generatedBulkPutRoleAuditEventString, checkedFields);
+        assertThat(output.size(), is(allTestRoleDescriptors.size() + 1));
+
+        for (int i = 0; i < allTestRoleDescriptors.size(); i++) {
+            assertPutRoleAuditLogLine(allTestRoleDescriptors.get(i).getName(), output.get(i + 1), auditedRolesMap, requestId);
+        }
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
@@ -824,25 +798,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.accessGranted(requestId, authentication, DeleteRoleAction.NAME, deleteRoleRequest, authorizationInfo);
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
-        String generatedDeleteRoleAuditEventString = output.get(1);
-        StringBuilder deleteRoleStringBuilder = new StringBuilder().append("\"delete\":{\"role\":{\"name\":");
-        if (deleteRoleRequest.name() == null) {
-            deleteRoleStringBuilder.append("null");
-        } else {
-            deleteRoleStringBuilder.append("\"").append(deleteRoleRequest.name()).append("\"");
-        }
-        deleteRoleStringBuilder.append("}}");
-        String expectedDeleteRoleAuditEventString = deleteRoleStringBuilder.toString();
-        assertThat(generatedDeleteRoleAuditEventString, containsString(expectedDeleteRoleAuditEventString));
-        generatedDeleteRoleAuditEventString = generatedDeleteRoleAuditEventString.replace(", " + expectedDeleteRoleAuditEventString, "");
-        checkedFields = new HashMap<>(commonFields);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
-        checkedFields.put("type", "audit");
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
-        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_role");
-        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        assertMsg(generatedDeleteRoleAuditEventString, checkedFields);
+        assertDeleteRoleAuditLogLine(putRoleRequest.name(), output.get(1), requestId);
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
@@ -858,27 +814,48 @@ public class LoggingAuditTrailTests extends ESTestCase {
             authorizationInfo
         );
         output = CapturingLogger.output(logger.getName(), Level.INFO);
-        assertThat(output.size(), is(2));
-        String generatedBulkDeleteRoleAuditEventString = output.get(1);
+        assertThat(output.size(), is(allTestRoleDescriptors.size() + 1));
+        for (int i = 0; i < allTestRoleDescriptors.size(); i++) {
+            assertDeleteRoleAuditLogLine(allTestRoleDescriptors.get(i).getName(), output.get(i + 1), requestId);
+        }
+    }
 
-        String expectedBulkDeleteRoleAuditEventString = Strings.format(
-            """
-                "delete":{"roles":[%s]}}""",
-            String.join(",", bulkDeleteRolesRequest.getRoleNames().stream().map(role -> "\"" + role + "\"").toList())
-        );
-        assertThat(generatedBulkDeleteRoleAuditEventString, containsString(expectedBulkDeleteRoleAuditEventString));
-        generatedBulkDeleteRoleAuditEventString = generatedBulkDeleteRoleAuditEventString.replace(
-            ", " + expectedBulkDeleteRoleAuditEventString,
-            ""
-        );
-        checkedFields = new HashMap<>(commonFields);
+    private void assertPutRoleAuditLogLine(String roleName, String logLine, Map<String, String> expectedLogByRoleName, String requestId) {
+        String expectedPutRoleAuditEventString = Strings.format("""
+            "put":{"role":{"name":"%s","role_descriptor":%s}}\
+            """, roleName, expectedLogByRoleName.get(roleName));
+
+        assertThat(logLine, containsString(expectedPutRoleAuditEventString));
+        String reducedLogLine = logLine.replace(", " + expectedPutRoleAuditEventString, "");
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
         checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
         checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
         checkedFields.put("type", "audit");
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
-        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "bulk_delete_role");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_role");
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        assertMsg(generatedBulkDeleteRoleAuditEventString, checkedFields);
+        assertMsg(reducedLogLine, checkedFields);
+    }
+
+    private void assertDeleteRoleAuditLogLine(String roleName, String logLine, String requestId) {
+        StringBuilder deleteRoleStringBuilder = new StringBuilder().append("\"delete\":{\"role\":{\"name\":");
+        if (roleName == null) {
+            deleteRoleStringBuilder.append("null");
+        } else {
+            deleteRoleStringBuilder.append("\"").append(roleName).append("\"");
+        }
+        deleteRoleStringBuilder.append("}}");
+        String expectedDeleteRoleAuditEventString = deleteRoleStringBuilder.toString();
+        assertThat(logLine, containsString(expectedDeleteRoleAuditEventString));
+        String reducedLogLine = logLine.replace(", " + expectedDeleteRoleAuditEventString, "");
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_role");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(reducedLogLine, checkedFields);
     }
 
     public void testSecurityConfigChangeEventForCrossClusterApiKeys() throws IOException {

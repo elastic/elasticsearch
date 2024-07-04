@@ -31,16 +31,16 @@ final class BigFloatArray extends AbstractBigByteArray implements FloatArray {
 
     @Override
     public void set(long index, float value) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
         final byte[] page = getPageForWriting(pageIndex);
         VH_PLATFORM_NATIVE_FLOAT.set(page, indexInPage << 2, value);
     }
 
     @Override
     public float get(long index) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
         return (float) VH_PLATFORM_NATIVE_FLOAT.get(pages[pageIndex], indexInPage << 2);
     }
 
@@ -54,16 +54,16 @@ final class BigFloatArray extends AbstractBigByteArray implements FloatArray {
         if (fromIndex > toIndex) {
             throw new IllegalArgumentException();
         }
-        final int fromPage = pageIndex(fromIndex);
-        final int toPage = pageIndex(toIndex - 1);
+        final int fromPage = pageIdx(fromIndex);
+        final int toPage = pageIdx(toIndex - 1);
         if (fromPage == toPage) {
-            fill(getPageForWriting(fromPage), indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
+            fill(getPageForWriting(fromPage), idxInPage(fromIndex), idxInPage(toIndex - 1) + 1, value);
         } else {
-            fill(getPageForWriting(fromPage), indexInPage(fromIndex), pageSize(), value);
+            fill(getPageForWriting(fromPage), idxInPage(fromIndex), FLOAT_PAGE_SIZE, value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                fill(getPageForWriting(i), 0, pageSize(), value);
+                fill(getPageForWriting(i), 0, FLOAT_PAGE_SIZE, value);
             }
-            fill(getPageForWriting(toPage), 0, indexInPage(toIndex - 1) + 1, value);
+            fill(getPageForWriting(toPage), 0, idxInPage(toIndex - 1) + 1, value);
         }
     }
 
@@ -82,5 +82,15 @@ final class BigFloatArray extends AbstractBigByteArray implements FloatArray {
     @Override
     public void set(long index, byte[] buf, int offset, int len) {
         set(index, buf, offset, len, 2);
+    }
+
+    private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(FLOAT_PAGE_SIZE);
+
+    private static int pageIdx(long index) {
+        return (int) (index >>> PAGE_SHIFT);
+    }
+
+    private static int idxInPage(long index) {
+        return (int) (index & FLOAT_PAGE_SIZE - 1);
     }
 }

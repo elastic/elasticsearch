@@ -28,7 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -169,9 +169,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     physicalPlan,
                     configuration,
                     delegate.map(result -> {
-                        List<ColumnInfo> columns = physicalPlan.output()
+                        List<ColumnInfoImpl> columns = physicalPlan.output()
                             .stream()
-                            .map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().outputType()))
+                            .map(c -> new ColumnInfoImpl(c.qualifiedName(), c.dataType().outputType()))
                             .toList();
                         EsqlQueryResponse.Profile profile = configuration.profile()
                             ? new EsqlQueryResponse.Profile(result.profiles())

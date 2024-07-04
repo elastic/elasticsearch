@@ -27,7 +27,7 @@ public class MapperBuilderContext {
     }
 
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason) {
-        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC, mergeReason);
+        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC, mergeReason, false);
     }
 
     private final String path;
@@ -36,6 +36,7 @@ public class MapperBuilderContext {
     private final boolean parentObjectContainsDimensions;
     private final ObjectMapper.Dynamic dynamic;
     private final MergeReason mergeReason;
+    private final boolean inNestedContext;
 
     MapperBuilderContext(
         String path,
@@ -43,7 +44,8 @@ public class MapperBuilderContext {
         boolean isDataStream,
         boolean parentObjectContainsDimensions,
         ObjectMapper.Dynamic dynamic,
-        MergeReason mergeReason
+        MergeReason mergeReason,
+        boolean inNestedContext
     ) {
         Objects.requireNonNull(dynamic, "dynamic must not be null");
         this.path = path;
@@ -52,6 +54,7 @@ public class MapperBuilderContext {
         this.parentObjectContainsDimensions = parentObjectContainsDimensions;
         this.dynamic = dynamic;
         this.mergeReason = mergeReason;
+        this.inNestedContext = inNestedContext;
     }
 
     /**
@@ -84,7 +87,8 @@ public class MapperBuilderContext {
             this.isDataStream,
             parentObjectContainsDimensions,
             getDynamic(dynamic),
-            this.mergeReason
+            this.mergeReason,
+            isInNestedContext()
         );
     }
 
@@ -133,5 +137,12 @@ public class MapperBuilderContext {
      */
     public MergeReason getMergeReason() {
         return mergeReason;
+    }
+
+    /**
+     * Returns true if this context is included in a nested context, either directly or any of its ancestors.
+     */
+    public boolean isInNestedContext() {
+        return inNestedContext;
     }
 }

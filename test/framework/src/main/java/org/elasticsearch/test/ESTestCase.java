@@ -2300,12 +2300,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Call a supplier that might throw and fail if it throws, useful to avoid try/catch boilerplate or cumbersome
-     * propagation of checked exceptions around something you assume should never throw.
+     * Call a supplier that might throw, converting all exceptions into an {@link AssertionError}, useful for avoiding
+     * try/catch boilerplate or cumbersome propagation of checked exceptions around something that <i>should</i> never throw.
      *
-     * @param supplier A supplier that may throw an exception
-     * @return The value returned by the supplier
-     * @param <T> the type of object returned
+     * @return The value returned by the {@code supplier}.
      */
     public static <T> T safeGet(CheckedSupplier<T, ?> supplier) {
         try {

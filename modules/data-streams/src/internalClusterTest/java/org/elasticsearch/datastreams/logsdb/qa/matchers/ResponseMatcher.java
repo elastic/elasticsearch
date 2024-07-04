@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
  */
 public abstract class ResponseMatcher<T> {
 
-    public static class Builder<T, E> {
+    public static class Builder<T> {
 
         protected final XContentBuilder oracleMappings;
         protected final Settings.Builder oracleSettings;
@@ -37,7 +37,7 @@ public abstract class ResponseMatcher<T> {
             this.challengeSettings = challengeSettings;
         }
 
-        public Builder<T, E> with(final T response) {
+        public Builder<T> with(final T response) {
             this.response = response;
             return this;
         }

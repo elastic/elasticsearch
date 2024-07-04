@@ -544,3 +544,50 @@ PUT _cluster/settings
   }
 }
 ----
+
+[discrete]
+==== Number of documents in the index can't exceed [2147483519]
+
+Elasticsearch shards reflect Lucene's underlying https://github.com/apache/lucene/issues/5176[index 
+`MAX_DOC` hard limit] of 2,147,483,519 (`(2^31)-1`) docs. This figure calulates 
+from the sum of `docs.count` plus `docs.deleted` as reported by <<indices-stats,Index Stats>> 
+per shard. Attempting to surpass this limit, e.g. via ingestion's <<index-modules-translog,translog>>, 
+will cause error 
+
+[source, txt]
+----
+Elasticsearch exception [type=illegal_argument_exception, reason=Number of documents in the index can't exceed [2147483519]]
+----
+
+or this error's sister stack trace will appear 
+
+[source, txt]
+----
+Caused by: java.lang.IllegalArgumentException: number of documents in the index cannot exceed 2147483519
+----
+
+Noting that in this error message, `index` is referencing a Lucene index which correlates to an 
+<<glossary-shard,Elasticsearch shard>>. 
+
+TIP: This calculation works off all docs within the shard, including nested docs. 
+Therefore, it's results are not guaranteed to line up to the <<search-count,Count API>> 
+which masks nested docs. 
+
+Encountering this error usually suggests an issue with sharding strategy being 
+out of compliance with the above recommendations on this page, specifically at least 
+<<shard-size-recommendation,aiming for shards of up to 200M documents>>. 
+
+Frequently, the `docs.deleted` for the index will be elevated that 
+<<indices-forcemerge,expunging deleted docs>> can work as a short-term stop gap to regain
+ability to admin the index, e.g. for `my-index-000001` this command would appear 
+
+[source,console]
+----
+POST my-index-000001/_forcemerge?only_expunge_deletes=true
+----
+
+This will kick off an asynchronous task which can be monitored via the <<tasks,Task Management API>>. 
+
+Longer-term, this error can usually be resolved by <<docs-delete-by-query,removing unneeded docs>> 
+from the index or by <<indices-split-index,Splitting>> or <<docs-reindex,Reindexing>> the index with 
+corrected shard strategy settings. 

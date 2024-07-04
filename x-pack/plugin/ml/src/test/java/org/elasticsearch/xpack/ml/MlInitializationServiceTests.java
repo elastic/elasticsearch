@@ -20,7 +20,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
-import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.Before;
 
 import java.util.Map;
@@ -39,7 +39,7 @@ public class MlInitializationServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private Client client;
-    private SystemAuditor systemAuditor;
+    private InferenceAuditor inferenceAuditor;
     private MlAssignmentNotifier mlAssignmentNotifier;
 
     @Before
@@ -48,7 +48,7 @@ public class MlInitializationServiceTests extends ESTestCase {
         threadPool = deterministicTaskQueue.getThreadPool();
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
-        systemAuditor = mock(SystemAuditor.class);
+        inferenceAuditor = mock(InferenceAuditor.class);
         mlAssignmentNotifier = mock(MlAssignmentNotifier.class);
 
         when(clusterService.getClusterName()).thenReturn(CLUSTER_NAME);
@@ -74,7 +74,7 @@ public class MlInitializationServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             client,
-            systemAuditor,
+            inferenceAuditor,
             mlAssignmentNotifier,
             true,
             true,
@@ -90,7 +90,7 @@ public class MlInitializationServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             client,
-            systemAuditor,
+            inferenceAuditor,
             mlAssignmentNotifier,
             true,
             true,

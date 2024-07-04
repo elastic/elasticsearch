@@ -33,7 +33,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
-import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.Collections;
 import java.util.Map;
@@ -66,7 +66,7 @@ public final class MlInitializationService implements ClusterStateListener {
         ThreadPool threadPool,
         ClusterService clusterService,
         Client client,
-        SystemAuditor systemAuditor,
+        InferenceAuditor inferenceAuditor,
         MlAssignmentNotifier mlAssignmentNotifier,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
@@ -86,7 +86,7 @@ public final class MlInitializationService implements ClusterStateListener {
                 isDataFrameAnalyticsEnabled,
                 isNlpEnabled
             ),
-            new AdaptiveAllocationsScalerService(threadPool, clusterService, client, systemAuditor, isNlpEnabled),
+            new AdaptiveAllocationsScalerService(threadPool, clusterService, client, inferenceAuditor, isNlpEnabled),
             clusterService
         );
     }

@@ -28,10 +28,12 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -79,6 +81,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private static final int DEFAULT_TIME_INTERVAL_SECONDS = 10;
     /**
      * The time that has to pass after scaling up, before scaling down is allowed.
+     * Note that the ML autoscaling has its own cooldown time to release the hardware.
      */
     private static final long SCALE_UP_COOLDOWN_TIME_MILLIS = TimeValue.timeValueMinutes(5).getMillis();
 
@@ -88,7 +91,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Client client;
-    private final SystemAuditor systemAuditor;
+    private final InferenceAuditor inferenceAuditor;
     private final boolean isNlpEnabled;
     private final Map<String, Map<String, Stats>> lastInferenceStatsByDeploymentAndNode;
     private Long lastInferenceStatsTimestampMillis;
@@ -102,10 +105,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         ThreadPool threadPool,
         ClusterService clusterService,
         Client client,
-        SystemAuditor systemAuditor,
+        InferenceAuditor inferenceAuditor,
         boolean isNlpEnabled
     ) {
-        this(threadPool, clusterService, client, systemAuditor, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
+        this(threadPool, clusterService, client, inferenceAuditor, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
     }
 
     // visible for testing
@@ -113,14 +116,14 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         ThreadPool threadPool,
         ClusterService clusterService,
         Client client,
-        SystemAuditor systemAuditor,
+        InferenceAuditor inferenceAuditor,
         boolean isNlpEnabled,
         int timeIntervalSeconds
     ) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
-        this.systemAuditor = systemAuditor;
+        this.inferenceAuditor = inferenceAuditor;
         this.isNlpEnabled = isNlpEnabled;
         this.timeIntervalSeconds = timeIntervalSeconds;
 
@@ -157,9 +160,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         if (isNlpEnabled == false) {
             return;
         }
-
+        Set<String> deploymentIds = new HashSet<>();
         TrainedModelAssignmentMetadata assignments = TrainedModelAssignmentMetadata.fromState(state);
         for (TrainedModelAssignment assignment : assignments.allAssignments().values()) {
+            deploymentIds.add(assignment.getDeploymentId());
             if (assignment.getAdaptiveAllocationsSettings() != null && assignment.getAdaptiveAllocationsSettings().getEnabled()) {
                 AdaptiveAllocationsScaler adaptiveAllocationsScaler = scalers.computeIfAbsent(
                     assignment.getDeploymentId(),
@@ -174,6 +178,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 lastInferenceStatsByDeploymentAndNode.remove(assignment.getDeploymentId());
             }
         }
+        scalers.keySet().removeIf(key -> deploymentIds.contains(key) == false);
     }
 
     private synchronized void startScheduling() {
@@ -298,7 +303,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                         logger.info("adaptive allocations scaler: scaled [{}] to [{}] allocations.", deploymentId, newNumberOfAllocations);
                         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
                             .execute(
-                                () -> systemAuditor.info(
+                                () -> inferenceAuditor.info(
+                                    deploymentId,
                                     Strings.format(
                                         "adaptive allocations scaler: scaled [%s] to [%s] allocations.",
                                         deploymentId,
@@ -316,9 +322,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                             );
                         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
                             .execute(
-                                () -> systemAuditor.warning(
+                                () -> inferenceAuditor.warning(
+                                    deploymentId,
                                     Strings.format(
-                                        "adaptive allocations scaler: scaling [{}] to [{}] allocations failed.",
+                                        "adaptive allocations scaler: scaling [%s] to [%s] allocations failed.",
                                         deploymentId,
                                         newNumberOfAllocations
                                     )

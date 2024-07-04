@@ -124,10 +124,11 @@ public class AdaptiveAllocationsScaler {
         if (numberOfAllocations != oldNumberOfAllocations) {
             logger.debug(
                 () -> Strings.format(
-                    "[%s] adaptive allocations scaler: load in [%.3f, %.3f], scaling to %d allocations.",
+                    "[%s] adaptive allocations scaler: load in [%.3f, %.3f], scaling from %d to %d allocations.",
                     deploymentId,
                     loadLower,
                     loadUpper,
+                    oldNumberOfAllocations,
                     numberOfAllocations
                 )
             );

@@ -250,7 +250,13 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
         return f.exactAttribute().field().isAggregatable();
     }
 
+    /**
+     * Field information needed to push down to lucene
+     */
     public interface FieldInfo {
+        /**
+         * returns true if the given field attribute has a synthetic source delegate with the exact same value
+         */
         boolean hasIdenticalDelegate(FieldAttribute attr);
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
@@ -152,6 +153,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
             final String fullName = context.buildFullName(leafName());
+
+            if (context.isInNestedContext()) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + fullName + "] cannot be nested");
+            }
             var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE);
             final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext);
             return new SemanticTextFieldMapper(
@@ -350,6 +355,21 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support term query");
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (getEmbeddingsField() == null) {
+                return new MatchNoDocsQuery();
+            }
+
+            return NestedQueryBuilder.toQuery(
+                (c -> getEmbeddingsField().fieldType().existsQuery(c)),
+                getChunksFieldName(name()),
+                ScoreMode.None,
+                false,
+                context
+            );
         }
 
         @Override

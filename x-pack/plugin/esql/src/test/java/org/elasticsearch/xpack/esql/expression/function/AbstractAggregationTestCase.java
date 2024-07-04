@@ -52,37 +52,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 
-    /**
-     * Converts a list of TypedDataSuppliers into a multirow TypedDataSupplier using those cases.
-     * <p>
-     *     E.g. {@code toMultiRow(1, 1000, TestCaseSupplier.dateCases())}
-     * </p>
-     * @param minRows minimum number of rows (inclusive)
-     * @param maxRows maximum number of rows (inclusive)
-     * @param values list of TypedDataSuppliers to use
-     */
-    protected static TestCaseSupplier.TypedDataSupplier toMultiRow(
-        int minRows,
-        int maxRows,
-        List<TestCaseSupplier.TypedDataSupplier> values
-    ) {
-        if (values.isEmpty()) {
-            throw new IllegalArgumentException("values cannot be empty");
-        }
-
-        var type = values.get(0).type();
-
-        return new TestCaseSupplier.TypedDataSupplier(
-            type + " rows",
-            () -> IntStream.range(0, randomIntBetween(minRows, maxRows))
-                .mapToObj(i -> values.get(randomIntBetween(1, values.size()) - 1).get().getValue())
-                .toList(),
-            values.get(0).type(),
-            false,
-            true
-        );
-    }
-
     public void testAggregate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 

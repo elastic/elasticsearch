@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.TopList;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 
 import java.lang.invoke.MethodHandle;
@@ -67,7 +67,7 @@ final class AggregateMapper {
         SpatialCentroid.class,
         Sum.class,
         Values.class,
-        TopList.class,
+        Top.class,
         Rate.class,
 
         // internal function
@@ -154,7 +154,7 @@ final class AggregateMapper {
         } else if (Values.class.isAssignableFrom(clazz)) {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
-        } else if (TopList.class.isAssignableFrom(clazz)) {
+        } else if (Top.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");
         } else if (Rate.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");

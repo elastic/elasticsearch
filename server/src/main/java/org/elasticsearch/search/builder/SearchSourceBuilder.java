@@ -2273,13 +2273,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         validationException
                     );
                 }
-                if (fetchSource() != null) {
+                if (fetchFields() != null) {
                     validationException = addValidationError(
                         "[stored_fields] cannot be disabled when using the [fields] option",
                         validationException
                     );
                 }
-
             }
         }
         if (subSearches().size() >= 2 && rankBuilder() == null) {
@@ -2300,7 +2299,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         + rankBuilder().rankWindowSize()
                         + "]"
                         + " be greater than or equal to [size: "
-                        + size()
+                        + s
                         + "]",
                     validationException
                 );

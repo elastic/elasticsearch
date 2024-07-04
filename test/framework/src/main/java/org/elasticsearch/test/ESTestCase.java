@@ -2300,7 +2300,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Call a supplier that might throw, converting all exceptions into an {@link AssertionError}, useful for avoiding
+     * Call a {@link CheckedSupplier}, converting all exceptions into an {@link AssertionError}. Useful for avoiding
      * try/catch boilerplate or cumbersome propagation of checked exceptions around something that <i>should</i> never throw.
      *
      * @return The value returned by the {@code supplier}.

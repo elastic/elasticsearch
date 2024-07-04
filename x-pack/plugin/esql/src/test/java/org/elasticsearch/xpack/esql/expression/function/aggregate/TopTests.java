@@ -15,12 +15,14 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -35,28 +37,14 @@ public class TopTests extends AbstractAggregationTestCase {
 
         for (var limitCaseSupplier : TestCaseSupplier.intCases(1, 1000, false)) {
             for (String order : List.of("asc", "desc")) {
-                suppliers.add(
-                    TopTests.makeSupplier(
-                        toMultiRow(1, 1000, TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true)),
-                        limitCaseSupplier,
-                        order
-                    )
-                );
-                suppliers.add(
-                    TopTests.<Long>makeSupplier(
-                        toMultiRow(1, 1000, TestCaseSupplier.longCases(Long.MIN_VALUE, Long.MAX_VALUE, true)),
-                        limitCaseSupplier,
-                        order
-                    )
-                );
-                suppliers.add(
-                    TopTests.<Double>makeSupplier(
-                        toMultiRow(1, 1000, TestCaseSupplier.doubleCases(Double.MIN_VALUE, Double.MAX_VALUE, true)),
-                        limitCaseSupplier,
-                        order
-                    )
-                );
-                suppliers.add(TopTests.<Long>makeSupplier(toMultiRow(1, 1000, TestCaseSupplier.dateCases()), limitCaseSupplier, order));
+                for (var fieldCaseSupplier : Stream.of(
+                    MultiRowTestCaseSupplier.multiRowIntCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+                    MultiRowTestCaseSupplier.multiRowLongCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+                    MultiRowTestCaseSupplier.multiRowDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+                    MultiRowTestCaseSupplier.multiRowDateCases(1, 1000)
+                ).flatMap(List::stream).toList()) {
+                    suppliers.add(TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order));
+                }
             }
         }
 

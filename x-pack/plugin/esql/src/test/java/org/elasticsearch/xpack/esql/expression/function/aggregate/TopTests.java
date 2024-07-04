@@ -41,7 +41,8 @@ public class TopTests extends AbstractAggregationTestCase {
                     MultiRowTestCaseSupplier.multiRowIntCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
                     MultiRowTestCaseSupplier.multiRowLongCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
                     MultiRowTestCaseSupplier.multiRowDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
-                    MultiRowTestCaseSupplier.multiRowDateCases(1, 1000)
+                    MultiRowTestCaseSupplier.multiRowDateCases(1, 1000),
+                    MultiRowTestCaseSupplier.multiRowBooleanCases(1, 1000)
                 ).flatMap(List::stream).toList()) {
                     suppliers.add(TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order));
                 }
@@ -220,7 +221,7 @@ public class TopTests extends AbstractAggregationTestCase {
         TestCaseSupplier.TypedDataSupplier limitCaseSupplier,
         String order
     ) {
-        return new TestCaseSupplier(List.of(fieldSupplier.type(), DataType.INTEGER, DataType.KEYWORD), () -> {
+        return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type(), DataType.INTEGER, DataType.KEYWORD), () -> {
             var fieldTypedData = fieldSupplier.get();
             var limitTypedData = limitCaseSupplier.get().forceLiteral();
             var limit = (int) limitTypedData.getValue();

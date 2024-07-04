@@ -11,7 +11,8 @@ For detailed information about this release, see the <<es-release-notes>> and
 // Add previous release to the list
 Other versions:
 
-{ref-bare}/8.14/release-highlights.html[8.14]
+{ref-bare}/8.15/release-highlights.html[8.15]
+| {ref-bare}/8.14/release-highlights.html[8.14]
 | {ref-bare}/8.13/release-highlights.html[8.13]
 | {ref-bare}/8.12/release-highlights.html[8.12]
 | {ref-bare}/8.11/release-highlights.html[8.11]
@@ -29,60 +30,13 @@ Other versions:
 
 endif::[]
 
+// The notable-highlights tag marks entries that
+// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-
-[discrete]
-[[stored_fields_are_compressed_with_zstandard_instead_of_lz4_deflate]]
-=== Stored fields are now compressed with ZStandard instead of LZ4/DEFLATE
-Stored fields are now compressed by splitting documents into blocks, which
-are then compressed independently with ZStandard. `index.codec: default`
-(default) uses blocks of at most 14kB or 128 documents compressed with level
-0, while `index.codec: best_compression` uses blocks of at most 240kB or
-2048 documents compressed at level 3. On most datasets that we tested
-against, this yielded storage improvements in the order of 10%, slightly
-faster indexing and similar retrieval latencies.
-
-{es-pull}103374[#103374]
-
+// [discrete]
+// === Heading
+//
+// Description.
 // end::notable-highlights[]
 
-
-[discrete]
-[[new_custom_parser_for_iso_8601_datetimes]]
-=== New custom parser for ISO-8601 datetimes
-This introduces a new custom parser for ISO-8601 datetimes, for the `iso8601`, `strict_date_optional_time`, and
-`strict_date_optional_time_nanos` built-in date formats. This provides a performance improvement over the
-default Java date-time parsing. Whilst it maintains much of the same behaviour,
-the new parser does not accept nonsensical date-time strings that have multiple fractional seconds fields
-or multiple timezone specifiers. If the new parser fails to parse a string, it will then use the previous parser
-to parse it. If a large proportion of the input data consists of these invalid strings, this may cause
-a small performance degradation. If you wish to force the use of the old parsers regardless,
-set the JVM property `es.datetime.java_time_parsers=true` on all ES nodes.
-
-{es-pull}106486[#106486]
-
-[discrete]
-[[preview_support_for_connection_type_domain_isp_databases_in_geoip_processor]]
-=== Preview: Support for the 'Connection Type, 'Domain', and 'ISP' databases in the geoip processor
-As a Technical Preview, the {ref}/geoip-processor.html[`geoip`] processor can now use the commercial
-https://dev.maxmind.com/geoip/docs/databases/connection-type[GeoIP2 'Connection Type'],
-https://dev.maxmind.com/geoip/docs/databases/domain[GeoIP2 'Domain'],
-and
-https://dev.maxmind.com/geoip/docs/databases/isp[GeoIP2 'ISP']
-databases from MaxMind.
-
-{es-pull}108683[#108683]
-
-[discrete]
-[[update_elasticsearch_to_lucene_9_11]]
-=== Update Elasticsearch to Lucene 9.11
-Elasticsearch is now updated using the latest Lucene version 9.11.
-Here are the full release notes:
-But, here are some particular highlights:
-- Usage of MADVISE for better memory management: https://github.com/apache/lucene/pull/13196
-- Use RWLock to access LRUQueryCache to reduce contention: https://github.com/apache/lucene/pull/13306
-- Speedup multi-segment HNSW graph search for nested kNN queries: https://github.com/apache/lucene/pull/13121
-- Add a MemorySegment Vector scorer - for scoring without copying on-heap vectors: https://github.com/apache/lucene/pull/13339
-
-{es-pull}109219[#109219]
 

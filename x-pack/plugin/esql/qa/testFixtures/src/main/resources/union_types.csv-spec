@@ -441,6 +441,39 @@ count:long  |  @timestamp:date
 4           |  2023-10-23T12:00:00.000Z
 ;
 
+multiIndexTsLongStatsInline2
+required_capability: union_types
+required_capability: casting_operator
+
+FROM sample_data, sample_data_ts_long
+| STATS count=count(*) BY @timestamp::datetime
+| SORT count DESC, `@timestamp::datetime` DESC
+;
+
+count:long  |  @timestamp::datetime:datetime
+2           |  2023-10-23T13:55:01.543Z
+2           |  2023-10-23T13:53:55.832Z
+2           |  2023-10-23T13:52:55.015Z
+2           |  2023-10-23T13:51:54.732Z
+2           |  2023-10-23T13:33:34.937Z
+2           |  2023-10-23T12:27:28.948Z
+2           |  2023-10-23T12:15:03.360Z
+;
+
+multiIndexTsLongStatsInline3
+required_capability: union_types
+required_capability: casting_operator
+
+FROM sample_data, sample_data_ts_long
+| STATS count=count(*) BY @timestamp::datetime
+| STATS mc=count(count) BY count
+| SORT mc DESC, count ASC
+;
+
+mc:l | count:l
+7    | 2
+;
+
 multiIndexTsLongRenameStats
 required_capability: union_types
 

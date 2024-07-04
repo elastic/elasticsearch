@@ -190,7 +190,7 @@ Use the user information retrieve the user with a query:
 
 [source,console]
 ----
-GET /_security/_query/user
+POST /_security/_query/user
 {
     "query": {
         "prefix": {
@@ -230,7 +230,7 @@ To retrieve the user `profile_uid` as part of the response:
 
 [source,console]
 --------------------------------------------------
-GET /_security/_query/user?with_profile_uid=true
+POST /_security/_query/user?with_profile_uid=true
 {
     "query": {
         "prefix": {
@@ -271,7 +271,7 @@ Use a `bool` query to issue complex logical conditions and use
 
 [source,js]
 ----
-GET /_security/_query/user
+POST /_security/_query/user
 {
   "query": {
     "bool": {

@@ -116,12 +116,15 @@ A list of roles that match the query.
 [[security-api-query-role-example]]
 ==== {api-examples-title}
 
-The following request lists all roles, assuming you have the
-`read_security` privilege:
+The following request lists all roles, sorted by the role name.
+This assumes you have the `read_security` <<privileges-list-cluster,privilege>>:
 
 [source,console]
 ----
-GET /_security/_query/role
+POST /_security/_query/role
+{
+    "sort": ["name"]
+}
 ----
 // TEST[setup:admin_role,user_role]
 
@@ -133,232 +136,144 @@ retrieved for one or more roles:
 {
     "total": 2,
     "count": 2,
-    "users": [ <1>
+    "roles": [ <1>
         {
-            "username": "jacknich",
-            "roles": [
-                "admin",
-                "other_role1"
-            ],
-            "full_name": "Jack Nicholson",
-            "email": "jacknich@example.com",
-            "metadata": {
-                "intelligence": 7
-            },
-            "enabled": true
+          "name" : "my_admin_role",
+          "cluster" : [
+            "all"
+          ],
+          "indices" : [
+            {
+              "names" : [
+                "index1",
+                "index2"
+              ],
+              "privileges" : [
+                "all"
+              ],
+              "field_security" : {
+                "grant" : [
+                  "title",
+                  "body"
+                ]
+              },
+              "allow_restricted_indices" : false
+            }
+          ],
+          "applications" : [ ],
+          "run_as" : [
+            "other_user"
+          ],
+          "metadata" : {
+            "version" : 1
+          },
+          "transient_metadata" : {
+            "enabled" : true
+          },
+          "description" : "Grants full access to all management features within the cluster.",
+          "_sort" : [
+            "my_admin_role"
+          ]
         },
         {
-            "username": "sandrakn",
-            "roles": [
-                "admin",
-                "other_role1"
-            ],
-            "full_name": "Sandra Knight",
-            "email": "sandrakn@example.com",
-            "metadata": {
-                "intelligence": 7
-            },
-            "enabled": true
+          "name" : "my_user_role",
+          "cluster" : [ ],
+          "indices" : [
+            {
+              "names" : [
+                "index1",
+                "index2"
+              ],
+              "privileges" : [
+                "all"
+              ],
+              "field_security" : {
+                "grant" : [
+                  "title",
+                  "body"
+                ]
+              },
+              "allow_restricted_indices" : false
+            }
+          ],
+          "applications" : [ ],
+          "run_as" : [ ],
+          "metadata" : {
+            "version" : 1
+          },
+          "transient_metadata" : {
+            "enabled" : true
+          },
+          "description" : "Grants user access to some indicies.",
+          "_sort" : [
+            "my_user_role"
+          ]
         }
     ]
 }
 ----
-// NOTCONSOLE
+// TEST[continued]
 
 <1> The list of roles that were retrieved for this request
 
-If you create a user with the following details:
+Similarly, the following request can be used to query only the user access role,
+given its description:
 
 [source,console]
 ----
-POST /_security/user/jacknich
-{
-  "password" : "l0ng-r4nd0m-p@ssw0rd",
-  "roles" : [ "admin", "other_role1" ],
-  "full_name" : "Jack Nicholson",
-  "email" : "jacknich@example.com",
-  "metadata" : {
-    "intelligence" : 7
-  }
-}
-----
-
-A successful call returns a JSON structure:
-
-[source,console-result]
-----
-{
-  "created": true
-}
-----
-
-Use the user information retrieve the user with a query:
-
-[source,console]
-----
-GET /_security/_query/user
-{
-    "query": {
-        "prefix": {
-            "roles": "other"
-        }
-    }
-}
-----
-// TEST[setup:jacknich_user]
-A successful call returns a JSON structure for a user:
-
-[source,console-result]
---------------------------------------------------
-{
-    "total": 1,
-    "count": 1,
-    "users": [
-        {
-            "username": "jacknich",
-            "roles": [
-                "admin",
-                "other_role1"
-            ],
-            "full_name": "Jack Nicholson",
-            "email": "jacknich@example.com",
-            "metadata": {
-                "intelligence": 7
-            },
-            "enabled": true
-        }
-    ]
-}
---------------------------------------------------
-// NOTCONSOLE
-
-To retrieve the user `profile_uid` as part of the response:
-
-[source,console]
---------------------------------------------------
-GET /_security/_query/user?with_profile_uid=true
-{
-    "query": {
-        "prefix": {
-            "roles": "other"
-        }
-    }
-}
---------------------------------------------------
-// TEST[setup:jacknich_user]
-
-[source,console-result]
---------------------------------------------------
-{
-    "total": 1,
-    "count": 1,
-    "users": [
-        {
-            "username": "jacknich",
-            "roles": [
-                "admin",
-                "other_role1"
-            ],
-            "full_name": "Jack Nicholson",
-            "email": "jacknich@example.com",
-            "metadata": {
-                "intelligence": 7
-            },
-            "enabled": true,
-            "profile_uid": "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"
-        }
-    ]
-}
---------------------------------------------------
-// NOTCONSOLE
-
-Use a `bool` query to issue complex logical conditions and use
-`from`, `size`, `sort` to help paginate the result:
-
-[source,js]
-----
-GET /_security/_query/user
+POST /_security/_query/role
 {
   "query": {
-    "bool": {
-      "must": [
-        {
-          "wildcard": {
-            "email": "*example.com" <1>
-          }
-        },
-        {
-          "term": {
-            "enabled": true <2>
-          }
-        }
-      ],
-      "filter": [
-        {
-          "wildcard": {
-            "roles": "*other*" <3>
-          }
-        }
-      ]
+    "match": {
+      "description": {
+        "query": "user access"
+      }
     }
   },
-  "from": 1, <4>
-  "size": 2, <5>
-  "sort": [
-    { "username": { "order": "desc"} } <6>
-  ]
+  "size": 1 <1>
 }
 ----
-// NOTCONSOLE
+// TEST[continued]
 
-<1> The email must end with `example.com`
-<2> The user must be enabled
-<3> The result will be filtered to only contain users with at least one role that contains the substring `other`
-<4> The offset to begin the search result is the 2nd (zero-based index) user
-<5> The page size of the response is 2 users
-<6> The result is sorted by `username` in descending order
+<1> Return only the best matching role
 
-The response contains a list of matched users along with their sort values:
-
-[source,js]
+[source,console-result]
 ----
 {
-    "total": 5,
-    "count": 2,
-    "users": [
+    "total": 2,
+    "count": 1,
+    "roles": [
         {
-            "username": "ray",
-            "roles": [
-                "other_role3"
-            ],
-            "full_name": "Ray Nicholson",
-            "email": "rayn@example.com",
-            "metadata": {
-                "intelligence": 7
-            },
-            "enabled": true,
-            "_sort": [
-                "ray" <1>
-            ]
-        },
-        {
-            "username": "lorraine",
-            "roles": [
-                "other_role3"
-            ],
-            "full_name": "Lorraine Nicholson",
-            "email": "lorraine@example.com",
-            "metadata": {
-                "intelligence": 7
-            },
-            "enabled": true,
-            "_sort": [
-                "lorraine"
-            ]
+          "name" : "my_user_role",
+          "cluster" : [ ],
+          "indices" : [
+            {
+              "names" : [
+                "index1",
+                "index2"
+              ],
+              "privileges" : [
+                "all"
+              ],
+              "field_security" : {
+                "grant" : [
+                  "title",
+                  "body"
+                ]
+              },
+              "allow_restricted_indices" : false
+            }
+          ],
+          "applications" : [ ],
+          "run_as" : [ ],
+          "metadata" : {
+            "version" : 1
+          },
+          "transient_metadata" : {
+            "enabled" : true
+          },
+          "description" : "Grants user access to some indicies."
         }
     ]
 }
 ----
-// NOTCONSOLE
-
-<1> The sort value is `username`

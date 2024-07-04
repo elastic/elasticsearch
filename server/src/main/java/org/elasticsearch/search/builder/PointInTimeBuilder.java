@@ -136,6 +136,13 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
         return keepAlive;
     }
 
+    /**
+     * Returns {@code true} if the point in time is explicitly released when returning the response.
+     */
+    public boolean singleSession() {
+        return keepAlive != null && TimeValue.MINUS_ONE.equals(keepAlive);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

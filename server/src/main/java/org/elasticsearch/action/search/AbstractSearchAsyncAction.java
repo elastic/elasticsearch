@@ -709,7 +709,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (buildPointInTimeFromSearchResults()) {
                 searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion);
             } else {
-                if (request.source() != null && request.source().pointInTimeBuilder() != null) {
+                if (request.source() != null
+                    && request.source().pointInTimeBuilder() != null
+                    && request.source().pointInTimeBuilder().singleSession() == false) {
                     searchContextId = request.source().pointInTimeBuilder().getEncodedId();
                 } else {
                     searchContextId = null;

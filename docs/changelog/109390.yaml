@@ -1,6 +1,7 @@
 pr: 109390
-summary: Limit number of synonym rules that can be created, and increase max number of synonym rules to 100,000 per synonyms set
+summary: "Limit number of synonym rules that can be created, and increase max number\
+  \ of synonym rules to 100,000 per synonyms set"
 area: Mapping
-type: bug
+type: "bug, enhancement"
 issues:
  - 108785

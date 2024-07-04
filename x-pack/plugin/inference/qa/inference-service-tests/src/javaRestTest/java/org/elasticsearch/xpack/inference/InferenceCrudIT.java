@@ -177,6 +177,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             var entityString = EntityUtils.toString(response.getEntity());
             assertThat(entityString, containsString("\"acknowledged\":true"));
         }
+        deleteIndex(indexName);
     }
 
     public void testDeleteEndpointWhileReferencedBySemanticTextAndPipeline() throws IOException {
@@ -219,5 +220,6 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             assertThat(entityString, containsString("\"acknowledged\":true"));
         }
         deletePipeline(pipelineId);
+        deleteIndex(indexName);
     }
 }

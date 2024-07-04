@@ -14,9 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
@@ -69,7 +67,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSpatialSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.TranslateMetricsAggregate;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -77,7 +74,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -221,28 +217,60 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     public static <Plan extends UnaryPlan & GeneratingPlan<Plan>> LogicalPlan pushGeneratingPlanPastProjectAndOrderBy(Plan generatingPlan) {
         LogicalPlan child = generatingPlan.child();
         if (child instanceof OrderBy orderBy) {
-            // TODO: We can simplify this and make it similar to the pushdown past project by just renaming the generated attributes.
-            Set<String> generatedFieldNames = new LinkedHashSet<>(Expressions.names(generatingPlan.generatedAttributes()));
-
-            // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
-            AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(generatedFieldNames, orderBy.order());
-
-            AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
-            @SuppressWarnings("unchecked")
-            List<Order> newOrder = (List<Order>) (List<?>) nonShadowedOrders.rewrittenExpressions;
-
-            if (aliasesForShadowedOrderByAttrs.isEmpty() == false) {
-                List<Alias> newAliases = new ArrayList<>(aliasesForShadowedOrderByAttrs.values());
-
-                LogicalPlan plan = new Eval(orderBy.source(), orderBy.child(), newAliases);
-                plan = generatingPlan.replaceChild(plan);
-                plan = new OrderBy(orderBy.source(), plan, newOrder);
-                plan = new Project(generatingPlan.source(), plan, generatingPlan.output());
-
-                return plan;
+            // Look for generated Attributes that currently shadow any of the childs's references.
+            // We need to generate them using a different, non-shadowing name to avoid inconsistencies.
+            List<Attribute> generatedAttributes = generatingPlan.generatedAttributes();
+            Set<String> orderByReferencedNames = orderBy.references().names();
+            Map<String, String> renameGeneratedAttributeTo = new HashMap<>();
+            for (Attribute attr : generatedAttributes) {
+                String name = attr.name();
+                if (orderByReferencedNames.contains(name)) {
+                    renameGeneratedAttributeTo.putIfAbsent(
+                        name,
+                        // TODO: Use e.g. AtomicLong to make sure generated temp names can not clash.
+                        // Do not use the attribute's id, as multiple attributes with the same name can occur.
+                        SubstituteSurrogates.rawTemporaryName(name, "temp_name", "")
+                    );
+                }
             }
 
-            return orderBy.replaceChild(generatingPlan.replaceChild(orderBy.child()));
+            if (renameGeneratedAttributeTo.isEmpty()) {
+                // No shadowing, so we can just exchange the order of the order by and the generating plan.
+                return orderBy.replaceChild(generatingPlan.replaceChild(orderBy.child()));
+            }
+
+            List<String> newNames = generatedAttributes.stream()
+                .map(attr -> renameGeneratedAttributeTo.getOrDefault(attr.name(), attr.name()))
+                .toList();
+            Plan generatingPlanWithRenamedAttributes = generatingPlan.withGeneratedNames(newNames);
+
+            OrderBy orderByWithGeneratingChild = orderBy.replaceChild(generatingPlanWithRenamedAttributes.replaceChild(orderBy.child()));
+
+            // Put a project at the top to undo any renaming that was necessary to deal with shadowing attributes.
+            // Any generated attributes that had to be renamed need to be re-renamed to their original names.
+            List<NamedExpression> newProjections = new ArrayList<>(generatingPlan.output().size());
+            List<Attribute> newGeneratedAttributes = generatingPlanWithRenamedAttributes.generatedAttributes();
+            for (int i = 0; i < generatedAttributes.size(); i++) {
+                Attribute originalAttribute = generatedAttributes.get(i);
+                Attribute newAttribute = newGeneratedAttributes.get(i);
+
+                if (originalAttribute.name().equals(newAttribute.name())) {
+                    newProjections.add(newAttribute);
+                } else {
+                    newProjections.add(
+                        new Alias(
+                            originalAttribute.source(),
+                            originalAttribute.name(),
+                            originalAttribute.qualifier(),
+                            newAttribute,
+                            originalAttribute.id(),
+                            originalAttribute.synthetic()
+                        )
+                    );
+                }
+            }
+
+            return new Project(generatingPlan.source(), orderByWithGeneratingChild, newProjections);
         } else if (child instanceof Project project) {
             // We need to account for attribute shadowing. E.g.
             // Eval[[2 * x{f}#1 AS y]]
@@ -258,14 +286,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
             var aliases = aliasBuilder.build();
 
-            // Resolve Project's renames in the eval.
+            // Resolve Project's renames in the generating plan.
             @SuppressWarnings("unchecked")
             Plan generatingPlanWithResolvedExpressions = (Plan) generatingPlan.transformExpressionsOnly(
                 ReferenceAttribute.class,
                 r -> aliases.resolve(r, r)
             );
 
-            // Look for generated Attributes that currently shadow any of the Project's references.
+            // Look for generated Attributes that currently shadow any of the childs's references.
             // We need to generate them using a different, non-shadowing name to avoid inconsistencies.
             List<Attribute> generatedAttributes = generatingPlan.generatedAttributes();
             Set<String> projectReferencedNames = project.references().names();
@@ -281,6 +309,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     );
                 }
             }
+
             List<String> newNames = generatedAttributes.stream()
                 .map(attr -> renameGeneratedAttributeTo.getOrDefault(attr.name(), attr.name()))
                 .toList();

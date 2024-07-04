@@ -117,6 +117,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineLimits;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.SplitInWithFoldableValue;
@@ -129,6 +130,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -4457,6 +4459,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         OptimizerRules.OptimizerRule<? extends LogicalPlan> rule
     ) {};
 
+    @SuppressWarnings("unchecked")
     static PushdownShadowingGeneratingPlanTestCase[] PUSHDOWN_SHADOWING_GENERATING_PLAN_TEST_CASES = {
         // | EVAL y = to_string(attr)
         new PushdownShadowingGeneratingPlanTestCase(
@@ -4473,8 +4476,30 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 new Dissect.Parser("%{y}", ",", new DissectParser("%{y}", ",")),
                 List.of(sameNameAlias(new ReferenceAttribute(EMPTY, "y", KEYWORD)))
             ),
-            dissect -> (((Dissect) dissect).extractedFields()),
+            dissect -> (((RegexExtract) dissect).extractedFields()),
             new PushDownRegexExtract()
+        ),
+        // | GROK attr "%{WORD:y}"
+        new PushdownShadowingGeneratingPlanTestCase(
+            (plan, attr) -> new Grok(EMPTY, plan, attr, Grok.pattern(EMPTY, "%{WORD:y}")),
+            grok -> (((RegexExtract) grok).extractedFields()),
+            new PushDownRegexExtract()
+        ),
+        // | ENRICH some_policy ON y WITH y = some_enrich_idx_field
+        new PushdownShadowingGeneratingPlanTestCase(
+            (plan, attr) -> new Enrich(
+                EMPTY,
+                plan,
+                Enrich.Mode.ANY,
+                new Literal(EMPTY, "some_policy", KEYWORD),
+                attr,
+                null,
+                Map.of(),
+                List.of(new Alias(EMPTY, "y", new ReferenceAttribute(EMPTY, "some_enrich_idx_field", KEYWORD)))
+            ),
+            // ENRICH ... WITH y = ... will have an alias for y, not a raw reference attribute.
+            enrich -> (List<Alias>) (List) (((Enrich) enrich).enrichFields()),
+            new PushDownEnrich()
         ) };
 
     /**
@@ -4490,7 +4515,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * \_Eval[[x{r}#2 * 5[INTEGER] AS $$y$temp_name$]]
      *   \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
      */
-    // TODO: parameterize, also do grok/dissect and enrich
     public void testPushShadowingEvalPastProject() {
         Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, 1, INTEGER));
         Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER));

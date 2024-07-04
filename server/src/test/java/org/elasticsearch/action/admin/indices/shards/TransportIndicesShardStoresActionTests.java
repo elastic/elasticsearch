@@ -69,7 +69,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                     future
                 );
 
-                final var response = safeGet(future::result);
+                final var response = safeGet(future);
                 assertThat(response.getFailures(), empty());
                 assertThat(response.getStoreStatuses(), anEmptyMap());
                 assertThat(shardsWithFailures, empty());

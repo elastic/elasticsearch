@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.builder.QueryCategories;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -657,7 +657,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     }
 
     @Override
-    public Set<QueryCategories> queryCategories() {
+    public Set<QueryCategory> queryCategories() {
         return query.queryCategories();
     }
 }

@@ -15,7 +15,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.builder.QueryCategories;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -168,7 +168,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    public Set<QueryCategories> queryCategories() {
+    public Set<QueryCategory> queryCategories() {
         return innerQuery().queryCategories();
     }
 }

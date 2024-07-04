@@ -23,7 +23,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.search.builder.QueryCategories;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -363,7 +363,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     }
 
     @Override
-    public Set<QueryCategories> queryCategories() {
-        return Set.of(QueryCategories.VECTOR);
+    public Set<QueryCategory> queryCategories() {
+        return Set.of(QueryCategory.VECTOR);
     }
 }

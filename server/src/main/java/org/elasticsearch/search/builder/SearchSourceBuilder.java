@@ -194,7 +194,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<IndexBoost> indexBoosts = new ArrayList<>();
 
     private List<String> stats;
-    private Set<QueryCategories> queryCategories = Set.of();
+    private Set<QueryCategory> queryCategories = Set.of();
 
     private List<SearchExtBuilder> extBuilders = Collections.emptyList();
 
@@ -283,7 +283,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_TYPES_ADDED)) {
-            queryCategories = in.readCollectionAsImmutableSet(input -> input.readEnum(QueryCategories.class));
+            queryCategories = in.readCollectionAsImmutableSet(input -> input.readEnum(QueryCategory.class));
         }
     }
 
@@ -1395,7 +1395,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     knnBuilders = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
-                    queryCategories.add(QueryCategories.VECTOR);
+                    queryCategories.add(QueryCategory.VECTOR);
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (RANK_SUPPORTED == false) {
                         throwUnknownKey(parser, token, currentFieldName);
@@ -2200,7 +2200,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return collapse == null && (aggregations == null || aggregations.supportsParallelCollection(fieldCardinality));
     }
 
-    public Set<QueryCategories> queryCategories() {
+    public Set<QueryCategory> queryCategories() {
         return queryCategories;
     }
 }

@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.search.builder.QueryCategories;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -416,7 +416,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    public Set<QueryCategories> queryCategories() {
+    public Set<QueryCategory> queryCategories() {
         return Stream.of(mustClauses, shouldClauses)
             .flatMap(List::stream)
             .map(QueryBuilder::queryCategories)

@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.search.Rank;
-import org.elasticsearch.xpack.esql.plan.logical.search.Score;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -52,7 +51,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RankExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
-import org.elasticsearch.xpack.esql.plan.physical.ScoreExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
@@ -204,10 +202,6 @@ public class Mapper {
             return map(rank, child);
         }
 
-        if (p instanceof Score score) {
-            return map(score, child);
-        }
-
         if (p instanceof TopN topN) {
             return map(topN, child);
         }
@@ -262,11 +256,6 @@ public class Mapper {
     private PhysicalPlan map(Rank rank, PhysicalPlan child) {
         child = addExchangeForFragment(rank, child);
         return new RankExec(rank.source(), child, rank.query());
-    }
-
-    private PhysicalPlan map(Score score, PhysicalPlan child) {
-        child = addExchangeForFragment(score, child);
-        return new ScoreExec(score.source(), child, score.query());
     }
 
     private PhysicalPlan map(TopN topN, PhysicalPlan child) {

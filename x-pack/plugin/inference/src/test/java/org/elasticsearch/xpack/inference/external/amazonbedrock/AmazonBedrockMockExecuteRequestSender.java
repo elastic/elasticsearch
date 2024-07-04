@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.util.List;
 import java.util.Queue;
@@ -28,8 +29,8 @@ public class AmazonBedrockMockExecuteRequestSender extends AmazonBedrockExecuteO
     private Queue<List<String>> inputs = new ConcurrentLinkedQueue<>();
     private int sendCounter = 0;
 
-    public AmazonBedrockMockExecuteRequestSender(AmazonBedrockClientCache clientCache) {
-        super(clientCache);
+    public AmazonBedrockMockExecuteRequestSender(AmazonBedrockClientCache clientCache, ThrottlerManager throttlerManager) {
+        super(clientCache, throttlerManager);
     }
 
     public void enqueue(Object result) {

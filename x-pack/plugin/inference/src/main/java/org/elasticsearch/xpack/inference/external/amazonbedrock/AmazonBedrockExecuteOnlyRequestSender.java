@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -30,9 +32,11 @@ import static org.elasticsearch.core.Strings.format;
 public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
 
     private final AmazonBedrockClientCache clientCache;
+    private final ThrottlerManager throttleManager;
 
-    public AmazonBedrockExecuteOnlyRequestSender(AmazonBedrockClientCache clientCache) {
-        this.clientCache = clientCache;
+    public AmazonBedrockExecuteOnlyRequestSender(AmazonBedrockClientCache clientCache, ThrottlerManager throttlerManager) {
+        this.clientCache = Objects.requireNonNull(clientCache);
+        this.throttleManager = Objects.requireNonNull(throttlerManager);
     }
 
     @Override
@@ -82,7 +86,8 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
     private void logException(Logger logger, Request request, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
-        logger.warn(
+        throttleManager.warn(
+            logger,
             format("Failed while sending request from inference entity id [%s] of type [amazonbedrock]", request.getInferenceEntityId()),
             causeException
         );

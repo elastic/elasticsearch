@@ -41,8 +41,8 @@ public class AmazonBedrockRequestSender implements Sender {
         }
 
         public Sender createSender() {
-            var clientCache = new AmazonBedrockInferenceClientCache(AmazonBedrockInferenceClient::create);
-            return createSender(new AmazonBedrockExecuteOnlyRequestSender(clientCache));
+            var clientCache = new AmazonBedrockInferenceClientCache(AmazonBedrockInferenceClient::create, null);
+            return createSender(new AmazonBedrockExecuteOnlyRequestSender(clientCache, serviceComponents.throttlerManager()));
         }
 
         Sender createSender(AmazonBedrockExecuteOnlyRequestSender requestSender) {
@@ -93,10 +93,10 @@ public class AmazonBedrockRequestSender implements Sender {
     private void waitForStartToComplete() {
         try {
             if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException("Http sender startup did not complete in time");
+                throw new IllegalStateException("Amazon Bedrock sender startup did not complete in time");
             }
         } catch (InterruptedException e) {
-            throw new IllegalStateException("Http sender interrupted while waiting for startup to complete");
+            throw new IllegalStateException("Amazon Bedrock sender interrupted while waiting for startup to complete");
         }
     }
 
@@ -107,7 +107,7 @@ public class AmazonBedrockRequestSender implements Sender {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        assert started.get() : "call start() before sending a request";
+        assert started.get() : "Amazon Bedrock request sender: call start() before sending a request";
         waitForStartToComplete();
 
         if (requestCreator instanceof AmazonBedrockRequestManager amazonBedrockRequestManager) {

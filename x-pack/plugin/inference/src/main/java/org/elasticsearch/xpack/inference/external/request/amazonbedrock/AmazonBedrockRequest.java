@@ -50,7 +50,7 @@ public abstract class AmazonBedrockRequest implements Request {
      */
     @Override
     public final URI getURI() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     /**

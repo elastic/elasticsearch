@@ -14,7 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
 import java.io.IOException;
-import java.time.Instant;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
@@ -28,8 +28,15 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
     private final Map<Integer, AmazonBedrockBaseClient> clientsCache = new ConcurrentHashMap<>();
     private final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
 
-    public AmazonBedrockInferenceClientCache(BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator) {
+    // not final for testing
+    private Clock clock;
+
+    public AmazonBedrockInferenceClientCache(
+        BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator,
+        @Nullable Clock clock
+    ) {
         this.creator = Objects.requireNonNull(creator);
+        this.clock = Objects.requireNonNullElse(clock, Clock.systemUTC());
     }
 
     public AmazonBedrockBaseClient getOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
@@ -42,32 +49,19 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
         final Integer modelHash = AmazonBedrockInferenceClient.getModelKeysAndRegionHashcode(model, timeout);
         cacheLock.readLock().lock();
         try {
-            final AmazonBedrockBaseClient existing = clientsCache.get(modelHash);
-            if (existing != null) {
-                existing.resetExpiration();
-                return existing;
-            }
-
-            cacheLock.readLock().unlock();
-            cacheLock.writeLock().lock();
-            try {
+            return clientsCache.computeIfAbsent(modelHash, hashKey -> {
                 final AmazonBedrockBaseClient builtClient = creator.apply(model, timeout);
-
-                clientsCache.put(modelHash, builtClient);
+                builtClient.setClock(clock);
+                builtClient.resetExpiration();
                 return builtClient;
-            } finally {
-                // Downgrade by acquiring read lock before releasing write lock
-                // see : https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/locks/ReentrantReadWriteLock.html
-                cacheLock.readLock().lock();
-                cacheLock.writeLock().unlock();
-            }
+            });
         } finally {
             cacheLock.readLock().unlock();
         }
     }
 
     private void flushExpiredClients() {
-        var currentTimestampMs = Instant.now();
+        var currentTimestampMs = clock.instant();
         var expiredClients = new ArrayList<Map.Entry<Integer, AmazonBedrockBaseClient>>();
 
         cacheLock.readLock().lock();
@@ -127,12 +121,17 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
     }
 
     // used for testing
-    public int clientCount() {
+    int clientCount() {
         cacheLock.readLock().lock();
         try {
             return clientsCache.size();
         } finally {
             cacheLock.readLock().unlock();
         }
+    }
+
+    // used for testing
+    void setClock(Clock newClock) {
+        this.clock = Objects.requireNonNull(newClock);
     }
 }

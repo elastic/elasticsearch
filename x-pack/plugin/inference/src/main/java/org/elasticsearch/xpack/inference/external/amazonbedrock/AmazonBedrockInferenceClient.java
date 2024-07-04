@@ -38,7 +38,8 @@ import java.util.Objects;
  */
 public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
 
-    private static final int CLIENT_CACHE_EXPIRY_MINUTES = 5;
+    // package-private for testing
+    static final int CLIENT_CACHE_EXPIRY_MINUTES = 5;
     private static final int DEFAULT_CLIENT_TIMEOUT_MS = 10000;
 
     private final AmazonBedrockRuntimeAsync internalClient;
@@ -131,7 +132,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     }
 
     private void setExpiryTimestamp() {
-        this.expiryTimestamp = Instant.now().plus(Duration.ofMinutes(CLIENT_CACHE_EXPIRY_MINUTES));
+        this.expiryTimestamp = clock.instant().plus(Duration.ofMinutes(CLIENT_CACHE_EXPIRY_MINUTES));
     }
 
     @Override

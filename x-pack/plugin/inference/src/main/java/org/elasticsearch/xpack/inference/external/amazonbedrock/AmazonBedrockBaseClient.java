@@ -11,10 +11,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
+import java.time.Clock;
 import java.util.Objects;
 
 public abstract class AmazonBedrockBaseClient implements AmazonBedrockClient {
     protected final Integer modelKeysAndRegionHashcode;
+    protected Clock clock = Clock.systemUTC();
 
     protected AmazonBedrockBaseClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         Objects.requireNonNull(model);
@@ -25,6 +27,10 @@ public abstract class AmazonBedrockBaseClient implements AmazonBedrockClient {
         var secretSettings = model.getSecretSettings();
         var serviceSettings = model.getServiceSettings();
         return Objects.hash(secretSettings.accessKey, secretSettings.secretKey, serviceSettings.region(), timeout);
+    }
+
+    public final void setClock(Clock clock) {
+        this.clock = clock;
     }
 
     abstract void close();

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockChatC
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModelTests;
@@ -35,6 +36,7 @@ import static org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBed
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class AmazonBedrockRequestSenderTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -58,7 +60,10 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
 
     public void testCreateSender_SendsEmbeddingsRequestAndReceivesResponse() throws Exception {
         var senderFactory = createSenderFactory(threadPool, Settings.EMPTY);
-        var requestSender = new AmazonBedrockMockExecuteRequestSender(new AmazonBedrockMockClientCache(null, null, null));
+        var requestSender = new AmazonBedrockMockExecuteRequestSender(
+            new AmazonBedrockMockClientCache(null, null, null),
+            mock(ThrottlerManager.class)
+        );
         requestSender.enqueue(AmazonBedrockExecutorTests.getTestInvokeResult(TEST_AMAZON_TITAN_EMBEDDINGS_RESULT));
         try (var sender = createSender(senderFactory, requestSender)) {
             sender.start();
@@ -89,7 +94,10 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
 
     public void testCreateSender_SendsCompletionRequestAndReceivesResponse() throws Exception {
         var senderFactory = createSenderFactory(threadPool, Settings.EMPTY);
-        var requestSender = new AmazonBedrockMockExecuteRequestSender(new AmazonBedrockMockClientCache(null, null, null));
+        var requestSender = new AmazonBedrockMockExecuteRequestSender(
+            new AmazonBedrockMockClientCache(null, null, null),
+            mock(ThrottlerManager.class)
+        );
         requestSender.enqueue(AmazonBedrockExecutorTests.getTestConverseResult("test response text"));
         try (var sender = createSender(senderFactory, requestSender)) {
             sender.start();

@@ -260,28 +260,6 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "")
-    public void testSearchScoreOnNumeric() {
-        var query = """
-            search test [
-              | score item > 1 AND item < 4
-              ]
-            """;
-        // | keep item, cost, color, sale _score
-        // | sort _score
-        try (var resp = run(query)) {
-            logger.info("response=" + resp);
-
-            // todo: fix all assertions
-            assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("item", "cost", "color", "sale"));
-            assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("long", "double", "keyword", "date"));
-            // values
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values.get(0), contains(2L, 2.1d, "blue", "1992-06-01T00:00:00.000Z"));
-            assertThat(values.get(1), contains(3L, 3.1d, "green", "1965-06-01T00:00:00.000Z"));
-        }
-    }
-
     private void createAndPopulateIndex(String indexName) {
         var client = client().admin().indices();
         var CreateRequest = client.prepareCreate(indexName)

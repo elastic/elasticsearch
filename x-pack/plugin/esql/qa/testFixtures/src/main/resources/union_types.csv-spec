@@ -46,7 +46,7 @@ FROM sample_data_ts_long
 
 singleIndexIpStats
 FROM sample_data
-| EVAL client_ip = TO_IP(client_ip)
+| EVAL client_ip = client_ip::ip
 | STATS count=count(*) BY client_ip
 | SORT count DESC, client_ip ASC
 | KEEP count, client_ip
@@ -61,7 +61,7 @@ count:long  |  client_ip:ip
 
 singleIndexIpStringStats
 FROM sample_data_str
-| EVAL client_ip = TO_IP(client_ip)
+| EVAL client_ip = client_ip::ip
 | STATS count=count(*) BY client_ip
 | SORT count DESC, client_ip ASC
 | KEEP count, client_ip
@@ -74,12 +74,25 @@ count:long  |  client_ip:ip
 1           |  172.21.2.162
 ;
 
+singleIndexIpStringStatsInline
+FROM sample_data_str
+| STATS count=count(*) BY client_ip::ip
+| STATS mc=count(count) BY count
+| SORT mc DESC, count ASC
+| KEEP mc, count
+;
+
+mc:l | count:l
+3    | 1
+1    | 4
+;
+
 multiIndexIpString
 required_capability: union_types
 required_capability: metadata_fields
 
 FROM sample_data, sample_data_str METADATA _index
-| EVAL client_ip = TO_IP(client_ip)
+| EVAL client_ip = client_ip::ip
 | KEEP _index, @timestamp, client_ip, event_duration, message
 | SORT _index ASC, @timestamp DESC
 ;
@@ -106,7 +119,7 @@ required_capability: union_types
 required_capability: metadata_fields
 
 FROM sample_data, sample_data_str METADATA _index
-| EVAL host_ip = TO_IP(client_ip)
+| EVAL host_ip = client_ip::ip
 | KEEP _index, @timestamp, host_ip, event_duration, message
 | SORT _index ASC, @timestamp DESC
 ;
@@ -193,7 +206,7 @@ multiIndexIpStringStats
 required_capability: union_types
 
 FROM sample_data, sample_data_str
-| EVAL client_ip = TO_IP(client_ip)
+| EVAL client_ip = client_ip::ip
 | STATS count=count(*) BY client_ip
 | SORT count DESC, client_ip ASC
 | KEEP count, client_ip
@@ -210,7 +223,7 @@ multiIndexIpStringRenameStats
 required_capability: union_types
 
 FROM sample_data, sample_data_str
-| EVAL host_ip = TO_IP(client_ip)
+| EVAL host_ip = client_ip::ip
 | STATS count=count(*) BY host_ip
 | SORT count DESC, host_ip ASC
 | KEEP count, host_ip
@@ -255,6 +268,37 @@ count:long  |  client_ip:ip
 2           |  172.21.0.5
 2           |  172.21.2.113
 2           |  172.21.2.162
+;
+
+multiIndexIpStringStatsInline2
+required_capability: union_types
+
+FROM sample_data, sample_data_str
+| STATS count=count(*) BY client_ip::ip
+| SORT count DESC, `client_ip::ip` ASC
+;
+
+count:long  |  client_ip::ip:ip
+8           |  172.21.3.15
+2           |  172.21.0.5
+2           |  172.21.2.113
+2           |  172.21.2.162
+;
+
+multiIndexIpStringStatsInline3
+required_capability: union_types
+
+FROM sample_data, sample_data_str
+| STATS count=count(*) BY client_ip::ip
+| SORT count DESC, `client_ip::ip` ASC
+| LIMIT 10
+| STATS mc=count(count) BY count
+| SORT mc DESC, count ASC
+;
+
+mc:l | count:l
+3    | 2
+1    | 8
 ;
 
 multiIndexWhereIpStringStats
@@ -716,4 +760,38 @@ FROM sample_data* METADATA _index
 null            | null           |  8268153            | Connection error | sample_data         | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
 null            | null           |  8268153            | Connection error | sample_data_str     | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
 null            | null           |  8268153            | Connection error | sample_data_ts_long | 2023-10-23T13:52:55.015Z  | 1698069175015             | 1698069175015  |  172.21.3.15   |  172.21.3.15
+;
+
+multiIndexMultiColumnTypesRenameAndKeep
+required_capability: union_types
+required_capability: metadata_fields
+
+FROM sample_data* METADATA _index
+| WHERE event_duration > 8000000
+| EVAL ts = TO_DATETIME(@timestamp), ts_str = TO_STRING(@timestamp), ts_l = TO_LONG(@timestamp), ip = TO_IP(client_ip), ip_str = TO_STRING(client_ip) 
+| KEEP _index, ts, ts_str, ts_l, ip, ip_str, event_duration
+| SORT _index ASC, ts DESC
+;
+
+_index:keyword      | ts:date                   | ts_str:keyword            | ts_l:long      |  ip:ip         |  ip_str:k      |  event_duration:long
+sample_data         | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15   |  8268153
+sample_data_str     | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15   |  8268153
+sample_data_ts_long | 2023-10-23T13:52:55.015Z  | 1698069175015             | 1698069175015  |  172.21.3.15   |  172.21.3.15   |  8268153
+;
+
+multiIndexMultiColumnTypesRenameAndDrop
+required_capability: union_types
+required_capability: metadata_fields
+
+FROM sample_data* METADATA _index
+| WHERE event_duration > 8000000
+| EVAL ts = TO_DATETIME(@timestamp), ts_str = TO_STRING(@timestamp), ts_l = TO_LONG(@timestamp), ip = TO_IP(client_ip), ip_str = TO_STRING(client_ip) 
+| DROP @timestamp, client_ip, message
+| SORT _index ASC, ts DESC
+;
+
+event_duration:long | _index:keyword      | ts:date                   | ts_str:keyword            | ts_l:long      |  ip:ip         |  ip_str:k  
+8268153             | sample_data         | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
+8268153             | sample_data_str     | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
+8268153             | sample_data_ts_long | 2023-10-23T13:52:55.015Z  | 1698069175015             | 1698069175015  |  172.21.3.15   |  172.21.3.15
 ;

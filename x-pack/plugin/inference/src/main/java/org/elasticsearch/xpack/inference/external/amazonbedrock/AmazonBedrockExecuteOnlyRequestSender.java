@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
+import org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings.AmazonBedrockEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
@@ -31,7 +33,7 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
 
-    private final AmazonBedrockClientCache clientCache;
+    protected final AmazonBedrockClientCache clientCache;
     private final ThrottlerManager throttleManager;
 
     public AmazonBedrockExecuteOnlyRequestSender(AmazonBedrockClientCache clientCache, ThrottlerManager throttlerManager) {
@@ -72,15 +74,31 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
         Supplier<Boolean> hasRequestTimedOutFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        return new AmazonBedrockExecutor(
-            awsRequest.model(),
-            awsRequest,
-            awsResponse,
-            logger,
-            hasRequestTimedOutFunction,
-            listener,
-            clientCache
-        );
+        switch (awsRequest.taskType()) {
+            case COMPLETION -> {
+                return new AmazonBedrockChatCompletionExecutor(
+                    (AmazonBedrockChatCompletionRequest) awsRequest,
+                    awsResponse,
+                    logger,
+                    hasRequestTimedOutFunction,
+                    listener,
+                    clientCache
+                );
+            }
+            case TEXT_EMBEDDING -> {
+                return new AmazonBedrockEmbeddingsExecutor(
+                    (AmazonBedrockEmbeddingsRequest) awsRequest,
+                    awsResponse,
+                    logger,
+                    hasRequestTimedOutFunction,
+                    listener,
+                    clientCache
+                );
+            }
+            default -> {
+                throw new UnsupportedOperationException("Unsupported task type [" + awsRequest.taskType() + "] for Amazon Bedrock request");
+            }
+        }
     }
 
     private void logException(Logger logger, Request request, Exception exception) {

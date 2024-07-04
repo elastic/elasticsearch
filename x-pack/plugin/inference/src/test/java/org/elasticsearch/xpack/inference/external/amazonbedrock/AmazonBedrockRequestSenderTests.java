@@ -60,10 +60,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
 
     public void testCreateSender_SendsEmbeddingsRequestAndReceivesResponse() throws Exception {
         var senderFactory = createSenderFactory(threadPool, Settings.EMPTY);
-        var requestSender = new AmazonBedrockMockExecuteRequestSender(
-            new AmazonBedrockMockClientCache(null, null, null),
-            mock(ThrottlerManager.class)
-        );
+        var requestSender = new AmazonBedrockMockExecuteRequestSender(new AmazonBedrockMockClientCache(), mock(ThrottlerManager.class));
         requestSender.enqueue(AmazonBedrockExecutorTests.getTestInvokeResult(TEST_AMAZON_TITAN_EMBEDDINGS_RESULT));
         try (var sender = createSender(senderFactory, requestSender)) {
             sender.start();
@@ -94,10 +91,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
 
     public void testCreateSender_SendsCompletionRequestAndReceivesResponse() throws Exception {
         var senderFactory = createSenderFactory(threadPool, Settings.EMPTY);
-        var requestSender = new AmazonBedrockMockExecuteRequestSender(
-            new AmazonBedrockMockClientCache(null, null, null),
-            mock(ThrottlerManager.class)
-        );
+        var requestSender = new AmazonBedrockMockExecuteRequestSender(new AmazonBedrockMockClientCache(), mock(ThrottlerManager.class));
         requestSender.enqueue(AmazonBedrockExecutorTests.getTestConverseResult("test response text"));
         try (var sender = createSender(senderFactory, requestSender)) {
             sender.start();

@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -46,16 +49,17 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
     ) {
         var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, input);
         var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, timeout);
-
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
-        var inferenceRequest = new ExecutableInferenceRequest(
-            requestSender,
-            logger,
-            request,
-            responseHandler,
-            hasRequestCompletedFunction,
-            listener
-        );
-        inferenceRequest.run();
+
+        try {
+            requestSender.send(logger, request, HttpClientContext.create(), hasRequestCompletedFunction, responseHandler, listener);
+        } catch (Exception e) {
+            var errorMessage = Strings.format(
+                "Failed to send [completion] request from inference entity id [%s]",
+                request.getInferenceEntityId()
+            );
+            logger.warn(errorMessage, e);
+            listener.onFailure(new ElasticsearchException(errorMessage, e));
+        }
     }
 }

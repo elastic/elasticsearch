@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -112,7 +113,10 @@ public class AmazonBedrockRequestSender implements Sender {
 
         if (requestCreator instanceof AmazonBedrockRequestManager amazonBedrockRequestManager) {
             executorService.execute(amazonBedrockRequestManager, inferenceInputs, timeout, listener);
+            return;
         }
+
+        listener.onFailure(new ElasticsearchException("Amazon Bedrock request sender did not receive a valid request request manager"));
     }
 
     @Override

@@ -11,6 +11,7 @@ import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
@@ -43,6 +44,11 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         } catch (IOException e) {
             listener.onFailure(new RuntimeException(e));
         }
+    }
+
+    @Override
+    public TaskType taskType() {
+        return TaskType.COMPLETION;
     }
 
     private ConverseRequest getConverseRequest() {

@@ -13,6 +13,7 @@ import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
@@ -81,6 +82,11 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     @Override
     public boolean[] getTruncationInfo() {
         return truncationResult.truncated().clone();
+    }
+
+    @Override
+    public TaskType taskType() {
+        return TaskType.TEXT_EMBEDDING;
     }
 
     public void executeEmbeddingsRequest(

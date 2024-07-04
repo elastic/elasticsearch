@@ -22,6 +22,8 @@ public class AmazonBedrockMockClientCache implements AmazonBedrockClientCache {
     private InvokeModelResult invokeModelResult = null;
     private ElasticsearchException exceptionToThrow = null;
 
+    public AmazonBedrockMockClientCache() {}
+
     public AmazonBedrockMockClientCache(
         @Nullable ConverseResult converseResult,
         @Nullable InvokeModelResult invokeModelResult,
@@ -44,5 +46,17 @@ public class AmazonBedrockMockClientCache implements AmazonBedrockClientCache {
     @Override
     public void close() throws IOException {
         // nothing to do
+    }
+
+    public void setConverseResult(ConverseResult converseResult) {
+        this.converseResult = converseResult;
+    }
+
+    public void setInvokeModelResult(InvokeModelResult invokeModelResult) {
+        this.invokeModelResult = invokeModelResult;
+    }
+
+    public void setExceptionToThrow(ElasticsearchException exceptionToThrow) {
+        this.exceptionToThrow = exceptionToThrow;
     }
 }

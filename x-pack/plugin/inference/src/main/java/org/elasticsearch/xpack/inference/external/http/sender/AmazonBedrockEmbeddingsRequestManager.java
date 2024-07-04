@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -57,14 +60,15 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
         var requestEntity = AmazonBedrockEmbeddingsEntityFactory.createEntity(embeddingsModel, truncatedInput);
         var responseHandler = new AmazonBedrockEmbeddingsResponseHandler();
         var request = new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, embeddingsModel, requestEntity, timeout);
-        var inferenceRequest = new ExecutableInferenceRequest(
-            requestSender,
-            logger,
-            request,
-            responseHandler,
-            hasRequestCompletedFunction,
-            listener
-        );
-        inferenceRequest.run();
+        try {
+            requestSender.send(logger, request, HttpClientContext.create(), hasRequestCompletedFunction, responseHandler, listener);
+        } catch (Exception e) {
+            var errorMessage = Strings.format(
+                "Failed to send [text_embedding] request from inference entity id [%s]",
+                request.getInferenceEntityId()
+            );
+            logger.warn(errorMessage, e);
+            listener.onFailure(new ElasticsearchException(errorMessage, e));
+        }
     }
 }

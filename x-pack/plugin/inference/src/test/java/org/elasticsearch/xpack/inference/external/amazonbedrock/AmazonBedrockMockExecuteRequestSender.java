@@ -53,32 +53,26 @@ public class AmazonBedrockMockExecuteRequestSender extends AmazonBedrockExecuteO
         Supplier<Boolean> hasRequestTimedOutFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var result = results.remove();
-        AmazonBedrockMockClientCache clientCache = getAmazonBedrockMockClientCache(result);
-
-        return new AmazonBedrockExecutor(
-            awsRequest.model(),
-            awsRequest,
-            awsResponse,
-            logger,
-            hasRequestTimedOutFunction,
-            listener,
-            clientCache
-        );
-
+        setCacheResult();
+        return super.createExecutor(awsRequest, awsResponse, logger, hasRequestTimedOutFunction, listener);
     }
 
-    private static AmazonBedrockMockClientCache getAmazonBedrockMockClientCache(Object result) {
+    private void setCacheResult() {
+        var mockCache = (AmazonBedrockMockClientCache) this.clientCache;
+        var result = results.remove();
         if (result instanceof ConverseResult converseResult) {
-            return new AmazonBedrockMockClientCache(converseResult, null, null);
+            mockCache.setConverseResult(converseResult);
+            return;
         }
 
         if (result instanceof InvokeModelResult invokeModelResult) {
-            return new AmazonBedrockMockClientCache(null, invokeModelResult, null);
+            mockCache.setInvokeModelResult(invokeModelResult);
+            return;
         }
 
         if (result instanceof ElasticsearchException exception) {
-            return new AmazonBedrockMockClientCache(null, null, exception);
+            mockCache.setExceptionToThrow(exception);
+            return;
         }
 
         throw new RuntimeException("Unknown result type: " + result.getClass());

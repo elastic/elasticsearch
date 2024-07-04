@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.request.amazonbedrock;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -79,4 +80,6 @@ public abstract class AmazonBedrockRequest implements Request {
     public TimeValue timeout() {
         return timeout;
     }
+
+    public abstract TaskType taskType();
 }

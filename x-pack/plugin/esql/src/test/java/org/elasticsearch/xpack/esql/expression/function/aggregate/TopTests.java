@@ -53,6 +53,19 @@ public class TopTests extends AbstractAggregationTestCase {
             List.of(
                 // Surrogates
                 new TestCaseSupplier(
+                    List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.KEYWORD),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(true, true, false), DataType.BOOLEAN, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
+                        ),
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                        DataType.BOOLEAN,
+                        equalTo(true)
+                    )
+                ),
+                new TestCaseSupplier(
                     List.of(DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
@@ -106,6 +119,19 @@ public class TopTests extends AbstractAggregationTestCase {
                 ),
 
                 // Folding
+                new TestCaseSupplier(
+                    List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.KEYWORD),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(true), DataType.BOOLEAN, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
+                        ),
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                        DataType.BOOLEAN,
+                        equalTo(true)
+                    )
+                ),
                 new TestCaseSupplier(
                     List.of(DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(

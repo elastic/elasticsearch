@@ -112,6 +112,11 @@ public class BooleanBucketedSort implements Releasable {
      */
     public void merge(int groupId, BooleanBucketedSort other, int otherGroupId) {
         long otherRootIndex = (long) otherGroupId * 2;
+
+        if (other.values.size() < otherRootIndex + 2) {
+            return;
+        }
+
         int otherFalseValues = other.values.get(otherRootIndex);
         int otherTrueValues = other.values.get(otherRootIndex + 1);
 
@@ -130,6 +135,11 @@ public class BooleanBucketedSort implements Releasable {
         // Check if the selected groups are all empty, to avoid allocating extra memory
         if (IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
             long rootIndex = (long) bucket * 2;
+
+            if (values.size() < rootIndex + 2) {
+                return false;
+            }
+
             var size = values.get(rootIndex) + values.get(rootIndex + 1);
             return size > 0;
         })) {
@@ -141,6 +151,12 @@ public class BooleanBucketedSort implements Releasable {
                 int bucket = selected.getInt(s);
 
                 long rootIndex = (long) bucket * 2;
+
+                if (values.size() < rootIndex + 2) {
+                    builder.appendNull();
+                    continue;
+                }
+
                 int falseValues = values.get(rootIndex);
                 int trueValues = values.get(rootIndex + 1);
                 long totalValues = (long) falseValues + trueValues;

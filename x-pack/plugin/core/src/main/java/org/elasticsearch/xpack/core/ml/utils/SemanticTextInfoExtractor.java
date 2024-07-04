@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.transport.Transports;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -23,6 +24,7 @@ public class SemanticTextInfoExtractor {
     private static final Logger logger = LogManager.getLogger(SemanticTextInfoExtractor.class);
 
     public static Set<String> extractIndexesReferencingInferenceEndpoints(Metadata metadata, Set<String> endpointIds) {
+        assert Transports.assertNotTransportThread("non-trivial nested loops over cluster state structures");
         assert endpointIds.isEmpty() == false;
         assert metadata != null;
 

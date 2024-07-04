@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -50,7 +51,7 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             logger.info("response=" + prettyResponse(resp));
             assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), contains("id", "_score"));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).toList(), contains("integer", "float"));
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), contains("INTEGER", "FLOAT"));
             // values
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0), contains(3, 0.0f));
@@ -71,7 +72,10 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             logger.info("response=" + prettyResponse(resp));
             assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), contains("id", "content", "_score"));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).toList(), contains("integer", "text", "float"));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                contains("INTEGER", "TEXT", "FLOAT")
+            );
             // values
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0), contains(2, "This is a brown dog", 2.0f));
@@ -92,7 +96,7 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             logger.info("response=" + prettyResponse(resp));
             assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), contains("id", "content"));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).toList(), contains("integer", "text"));
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), contains("INTEGER", "TEXT"));
             // values
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0), contains(5, "There is also a white cat"));
@@ -120,7 +124,10 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
             try (var resp = run(query)) {
                 logger.info("response=" + prettyResponse(resp));
                 assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), contains("id", "_score", "content"));
-                assertThat(resp.columns().stream().map(ColumnInfoImpl::type).toList(), contains("integer", "float", "text"));
+                assertThat(
+                    resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                    contains("INTEGER", "FLOAT", "TEXT")
+                );
                 // values
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), contains(6, 1.968148F, "The quick brown fox jumps over the lazy dog"));
@@ -143,7 +150,10 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             logger.info("response=" + prettyResponse(resp));
             assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), contains("id", "_score", "content"));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).toList(), contains("integer", "float", "text"));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                contains("INTEGER", "FLOAT", "TEXT")
+            );
             // values
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0), contains(6, 1.968148F, "The quick brown fox jumps over the lazy dog"));
@@ -161,7 +171,10 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             logger.info("response=" + prettyResponse(resp));
             assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), contains("id", "_score", "content"));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).toList(), contains("integer", "float", "text"));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                contains("INTEGER", "FLOAT", "TEXT")
+            );
             // values
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0), contains(6, 1.5159746F, "The quick brown fox jumps over the lazy dog"));
@@ -185,7 +198,10 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             logger.info("response=" + prettyResponse(resp));
             assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), contains("id", "_score", "content"));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).toList(), contains("integer", "float", "text"));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                contains("INTEGER", "FLOAT", "TEXT")
+            );
             // values
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0), contains(6, 1.968148F, "The quick brown fox jumps over the lazy dog"));
@@ -206,7 +222,10 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             logger.info("response=" + prettyResponse(resp));
             assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), contains("id", "_score", "content"));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).toList(), contains("integer", "float", "text"));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                contains("INTEGER", "FLOAT", "TEXT")
+            );
             // values
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0), contains(1, 0.0F, "This is a brown fox"));
@@ -250,7 +269,10 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             logger.info("response=" + prettyResponse(resp));
             assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), contains("id", "_score", "content"));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).toList(), contains("integer", "float", "text"));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                contains("INTEGER", "FLOAT", "TEXT")
+            );
             // values
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0), contains(3, 0.76719964F, "This dog is really brown"));

@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
@@ -25,6 +27,9 @@ import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -36,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -212,6 +218,48 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var mvExpand = as(limit.child(), MvExpand.class);
         var limit2 = as(mvExpand.child(), Limit.class);
         as(limit2.child(), EsRelation.class);
+    }
+
+    public static class MockFieldAttributeCommand extends UnaryPlan {
+        public FieldAttribute field;
+
+        public MockFieldAttributeCommand(Source source, LogicalPlan child, FieldAttribute field) {
+            super(source, child);
+            this.field = field;
+        }
+
+        @Override
+        public UnaryPlan replaceChild(LogicalPlan newChild) {
+            return new MockFieldAttributeCommand(source(), newChild, field);
+        }
+
+        @Override
+        public boolean expressionsResolved() {
+            return true;
+        }
+
+        @Override
+        public List<Attribute> output() {
+            return List.of(field);
+        }
+
+        @Override
+        protected NodeInfo<? extends LogicalPlan> info() {
+            return NodeInfo.create(this, MockFieldAttributeCommand::new, child(), field);
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/110150")
+    public void testMissingFieldInNewCommand() {
+        var testStats = statsForMissingField("last_name");
+        localPlan(
+            new MockFieldAttributeCommand(
+                EMPTY,
+                new Row(EMPTY, List.of()),
+                new FieldAttribute(EMPTY, "last_name", new EsField("last_name", DataType.KEYWORD, Map.of(), true))
+            ),
+            testStats
+        );
     }
 
     /**

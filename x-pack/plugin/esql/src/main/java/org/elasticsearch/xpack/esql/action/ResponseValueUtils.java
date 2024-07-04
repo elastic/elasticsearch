@@ -152,8 +152,8 @@ public final class ResponseValueUtils {
                     throw new UncheckedIOException(e);
                 }
             }
-            case SHORT, BYTE, HALF_FLOAT, SCALED_FLOAT, OBJECT, NESTED, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE,
-                NULL, PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
+            case SHORT, BYTE, HALF_FLOAT, SCALED_FLOAT, OBJECT, NESTED, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, NULL,
+                PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 

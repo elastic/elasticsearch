@@ -2327,7 +2327,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (suggest() != null && suggest().getSuggestions().isEmpty() == false) {
                 validationException = addValidationError("[rank] cannot be used with [suggest]", validationException);
             }
-            if (highlight() != null) {
+            if (highlighter() != null) {
                 validationException = addValidationError("[rank] cannot be used with [highlighter]", validationException);
             }
             if (pointInTimeBuilder() != null) {

@@ -4514,6 +4514,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Project[[x{r}#2, y{r}#3 AS z, $$y$temp_name${r}#6 AS y]]
      * \_Eval[[x{r}#2 * 5[INTEGER] AS $$y$temp_name$]]
      *   \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
+     *
+     * and similarly for dissect, grok and enrich.
      */
     public void testPushShadowingEvalPastProject() {
         Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, 1, INTEGER));

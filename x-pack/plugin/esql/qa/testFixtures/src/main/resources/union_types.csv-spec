@@ -45,6 +45,8 @@ FROM sample_data_ts_long
 ;
 
 singleIndexIpStats
+required_capability: casting_operator
+
 FROM sample_data
 | EVAL client_ip = client_ip::ip
 | STATS count=count(*) BY client_ip
@@ -60,6 +62,8 @@ count:long  |  client_ip:ip
 ;
 
 singleIndexIpStringStats
+required_capability: casting_operator
+
 FROM sample_data_str
 | EVAL client_ip = client_ip::ip
 | STATS count=count(*) BY client_ip
@@ -75,6 +79,8 @@ count:long  |  client_ip:ip
 ;
 
 singleIndexIpStringStatsInline
+required_capability: casting_operator
+
 FROM sample_data_str
 | STATS count=count(*) BY client_ip::ip
 | STATS mc=count(count) BY count
@@ -90,6 +96,7 @@ mc:l | count:l
 multiIndexIpString
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: casting_operator
 
 FROM sample_data, sample_data_str METADATA _index
 | EVAL client_ip = client_ip::ip
@@ -117,6 +124,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233         
 multiIndexIpStringRename
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: casting_operator
 
 FROM sample_data, sample_data_str METADATA _index
 | EVAL host_ip = client_ip::ip
@@ -204,6 +212,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  3450233              |  Connected
 
 multiIndexIpStringStats
 required_capability: union_types
+required_capability: casting_operator
 
 FROM sample_data, sample_data_str
 | EVAL client_ip = client_ip::ip
@@ -221,6 +230,7 @@ count:long  |  client_ip:ip
 
 multiIndexIpStringRenameStats
 required_capability: union_types
+required_capability: casting_operator
 
 FROM sample_data, sample_data_str
 | EVAL host_ip = client_ip::ip
@@ -272,6 +282,7 @@ count:long  |  client_ip:ip
 
 multiIndexIpStringStatsInline2
 required_capability: union_types
+required_capability: casting_operator
 
 FROM sample_data, sample_data_str
 | STATS count=count(*) BY client_ip::ip
@@ -287,6 +298,7 @@ count:long  |  client_ip::ip:ip
 
 multiIndexIpStringStatsInline3
 required_capability: union_types
+required_capability: casting_operator
 
 FROM sample_data, sample_data_str
 | STATS count=count(*) BY client_ip::ip

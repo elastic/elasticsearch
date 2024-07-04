@@ -336,15 +336,35 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#indexIdentifier}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    */
-  void enterIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx);
+  void enterIndexPattern(EsqlBaseParser.IndexPatternContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#indexIdentifier}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    */
-  void exitIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx);
+  void exitIndexPattern(EsqlBaseParser.IndexPatternContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#clusterString}.
+   * @param ctx the parse tree
+   */
+  void enterClusterString(EsqlBaseParser.ClusterStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#clusterString}.
+   * @param ctx the parse tree
+   */
+  void exitClusterString(EsqlBaseParser.ClusterStringContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#indexString}.
+   * @param ctx the parse tree
+   */
+  void enterIndexString(EsqlBaseParser.IndexStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#indexString}.
+   * @param ctx the parse tree
+   */
+  void exitIndexString(EsqlBaseParser.IndexStringContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#metadata}.
    * @param ctx the parse tree
@@ -874,15 +894,15 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSearchCommand(EsqlBaseParser.SearchCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#searchIdentifier}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#searchIndexPattern}.
    * @param ctx the parse tree
    */
-  void enterSearchIdentifier(EsqlBaseParser.SearchIdentifierContext ctx);
+  void enterSearchIndexPattern(EsqlBaseParser.SearchIndexPatternContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#searchIdentifier}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#searchIndexPattern}.
    * @param ctx the parse tree
    */
-  void exitSearchIdentifier(EsqlBaseParser.SearchIdentifierContext ctx);
+  void exitSearchIndexPattern(EsqlBaseParser.SearchIndexPatternContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#searchSubCommand}.
    * @param ctx the parse tree

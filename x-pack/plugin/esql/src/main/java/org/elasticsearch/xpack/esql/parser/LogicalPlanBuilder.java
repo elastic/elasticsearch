@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -227,7 +227,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
+        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             var deprecatedContext = ctx.metadata().deprecated_metadata();
@@ -244,8 +244,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 metadataOptionContext = ctx.metadata().metadataOption();
 
             }
-            for (var c : metadataOptionContext.indexIdentifier()) {
-                String id = visitIndexIdentifier(c);
+            for (var c : metadataOptionContext.UNQUOTED_SOURCE()) {
+                String id = c.getText();
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false) {
                     throw new ParsingException(src, "unsupported metadata field [" + id + "]");
@@ -441,7 +441,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
         }
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
+        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
 
         if (ctx.aggregates == null && ctx.grouping == null) {
             return new EsqlUnresolvedRelation(source, table, List.of(), IndexMode.STANDARD);
@@ -476,7 +476,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         });
 
-        Literal tableName = new Literal(source, ctx.tableName.getText(), DataType.KEYWORD);
+        Literal tableName = new Literal(source, visitIndexPattern(List.of(ctx.indexPattern())), DataType.KEYWORD);
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
@@ -490,7 +490,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         String index = Strings.collectionToDelimitedString(
-            ctx.searchIdentifier().stream().map(e -> unquoteIdentifier(null, e.INDEX_UNQUOTED_IDENTIFIER())).toList(),
+            ctx.searchIndexPattern().stream().map(e -> unquoteIdentifier(null, e.indexString().UNQUOTED_SOURCE())).toList(),
             ","
         );
         TableIdentifier table = new TableIdentifier(source, null, index);

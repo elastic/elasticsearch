@@ -203,12 +203,6 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.withType(Test).configureEach {
-    systemProperty 'es.semantic_text_feature_flag_enabled', 'true'
-  }
-}
-
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }

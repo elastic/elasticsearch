@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
@@ -65,7 +66,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         Property.NodeScope
     );
 
-    public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
+    public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING = new Setting<>(
         "indices.breaker.total.limit",
         settings -> {
             if (USE_REAL_MEMORY_USAGE_SETTING.get(settings)) {
@@ -74,6 +75,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 return "70%";
             }
         },
+        (s) -> MemorySizeValue.parseHeapRatioOrDeprecatedByteSizeValue(s, "indices.breaker.total.limit", 50),
         Property.Dynamic,
         Property.NodeScope
     );

@@ -51,6 +51,7 @@ import static co.elastic.elasticsearch.stateless.autoscaling.indexing.Autoscalin
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SHARD_READ_EXECUTOR;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -320,10 +321,10 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
             // Eventually just because of the "long-running" tasks in the SHARD_READ_EXECUTOR, the load will go up.
             assertBusy(() -> {
                 try {
-                    var metricsAfter = searchMetricsService.getSearchTierMetrics();
+                    var metricsAfter = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class).getSearchTierMetrics();
                     assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
                     assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.MINIMUM));
-                    assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), equalTo(0.0));
+                    assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).load(), closeTo(0.0, 0.01));
                 } finally {
                     longAwait(metricPublicationBarrier);
                 }

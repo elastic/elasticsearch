@@ -94,6 +94,6 @@ Negative values will be rejected.
 NOTE: `sparse_vector` fields do not support querying, sorting or aggregating.
 They may only be used within specialized queries.
 The recommended query to use on these fields are <<query-dsl-sparse-vector-query, `sparse_vector`>> queries.
-They may also be used within <<query-dsl-text-expansion-query,`text_expansion`>> queries.
+They may also be used within legacy <<query-dsl-text-expansion-query,`text_expansion`>> queries.
 
 NOTE: `sparse_vector` fields only preserve 9 significant bits for the precision, which translates to a relative error of about 0.4%.

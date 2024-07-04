@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
@@ -29,8 +28,6 @@ import java.util.List;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 
 public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
@@ -48,16 +45,16 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     private In(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression))
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(value());
-        out.writeCollection(list(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
+        out.writeNamedWriteable(value());
+        out.writeNamedWriteableCollection(list());
     }
 
     @Override

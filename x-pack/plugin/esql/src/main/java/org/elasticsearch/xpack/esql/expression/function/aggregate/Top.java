@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -72,9 +71,9 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     private Top(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression()
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
         );
     }
 
@@ -83,9 +82,9 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         source().writeTo(out);
         List<Expression> fields = children();
         assert fields.size() == 3;
-        ((PlanStreamOutput) out).writeExpression(fields.get(0));
-        ((PlanStreamOutput) out).writeExpression(fields.get(1));
-        ((PlanStreamOutput) out).writeExpression(fields.get(2));
+        out.writeNamedWriteable(fields.get(0));
+        out.writeNamedWriteable(fields.get(1));
+        out.writeNamedWriteable(fields.get(2));
     }
 
     @Override

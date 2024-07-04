@@ -28,4 +28,10 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
         super(fileName, groupName, testName, lineNumber, testCase, mode);
     }
+
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        // This suite runs with more than one node and three shards in serverless
+        return cluster.getNumNodes() > 1;
+    }
 }

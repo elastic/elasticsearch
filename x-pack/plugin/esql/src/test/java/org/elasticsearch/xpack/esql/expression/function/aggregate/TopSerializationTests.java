@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class TopSerializationTests extends AbstractExpressionSerializationTests<Top> {
     @Override
@@ -37,10 +35,5 @@ public class TopSerializationTests extends AbstractExpressionSerializationTests<
             case 2 -> order = randomValueOtherThan(order, AbstractExpressionSerializationTests::randomChild);
         }
         return new Top(source, field, limit, order);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return AggregateFunction.getNamedWriteables();
     }
 }

@@ -1428,6 +1428,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().denseVectorStats();
     }
 
+    public SparseVectorStats sparseVectorStats() {
+        readAllowed();
+        MappingLookup mappingLookup = mapperService != null ? mapperService.mappingLookup() : null;
+        return getEngine().sparseVectorStats(mappingLookup);
+    }
+
     public BulkStats bulkStats() {
         return bulkOperationListener.stats();
     }
@@ -2224,10 +2230,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     @Override
     public ShardLongFieldRange getTimestampRange() {
+        return determineShardLongFieldRange(DataStream.TIMESTAMP_FIELD_NAME);
+    }
+
+    @Override
+    public ShardLongFieldRange getEventIngestedRange() {
+        return determineShardLongFieldRange(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+    }
+
+    private ShardLongFieldRange determineShardLongFieldRange(String fieldName) {
         if (mapperService() == null) {
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
-        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TIMESTAMP_FIELD_NAME);
+        final MappedFieldType mappedFieldType = mapperService().fieldType(fieldName);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
             return ShardLongFieldRange.UNKNOWN; // field missing or not a date
         }
@@ -2237,10 +2252,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         final ShardLongFieldRange rawTimestampFieldRange;
         try {
-            rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TIMESTAMP_FIELD_NAME);
+            rawTimestampFieldRange = getEngine().getRawFieldRange(fieldName);
             assert rawTimestampFieldRange != null;
         } catch (IOException | AlreadyClosedException e) {
-            logger.debug("exception obtaining range for timestamp field", e);
+            logger.debug("exception obtaining range for field " + fieldName, e);
             return ShardLongFieldRange.UNKNOWN;
         }
         if (rawTimestampFieldRange == ShardLongFieldRange.UNKNOWN) {
@@ -3331,7 +3346,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
         threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
             if (r) {
-                recoveryListener.onRecoveryDone(recoveryState, getTimestampRange());
+                recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());
             }
         }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true)), action));
     }
@@ -3485,7 +3500,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isTimeBasedIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
             relativeTimeInNanosSupplier,
             indexCommitListener,
-            routingEntry().isPromotableToPrimary()
+            routingEntry().isPromotableToPrimary(),
+            mapperService()
         );
     }
 

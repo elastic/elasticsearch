@@ -32,7 +32,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
-    requires org.elasticsearch.vec;
+    requires org.elasticsearch.simdvec;
 
     requires com.sun.jna;
     requires hppc;
@@ -431,6 +431,8 @@ module org.elasticsearch.server {
             org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
+            org.elasticsearch.search.SearchFeatures,
+            org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 
@@ -448,7 +450,10 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat,
-            org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
+            org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat,
+            org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
+
     provides org.apache.lucene.codecs.Codec with Elasticsearch814Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;

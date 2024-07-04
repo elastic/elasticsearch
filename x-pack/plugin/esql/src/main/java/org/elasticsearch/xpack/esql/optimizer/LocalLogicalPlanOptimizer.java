@@ -34,11 +34,12 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.PropagateEmptyRelation;
+import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
@@ -162,14 +163,16 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                     plan = new Eval(project.source(), project.child(), new ArrayList<>(nullLiteral.values()));
                     plan = new Project(project.source(), plan, newProjections);
                 }
-            }
-            // otherwise transform fields in place
-            else {
-                plan = plan.transformExpressionsOnlyUp(
-                    FieldAttribute.class,
-                    f -> stats.exists(f.qualifiedName()) ? f : Literal.of(f, null)
-                );
-            }
+            } else if (plan instanceof Eval
+                || plan instanceof Filter
+                || plan instanceof OrderBy
+                || plan instanceof RegexExtract
+                || plan instanceof TopN) {
+                    plan = plan.transformExpressionsOnlyUp(
+                        FieldAttribute.class,
+                        f -> stats.exists(f.qualifiedName()) ? f : Literal.of(f, null)
+                    );
+                }
 
             return plan;
         }

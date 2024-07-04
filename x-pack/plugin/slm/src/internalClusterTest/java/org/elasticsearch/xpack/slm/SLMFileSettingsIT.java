@@ -247,7 +247,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         }
 
         logger.info("--> create snapshot manually");
-        var request = new CreateSnapshotRequest("repo", "file-snap").waitForCompletion(true);
+        var request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "file-snap").waitForCompletion(true);
         var response = clusterAdmin().createSnapshot(request).get();
         RestStatus status = response.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
@@ -273,7 +273,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         // Cancel/delete the snapshot
         try {
-            clusterAdmin().prepareDeleteSnapshot(REPO, snapshotName).get();
+            clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, REPO, snapshotName).get();
         } catch (SnapshotMissingException e) {
             // ignore
         }

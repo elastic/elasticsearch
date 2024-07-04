@@ -62,8 +62,8 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.preallocate",
         "org.elasticsearch.securesm",
         "org.elasticsearch.server",
+        "org.elasticsearch.simdvec",
         "org.elasticsearch.tdigest",
-        "org.elasticsearch.vec",
         "org.elasticsearch.xcontent"
     );
 

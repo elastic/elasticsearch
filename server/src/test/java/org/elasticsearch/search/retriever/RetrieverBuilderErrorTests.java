@@ -32,7 +32,10 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("cannot specify [retriever] and [query]", iae.getMessage());
         }
 
@@ -44,25 +47,37 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("cannot specify [retriever] and [knn]", iae.getMessage());
         }
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"search_after\": [1], \"retriever\":{\"standard\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("cannot specify [retriever] and [search_after]", iae.getMessage());
         }
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"terminate_after\": 1, \"retriever\":{\"standard\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("cannot specify [retriever] and [terminate_after]", iae.getMessage());
         }
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"sort\": [\"field\"], \"retriever\":{\"standard\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("cannot specify [retriever] and [sort]", iae.getMessage());
         }
 
@@ -73,13 +88,19 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("cannot specify [retriever] and [rescore]", iae.getMessage());
         }
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"min_score\": 2, \"retriever\":{\"standard\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("cannot specify [retriever] and [min_score]", iae.getMessage());
         }
 
@@ -90,7 +111,10 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("cannot specify [retriever] and [query, terminate_after, min_score]", iae.getMessage());
         }
     }

@@ -2228,7 +2228,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 specified.add(RANK_FIELD.getPreferredName());
             }
             if (specified.isEmpty() == false) {
-                validationException = addValidationError("cannot specify [" + RETRIEVER.getPreferredName() + "] and " + specified, validationException);
+                validationException = addValidationError(
+                    "cannot specify [" + RETRIEVER.getPreferredName() + "] and " + specified,
+                    validationException
+                );
             }
         }
         if (isScroll) {

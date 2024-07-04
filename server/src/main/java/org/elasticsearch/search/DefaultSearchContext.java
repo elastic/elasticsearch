@@ -50,6 +50,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -131,6 +132,7 @@ final class DefaultSearchContext extends SearchContext {
     private SliceBuilder sliceBuilder;
     private SearchShardTask task;
     private QueryPhaseRankShardContext queryPhaseRankShardContext;
+    private Set<QueryCategory> queryCategories = Set.of();
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -956,5 +958,15 @@ final class DefaultSearchContext extends SearchContext {
         } else {
             return IdLoader.fromLeafStoredFieldLoader();
         }
+    }
+
+    @Override
+    public Set<QueryCategory> queryCategories() {
+        return queryCategories;
+    }
+
+    public DefaultSearchContext setQueryCategories(Set<QueryCategory> queryCategories) {
+        this.queryCategories = queryCategories;
+        return this;
     }
 }

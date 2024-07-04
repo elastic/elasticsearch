@@ -24,6 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -53,6 +54,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 
@@ -547,5 +549,10 @@ public class TestSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Set<QueryCategory> queryCategories() {
+        return null;
     }
 }

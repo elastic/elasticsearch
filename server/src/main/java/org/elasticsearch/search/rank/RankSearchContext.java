@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -49,6 +50,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Manages the appropriate values when executing multiple queries
@@ -530,6 +532,11 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public IdLoader newIdLoader() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Set<QueryCategory> queryCategories() {
         throw new UnsupportedOperationException();
     }
 }

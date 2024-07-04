@@ -28,6 +28,7 @@ import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -400,4 +401,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SourceLoader newSourceLoader();
 
     public abstract IdLoader newIdLoader();
+
+    public abstract Set<QueryCategory> queryCategories();
 }

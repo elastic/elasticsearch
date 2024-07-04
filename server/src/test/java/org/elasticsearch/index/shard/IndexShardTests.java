@@ -158,7 +158,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -3929,25 +3928,16 @@ public class IndexShardTests extends IndexShardTestCase {
         primary.flushOnIdle(0);
         assertBusy(() -> assertThat(primary.flushStats().getPeriodic(), greaterThan(periodicFlushesBefore)));
 
+        long externalRefreshesBefore = primary.refreshStats().getExternalTotal();
         logger.info("--> scheduledRefresh(future5)");
-        ensureNoPendingScheduledRefresh();
-        PlainActionFuture<Boolean> future5 = new PlainActionFuture<>();
-        primary.scheduledRefresh(future5);
-        assertTrue(future5.actionGet()); // make sure we refresh once the shard is inactive
+        primary.scheduledRefresh(ActionListener.noop());
+        // We can't check whether scheduledRefresh returns true because it races with a potential
+        // refresh triggered by the flush. We just check that one the refreshes ultimately wins.
+        assertBusy(() -> assertThat(primary.refreshStats().getExternalTotal(), equalTo(externalRefreshesBefore + 1)));
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
         }
         closeShards(primary);
-    }
-
-    private void ensureNoPendingScheduledRefresh() {
-        var refreshThreadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.REFRESH);
-        int maximumPoolSize = refreshThreadPoolExecutor.getMaximumPoolSize();
-        var barrier = new CyclicBarrier(maximumPoolSize + 1);
-        for (int i = 0; i < maximumPoolSize; i++) {
-            refreshThreadPoolExecutor.execute(() -> safeAwait(barrier));
-        }
-        safeAwait(barrier);
     }
 
     public void testRefreshIsNeededWithRefreshListeners() throws IOException, InterruptedException {

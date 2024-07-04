@@ -14,12 +14,14 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -32,11 +34,13 @@ public class AvgTests extends AbstractAggregationTestCase {
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
-        suppliers.add(AvgTests.makeSupplier(toMultiRow(1, 1000, TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true))));
-        suppliers.add(AvgTests.<Long>makeSupplier(toMultiRow(1, 1000, TestCaseSupplier.longCases(Long.MIN_VALUE, Long.MAX_VALUE, true))));
-        suppliers.add(
-            AvgTests.<Double>makeSupplier(toMultiRow(1, 1000, TestCaseSupplier.doubleCases(Double.MIN_VALUE, Double.MAX_VALUE, true)))
-        );
+        for (var fieldCaseSupplier : Stream.of(
+            MultiRowTestCaseSupplier.multiRowIntCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.multiRowLongCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.multiRowDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
+        ).flatMap(List::stream).toList()) {
+            suppliers.add(AvgTests.makeSupplier(fieldCaseSupplier));
+        }
 
         suppliers.add(
             // Folding

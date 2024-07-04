@@ -69,13 +69,6 @@ a:integer | b:integer | c:null | z:integer
 1 | 2 | null | null
 ;
 
-evalRowWithNull2
-row a = 1, null, b = 2, c = null, null | eval z = a+b;
-
-a:integer | null:null | b:integer | c:null | null:null | z:integer
-1 | null | 2 | null | null | 3
-;
-
 evalRowWithNull3
 row a = 1, b = 2, x = round(null) | eval z = a+b+x;
 

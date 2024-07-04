@@ -18,9 +18,9 @@ public enum QueryCategory {
     SPECIALIZED("specialized"),
     JOINING("join");
 
-    public final String type;
+    public final String category;
 
-    QueryCategory(String type) {
-        this.type = type;
+    QueryCategory(String category) {
+        this.category = category;
     }
 }

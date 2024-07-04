@@ -282,7 +282,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_TYPES_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_CATEGORIES_ADDED)) {
             queryCategories = in.readCollectionAsImmutableSet(input -> input.readEnum(QueryCategory.class));
         }
     }
@@ -371,7 +371,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.QUERY_TYPES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.QUERY_CATEGORIES_ADDED)) {
             out.writeCollection(queryCategories, StreamOutput::writeEnum);
         }
     }
@@ -1248,6 +1248,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.collapse = collapse;
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.runtimeMappings = runtimeMappings;
+        rewrittenBuilder.queryCategories = queryCategories;
         return rewrittenBuilder;
     }
 
@@ -2171,7 +2172,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(collapse, other.collapse)
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
-            && Objects.equals(runtimeMappings, other.runtimeMappings);
+            && Objects.equals(runtimeMappings, other.runtimeMappings)
+            && Objects.equals(queryCategories, other.queryCategories);
     }
 
     @Override

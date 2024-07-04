@@ -14,12 +14,14 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -28,6 +30,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     private final StatsHolder totalStats = new StatsHolder();
     private final CounterMetric openContexts = new CounterMetric();
     private volatile Map<String, StatsHolder> groupsStats = emptyMap();
+    private volatile Map<String, StatsHolder> queryCategoriesStats = emptyMap();
 
     /**
      * Returns the stats, including group specific stats. If the groups are null/0 length, then nothing
@@ -51,7 +54,15 @@ public final class ShardSearchStats implements SearchOperationListener {
                 }
             }
         }
-        return new SearchStats(total, openContexts.count(), groupsSt);
+        Map<String, SearchStats.Stats> categoriesStats = queryCategoriesStats.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().stats()));
+        return new SearchStats(
+            total,
+            openContexts.count(),
+            groupsSt,
+            categoriesStats
+        );
     }
 
     @Override
@@ -114,6 +125,9 @@ public final class ShardSearchStats implements SearchOperationListener {
                 consumer.accept(groupStats(group));
             }
         }
+        for(QueryCategory queryCategory : searchContext.queryCategories()) {
+            consumer.accept(queryCategoriesStats(queryCategory.category));
+        }
     }
 
     private StatsHolder groupStats(String group) {
@@ -124,6 +138,20 @@ public final class ShardSearchStats implements SearchOperationListener {
                 if (stats == null) {
                     stats = new StatsHolder();
                     groupsStats = Maps.copyMapWithAddedEntry(groupsStats, group, stats);
+                }
+            }
+        }
+        return stats;
+    }
+
+    private StatsHolder queryCategoriesStats(String queryCategory) {
+        StatsHolder stats = queryCategoriesStats.get(queryCategory);
+        if (stats == null) {
+            synchronized (this) {
+                stats = queryCategoriesStats.get(queryCategory);
+                if (stats == null) {
+                    stats = new StatsHolder();
+                    queryCategoriesStats = Maps.copyMapWithAddedEntry(queryCategoriesStats, queryCategory, stats);
                 }
             }
         }

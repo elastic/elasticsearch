@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.search.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -283,14 +285,23 @@ public class SearchStats implements Writeable, ToXContentFragment {
     @Nullable
     private Map<String, Stats> groupStats;
 
+    private Map<String, Stats> queryCategoriesStats;
+
     public SearchStats() {
         totalStats = new Stats();
+        queryCategoriesStats = new HashMap<>();
     }
 
-    public SearchStats(Stats totalStats, long openContexts, @Nullable Map<String, Stats> groupStats) {
+    public SearchStats(
+        Stats totalStats,
+        long openContexts,
+        @Nullable Map<String, Stats> groupStats,
+        Map<String, Stats> queryCategoriesStats
+    ) {
         this.totalStats = totalStats;
         this.openContexts = openContexts;
         this.groupStats = groupStats;
+        this.queryCategoriesStats = queryCategoriesStats;
     }
 
     public SearchStats(StreamInput in) throws IOException {
@@ -298,6 +309,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
         openContexts = in.readVLong();
         if (in.readBoolean()) {
             groupStats = in.readMap(Stats::readStats);
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_CATEGORIES_ADDED)) {
+            queryCategoriesStats = in.readMap(Stats::readStats);
+        } else {
+            queryCategoriesStats = new HashMap<>();
         }
     }
 
@@ -315,6 +331,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 groupStats.putIfAbsent(entry.getKey(), new Stats());
                 groupStats.get(entry.getKey()).add(entry.getValue());
             }
+        }
+        for (Map.Entry<String, Stats> entry : searchStats.queryCategoriesStats.entrySet()) {
+            queryCategoriesStats.putIfAbsent(entry.getKey(), new Stats());
+            queryCategoriesStats.get(entry.getKey()).add(entry.getValue());
         }
     }
 
@@ -345,6 +365,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
         return this.groupStats != null ? Collections.unmodifiableMap(this.groupStats) : null;
     }
 
+    public Map<String, Stats> getQueryCategoriesStats() {
+        return Collections.unmodifiableMap(this.queryCategoriesStats);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.SEARCH);
@@ -353,6 +377,15 @@ public class SearchStats implements Writeable, ToXContentFragment {
         if (groupStats != null && groupStats.isEmpty() == false) {
             builder.startObject(Fields.GROUPS);
             for (Map.Entry<String, Stats> entry : groupStats.entrySet()) {
+                builder.startObject(entry.getKey());
+                entry.getValue().toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        if (queryCategoriesStats.isEmpty() == false) {
+            builder.startObject(Fields.QUERY_CATEGORIES);
+            for (Map.Entry<String, Stats> entry : queryCategoriesStats.entrySet()) {
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
                 builder.endObject();
@@ -388,6 +421,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SUGGEST_TIME = "suggest_time";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
+        static final String QUERY_CATEGORIES = "categories";
     }
 
     @Override
@@ -400,6 +434,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeBoolean(true);
             out.writeMap(groupStats, StreamOutput::writeWriteable);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.QUERY_CATEGORIES_ADDED)) {
+            out.writeMap(queryCategoriesStats, StreamOutput::writeWriteable);
+        }
     }
 
     @Override
@@ -409,11 +446,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
         SearchStats that = (SearchStats) o;
         return Objects.equals(totalStats, that.totalStats)
             && openContexts == that.openContexts
-            && Objects.equals(groupStats, that.groupStats);
+            && Objects.equals(groupStats, that.groupStats)
+            && Objects.equals(queryCategoriesStats, that.queryCategoriesStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalStats, openContexts, groupStats);
+        return Objects.hash(totalStats, openContexts, groupStats, queryCategoriesStats);
     }
 }

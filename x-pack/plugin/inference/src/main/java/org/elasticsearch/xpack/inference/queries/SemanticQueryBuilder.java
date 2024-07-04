@@ -26,6 +26,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,6 +44,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -306,5 +308,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, query, inferenceResults);
+    }
+
+    @Override
+    public Set<QueryCategory> queryCategories() {
+        return Set.of(QueryCategory.VECTOR);
     }
 }

@@ -1461,6 +1461,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             context.queryPhaseRankShardContext(source.rankBuilder().buildQueryPhaseShardContext(queries, context.from()));
         }
+
+        context.setQueryCategories(source.queryCategories());
     }
 
     /**

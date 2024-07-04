@@ -60,7 +60,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -426,6 +428,40 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         assertFalse(
             checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1)))
         );
+
+        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder().put(operatorMetadata)).build();
+        ReservedStateUpdateTask task = new ReservedStateUpdateTask(
+            "test",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, Version.CURRENT)),
+            List.of(),
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+        assertThat(task.execute(state), not(sameInstance(state)));
+
+        task = new ReservedStateUpdateTask(
+            "test",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(123L, Version.CURRENT)),
+            List.of(),
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+        assertThat(task.execute(state), sameInstance(state));
+
+        task = new ReservedStateUpdateTask(
+            "test",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1))),
+            List.of(),
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+        assertThat(task.execute(state), sameInstance(state));
     }
 
     private ReservedClusterStateHandler<Map<String, Object>> makeHandlerHelper(String name, List<String> deps) {

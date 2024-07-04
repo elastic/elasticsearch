@@ -25,6 +25,7 @@ include::inference-shared.asciidoc[tag=task-type]
 --
 Available task types:
 
+* `rerank`
 * `text_embedding`.
 --
 
@@ -79,12 +80,19 @@ More information about the rate limits for Google Vertex AI can be found in the 
 (Optional, object)
 include::inference-shared.asciidoc[tag=task-settings]
 +
+.`task_settings` for the `rerank` task type
+[%collapsible%closed]
+=====
+`top_n`:::
+(optional, boolean)
+Specifies the number of the top n documents, which should be returned.
+=====
++
 .`task_settings` for the `text_embedding` task type
 [%collapsible%closed]
 =====
 `auto_truncate`:::
 (optional, boolean)
-For `googlevertexai` service only.
 Specifies if the API truncates inputs longer than the maximum token length automatically.
 =====
 
@@ -104,6 +112,22 @@ PUT _inference/text_embedding/google_vertex_ai_embeddings
         "service_account_json": "<service_account_json>",
         "model_id": "<model_id>",
         "location": "<location>",
+        "project_id": "<project_id>"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The next example shows how to create an {infer} endpoint called
+`google_vertex_ai_rerank` to perform a `rerank` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/rerank/google_vertex_ai_rerank
+{
+    "service": "googlevertexai",
+    "service_settings": {
+        "service_account_json": "<service_account_json>",
         "project_id": "<project_id>"
     }
 }

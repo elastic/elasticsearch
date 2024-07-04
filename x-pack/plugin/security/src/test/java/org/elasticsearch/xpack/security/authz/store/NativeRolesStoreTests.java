@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -58,7 +59,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesResponse;
+import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -92,7 +93,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomClusterPrivileges;
@@ -126,6 +126,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.prepareIndex(SECURITY_MAIN_ALIAS)).thenReturn(new IndexRequestBuilder(client));
         when(client.prepareUpdate(any(), any())).thenReturn(new UpdateRequestBuilder(client));
+        when(client.prepareDelete(any(), any())).thenReturn(new DeleteRequestBuilder(client, SECURITY_MAIN_ALIAS));
     }
 
     @After
@@ -165,7 +166,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             rolesStore.putRole(WriteRequest.RefreshPolicy.IMMEDIATE, roleDescriptor, actionListener);
         } else {
             rolesStore.putRoles(WriteRequest.RefreshPolicy.IMMEDIATE, List.of(roleDescriptor), ActionListener.wrap(resp -> {
-                BulkPutRolesResponse.Item item = resp.getItems().get(0);
+                BulkRolesResponse.Item item = resp.getItems().get(0);
                 if (item.getResultType().equals("created")) {
                     actionListener.onResponse(true);
                 } else {
@@ -768,11 +769,44 @@ public class NativeRolesStoreTests extends ESTestCase {
             )
             .toList();
 
-        AtomicReference<BulkPutRolesResponse> response = new AtomicReference<>();
+        AtomicReference<BulkRolesResponse> response = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
         rolesStore.putRoles(WriteRequest.RefreshPolicy.IMMEDIATE, roleDescriptors, ActionListener.wrap(response::set, exception::set));
         assertNull(exception.get());
         verify(client, times(1)).bulk(any(BulkRequest.class), any());
+    }
+
+    public void testBulkDeleteRoles() {
+        final NativeRolesStore rolesStore = createRoleStoreForTest();
+
+        AtomicReference<BulkRolesResponse> response = new AtomicReference<>();
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        rolesStore.deleteRoles(
+            List.of("test-role-1", "test-role-2", "test-role-3"),
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ActionListener.wrap(response::set, exception::set)
+        );
+        assertNull(exception.get());
+        verify(client, times(1)).bulk(any(BulkRequest.class), any());
+    }
+
+    public void testBulkDeleteReservedRole() {
+        final NativeRolesStore rolesStore = createRoleStoreForTest();
+
+        AtomicReference<BulkRolesResponse> response = new AtomicReference<>();
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        rolesStore.deleteRoles(
+            List.of("superuser"),
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ActionListener.wrap(response::set, exception::set)
+        );
+        assertNull(exception.get());
+        assertThat(response.get().getItems().size(), equalTo(1));
+        BulkRolesResponse.Item item = response.get().getItems().get(0);
+        assertThat(item.getCause().getMessage(), equalTo("role [superuser] is reserved and cannot be deleted"));
+        assertThat(item.getRoleName(), equalTo("superuser"));
+
+        verify(client, times(0)).bulk(any(BulkRequest.class), any());
     }
 
     /**

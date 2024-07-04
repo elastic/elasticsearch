@@ -25,6 +25,8 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:elasticsearch-dissect')
   implementation project(':libs:elasticsearch-grok')
+  implementation project('arrow')
+
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
@@ -307,8 +309,4 @@ tasks.named('stringTemplates').configure {
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForBoolean.java"
   }
-}
-
-tasks.withType(CheckForbiddenApisTask).configureEach {
-  signaturesFiles += files('src/main/resources/forbidden/ql-signatures.txt')
 }

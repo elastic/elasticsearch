@@ -14,12 +14,14 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -146,7 +148,11 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         AttributeMap<Attribute> aliases = new AttributeMap<>();
         for (NamedExpression ne : lowerProjections) {
             // Projections are just aliases for attributes, so casting is safe.
-            aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
+            Attribute attribute = (Attribute) Alias.unwrap(ne);
+            // Do not allow writing away projections of multi-type fields, because they are different types, and cannot replace each other.
+            if (isMultiTypeFieldAttribute(attribute) == false) {
+                aliases.put(ne.toAttribute(), attribute);
+            }
         }
 
         // Replace any matching attribute directly with the aliased attribute from the projection.
@@ -156,6 +162,10 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
             replaced.add(aliases.resolve(attr, attr));
         }
         return new ArrayList<>(replaced);
+    }
+
+    private static boolean isMultiTypeFieldAttribute(Attribute attribute) {
+        return attribute instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
     }
 
     /**

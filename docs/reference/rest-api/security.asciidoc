@@ -50,6 +50,7 @@ Use the following APIs to add, remove, update, and retrieve roles in the native 
 * <<security-api-delete-role,Delete roles>>
 * <<security-api-bulk-delete-role, Bulk delete roles>>
 * <<security-api-get-role,Get roles>>
+* <<security-api-query-role,Query roles>>
 
 [discrete]
 [[security-token-apis]]

@@ -57,12 +57,7 @@ public final class ShardSearchStats implements SearchOperationListener {
         Map<String, SearchStats.Stats> categoriesStats = queryCategoriesStats.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().stats()));
-        return new SearchStats(
-            total,
-            openContexts.count(),
-            groupsSt,
-            categoriesStats
-        );
+        return new SearchStats(total, openContexts.count(), groupsSt, categoriesStats);
     }
 
     @Override
@@ -125,7 +120,7 @@ public final class ShardSearchStats implements SearchOperationListener {
                 consumer.accept(groupStats(group));
             }
         }
-        for(QueryCategory queryCategory : searchContext.queryCategories()) {
+        for (QueryCategory queryCategory : searchContext.queryCategories()) {
             consumer.accept(queryCategoriesStats(queryCategory.category));
         }
     }

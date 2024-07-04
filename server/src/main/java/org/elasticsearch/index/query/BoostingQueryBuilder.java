@@ -240,6 +240,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     public Set<QueryCategory> queryCategories() {
-        return Stream.concat(positiveQuery().queryCategories().stream(), negativeQuery.queryCategories().stream()).collect(Collectors.toSet());
+        return Stream.concat(positiveQuery().queryCategories().stream(), negativeQuery.queryCategories().stream())
+            .collect(Collectors.toSet());
     }
 }

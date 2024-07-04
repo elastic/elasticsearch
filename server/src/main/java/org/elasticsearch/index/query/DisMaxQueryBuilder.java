@@ -233,9 +233,6 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
 
     @Override
     public Set<QueryCategory> queryCategories() {
-        return queries.stream()
-            .map(QueryBuilder::queryCategories)
-            .flatMap(Set::stream)
-            .collect(Collectors.toSet());
+        return queries.stream().map(QueryBuilder::queryCategories).flatMap(Set::stream).collect(Collectors.toSet());
     }
 }

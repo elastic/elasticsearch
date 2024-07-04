@@ -30,7 +30,6 @@ import io.netty.util.concurrent.Future;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.HttpServerTransport;
@@ -40,7 +39,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.tracing.Tracer;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
@@ -62,8 +60,6 @@ import javax.net.ssl.SSLException;
 
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 
-@ESTestCase.WithoutSecurityManager
-@SuppressForbidden(reason = "requires java.io.File for netty self-signed certificate")
 public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractHttpServerTransportTestCase {
 
     private static <T> T safePoll(BlockingQueue<T> queue) {

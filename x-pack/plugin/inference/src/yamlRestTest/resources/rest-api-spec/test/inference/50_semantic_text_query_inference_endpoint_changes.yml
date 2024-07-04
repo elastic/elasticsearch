@@ -81,7 +81,6 @@ setup:
   - do:
       inference.delete:
         inference_id: sparse-inference-id
-        force: true
 
   - do:
       inference.put:
@@ -120,7 +119,6 @@ setup:
   - do:
       inference.delete:
         inference_id: dense-inference-id
-        force: true
 
   - do:
       inference.put:
@@ -157,7 +155,6 @@ setup:
   - do:
       inference.delete:
         inference_id: dense-inference-id
-        force: true
 
   - do:
       inference.put:

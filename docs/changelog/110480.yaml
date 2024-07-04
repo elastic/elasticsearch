@@ -1,0 +1,6 @@
+pr: 110480
+summary: Fix union types aggs combine projections
+area: ES|QL
+type: bug
+issues:
+ - 110477

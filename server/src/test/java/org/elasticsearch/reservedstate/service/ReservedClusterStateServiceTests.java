@@ -80,6 +80,65 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         return (MasterServiceTaskQueue<T>) mock(MasterServiceTaskQueue.class);
     }
 
+    private static class TestTaskContext<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
+        private final T task;
+
+        private TestTaskContext(T task) {
+            this.task = task;
+        }
+
+        @Override
+        public T getTask() {
+            return task;
+        }
+
+        @Override
+        public void success(Runnable onPublicationSuccess) {
+            onPublicationSuccess.run();
+        }
+
+        @Override
+        public void success(Consumer<ClusterState> publishedStateConsumer) {}
+
+        @Override
+        public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
+
+        @Override
+        public void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener) {}
+
+        @Override
+        public void onFailure(Exception failure) {}
+
+        @Override
+        public Releasable captureResponseHeaders() {
+            return null;
+        }
+    }
+
+    private static class TestStateHandler implements ReservedClusterStateHandler<Map<String, Object>> {
+        private final String name;
+
+        private TestStateHandler(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public TransformState transform(Object source, TransformState prevState) throws Exception {
+            ClusterState newState = new ClusterState.Builder(prevState.state()).build();
+            return new TransformState(newState, prevState.keys());
+        }
+
+        @Override
+        public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+            return parser.map();
+        }
+    }
+
     public void testOperatorController() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = mock(ClusterService.class);
@@ -153,8 +212,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         // grab the update task when it gets given to us
         when(clusterService.createTaskQueue(ArgumentMatchers.contains("reserved state update"), any(), any())).thenAnswer(i -> {
-            @SuppressWarnings("unchecked")
-            MasterServiceTaskQueue<ReservedStateUpdateTask> queue = mock(MasterServiceTaskQueue.class);
+            MasterServiceTaskQueue<ReservedStateUpdateTask> queue = mockTaskQueue();
             doNothing().when(queue).submitTask(any(), updateTask.capture(), any());
             return queue;
         });
@@ -187,33 +245,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         doReturn(state).when(task).execute(any());
 
-        ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> taskContext = new ClusterStateTaskExecutor.TaskContext<>() {
-            @Override
-            public ReservedStateUpdateTask getTask() {
-                return task;
-            }
-
+        ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> taskContext = new TestTaskContext<>(task) {
             @Override
             public void success(Runnable onPublicationSuccess) {
-                onPublicationSuccess.run();
+                super.success(onPublicationSuccess);
                 successCalled.set(true);
-            }
-
-            @Override
-            public void success(Consumer<ClusterState> publishedStateConsumer) {}
-
-            @Override
-            public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
-
-            @Override
-            public void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener) {}
-
-            @Override
-            public void onFailure(Exception failure) {}
-
-            @Override
-            public Releasable captureResponseHeaders() {
-                return null;
             }
         };
 
@@ -233,8 +269,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
 
         ArgumentCaptor<ReservedStateErrorTask> updateTask = ArgumentCaptor.captor();
-        @SuppressWarnings("unchecked")
-        MasterServiceTaskQueue<ReservedStateErrorTask> errorQueue = mock(MasterServiceTaskQueue.class);
+        MasterServiceTaskQueue<ReservedStateErrorTask> errorQueue = mockTaskQueue();
         doNothing().when(errorQueue).submitTask(any(), updateTask.capture(), any());
 
         // grab the update task when it gets given to us
@@ -282,40 +317,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             )
         );
 
-        ReservedStateErrorTaskExecutor.TaskContext<ReservedStateErrorTask> taskContext =
-            new ReservedStateErrorTaskExecutor.TaskContext<>() {
-                @Override
-                public ReservedStateErrorTask getTask() {
-                    return task;
-                }
-
-                @Override
-                public void success(Runnable onPublicationSuccess) {
-                    onPublicationSuccess.run();
-                }
-
-                @Override
-                public void success(Consumer<ClusterState> publishedStateConsumer) {}
-
-                @Override
-                public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
-
-                @Override
-                public void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener) {}
-
-                @Override
-                public void onFailure(Exception failure) {}
-
-                @Override
-                public Releasable captureResponseHeaders() {
-                    return null;
-                }
-            };
-
-        ReservedStateErrorTaskExecutor executor = new ReservedStateErrorTaskExecutor();
-
-        ClusterState newState = executor.execute(
-            new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext), () -> null)
+        ClusterState newState = new ReservedStateErrorTaskExecutor().execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(new TestTaskContext<>(task)), () -> null)
         );
 
         verify(task, times(1)).execute(any());
@@ -330,38 +333,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     }
 
     public void testUpdateTaskDuplicateError() {
-        ReservedClusterStateHandler<Map<String, Object>> newStateMaker = new ReservedClusterStateHandler<>() {
-            @Override
-            public String name() {
-                return "maker";
-            }
-
-            @Override
-            public TransformState transform(Object source, TransformState prevState) throws Exception {
-                ClusterState newState = new ClusterState.Builder(prevState.state()).build();
-                return new TransformState(newState, prevState.keys());
-            }
-
-            @Override
-            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
-                return parser.map();
-            }
-        };
-
-        ReservedClusterStateHandler<Map<String, Object>> exceptionThrower = new ReservedClusterStateHandler<>() {
-            @Override
-            public String name() {
-                return "one";
-            }
-
+        ReservedClusterStateHandler<Map<String, Object>> newStateMaker = new TestStateHandler("maker");
+        ReservedClusterStateHandler<Map<String, Object>> exceptionThrower = new TestStateHandler("one") {
             @Override
             public TransformState transform(Object source, TransformState prevState) throws Exception {
                 throw new Exception("anything");
-            }
-
-            @Override
-            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
-                return parser.map();
             }
         };
 
@@ -452,13 +428,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         );
     }
 
-    private ReservedClusterStateHandler<Map<String, Object>> makeHandlerHelper(final String name, final List<String> deps) {
-        return new ReservedClusterStateHandler<>() {
-            @Override
-            public String name() {
-                return name;
-            }
-
+    private ReservedClusterStateHandler<Map<String, Object>> makeHandlerHelper(String name, List<String> deps) {
+        return new TestStateHandler(name) {
             @Override
             public TransformState transform(Object source, TransformState prevState) throws Exception {
                 return null;
@@ -467,11 +438,6 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             @Override
             public Collection<String> dependencies() {
                 return deps;
-            }
-
-            @Override
-            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
-                return parser.map();
             }
         };
     }
@@ -527,7 +493,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 () -> new ReservedClusterStateService(
                     clusterService,
                     mock(RerouteService.class),
-                    List.of(new ReservedClusterSettingsAction(clusterSettings), new TestHandler())
+                    List.of(new ReservedClusterSettingsAction(clusterSettings), new TestStateHandler(ReservedClusterSettingsAction.NAME) {
+                        @Override
+                        public TransformState transform(Object source, TransformState prevState) throws Exception {
+                            return prevState;
+                        }
+                    })
                 )
             ).getMessage(),
             startsWith("Duplicate key cluster_settings")
@@ -553,30 +524,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     }
 
     public void testTrialRunExtractsNonStateActions() {
-        ReservedClusterStateHandler<Map<String, Object>> newStateMaker = new ReservedClusterStateHandler<>() {
-            @Override
-            public String name() {
-                return "maker";
-            }
-
-            @Override
-            public TransformState transform(Object source, TransformState prevState) throws Exception {
-                ClusterState newState = new ClusterState.Builder(prevState.state()).build();
-                return new TransformState(newState, prevState.keys());
-            }
-
-            @Override
-            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
-                return parser.map();
-            }
-        };
-
-        ReservedClusterStateHandler<Map<String, Object>> exceptionThrower = new ReservedClusterStateHandler<>() {
-            @Override
-            public String name() {
-                return "non-state";
-            }
-
+        ReservedClusterStateHandler<Map<String, Object>> newStateMaker = new TestStateHandler("maker");
+        ReservedClusterStateHandler<Map<String, Object>> exceptionThrower = new TestStateHandler("non-state") {
             @Override
             public TransformState transform(Object source, TransformState prevState) {
                 return new TransformState(prevState.state(), prevState.keys(), this::internalKeys);
@@ -584,11 +533,6 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
             private void internalKeys(ActionListener<NonStateTransformResult> listener) {
                 listener.onResponse(new NonStateTransformResult(name(), Set.of("key non-state")));
-            }
-
-            @Override
-            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
-                return parser.map();
             }
         };
 
@@ -643,12 +587,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         while (i < count) {
             final var key = i++;
-            var handler = new ReservedClusterStateHandler<>() {
-                @Override
-                public String name() {
-                    return "non-state:" + key;
-                }
-
+            var handler = new TestStateHandler("non-state:" + key) {
                 @Override
                 public TransformState transform(Object source, TransformState prevState) {
                     return new TransformState(prevState.state(), prevState.keys(), this::internalKeys);
@@ -656,11 +595,6 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
                 private void internalKeys(ActionListener<NonStateTransformResult> listener) {
                     listener.onResponse(new NonStateTransformResult(name(), Set.of("key non-state:" + key)));
-                }
-
-                @Override
-                public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
-                    return parser.map();
                 }
             };
 
@@ -715,23 +649,5 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 fail("Shouldn't reach here");
             }
         });
-    }
-
-    static class TestHandler implements ReservedClusterStateHandler<Map<String, Object>> {
-
-        @Override
-        public String name() {
-            return ReservedClusterSettingsAction.NAME;
-        }
-
-        @Override
-        public TransformState transform(Object source, TransformState prevState) {
-            return prevState;
-        }
-
-        @Override
-        public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
-            return parser.map();
-        }
     }
 }

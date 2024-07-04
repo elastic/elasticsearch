@@ -54,6 +54,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -77,6 +78,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -90,6 +92,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomClusterPrivileges;
@@ -770,6 +773,82 @@ public class NativeRolesStoreTests extends ESTestCase {
         rolesStore.putRoles(WriteRequest.RefreshPolicy.IMMEDIATE, roleDescriptors, ActionListener.wrap(response::set, exception::set));
         assertNull(exception.get());
         verify(client, times(1)).bulk(any(BulkRequest.class), any());
+    }
+
+    /**
+     * Make sure all top level fields for a RoleDescriptor have default values to make sure they can be set to empty in an upsert
+     * call to the roles API
+     */
+    public void testAllTopFieldsHaveEmptyDefaultsForUpsert() throws IOException, IllegalAccessException {
+        final Client client = mock(Client.class);
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
+        final FeatureService featureService = mock(FeatureService.class);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+
+        final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
+        systemIndices.init(client, featureService, clusterService);
+        final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
+        // Init for validation
+        new ReservedRolesStore(Set.of("superuser"));
+        final NativeRolesStore rolesStore = new NativeRolesStore(
+            Settings.EMPTY,
+            client,
+            licenseState,
+            securityIndex,
+            clusterService,
+            mock(FeatureService.class),
+            mock(ReservedRoleNameChecker.class),
+            mock(NamedXContentRegistry.class)
+        );
+
+        RoleDescriptor allNullDescriptor = new RoleDescriptor(
+            "all-null-descriptor",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        Set<ParseField> fieldsWithoutDefaultValue = Set.of(
+            RoleDescriptor.Fields.INDEX,
+            RoleDescriptor.Fields.NAMES,
+            RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES,
+            RoleDescriptor.Fields.RESOURCES,
+            RoleDescriptor.Fields.QUERY,
+            RoleDescriptor.Fields.PRIVILEGES,
+            RoleDescriptor.Fields.CLUSTERS,
+            RoleDescriptor.Fields.APPLICATION,
+            RoleDescriptor.Fields.FIELD_PERMISSIONS,
+            RoleDescriptor.Fields.FIELD_PERMISSIONS_2X,
+            RoleDescriptor.Fields.GRANT_FIELDS,
+            RoleDescriptor.Fields.EXCEPT_FIELDS,
+            RoleDescriptor.Fields.METADATA_FLATTENED,
+            RoleDescriptor.Fields.TRANSIENT_METADATA,
+            RoleDescriptor.Fields.RESTRICTION,
+            RoleDescriptor.Fields.WORKFLOWS
+        );
+
+        String serializedOutput = Strings.toString(rolesStore.createRoleXContentBuilder(allNullDescriptor));
+        Field[] fields = RoleDescriptor.Fields.class.getFields();
+
+        for (Field field : fields) {
+            ParseField fieldValue = (ParseField) field.get(null);
+            if (fieldsWithoutDefaultValue.contains(fieldValue) == false) {
+                assertThat(
+                    "New RoleDescriptor field without a default value detected. "
+                        + "Set a value or add to excluded list if not expected to be set to empty through role APIs",
+                    serializedOutput,
+                    containsString(fieldValue.getPreferredName())
+                );
+            }
+        }
     }
 
     private ClusterService mockClusterServiceWithMinNodeVersion(TransportVersion transportVersion) {

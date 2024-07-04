@@ -174,6 +174,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
 
+    /**
+     * Support metrics syntax
+     */
+    public static final NodeFeature METRICS_AGGREGATE_DOUBLE_METRIC_FIELD = new NodeFeature("esql.aggregate_metric_double");
+
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
         return Set.of(METRICS_SYNTAX);
@@ -202,7 +207,8 @@ public class EsqlFeatures implements FeatureSpecification {
             STRING_LITERAL_AUTO_CASTING_EXTENDED,
             METADATA_FIELDS,
             TIMESPAN_ABBREVIATIONS,
-            COUNTER_TYPES
+            COUNTER_TYPES,
+            METRICS_AGGREGATE_DOUBLE_METRIC_FIELD
         );
         if (Build.current().isSnapshot()) {
             return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));

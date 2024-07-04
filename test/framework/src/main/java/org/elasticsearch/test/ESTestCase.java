@@ -48,6 +48,7 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -2295,6 +2296,20 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new AssertionError("safeGet: listener was completed exceptionally", e);
         } catch (TimeoutException e) {
             throw new AssertionError("safeGet: listener was not completed within the timeout", e);
+        }
+    }
+
+    /**
+     * Call a {@link CheckedSupplier}, converting all exceptions into an {@link AssertionError}. Useful for avoiding
+     * try/catch boilerplate or cumbersome propagation of checked exceptions around something that <i>should</i> never throw.
+     *
+     * @return The value returned by the {@code supplier}.
+     */
+    public static <T> T safeGet(CheckedSupplier<T, ?> supplier) {
+        try {
+            return supplier.get();
+        } catch (Exception e) {
+            return fail(e);
         }
     }
 

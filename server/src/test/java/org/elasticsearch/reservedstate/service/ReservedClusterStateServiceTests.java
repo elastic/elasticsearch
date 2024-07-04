@@ -34,6 +34,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,17 +56,21 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class ReservedClusterStateServiceTests extends ESTestCase {
@@ -140,6 +146,32 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testInitEmptyTask() {
+        ClusterService clusterService = mock(ClusterService.class);
+
+        ArgumentCaptor<ReservedStateUpdateTask> updateTask = ArgumentCaptor.captor();
+
+        // grab the update task when it gets given to us
+        when(clusterService.createTaskQueue(ArgumentMatchers.contains("reserved state update"), any(), any())).thenAnswer(i -> {
+            @SuppressWarnings("unchecked")
+            MasterServiceTaskQueue<ReservedStateUpdateTask> queue = mock(MasterServiceTaskQueue.class);
+            doNothing().when(queue).submitTask(any(), updateTask.capture(), any());
+            return queue;
+        });
+
+        ReservedClusterStateService service = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of());
+        service.initEmpty("namespace", ActionListener.noop());
+
+        assertThat(updateTask.getValue(), notNullValue());
+        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
+        ClusterState updatedState = updateTask.getValue().execute(state);
+
+        assertThat(
+            updatedState.metadata().reservedStateMetadata(),
+            equalTo(Map.of("namespace", new ReservedStateMetadata("namespace", ReservedStateMetadata.EMPTY_VERSION, Map.of(), null)))
+        );
+    }
+
     public void testUpdateStateTasks() throws Exception {
         RerouteService rerouteService = mock(RerouteService.class);
 
@@ -194,6 +226,48 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         taskExecutor.clusterStatePublished(state);
         verify(rerouteService, times(1)).reroute(anyString(), any(), any());
+    }
+
+    public void testUpdateErrorState() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
+
+        ArgumentCaptor<ReservedStateErrorTask> updateTask = ArgumentCaptor.captor();
+        @SuppressWarnings("unchecked")
+        MasterServiceTaskQueue<ReservedStateErrorTask> errorQueue = mock(MasterServiceTaskQueue.class);
+        doNothing().when(errorQueue).submitTask(any(), updateTask.capture(), any());
+
+        // grab the update task when it gets given to us
+        when(clusterService.<ReservedStateErrorTask>createTaskQueue(ArgumentMatchers.contains("reserved state error"), any(), any()))
+            .thenReturn(errorQueue);
+        when(clusterService.state()).thenReturn(state);
+
+        ReservedClusterStateService service = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of());
+
+        ErrorState error = new ErrorState("namespace", 2L, List.of("error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
+        service.updateErrorState(error);
+
+        assertThat(updateTask.getValue(), notNullValue());
+        verify(errorQueue).submitTask(any(), any(), any());
+
+        ClusterState updatedState = updateTask.getValue().execute(state);
+        assertThat(
+            updatedState.metadata().reservedStateMetadata().get("namespace"),
+            equalTo(
+                new ReservedStateMetadata(
+                    "namespace",
+                    ReservedStateMetadata.NO_VERSION,
+                    Map.of(),
+                    new ReservedStateErrorMetadata(2L, ReservedStateErrorMetadata.ErrorKind.TRANSIENT, List.of("error"))
+                )
+            )
+        );
+
+        // it should not update if the error version is less than the current version
+        when(clusterService.state()).thenReturn(updatedState);
+        ErrorState oldError = new ErrorState("namespace", 1L, List.of("old error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
+        service.updateErrorState(oldError);
+        verifyNoMoreInteractions(errorQueue);
     }
 
     public void testErrorStateTask() throws Exception {

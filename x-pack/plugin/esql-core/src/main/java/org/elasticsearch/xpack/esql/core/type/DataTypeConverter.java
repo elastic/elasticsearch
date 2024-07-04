@@ -78,9 +78,9 @@ public final class DataTypeConverter {
         }
         if (left.isNumeric() && right.isNumeric()) {
             // if one is int
-            if (left.isInteger()) {
+            if (left.isWholeNumber()) {
                 // promote the highest int
-                if (right.isInteger()) {
+                if (right.isWholeNumber()) {
                     if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
                         return UNSIGNED_LONG;
                     }
@@ -90,7 +90,7 @@ public final class DataTypeConverter {
                 return right;
             }
             // try the other side
-            if (right.isInteger()) {
+            if (right.isWholeNumber()) {
                 return left;
             }
             // promote the highest rational
@@ -200,10 +200,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToUnsignedLong(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_UNSIGNED_LONG;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_UNSIGNED_LONG;
         }
         if (from == BOOLEAN) {
@@ -219,10 +219,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToLong(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_LONG;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_LONG;
         }
         if (from == BOOLEAN) {
@@ -238,10 +238,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToInt(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_INT;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_INT;
         }
         if (from == BOOLEAN) {
@@ -257,10 +257,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToShort(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_SHORT;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_SHORT;
         }
         if (from == BOOLEAN) {
@@ -276,10 +276,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToByte(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_BYTE;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_BYTE;
         }
         if (from == BOOLEAN) {
@@ -295,10 +295,10 @@ public final class DataTypeConverter {
     }
 
     private static DefaultConverter conversionToFloat(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_FLOAT;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_FLOAT;
         }
         if (from == BOOLEAN) {
@@ -314,10 +314,10 @@ public final class DataTypeConverter {
     }
 
     private static DefaultConverter conversionToDouble(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_DOUBLE;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_DOUBLE;
         }
         if (from == BOOLEAN) {
@@ -333,10 +333,10 @@ public final class DataTypeConverter {
     }
 
     private static DefaultConverter conversionToDateTime(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_DATETIME;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_DATETIME;
         }
         if (from == BOOLEAN) {
@@ -628,6 +628,6 @@ public final class DataTypeConverter {
             return dataType;
         }
 
-        return dataType.isInteger() ? dataType : LONG;
+        return dataType.isWholeNumber() ? dataType : LONG;
     }
 }

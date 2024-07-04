@@ -62,6 +62,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -193,7 +194,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<IndexBoost> indexBoosts = new ArrayList<>();
 
     private List<String> stats;
-    private Set<QueryType> queryTypes;
+    private Set<QueryCategories> queryCategories = Set.of();
 
     private List<SearchExtBuilder> extBuilders = Collections.emptyList();
 
@@ -282,7 +283,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_TYPES_ADDED)) {
-            queryTypes = in.readCollectionAsImmutableSet(input -> input.readEnum(QueryType.class));
+            queryCategories = in.readCollectionAsImmutableSet(input -> input.readEnum(QueryCategories.class));
         }
     }
 
@@ -371,7 +372,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.QUERY_TYPES_ADDED)) {
-            out.writeCollection(queryTypes, StreamOutput::writeEnum);
+            out.writeCollection(queryCategories, StreamOutput::writeEnum);
         }
     }
 
@@ -1303,6 +1304,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         RetrieverBuilder retrieverBuilder = null;
         SearchUsage searchUsage = new SearchUsage();
+        queryCategories = new HashSet<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -1393,6 +1395,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     knnBuilders = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
+                    queryCategories.add(QueryCategories.VECTOR);
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (RANK_SUPPORTED == false) {
                         throwUnknownKey(parser, token, currentFieldName);
@@ -1669,12 +1672,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         searchUsageConsumer.accept(searchUsage);
-        getSearchTypesFromUsage(searchUsage);
+
+        if (query() != null) {
+            queryCategories.addAll(query().queryCategories());
+        }
+
         return this;
-    }
-
-    private void getSearchTypesFromUsage(SearchUsage searchUsage) {
-
     }
 
     private static void throwUnknownKey(XContentParser parser, XContentParser.Token token, String currentFieldName)
@@ -2195,5 +2198,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         return collapse == null && (aggregations == null || aggregations.supportsParallelCollection(fieldCardinality));
+    }
+
+    public Set<QueryCategories> queryCategories() {
+        return queryCategories;
     }
 }

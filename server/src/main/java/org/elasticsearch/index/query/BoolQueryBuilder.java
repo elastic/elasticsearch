@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.search.builder.QueryCategories;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,7 +31,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
@@ -409,5 +413,14 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
+    }
+
+    @Override
+    public Set<QueryCategories> queryCategories() {
+        return Stream.of(mustClauses, shouldClauses)
+            .flatMap(List::stream)
+            .map(QueryBuilder::queryCategories)
+            .flatMap(Set::stream)
+            .collect(Collectors.toSet());
     }
 }

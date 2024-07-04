@@ -10,7 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.search.builder.QueryType;
+import org.elasticsearch.search.builder.QueryCategories;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
@@ -69,7 +69,7 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
         return this;
     }
 
-    default Set<QueryType> queryType() {
+    default Set<QueryCategories> queryCategories() {
         return Set.of();
     }
 }

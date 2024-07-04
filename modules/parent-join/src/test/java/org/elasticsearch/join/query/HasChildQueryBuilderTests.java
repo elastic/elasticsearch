@@ -326,7 +326,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             }""", parseQuery(query));
     }
 
-    public void testToQueryInnerQueryType() throws IOException {
+    public void testToQueryInnerQueryCategories() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         HasChildQueryBuilder hasChildQueryBuilder = hasChildQuery(CHILD_DOC, new IdsQueryBuilder().addIds("id"), ScoreMode.None);
         Query query = hasChildQueryBuilder.toQuery(searchExecutionContext);

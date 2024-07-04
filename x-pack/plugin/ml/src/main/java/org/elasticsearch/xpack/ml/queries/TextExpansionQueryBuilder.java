@@ -23,7 +23,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.builder.QueryType;
+import org.elasticsearch.search.builder.QueryCategories;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -326,7 +326,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     @Override
-    public Set<QueryType> queryType() {
-        return Set.of(QueryType.VECTOR);
+    public Set<QueryCategories> queryCategories() {
+        return Set.of(QueryCategories.VECTOR);
     }
 }

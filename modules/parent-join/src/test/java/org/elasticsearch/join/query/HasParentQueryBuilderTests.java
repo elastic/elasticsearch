@@ -172,7 +172,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         assertThat(qse.getMessage(), equalTo("[has_parent] join field [join_field] doesn't hold [just_a_type] as a parent"));
     }
 
-    public void testToQueryInnerQueryType() throws IOException {
+    public void testToQueryInnerQueryCategories() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(PARENT_DOC, new IdsQueryBuilder().addIds("id"), false);
         Query query = hasParentQueryBuilder.toQuery(searchExecutionContext);

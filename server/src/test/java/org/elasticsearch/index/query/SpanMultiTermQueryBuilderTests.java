@@ -178,7 +178,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
      * This is currently the case for {@link RangeQueryBuilder} when the target field is mapped
      * to a date.
      */
-    public void testUnsupportedInnerQueryType() throws IOException {
+    public void testUnsupportedInnerQueryCategories() throws IOException {
         MultiTermQueryBuilder query = new TermMultiTermQueryBuilder();
         SpanMultiTermQueryBuilder spanMultiTermQuery = new SpanMultiTermQueryBuilder(query);
         UnsupportedOperationException e = expectThrows(

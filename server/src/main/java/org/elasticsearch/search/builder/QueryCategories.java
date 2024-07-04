@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.builder;
 
-public enum QueryType {
+public enum QueryCategories {
 
     VECTOR("vector"),
     GEO("geo"),
@@ -20,7 +20,7 @@ public enum QueryType {
 
     public final String type;
 
-    QueryType(String type) {
+    QueryCategories(String type) {
         this.type = type;
     }
 }

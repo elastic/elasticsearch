@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.response.amazonbedrock.embedd
 
 import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings.AmazonBedrockEmbeddingsRequest;
@@ -34,6 +33,6 @@ public class AmazonBedrockEmbeddingsResponseListener extends AmazonBedrockRespon
 
     @Override
     public void onFailure(Exception e) {
-        throw new ElasticsearchException(e);
+        inferenceResultsListener.onFailure(e);
     }
 }

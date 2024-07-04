@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResul
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.amazonbedrock.AmazonBedrockActionCreator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
@@ -54,6 +55,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_K_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.chatCompletionProviderHasTopKParameter;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.getEmbeddingsMaxBatchSize;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.getProviderDefaultSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.providerAllowsTaskType;
 
@@ -117,7 +119,18 @@ public class AmazonBedrockService extends SenderService {
             (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
         );
 
-        doInfer(model, input, taskSettings, inputType, timeout, inferListener);
+        var actionCreator = new AmazonBedrockActionCreator(amazonBedrockSender, this.getServiceComponents(), timeout);
+        if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
+            var maxBatchSize = getEmbeddingsMaxBatchSize(baseAmazonBedrockModel.provider());
+            var batchedRequests = new EmbeddingRequestChunker(input, maxBatchSize, EmbeddingRequestChunker.EmbeddingType.FLOAT)
+                .batchRequestsWithListeners(listener);
+            for (var request : batchedRequests) {
+                var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
+                action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, inferListener);
+            }
+        } else {
+            listener.onFailure(createInvalidModelException(model));
+        }
     }
 
     private static List<ChunkedInferenceServiceResults> translateToChunkedResults(

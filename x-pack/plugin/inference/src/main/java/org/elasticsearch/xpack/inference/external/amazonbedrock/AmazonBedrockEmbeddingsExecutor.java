@@ -40,6 +40,5 @@ public class AmazonBedrockEmbeddingsExecutor extends AmazonBedrockExecutor {
             inferenceResultsListener
         );
         embeddingsRequest.executeEmbeddingsRequest(awsBedrockClient, embeddingsResponseListener);
-        return;
     }
 }

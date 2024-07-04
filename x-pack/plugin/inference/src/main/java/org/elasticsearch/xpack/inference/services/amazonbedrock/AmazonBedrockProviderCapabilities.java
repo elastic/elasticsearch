@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 
 public final class AmazonBedrockProviderCapabilities {
+    private static final int DEFAULT_MAX_CHUNK_SIZE = 2048;
+
     private static final List<AmazonBedrockProvider> embeddingProviders = List.of(
         AmazonBedrockProvider.AMAZONTITAN,
         AmazonBedrockProvider.COHERE
@@ -41,6 +43,20 @@ public final class AmazonBedrockProviderCapabilities {
         SimilarityMeasure.DOT_PRODUCT
     );
 
+    private static final Map<AmazonBedrockProvider, Integer> embeddingsDefaultChunkSize = Map.of(
+        AmazonBedrockProvider.AMAZONTITAN,
+        8192,
+        AmazonBedrockProvider.COHERE,
+        2048
+    );
+
+    private static final Map<AmazonBedrockProvider, Integer> embeddingsMaxBatchSize = Map.of(
+        AmazonBedrockProvider.AMAZONTITAN,
+        1,
+        AmazonBedrockProvider.COHERE,
+        96
+    );
+
     public static boolean providerAllowsTaskType(AmazonBedrockProvider provider, TaskType taskType) {
         switch (taskType) {
             case COMPLETION -> {
@@ -65,6 +81,22 @@ public final class AmazonBedrockProviderCapabilities {
         }
 
         return SimilarityMeasure.COSINE;
+    }
+
+    public static int getEmbeddingsProviderDefaultChunkSize(AmazonBedrockProvider provider) {
+        if (embeddingsDefaultChunkSize.containsKey(provider)) {
+            return embeddingsDefaultChunkSize.get(provider);
+        }
+
+        return DEFAULT_MAX_CHUNK_SIZE;
+    }
+
+    public static int getEmbeddingsMaxBatchSize(AmazonBedrockProvider provider) {
+        if (embeddingsMaxBatchSize.containsKey(provider)) {
+            return embeddingsMaxBatchSize.get(provider);
+        }
+
+        return 1;
     }
 
 }

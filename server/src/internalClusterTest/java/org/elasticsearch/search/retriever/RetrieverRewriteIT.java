@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -36,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RetrieverRewriteIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(AssertingPlugin.class);
+        return List.of(AssertingPlugin.class, MockSearchService.TestPlugin.class);
     }
 
     private static String INDEX_DOCS = "docs";
@@ -66,10 +67,14 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         source.retriever(new AssertingRetrieverBuilder(standard));
         SearchRequest req = new SearchRequest(INDEX_DOCS, INDEX_QUERIES).source(source);
         SearchResponse resp = client().search(req).get();
-        assertNull(resp.pointInTimeId());
-        assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
-        assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_0"));
+        try {
+            assertNull(resp.pointInTimeId());
+            assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_0"));
+        } finally {
+            resp.decRef();
+        }
     }
 
     public void testRewriteCompound() throws ExecutionException, InterruptedException {
@@ -77,10 +82,14 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         source.retriever(new AssertingCompoundRetrieverBuilder("query_0"));
         SearchRequest req = new SearchRequest(INDEX_DOCS, INDEX_QUERIES).source(source);
         SearchResponse resp = client().search(req).get();
-        assertNull(resp.pointInTimeId());
-        assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
-        assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
+        try {
+            assertNull(resp.pointInTimeId());
+            assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
+        } finally {
+            resp.decRef();
+        }
     }
 
     public static class AssertingPlugin extends Plugin implements SearchPlugin {

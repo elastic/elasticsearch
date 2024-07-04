@@ -157,7 +157,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Phaser;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -3944,11 +3943,11 @@ public class IndexShardTests extends IndexShardTestCase {
     private void ensureNoPendingScheduledRefresh() {
         var refreshThreadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.REFRESH);
         int maximumPoolSize = refreshThreadPoolExecutor.getMaximumPoolSize();
-        var phaser = new Phaser(maximumPoolSize + 1);
+        var barrier = new CyclicBarrier(maximumPoolSize + 1);
         for (int i = 0; i < maximumPoolSize; i++) {
-            refreshThreadPoolExecutor.execute(phaser::arriveAndAwaitAdvance);
+            refreshThreadPoolExecutor.execute(() -> safeAwait(barrier));
         }
-        phaser.arriveAndAwaitAdvance();
+        safeAwait(barrier);
     }
 
     public void testRefreshIsNeededWithRefreshListeners() throws IOException, InterruptedException {

@@ -294,7 +294,7 @@ public final class EsqlExpressionTranslators {
                 // Unsigned longs may be represented as BigInteger.
                 decimalValue = new BigDecimal(bigIntValue);
             } else {
-                decimalValue = valueDataType.isRational() ? BigDecimal.valueOf(doubleValue) : BigDecimal.valueOf(value.longValue());
+                decimalValue = valueDataType.isRationalNumber() ? BigDecimal.valueOf(doubleValue) : BigDecimal.valueOf(value.longValue());
             }
 
             // Determine min/max for dataType. Use BigDecimals as doubles will have rounding errors for long/ulong.

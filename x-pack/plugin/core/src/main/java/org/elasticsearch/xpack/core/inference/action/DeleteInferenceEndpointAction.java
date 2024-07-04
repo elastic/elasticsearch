@@ -113,13 +113,19 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            pipelineIds = in.readCollectionAsSet(StreamInput::readString);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ENHANCE_DELETE_ENDPOINT)) {
+                pipelineIds = in.readCollectionAsSet(StreamInput::readString);
+            } else {
+                pipelineIds = Set.of();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeCollection(pipelineIds, StreamOutput::writeString);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ENHANCE_DELETE_ENDPOINT)) {
+                out.writeCollection(pipelineIds, StreamOutput::writeString);
+            }
         }
 
         @Override

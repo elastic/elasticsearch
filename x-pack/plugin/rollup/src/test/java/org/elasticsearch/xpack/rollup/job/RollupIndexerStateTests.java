@@ -549,18 +549,14 @@ public class RollupIndexerStateTests extends ESTestCase {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-            final AtomicBoolean isAborted = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
-                @Override
-                protected void onAbort() {
-                    isAborted.set(true);
-                }
-            };
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null);
             indexer.start();
             for (int i = 0; i < 5; i++) {
                 final CountDownLatch latch = indexer.newLatch();
                 assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
-                assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+                // This may take more than one attempt due to a cleanup/transition phase
+                // that happens after state change to STARTED (`isJobFinishing`).
+                assertBusy(() -> indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
                 assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
                 assertFalse(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
                 assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
@@ -570,7 +566,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 assertThat(indexer.getStats().getNumPages(), equalTo((long) i + 1));
             }
             final CountDownLatch latch = indexer.newLatch();
-            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+            assertBusy(() -> indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.stop(), equalTo(IndexerState.STOPPING));
             assertThat(indexer.getState(), Matchers.either(Matchers.is(IndexerState.STOPPING)).or(Matchers.is(IndexerState.STOPPED)));
             latch.countDown();

@@ -623,7 +623,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         }
 
         if (role.hasConfigurableClusterPrivileges() == false) {
-            builder.field(RoleDescriptor.Fields.GLOBAL.getPreferredName(), ConfigurableClusterPrivileges.EMPTY_ARRAY);
+            builder.startObject(RoleDescriptor.Fields.GLOBAL.getPreferredName()).endObject();
         }
 
         if (role.hasRemoteIndicesPrivileges() == false) {

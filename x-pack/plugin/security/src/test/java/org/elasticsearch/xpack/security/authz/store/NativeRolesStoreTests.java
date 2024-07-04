@@ -140,7 +140,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     private NativeRolesStore createRoleStoreForTest(Settings settings) {
         new ReservedRolesStore(Set.of("superuser"));
-        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(settings);
         final FeatureService featureService = mock(FeatureService.class);
         systemIndices.init(client, featureService, clusterService);
@@ -814,27 +814,7 @@ public class NativeRolesStoreTests extends ESTestCase {
      * call to the roles API
      */
     public void testAllTopFieldsHaveEmptyDefaultsForUpsert() throws IOException, IllegalAccessException {
-        final Client client = mock(Client.class);
-        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
-        final FeatureService featureService = mock(FeatureService.class);
-        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-
-        final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-        systemIndices.init(client, featureService, clusterService);
-        final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
-        // Init for validation
-        new ReservedRolesStore(Set.of("superuser"));
-        final NativeRolesStore rolesStore = new NativeRolesStore(
-            Settings.EMPTY,
-            client,
-            licenseState,
-            securityIndex,
-            clusterService,
-            mock(FeatureService.class),
-            mock(ReservedRoleNameChecker.class),
-            mock(NamedXContentRegistry.class)
-        );
-
+        final NativeRolesStore rolesStore = createRoleStoreForTest();
         RoleDescriptor allNullDescriptor = new RoleDescriptor(
             "all-null-descriptor",
             null,

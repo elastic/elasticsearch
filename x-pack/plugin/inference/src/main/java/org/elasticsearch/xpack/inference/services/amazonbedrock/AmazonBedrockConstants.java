@@ -22,4 +22,6 @@ public class AmazonBedrockConstants {
     public static final Double MIN_TEMPERATURE_TOP_P_TOP_K_VALUE = 0.0;
     public static final Double MAX_TEMPERATURE_TOP_P_TOP_K_VALUE = 1.0;
 
+    public static final int DEFAULT_MAX_CHUNK_SIZE = 2048;
+
 }

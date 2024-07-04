@@ -13,9 +13,9 @@ import org.elasticsearch.inference.TaskType;
 import java.util.List;
 import java.util.Map;
 
-public final class AmazonBedrockProviderCapabilities {
-    private static final int DEFAULT_MAX_CHUNK_SIZE = 2048;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.DEFAULT_MAX_CHUNK_SIZE;
 
+public final class AmazonBedrockProviderCapabilities {
     private static final List<AmazonBedrockProvider> embeddingProviders = List.of(
         AmazonBedrockProvider.AMAZONTITAN,
         AmazonBedrockProvider.COHERE

@@ -50,8 +50,8 @@ public final class TypeResolutions {
         return isType(e, dt -> dt == BOOLEAN, operationName, paramOrd, "boolean");
     }
 
-    public static TypeResolution isInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isInteger, operationName, paramOrd, "integer");
+    public static TypeResolution isWholeNumber(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, DataType::isWholeNumber, operationName, paramOrd, "integer");
     }
 
     public static TypeResolution isNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {

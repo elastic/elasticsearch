@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -87,8 +88,6 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  * Computes the result of a {@link PhysicalPlan}.
  */
 public class ComputeService {
-    public record Result(List<Page> pages, List<DriverProfile> profiles) {}
-
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
     private final BigArrays bigArrays;
@@ -174,7 +173,7 @@ public class ComputeService {
                 var computeListener = new ComputeListener(
                     transportService,
                     rootTask,
-                    listener.map(r -> new Result(collectedPages, r.getProfiles()))
+                    listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles()))
                 )
             ) {
                 runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
@@ -201,7 +200,7 @@ public class ComputeService {
             var computeListener = new ComputeListener(
                 transportService,
                 rootTask,
-                listener.map(r -> new Result(collectedPages, r.getProfiles()))
+                listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles()))
             )
         ) {
             // run compute on the coordinator

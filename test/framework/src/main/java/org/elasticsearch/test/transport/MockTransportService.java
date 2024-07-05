@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -574,7 +575,8 @@ public class MockTransportService extends TransportService {
                     RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
                     clonedRequest = reg.newRequest(bStream.bytes().streamInput());
                 }
-                assert clonedRequest.getClass().equals(request.getClass()) : clonedRequest + " vs " + request;
+                assert clonedRequest.getClass().equals(MasterNodeRequestHelper.unwrapTermOverride(request).getClass())
+                    : clonedRequest + " vs " + request;
 
                 final RunOnce runnable = new RunOnce(new AbstractRunnable() {
                     @Override

@@ -639,6 +639,19 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         mapper.parse(source(b -> b.field("field", stringBuilder.toString())));
     }
 
+    /**
+     * Test that we track the synthetic source if field is neither indexed nor has doc values nor stored
+     */
+    public void testSyntheticSourceForDisabledField() throws Exception {
+        MapperService mapper = createMapperService(
+            syntheticSourceFieldMapping(
+                b -> b.field("type", "keyword").field("index", false).field("doc_values", false).field("store", false)
+            )
+        );
+        String value = randomAlphaOfLengthBetween(1, 20);
+        assertEquals("{\"field\":\"" + value + "\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", value)));
+    }
+
     @Override
     protected boolean supportsIgnoreMalformed() {
         return false;

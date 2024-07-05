@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -54,10 +55,11 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesResponse;
+import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -77,6 +79,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -123,6 +126,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.prepareIndex(SECURITY_MAIN_ALIAS)).thenReturn(new IndexRequestBuilder(client));
         when(client.prepareUpdate(any(), any())).thenReturn(new UpdateRequestBuilder(client));
+        when(client.prepareDelete(any(), any())).thenReturn(new DeleteRequestBuilder(client, SECURITY_MAIN_ALIAS));
     }
 
     @After
@@ -136,7 +140,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     private NativeRolesStore createRoleStoreForTest(Settings settings) {
         new ReservedRolesStore(Set.of("superuser"));
-        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(settings);
         final FeatureService featureService = mock(FeatureService.class);
         systemIndices.init(client, featureService, clusterService);
@@ -162,7 +166,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             rolesStore.putRole(WriteRequest.RefreshPolicy.IMMEDIATE, roleDescriptor, actionListener);
         } else {
             rolesStore.putRoles(WriteRequest.RefreshPolicy.IMMEDIATE, List.of(roleDescriptor), ActionListener.wrap(resp -> {
-                BulkPutRolesResponse.Item item = resp.getItems().get(0);
+                BulkRolesResponse.Item item = resp.getItems().get(0);
                 if (item.getResultType().equals("created")) {
                     actionListener.onResponse(true);
                 } else {
@@ -765,11 +769,100 @@ public class NativeRolesStoreTests extends ESTestCase {
             )
             .toList();
 
-        AtomicReference<BulkPutRolesResponse> response = new AtomicReference<>();
+        AtomicReference<BulkRolesResponse> response = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
         rolesStore.putRoles(WriteRequest.RefreshPolicy.IMMEDIATE, roleDescriptors, ActionListener.wrap(response::set, exception::set));
         assertNull(exception.get());
         verify(client, times(1)).bulk(any(BulkRequest.class), any());
+    }
+
+    public void testBulkDeleteRoles() {
+        final NativeRolesStore rolesStore = createRoleStoreForTest();
+
+        AtomicReference<BulkRolesResponse> response = new AtomicReference<>();
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        rolesStore.deleteRoles(
+            List.of("test-role-1", "test-role-2", "test-role-3"),
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ActionListener.wrap(response::set, exception::set)
+        );
+        assertNull(exception.get());
+        verify(client, times(1)).bulk(any(BulkRequest.class), any());
+    }
+
+    public void testBulkDeleteReservedRole() {
+        final NativeRolesStore rolesStore = createRoleStoreForTest();
+
+        AtomicReference<BulkRolesResponse> response = new AtomicReference<>();
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        rolesStore.deleteRoles(
+            List.of("superuser"),
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ActionListener.wrap(response::set, exception::set)
+        );
+        assertNull(exception.get());
+        assertThat(response.get().getItems().size(), equalTo(1));
+        BulkRolesResponse.Item item = response.get().getItems().get(0);
+        assertThat(item.getCause().getMessage(), equalTo("role [superuser] is reserved and cannot be deleted"));
+        assertThat(item.getRoleName(), equalTo("superuser"));
+
+        verify(client, times(0)).bulk(any(BulkRequest.class), any());
+    }
+
+    /**
+     * Make sure all top level fields for a RoleDescriptor have default values to make sure they can be set to empty in an upsert
+     * call to the roles API
+     */
+    public void testAllTopFieldsHaveEmptyDefaultsForUpsert() throws IOException, IllegalAccessException {
+        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        RoleDescriptor allNullDescriptor = new RoleDescriptor(
+            "all-null-descriptor",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        Set<ParseField> fieldsWithoutDefaultValue = Set.of(
+            RoleDescriptor.Fields.INDEX,
+            RoleDescriptor.Fields.NAMES,
+            RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES,
+            RoleDescriptor.Fields.RESOURCES,
+            RoleDescriptor.Fields.QUERY,
+            RoleDescriptor.Fields.PRIVILEGES,
+            RoleDescriptor.Fields.CLUSTERS,
+            RoleDescriptor.Fields.APPLICATION,
+            RoleDescriptor.Fields.FIELD_PERMISSIONS,
+            RoleDescriptor.Fields.FIELD_PERMISSIONS_2X,
+            RoleDescriptor.Fields.GRANT_FIELDS,
+            RoleDescriptor.Fields.EXCEPT_FIELDS,
+            RoleDescriptor.Fields.METADATA_FLATTENED,
+            RoleDescriptor.Fields.TRANSIENT_METADATA,
+            RoleDescriptor.Fields.RESTRICTION,
+            RoleDescriptor.Fields.WORKFLOWS
+        );
+
+        String serializedOutput = Strings.toString(rolesStore.createRoleXContentBuilder(allNullDescriptor));
+        Field[] fields = RoleDescriptor.Fields.class.getFields();
+
+        for (Field field : fields) {
+            ParseField fieldValue = (ParseField) field.get(null);
+            if (fieldsWithoutDefaultValue.contains(fieldValue) == false) {
+                assertThat(
+                    "New RoleDescriptor field without a default value detected. "
+                        + "Set a value or add to excluded list if not expected to be set to empty through role APIs",
+                    serializedOutput,
+                    containsString(fieldValue.getPreferredName())
+                );
+            }
+        }
     }
 
     private ClusterService mockClusterServiceWithMinNodeVersion(TransportVersion transportVersion) {

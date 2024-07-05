@@ -150,7 +150,7 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
                 if (changed.get()) {
                     secondPassAggs.add(new Alias(alias.source(), alias.name(), null, outerAgg, agg.id()));
                 } else {
-                    var toPartial = new Alias(agg.source(), alias.name(), new ToPartial(agg.source(), af));
+                    var toPartial = new Alias(agg.source(), alias.name(), new ToPartial(agg.source(), af.field(), af));
                     var fromPartial = new FromPartial(agg.source(), toPartial.toAttribute(), af);
                     firstPassAggs.add(toPartial);
                     secondPassAggs.add(new Alias(alias.source(), alias.name(), null, fromPartial, alias.id()));

@@ -28,32 +28,18 @@ public final class MultiRowTestCaseSupplier {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         if (0 <= max && 0 >= min && includeZero) {
-            cases.add(
-                new TypedDataSupplier("<0 ints>", () -> randomList(minRows, maxRows, () -> 0), DataType.INTEGER, false, true)
-            );
+            cases.add(new TypedDataSupplier("<0 ints>", () -> randomList(minRows, maxRows, () -> 0), DataType.INTEGER, false, true));
         }
 
         if (max != 0) {
             cases.add(
-                new TypedDataSupplier(
-                    "<" + max + " ints>",
-                    () -> randomList(minRows, maxRows, () -> max),
-                    DataType.INTEGER,
-                    false,
-                    true
-                )
+                new TypedDataSupplier("<" + max + " ints>", () -> randomList(minRows, maxRows, () -> max), DataType.INTEGER, false, true)
             );
         }
 
         if (min != 0 && min != max) {
             cases.add(
-                new TypedDataSupplier(
-                    "<" + min + " ints>",
-                    () -> randomList(minRows, maxRows, () -> min),
-                    DataType.INTEGER,
-                    false,
-                    true
-                )
+                new TypedDataSupplier("<" + min + " ints>", () -> randomList(minRows, maxRows, () -> min), DataType.INTEGER, false, true)
             );
         }
 
@@ -101,32 +87,18 @@ public final class MultiRowTestCaseSupplier {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         if (0 <= max && 0 >= min && includeZero) {
-            cases.add(
-                new TypedDataSupplier("<0 longs>", () -> randomList(minRows, maxRows, () -> 0L), DataType.LONG, false, true)
-            );
+            cases.add(new TypedDataSupplier("<0 longs>", () -> randomList(minRows, maxRows, () -> 0L), DataType.LONG, false, true));
         }
 
         if (max != 0) {
             cases.add(
-                new TypedDataSupplier(
-                    "<" + max + " longs>",
-                    () -> randomList(minRows, maxRows, () -> max),
-                    DataType.LONG,
-                    false,
-                    true
-                )
+                new TypedDataSupplier("<" + max + " longs>", () -> randomList(minRows, maxRows, () -> max), DataType.LONG, false, true)
             );
         }
 
         if (min != 0 && min != max) {
             cases.add(
-                new TypedDataSupplier(
-                    "<" + min + " longs>",
-                    () -> randomList(minRows, maxRows, () -> min),
-                    DataType.LONG,
-                    false,
-                    true
-                )
+                new TypedDataSupplier("<" + min + " longs>", () -> randomList(minRows, maxRows, () -> min), DataType.LONG, false, true)
             );
         }
 
@@ -174,35 +146,19 @@ public final class MultiRowTestCaseSupplier {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         if (0d <= max && 0d >= min && includeZero) {
-            cases.add(
-                new TypedDataSupplier("<0 doubles>", () -> randomList(minRows, maxRows, () -> 0d), DataType.DOUBLE, false, true)
-            );
-            cases.add(
-                new TypedDataSupplier("<-0 doubles>", () -> randomList(minRows, maxRows, () -> -0d), DataType.DOUBLE, false, true)
-            );
+            cases.add(new TypedDataSupplier("<0 doubles>", () -> randomList(minRows, maxRows, () -> 0d), DataType.DOUBLE, false, true));
+            cases.add(new TypedDataSupplier("<-0 doubles>", () -> randomList(minRows, maxRows, () -> -0d), DataType.DOUBLE, false, true));
         }
 
         if (max != 0d) {
             cases.add(
-                new TypedDataSupplier(
-                    "<" + max + " doubles>",
-                    () -> randomList(minRows, maxRows, () -> max),
-                    DataType.DOUBLE,
-                    false,
-                    true
-                )
+                new TypedDataSupplier("<" + max + " doubles>", () -> randomList(minRows, maxRows, () -> max), DataType.DOUBLE, false, true)
             );
         }
 
         if (min != 0d && min != max) {
             cases.add(
-                new TypedDataSupplier(
-                    "<" + min + " doubles>",
-                    () -> randomList(minRows, maxRows, () -> min),
-                    DataType.DOUBLE,
-                    false,
-                    true
-                )
+                new TypedDataSupplier("<" + min + " doubles>", () -> randomList(minRows, maxRows, () -> min), DataType.DOUBLE, false, true)
             );
         }
 

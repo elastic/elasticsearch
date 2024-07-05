@@ -159,6 +159,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED = Setting.boolSetting(
+        "stateless.lucene.generational_files_tracking.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
     private final Supplier<String> ephemeralNodeIdSupplier;
@@ -184,6 +190,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
+    private final boolean generationalFilesTrackingEnabled;
 
     public StatelessCommitService(
         Settings settings,
@@ -241,6 +248,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
+        this.generationalFilesTrackingEnabled = STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.get(settings);
+        logger.info(
+            "generational files tracking [{}] is [{}]",
+            STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(),
+            this.generationalFilesTrackingEnabled ? "enabled" : "disabled"
+        );
     }
 
     private static Optional<IndexShardRoutingTable> shardRoutingTableFunction(ClusterService clusterService, ShardId shardId) {
@@ -250,6 +263,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public boolean isStatelessUploadDelayed() {
         return statelessUploadDelayed;
+    }
+
+    public boolean isGenerationalFilesTrackingEnabled() {
+        return generationalFilesTrackingEnabled;
     }
 
     public void markRecoveredBcc(ShardId shardId, BatchedCompoundCommit recoveredBcc, Set<BlobFile> unreferencedFiles) {

@@ -198,8 +198,6 @@ public final class BitArray implements Accountable, Releasable, Writeable {
         long firstWordNum = wordNum(fromIndex);
         long lastWordNum = wordNum(toIndex - 1);
 
-        // TODO: If first and last words are the same?
-
         // Mask first word
         if (firstWordIndex > 0) {
             long mask = fullWord << firstWordIndex;

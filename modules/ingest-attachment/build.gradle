@@ -45,12 +45,12 @@ def versions = [
 configurations.testRuntimeClasspath {
   exclude module: 'commons-logging'
   // The version used by POI potentially conflicts with the one pulled in by :test:framework:
-  resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
+  resolutionStrategy.force tikaLibs.commons.codec
 }
 
 configurations.testCompileClasspath {
   // The version used by POI potentially conflicts with the one pulled in by :test:framework:
-  resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
+  resolutionStrategy.force tikaLibs.commons.codec
 }
 
 dependencies {

@@ -38,8 +38,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
@@ -163,20 +163,16 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                     plan = new Eval(project.source(), project.child(), new ArrayList<>(nullLiteral.values()));
                     plan = new Project(project.source(), plan, newProjections);
                 }
-            } else if (plan instanceof MvExpand) {
-                // We cannot replace the target (NamedExpression) with a Literal
-                // https://github.com/elastic/elasticsearch/issues/109974
-                // Unfortunately we cannot remove the MvExpand right away, or we'll lose the output field (layout problems)
-                // TODO but this could be a follow-up optimization
-                return plan;
-            }
-            // otherwise transform fields in place
-            else {
-                plan = plan.transformExpressionsOnlyUp(
-                    FieldAttribute.class,
-                    f -> stats.exists(f.qualifiedName()) ? f : Literal.of(f, null)
-                );
-            }
+            } else if (plan instanceof Eval
+                || plan instanceof Filter
+                || plan instanceof OrderBy
+                || plan instanceof RegexExtract
+                || plan instanceof TopN) {
+                    plan = plan.transformExpressionsOnlyUp(
+                        FieldAttribute.class,
+                        f -> stats.exists(f.qualifiedName()) ? f : Literal.of(f, null)
+                    );
+                }
 
             return plan;
         }

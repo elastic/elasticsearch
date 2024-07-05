@@ -11,5 +11,5 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiR
 
 public interface GoogleVertexAiEmbeddingsRateLimitServiceSettings extends GoogleVertexAiRateLimitServiceSettings {
 
-    String modelId();
+    String projectId();
 }

@@ -212,7 +212,7 @@ public class TaskCancellationService {
                     @Override
                     public void handleException(TransportException exp) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(exp);
-                        assert cause instanceof ElasticsearchSecurityException == false;
+                        assert cause instanceof ElasticsearchSecurityException == false : new AssertionError(exp);
                         if (isUnimportantBanFailure(cause)) {
                             logger.debug(
                                 () -> format("cannot send ban for tasks with the parent [%s] on connection [%s]", taskId, connection),
@@ -261,7 +261,7 @@ public class TaskCancellationService {
                     @Override
                     public void handleException(TransportException exp) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(exp);
-                        assert cause instanceof ElasticsearchSecurityException == false;
+                        assert cause instanceof ElasticsearchSecurityException == false : new AssertionError(exp);
                         if (isUnimportantBanFailure(cause)) {
                             logger.debug(
                                 () -> format(

@@ -57,6 +57,7 @@ public class Constants {
         "cluster:admin/persistent/update_status",
         "cluster:admin/reindex/rethrottle",
         "cluster:admin/repository/_cleanup",
+        "cluster:admin/repository/analyze",
         "cluster:admin/repository/delete",
         "cluster:admin/repository/get",
         "cluster:admin/repository/put",
@@ -153,6 +154,7 @@ public class Constants {
         "cluster:admin/xpack/connector/secret/put",
         "indices:data/write/xpack/connector/sync_job/cancel",
         "indices:data/write/xpack/connector/sync_job/check_in",
+        "indices:data/write/xpack/connector/sync_job/claim",
         "indices:data/write/xpack/connector/sync_job/delete",
         "indices:data/read/xpack/connector/sync_job/get",
         "indices:data/read/xpack/connector/sync_job/list",
@@ -232,7 +234,9 @@ public class Constants {
         "cluster:admin/xpack/ml/upgrade_mode",
         "cluster:admin/xpack/monitoring/bulk",
         "cluster:admin/xpack/monitoring/migrate/alerts",
-        "cluster:admin/xpack/query_rule/put",
+        "cluster:admin/xpack/query_rules/rule/delete",
+        "cluster:admin/xpack/query_rules/rule/get",
+        "cluster:admin/xpack/query_rules/rule/put",
         "cluster:admin/xpack/query_rules/delete",
         "cluster:admin/xpack/query_rules/get",
         "cluster:admin/xpack/query_rules/list",
@@ -274,7 +278,10 @@ public class Constants {
         "cluster:admin/xpack/security/remote_cluster_credentials/reload",
         "cluster:admin/xpack/security/role/delete",
         "cluster:admin/xpack/security/role/get",
+        "cluster:admin/xpack/security/role/query",
         "cluster:admin/xpack/security/role/put",
+        "cluster:admin/xpack/security/role/bulk_put",
+        "cluster:admin/xpack/security/role/bulk_delete",
         "cluster:admin/xpack/security/role_mapping/delete",
         "cluster:admin/xpack/security/role_mapping/get",
         "cluster:admin/xpack/security/role_mapping/put",
@@ -612,6 +619,8 @@ public class Constants {
         "internal:cluster/formation/info",
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path",
-        "internal:index/metadata/migration_version/update"
+        "internal:index/metadata/migration_version/update",
+        "internal:admin/repository/verify",
+        "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

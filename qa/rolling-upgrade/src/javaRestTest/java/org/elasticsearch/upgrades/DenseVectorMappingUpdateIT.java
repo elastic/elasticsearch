@@ -91,9 +91,13 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
                     .startObject("properties")
                     .startObject("embedding")
                     .field("type", "dense_vector")
+                    .field("index", "true")
                     .field("dims", 4)
+                    .field("similarity", "cosine")
                     .startObject("index_options")
                     .field("type", "hnsw")
+                    .field("m", "16")
+                    .field("ef_construction", "100")
                     .endObject()
                     .endObject()
                     .endObject()
@@ -109,7 +113,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
 
             int expectedCount = 10;
 
-            assertCount("test_index", expectedCount);
+            assertCount(indexName, expectedCount);
 
             if (isUpgradedCluster() && clusterSupportsDenseVectorTypeUpdate()) {
                 Request updateMapping = new Request("PUT", "/" + indexName + "/_mapping");
@@ -118,9 +122,13 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
                     .startObject("properties")
                     .startObject("embedding")
                     .field("type", "dense_vector")
+                    .field("index", "true")
                     .field("dims", 4)
+                    .field("similarity", "cosine")
                     .startObject("index_options")
                     .field("type", "int8_hnsw")
+                    .field("m", "16")
+                    .field("ef_construction", "100")
                     .endObject()
                     .endObject()
                     .endObject()
@@ -132,7 +140,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
                 index.setJsonEntity(BULK2);
                 assertOK(client().performRequest(index));
                 expectedCount = 20;
-                assertCount("test_index", expectedCount);
+                assertCount(indexName, expectedCount);
             }
         }
     }
@@ -152,7 +160,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
         Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
         Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
 
-        Predicate<Map<?, ?>> nodeSupportsBulkApi = n -> Version.fromString(n.get("version").toString()).onOrAfter(Version.V_8_14_0);
+        Predicate<Map<?, ?>> nodeSupportsBulkApi = n -> Version.fromString(n.get("version").toString()).onOrAfter(Version.V_8_15_0);
 
         return nodes.values().stream().map(o -> (Map<?, ?>) o).allMatch(nodeSupportsBulkApi);
     }

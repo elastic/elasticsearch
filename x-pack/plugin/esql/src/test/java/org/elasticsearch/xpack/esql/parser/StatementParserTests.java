@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -19,9 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
@@ -29,7 +25,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -38,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
@@ -51,9 +48,6 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 
-import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -61,11 +55,10 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -76,10 +69,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-public class StatementParserTests extends ESTestCase {
-
-    private static String FROM = "from test";
-    EsqlParser parser = new EsqlParser();
+public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testRowCommand() {
         assertEquals(
@@ -246,6 +236,7 @@ public class StatementParserTests extends ESTestCase {
             new EsqlAggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
+                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -262,6 +253,7 @@ public class StatementParserTests extends ESTestCase {
             new EsqlAggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
+                Aggregate.AggregateType.STANDARD,
                 List.of(),
                 List.of(
                     new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -274,7 +266,13 @@ public class StatementParserTests extends ESTestCase {
 
     public void testStatsWithoutAggs() throws Exception {
         assertEquals(
-            new EsqlAggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
+            new EsqlAggregate(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                Aggregate.AggregateType.STANDARD,
+                List.of(attribute("a")),
+                List.of(attribute("a"))
+            ),
             processingCommand("stats by a")
         );
     }
@@ -335,19 +333,128 @@ public class StatementParserTests extends ESTestCase {
         );
     }
 
-    public void testIdentifiersAsIndexPattern() {
-        // assertIdentifierAsIndexPattern("foo", "from `foo`");
-        // assertIdentifierAsIndexPattern("foo,test-*", "from `foo`,`test-*`");
-        assertIdentifierAsIndexPattern("foo,test-*", "from foo,test-*");
-        assertIdentifierAsIndexPattern("123-test@foo_bar+baz1", "from 123-test@foo_bar+baz1");
-        // assertIdentifierAsIndexPattern("foo,test-*,abc", "from `foo`,`test-*`,abc");
-        // assertIdentifierAsIndexPattern("foo, test-*, abc, xyz", "from `foo, test-*, abc, xyz`");
-        // assertIdentifierAsIndexPattern("foo, test-*, abc, xyz,test123", "from `foo, test-*, abc, xyz`, test123");
-        assertIdentifierAsIndexPattern("foo,test,xyz", "from foo,   test,xyz");
-        assertIdentifierAsIndexPattern(
-            "<logstash-{now/M{yyyy.MM}}>", // ,<logstash-{now/d{yyyy.MM.dd|+12:00}}>
-            "from <logstash-{now/M{yyyy.MM}}>" // , `<logstash-{now/d{yyyy.MM.dd|+12:00}}>`
+    public void testStringAsIndexPattern() {
+        for (String command : List.of("FROM", "METRICS")) {
+            assertStringAsIndexPattern("foo", command + " \"foo\"");
+            assertStringAsIndexPattern("foo,test-*", command + """
+                 "foo","test-*"
+                """);
+            assertStringAsIndexPattern("foo,test-*", command + " foo,test-*");
+            assertStringAsIndexPattern("123-test@foo_bar+baz1", command + " 123-test@foo_bar+baz1");
+            assertStringAsIndexPattern("foo,test-*,abc", command + """
+                 "foo","test-*",abc
+                """);
+            assertStringAsIndexPattern("foo, test-*, abc, xyz", command + """
+                     "foo, test-*, abc, xyz"
+                """);
+            assertStringAsIndexPattern("foo, test-*, abc, xyz,test123", command + """
+                     "foo, test-*, abc, xyz", test123
+                """);
+            assertStringAsIndexPattern("foo,test,xyz", command + " foo,   test,xyz");
+            assertStringAsIndexPattern(
+                "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
+                command + " <logstash-{now/M{yyyy.MM}}>, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
+            );
+
+            assertStringAsIndexPattern("foo,test,xyz", command + " \"\"\"foo\"\"\",   test,\"xyz\"");
+
+            assertStringAsIndexPattern("`backtick`,``multiple`back``ticks```", command + " `backtick`, ``multiple`back``ticks```");
+
+            assertStringAsIndexPattern("test,metadata,metaata,.metadata", command + " test,\"metadata\", metaata, .metadata");
+
+            assertStringAsIndexPattern(".dot", command + " .dot");
+
+            assertStringAsIndexPattern("cluster:index", command + " cluster:index");
+            assertStringAsIndexPattern("cluster:index|pattern", command + " cluster:\"index|pattern\"");
+            assertStringAsIndexPattern("cluster:.index", command + " cluster:.index");
+            assertStringAsIndexPattern("cluster*:index*", command + " cluster*:index*");
+            assertStringAsIndexPattern("cluster*:*", command + " cluster*:*");
+            assertStringAsIndexPattern("*:index*", command + " *:index*");
+            assertStringAsIndexPattern("*:index|pattern", command + " *:\"index|pattern\"");
+            assertStringAsIndexPattern("*:*", command + " *:*");
+            assertStringAsIndexPattern("*:*,cluster*:index|pattern,i|p", command + " *:*, cluster*:\"index|pattern\", \"i|p\"");
+        }
+    }
+
+    public void testStringAsLookupIndexPattern() {
+        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"foo\" ON j");
+        assertStringAsLookupIndexPattern("test-*", """
+            ROW x = 1 | LOOKUP "test-*" ON j
+            """);
+        assertStringAsLookupIndexPattern("test-*", "ROW x = 1 | LOOKUP test-* ON j");
+        assertStringAsLookupIndexPattern("123-test@foo_bar+baz1", "ROW x = 1 | LOOKUP 123-test@foo_bar+baz1 ON j");
+        assertStringAsLookupIndexPattern("foo, test-*, abc, xyz", """
+            ROW x = 1 | LOOKUP     "foo, test-*, abc, xyz"  ON j
+            """);
+        assertStringAsLookupIndexPattern("<logstash-{now/M{yyyy.MM}}>", "ROW x = 1 | LOOKUP <logstash-{now/M{yyyy.MM}}> ON j");
+        assertStringAsLookupIndexPattern(
+            "<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
+            "ROW x = 1 | LOOKUP \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\" ON j"
         );
+
+        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"\"\"foo\"\"\" ON j");
+
+        assertStringAsLookupIndexPattern("`backtick`", "ROW x = 1 | LOOKUP `backtick` ON j");
+        assertStringAsLookupIndexPattern("``multiple`back``ticks```", "ROW x = 1 | LOOKUP ``multiple`back``ticks``` ON j");
+
+        assertStringAsLookupIndexPattern(".dot", "ROW x = 1 | LOOKUP .dot ON j");
+
+        assertStringAsLookupIndexPattern("cluster:index", "ROW x = 1 | LOOKUP cluster:index ON j");
+        assertStringAsLookupIndexPattern("cluster:.index", "ROW x = 1 | LOOKUP cluster:.index ON j");
+        assertStringAsLookupIndexPattern("cluster*:index*", "ROW x = 1 | LOOKUP cluster*:index* ON j");
+        assertStringAsLookupIndexPattern("cluster*:*", "ROW x = 1 | LOOKUP cluster*:* ON j");
+        assertStringAsLookupIndexPattern("*:index*", "ROW x = 1 | LOOKUP  *:index* ON j");
+        assertStringAsLookupIndexPattern("*:*", "ROW x = 1 | LOOKUP  *:* ON j");
+
+    }
+
+    public void testInvalidQuotingAsFromIndexPattern() {
+        expectError("FROM \"foo", ": token recognition error at: '\"foo'");
+        expectError("FROM \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
+        expectError("FROM \"\"\"foo", ": token recognition error at: '\"foo'");
+
+        expectError("FROM foo\"", ": token recognition error at: '\"'");
+        expectError("FROM foo\" | LIMIT 2", ": token recognition error at: '\" | LIMIT 2'");
+        expectError("FROM foo\"\"\"", ": token recognition error at: '\"'");
+
+        expectError("FROM \"foo\"bar\"", ": token recognition error at: '\"'");
+        expectError("FROM \"foo\"\"bar\"", ": extraneous input '\"bar\"' expecting <EOF>");
+
+        expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', OPENING_BRACKET, 'metadata'}");
+        expectError(
+            "FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"",
+            ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', OPENING_BRACKET, 'metadata'}"
+        );
+    }
+
+    public void testInvalidQuotingAsMetricsIndexPattern() {
+        expectError("METRICS \"foo", ": token recognition error at: '\"foo'");
+        expectError("METRICS \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
+        expectError("METRICS \"\"\"foo", ": token recognition error at: '\"'");
+
+        expectError("METRICS foo\"", ": token recognition error at: '\"'");
+        expectError("METRICS foo\" | LIMIT 2", ": token recognition error at: '\"'");
+        expectError("METRICS foo\"\"\"", ": token recognition error at: '\"'");
+
+        expectError("METRICS \"foo\"bar\"", ": token recognition error at: '\"'");
+        expectError("METRICS \"foo\"\"bar\"", ": token recognition error at: '\"'");
+
+        expectError("METRICS \"\"\"foo\"\"\"bar\"\"\"", ": token recognition error at: '\"'");
+        expectError("METRICS \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": token recognition error at: '\"'");
+    }
+
+    public void testInvalidQuotingAsLookupIndexPattern() {
+        expectError("ROW x = 1 | LOOKUP \"foo ON j", ": token recognition error at: '\"foo ON j'");
+        expectError("ROW x = 1 | LOOKUP \"\"\"foo ON j", ": token recognition error at: '\"foo ON j'");
+
+        expectError("ROW x = 1 | LOOKUP foo\" ON j", ": token recognition error at: '\" ON j'");
+        expectError("ROW x = 1 | LOOKUP foo\"\"\" ON j", ": token recognition error at: '\" ON j'");
+
+        expectError("ROW x = 1 | LOOKUP \"foo\"bar\" ON j", ": token recognition error at: '\" ON j'");
+        expectError("ROW x = 1 | LOOKUP \"foo\"\"bar\" ON j", ": extraneous input '\"bar\"' expecting 'on'");
+
+        expectError("ROW x = 1 | LOOKUP \"\"\"foo\"\"\"bar\"\"\" ON j", ": mismatched input 'bar' expecting 'on'");
+        expectError("ROW x = 1 | LOOKUP \"\"\"foo\"\"\"\"\"\"bar\"\"\" ON j", "line 1:31: mismatched input '\"bar\"' expecting 'on'");
     }
 
     public void testIdentifierAsFieldName() {
@@ -869,7 +976,7 @@ public class StatementParserTests extends ESTestCase {
         expectError(
             "from test | where x < ?n1 | eval y = ?n2",
             List.of(new QueryParam("n1", 5, INTEGER), new QueryParam("n3", 5, INTEGER)),
-            "Unknown query parameter [n2], did you mean any of [n1, n3]?"
+            "Unknown query parameter [n2], did you mean any of [n3, n1]?"
         );
 
         expectError("from test | where x < ?_1", List.of(new QueryParam("_1", 5, INTEGER)), "extraneous input '_1' expecting <EOF>");
@@ -1166,11 +1273,28 @@ public class StatementParserTests extends ESTestCase {
         assertThat(Expressions.names(project.projections()), contains("count(`my-field`)"));
     }
 
-    private void assertIdentifierAsIndexPattern(String identifier, String statement) {
+    private void assertStringAsIndexPattern(String string, String statement) {
+        if (Build.current().isProductionRelease() && statement.contains("METRIC")) {
+            var e = expectThrows(IllegalArgumentException.class, () -> statement(statement));
+            assertThat(e.getMessage(), containsString("METRICS command currently requires a snapshot build"));
+            return;
+        }
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(EsqlUnresolvedRelation.class));
         EsqlUnresolvedRelation table = (EsqlUnresolvedRelation) from;
-        assertThat(table.table().index(), is(identifier));
+        assertThat(table.table().index(), is(string));
+    }
+
+    private void assertStringAsLookupIndexPattern(String string, String statement) {
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> statement(statement));
+            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        var plan = statement(statement);
+        var lookup = as(plan, Lookup.class);
+        var tableName = as(lookup.tableName(), Literal.class);
+        assertThat(tableName.fold(), equalTo(string));
     }
 
     public void testIdPatternUnquoted() throws Exception {
@@ -1229,7 +1353,13 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testLookup() {
-        var plan = statement("ROW a = 1 | LOOKUP t ON j");
+        String query = "ROW a = 1 | LOOKUP t ON j";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> statement(query));
+            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        var plan = statement(query);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
         assertThat(tableName.fold(), equalTo("t"));
@@ -1294,6 +1424,7 @@ public class StatementParserTests extends ESTestCase {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
@@ -1303,6 +1434,7 @@ public class StatementParserTests extends ESTestCase {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
@@ -1312,6 +1444,7 @@ public class StatementParserTests extends ESTestCase {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
@@ -1334,6 +1467,7 @@ public class StatementParserTests extends ESTestCase {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
             )
@@ -1343,6 +1477,7 @@ public class StatementParserTests extends ESTestCase {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
@@ -1352,6 +1487,7 @@ public class StatementParserTests extends ESTestCase {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
@@ -1361,6 +1497,7 @@ public class StatementParserTests extends ESTestCase {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
             )
@@ -1370,6 +1507,7 @@ public class StatementParserTests extends ESTestCase {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -1388,106 +1526,6 @@ public class StatementParserTests extends ESTestCase {
         }
     }
 
-    private void assertStatement(String statement, LogicalPlan expected) {
-        final LogicalPlan actual;
-        try {
-            actual = statement(statement);
-        } catch (Exception e) {
-            throw new AssertionError("parsing error for [" + statement + "]", e);
-        }
-        assertThat(statement, actual, equalTo(expected));
-    }
-
-    private LogicalPlan statement(String e) {
-        return statement(e, QueryParams.EMPTY);
-    }
-
-    private LogicalPlan statement(String e, QueryParams params) {
-        return parser.createStatement(e, params);
-    }
-
-    private LogicalPlan processingCommand(String e) {
-        return parser.createStatement("row a = 1 | " + e);
-    }
-
     private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
 
-    private static UnresolvedAttribute attribute(String name) {
-        return new UnresolvedAttribute(EMPTY, name);
-    }
-
-    private static ReferenceAttribute referenceAttribute(String name, DataType type) {
-        return new ReferenceAttribute(EMPTY, name, type);
-    }
-
-    private static Literal integer(int i) {
-        return new Literal(EMPTY, i, DataType.INTEGER);
-    }
-
-    private static Literal integers(int... ints) {
-        return new Literal(EMPTY, Arrays.stream(ints).boxed().toList(), DataType.INTEGER);
-    }
-
-    private static Literal literalLong(long i) {
-        return new Literal(EMPTY, i, DataType.LONG);
-    }
-
-    private static Literal literalLongs(long... longs) {
-        return new Literal(EMPTY, Arrays.stream(longs).boxed().toList(), DataType.LONG);
-    }
-
-    private static Literal literalDouble(double d) {
-        return new Literal(EMPTY, d, DataType.DOUBLE);
-    }
-
-    private static Literal literalDoubles(double... doubles) {
-        return new Literal(EMPTY, Arrays.stream(doubles).boxed().toList(), DataType.DOUBLE);
-    }
-
-    private static Literal literalUnsignedLong(String ulong) {
-        return new Literal(EMPTY, asLongUnsigned(new BigInteger(ulong)), DataType.UNSIGNED_LONG);
-    }
-
-    private static Literal literalUnsignedLongs(String... ulongs) {
-        return new Literal(EMPTY, Arrays.stream(ulongs).map(s -> asLongUnsigned(new BigInteger(s))).toList(), DataType.UNSIGNED_LONG);
-    }
-
-    private static Literal literalBoolean(boolean b) {
-        return new Literal(EMPTY, b, DataType.BOOLEAN);
-    }
-
-    private static Literal literalBooleans(boolean... booleans) {
-        List<Boolean> v = new ArrayList<>(booleans.length);
-        for (boolean b : booleans) {
-            v.add(b);
-        }
-        return new Literal(EMPTY, v, DataType.BOOLEAN);
-    }
-
-    private static Literal literalString(String s) {
-        return new Literal(EMPTY, s, DataType.KEYWORD);
-    }
-
-    private static Literal literalStrings(String... strings) {
-        return new Literal(EMPTY, Arrays.asList(strings), DataType.KEYWORD);
-    }
-
-    private void expectError(String query, String errorMessage) {
-        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
-        assertThat(e.getMessage(), containsString(errorMessage));
-    }
-
-    private void expectVerificationError(String query, String errorMessage) {
-        VerificationException e = expectThrows(VerificationException.class, "Expected syntax error for " + query, () -> statement(query));
-        assertThat(e.getMessage(), containsString(errorMessage));
-    }
-
-    private void expectError(String query, List<QueryParam> params, String errorMessage) {
-        ParsingException e = expectThrows(
-            ParsingException.class,
-            "Expected syntax error for " + query,
-            () -> statement(query, new QueryParams(params))
-        );
-        assertThat(e.getMessage(), containsString(errorMessage));
-    }
 }

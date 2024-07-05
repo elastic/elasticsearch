@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Location;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class NamedExpressionTests extends ESTestCase {
@@ -64,6 +64,6 @@ public class NamedExpressionTests extends ESTestCase {
     }
 
     private static Literal l(Object value) {
-        return TestUtils.of(EMPTY, value);
+        return of(EMPTY, value);
     }
 }

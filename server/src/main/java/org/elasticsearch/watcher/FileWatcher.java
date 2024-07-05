@@ -11,15 +11,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.AccessControlException;
 import java.util.Arrays;
+import java.util.stream.StreamSupport;
 
 /**
  * File resources watcher
@@ -114,6 +116,22 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         void onFileDeleted() {}
     }
 
+    protected boolean fileExists(Path path) {
+        return Files.exists(path);
+    }
+
+    protected BasicFileAttributes readAttributes(Path path) throws IOException {
+        return Files.readAttributes(path, BasicFileAttributes.class);
+    }
+
+    protected InputStream newInputStream(Path path) throws IOException {
+        return Files.newInputStream(path);
+    }
+
+    protected DirectoryStream<Path> listFiles(Path path) throws IOException {
+        return Files.newDirectoryStream(path);
+    }
+
     private class FileObserver extends Observer {
         private long length;
         private long lastModified;
@@ -131,10 +149,10 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             long prevLastModified = lastModified;
             byte[] prevDigest = digest;
 
-            exists = Files.exists(path);
+            exists = fileExists(path);
             // TODO we might use the new NIO2 API to get real notification?
             if (exists) {
-                BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+                BasicFileAttributes attributes = readAttributes(path);
                 isDirectory = attributes.isDirectory();
                 if (isDirectory) {
                     length = 0;
@@ -202,7 +220,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         }
 
         private byte[] calculateDigest() {
-            try (var in = Files.newInputStream(path)) {
+            try (var in = newInputStream(path)) {
                 return MessageDigests.digest(in, MessageDigests.md5());
             } catch (IOException e) {
                 logger.warn(
@@ -215,9 +233,9 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         }
 
         private void init(boolean initial) throws IOException {
-            exists = Files.exists(path);
+            exists = fileExists(path);
             if (exists) {
-                BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+                BasicFileAttributes attributes = readAttributes(path);
                 isDirectory = attributes.isDirectory();
                 if (isDirectory) {
                     onDirectoryCreated(initial);
@@ -245,9 +263,9 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         }
 
         private Path[] listFiles() throws IOException {
-            final Path[] files = FileSystemUtils.files(path);
-            Arrays.sort(files);
-            return files;
+            try (var dirs = FileWatcher.this.listFiles(path)) {
+                return StreamSupport.stream(dirs.spliterator(), false).sorted().toArray(Path[]::new);
+            }
         }
 
         private Observer[] listChildren(boolean initial) throws IOException {

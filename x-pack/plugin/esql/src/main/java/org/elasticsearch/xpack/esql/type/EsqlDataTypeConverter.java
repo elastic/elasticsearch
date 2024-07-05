@@ -211,7 +211,7 @@ public class EsqlDataTypeConverter {
      * Throws QlIllegalArgumentException if such conversion is not possible
      */
     public static Object convert(Object value, DataType dataType) {
-        DataType detectedType = EsqlDataTypes.fromJava(value);
+        DataType detectedType = DataType.fromJava(value);
         if (detectedType == dataType || value == null) {
             return value;
         }

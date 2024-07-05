@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.action.support.nodes.TransportNodesAction.sendLegacyNodesRequestHeader;
+import static org.elasticsearch.action.support.nodes.TransportNodesAction.skipLegacyNodesRequestHeader;
+
 /**
  * Runs deprecation checks on each node. Deprecation checks are performed locally so that filtered settings
  * can be accessed in the deprecation checks.
@@ -40,17 +43,13 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_REQUESTS)) {
-                new NodesDeprecationCheckRequest(in);
-            }
+            skipLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_REQUESTS)) {
-                new NodesDeprecationCheckRequest().writeTo(out);
-            }
+            sendLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, out);
         }
     }
 

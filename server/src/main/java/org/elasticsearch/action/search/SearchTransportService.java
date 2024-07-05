@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -108,6 +110,8 @@ public class SearchTransportService {
      */
     public static final String QUERY_CAN_MATCH_NODE_NAME = "indices:data/read/search[can_match][n]";
 
+    private static final Logger logger = LogManager.getLogger(SearchTransportService.class);
+
     private final TransportService transportService;
     private final NodeClient client;
     private final BiFunction<
@@ -178,7 +182,7 @@ public class SearchTransportService {
         transportService.sendRequest(
             connection,
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-            TransportRequest.Empty.INSTANCE,
+            new ClearScrollContextsRequest(),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(
                 listener,
@@ -369,6 +373,14 @@ public class SearchTransportService {
 
     }
 
+    private static class ClearScrollContextsRequest extends TransportRequest {
+        ClearScrollContextsRequest() {}
+
+        ClearScrollContextsRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
+
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private final OriginalIndices originalIndices;
 
@@ -434,6 +446,7 @@ public class SearchTransportService {
         SearchTransportAPMMetrics searchTransportMetrics
     ) {
         final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
+            logger.trace("releasing search context [{}]", request.id());
             boolean freed = searchService.freeReaderContext(request.id());
             channel.sendResponse(new SearchFreeContextResponse(freed));
         };
@@ -456,7 +469,7 @@ public class SearchTransportService {
         transportService.registerRequestHandler(
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             transportService.getThreadPool().generic(),
-            TransportRequest.Empty::new,
+            ClearScrollContextsRequest::new,
             instrumentedHandler(CLEAR_SCROLL_CONTEXTS_ACTION_METRIC, transportService, searchTransportMetrics, (request, channel, task) -> {
                 searchService.freeAllScrollContexts();
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);

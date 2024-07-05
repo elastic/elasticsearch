@@ -36,10 +36,9 @@
   - exists: indicators.shards_availability.details.started_primaries
   - exists: indicators.shards_availability.details.unassigned_replicas
 
-  - match: { indicators.shards_capacity.status: "green" }
-  - match: { indicators.shards_capacity.symptom: "The cluster has enough room to add new shards." }
-  - exists: indicators.shards_capacity.details.data.max_shards_in_cluster
-  - exists: indicators.shards_capacity.details.frozen.max_shards_in_cluster
+  # The shards_availability indicator is dependent on HealthMetadata being present in the cluster state, which we can't guarantee.
+  - is_true: indicators.shards_capacity.status
+  - is_true: indicators.shards_capacity.symptom
 
   - is_true: indicators.data_stream_lifecycle.status
   - is_true: indicators.data_stream_lifecycle.symptom

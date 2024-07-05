@@ -121,6 +121,8 @@ $elseif(boolean)$
             result = 31 * result + Boolean.hashCode(vector.getBoolean(pos));
 $elseif(int)$
             result = 31 * result + vector.getInt(pos);
+$elseif(float)$
+            result = 31 * result + Float.floatToIntBits(vector.getFloat(pos));
 $elseif(long)$
             long element = vector.getLong(pos);
             result = 31 * result + (int) (element ^ (element >>> 32));

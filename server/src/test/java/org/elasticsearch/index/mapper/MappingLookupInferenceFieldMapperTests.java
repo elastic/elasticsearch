@@ -101,7 +101,7 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
 
         @Override
         public InferenceFieldMetadata getMetadata(Set<String> sourcePaths) {
-            return new InferenceFieldMetadata(name(), INFERENCE_ID, sourcePaths.toArray(new String[0]));
+            return new InferenceFieldMetadata(fullPath(), INFERENCE_ID, sourcePaths.toArray(new String[0]));
         }
 
         @Override
@@ -114,7 +114,7 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
 
         @Override
         public Builder getMergeBuilder() {
-            return new Builder(simpleName());
+            return new Builder(leafName());
         }
 
         @Override
@@ -135,7 +135,7 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
 
             @Override
             public FieldMapper build(MapperBuilderContext context) {
-                return new TestInferenceFieldMapper(name());
+                return new TestInferenceFieldMapper(leafName());
             }
         }
 

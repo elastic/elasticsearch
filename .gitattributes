@@ -4,6 +4,8 @@ CHANGELOG.asciidoc  merge=union
 # Windows
 build-tools-internal/src/test/resources/org/elasticsearch/gradle/internal/release/*.asciidoc text eol=lf
 
+x-pack/plugin/esql/compute/src/main/generated/** linguist-generated=true
+x-pack/plugin/esql/compute/src/main/generated-src/** linguist-generated=true
 x-pack/plugin/esql/src/main/antlr/*.tokens linguist-generated=true
 x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/parser/*.interp linguist-generated=true
 x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseLexer*.java linguist-generated=true

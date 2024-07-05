@@ -1090,15 +1090,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
             // Now that we have resolved those, we need to re-resolve the aggregates.
             if (plan instanceof EsqlAggregate agg && agg.expressionsResolved() == false) {
-                AttributeMap<Expression> resolved = new AttributeMap<>();
+                Map<Attribute, Expression> resolved = new HashMap<>();
                 for (Expression e : agg.groupings()) {
                     Attribute attr = Expressions.attribute(e);
                     if (attr != null && attr.resolved()) {
-                        resolved.put(attr, attr);
+                        resolved.put(attr, e);
                     }
                 }
-                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved.keySet()), List.of());
-                plan = agg.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolvedList));
+                plan = agg.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolved));
             }
 
             // Otherwise drop the converted attributes after the alias function, as they are only needed for this function, and
@@ -1124,11 +1123,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan;
         }
 
-        private Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> resolvedList) {
-            var named = resolveAgainstList(ua, resolvedList);
+        private Expression resolveAttribute(UnresolvedAttribute ua, Map<Attribute, Expression> resolved) {
+            var named = resolveAgainstList(ua, resolved.keySet());
             return switch (named.size()) {
                 case 0 -> ua;
-                case 1 -> named.get(0);
+                case 1 -> resolved.get(named.get(0));
                 default -> ua.withUnresolvedMessage("Resolved [" + ua + "] unexpectedly to multiple attributes " + named);
             };
         }

@@ -32,7 +32,7 @@ MIN(languages):integer
 ;
 
 maxOfBoolean
-requires_capability: agg_max_min_boolean_support
+required_capability: agg_max_min_boolean_support
 from employees | stats s = max(still_hired);
 
 s:boolean
@@ -40,7 +40,7 @@ true
 ;
 
 minOfBoolean
-requires_capability: agg_max_min_boolean_support
+required_capability: agg_max_min_boolean_support
 from employees | stats s = min(still_hired);
 
 s:boolean

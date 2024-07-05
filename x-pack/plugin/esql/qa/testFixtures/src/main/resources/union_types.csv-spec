@@ -282,6 +282,7 @@ count:long  |  client_ip:ip
 
 multiIndexIpStringStatsInline2
 required_capability: union_types
+required_capability: union_types_agg_cast
 required_capability: casting_operator
 
 FROM sample_data, sample_data_str
@@ -298,6 +299,7 @@ count:long  |  client_ip::ip:ip
 
 multiIndexIpStringStatsInline3
 required_capability: union_types
+required_capability: union_types_agg_cast
 required_capability: casting_operator
 
 FROM sample_data, sample_data_str
@@ -443,6 +445,7 @@ count:long  |  @timestamp:date
 
 multiIndexTsLongStatsInline2
 required_capability: union_types
+required_capability: union_types_agg_cast
 required_capability: casting_operator
 
 FROM sample_data, sample_data_ts_long
@@ -462,6 +465,7 @@ count:long  |  @timestamp::datetime:datetime
 
 multiIndexTsLongStatsInline3
 required_capability: union_types
+required_capability: union_types_agg_cast
 required_capability: casting_operator
 
 FROM sample_data, sample_data_ts_long

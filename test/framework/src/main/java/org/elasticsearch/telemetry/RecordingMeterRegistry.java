@@ -79,7 +79,10 @@ public class RecordingMeterRegistry implements MeterRegistry {
 
     @Override
     public DoubleGauge registerDoublesGauge(
-        String name, String description, String unit, Supplier<Collection<DoubleWithAttributes>> observer
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<DoubleWithAttributes>> observer
     ) {
         throw new UnsupportedOperationException("not implemented");
     }
@@ -125,7 +128,10 @@ public class RecordingMeterRegistry implements MeterRegistry {
 
     @Override
     public LongAsyncCounter registerLongsAsyncCounter(
-        String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<LongWithAttributes>> observer
     ) {
         throw new UnsupportedOperationException("not implemented");
     }
@@ -149,7 +155,10 @@ public class RecordingMeterRegistry implements MeterRegistry {
 
     @Override
     public DoubleAsyncCounter registerDoublesAsyncCounter(
-        String name, String description, String unit, Supplier<Collection<DoubleWithAttributes>> observer
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<DoubleWithAttributes>> observer
     ) {
         throw new UnsupportedOperationException("not implemented");
     }

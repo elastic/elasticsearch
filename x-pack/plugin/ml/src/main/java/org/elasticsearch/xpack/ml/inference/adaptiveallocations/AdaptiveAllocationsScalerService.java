@@ -172,7 +172,6 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             return observations;
         }
 
-
         void close() {
             for (AutoCloseable metric : metrics) {
                 try {

@@ -197,8 +197,8 @@ public class AdaptiveAllocationsScaler {
     public Double getLastMeasuredInferenceTime() {
         return lastMeasuredInferenceTime;
     }
+
     public Long getLastMeasuredQueueSize() {
         return lastMeasuredQueueSize;
     }
 }
-

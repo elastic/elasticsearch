@@ -36,6 +36,14 @@ a:integer
 // end::multivalue-result[]
 ;
 
+shadowingInternal
+//TODO: needs cap to skip on bwc tests
+row a = 1, a = 2;
+
+a:integer
+        2
+;
+
 unsignedLongLiteral
 ROW long_max = 9223372036854775807, ul_start = 9223372036854775808, ul_end = 18446744073709551615, double=18446744073709551616;
 
@@ -67,6 +75,14 @@ row a = 1, b = 2, c = null | eval z = c+b+a;
 
 a:integer | b:integer | c:null | z:integer
 1 | 2 | null | null
+;
+
+evalRowWithNull2
+//TODO: needs cap to skip on bwc tests
+row a = 1, null, b = 2, c = null, null | eval z = a+b;
+
+a:integer | b:integer | c:null | null:null | z:integer
+        1 |         2 | null   | null      |         3
 ;
 
 evalRowWithNull3

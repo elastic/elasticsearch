@@ -35,15 +35,6 @@ public class VerifierTests extends ESTestCase {
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
 
-    public void testRowAllowsOnlyUniqueAttributeNames() {
-        assertEquals("1:19: cannot use the name [a] multiple times in a row assignment", error("row a = 1, b = 2, a = 3"));
-        assertEquals("1:11: cannot use the name [1] multiple times in a row assignment", error("row 1, 2, 1"));
-        assertEquals(
-            "1:35: cannot use the name [null] multiple times in a row assignment",
-            error("row a = 1, null, b = 2, c = null, null | eval z = a+b")
-        );
-    }
-
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
             "1:40: second argument of [a + c] must be [datetime or numeric], found value [c] type [keyword]",

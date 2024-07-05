@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -350,14 +349,9 @@ public class Verifier {
 
     private static void checkRow(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Row row) {
-            Set<String> outputAttributeNames = new HashSet<>();
-
             row.fields().forEach(a -> {
                 if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
                     failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
-                }
-                if (outputAttributeNames.add(a.name()) == false) {
-                    failures.add(fail(a, "cannot use the name [{}] multiple times in a row assignment", a.name()));
                 }
             });
         }

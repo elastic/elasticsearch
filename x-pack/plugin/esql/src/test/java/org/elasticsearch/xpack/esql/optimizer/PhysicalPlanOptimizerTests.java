@@ -147,6 +147,7 @@ import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSI
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -4285,12 +4286,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         queryBuilder.append(suffix.repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
         var expression = queryBuilder.toString();
 
-        physicalPlan(from + expression);
-
         var e = expectThrows(ParsingException.class, () -> physicalPlan(from + prefix + expression + suffix));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            anyOf(
+                // we have two lines of defense for this.
+                // The main one is the count of plan nodes at parsing time,
+                // but the stack depth is not deterministic
+                // (Gradle seems to add a lot of overhead here, so it looks like a problem specific to tests)
+                // so randomly (1 out of 2000 runs) the second one kicks in
+                // see https://github.com/elastic/elasticsearch/issues/109846
+                containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")"),
+                containsString("ESQL statement is too large, causing stack overflow when generating the parsing tree")
+            )
         );
     }
 

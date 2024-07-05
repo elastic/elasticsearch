@@ -55,6 +55,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -78,6 +79,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -138,7 +140,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     private NativeRolesStore createRoleStoreForTest(Settings settings) {
         new ReservedRolesStore(Set.of("superuser"));
-        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(settings);
         final FeatureService featureService = mock(FeatureService.class);
         systemIndices.init(client, featureService, clusterService);
@@ -805,6 +807,62 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertThat(item.getRoleName(), equalTo("superuser"));
 
         verify(client, times(0)).bulk(any(BulkRequest.class), any());
+    }
+
+    /**
+     * Make sure all top level fields for a RoleDescriptor have default values to make sure they can be set to empty in an upsert
+     * call to the roles API
+     */
+    public void testAllTopFieldsHaveEmptyDefaultsForUpsert() throws IOException, IllegalAccessException {
+        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        RoleDescriptor allNullDescriptor = new RoleDescriptor(
+            "all-null-descriptor",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        Set<ParseField> fieldsWithoutDefaultValue = Set.of(
+            RoleDescriptor.Fields.INDEX,
+            RoleDescriptor.Fields.NAMES,
+            RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES,
+            RoleDescriptor.Fields.RESOURCES,
+            RoleDescriptor.Fields.QUERY,
+            RoleDescriptor.Fields.PRIVILEGES,
+            RoleDescriptor.Fields.CLUSTERS,
+            RoleDescriptor.Fields.APPLICATION,
+            RoleDescriptor.Fields.FIELD_PERMISSIONS,
+            RoleDescriptor.Fields.FIELD_PERMISSIONS_2X,
+            RoleDescriptor.Fields.GRANT_FIELDS,
+            RoleDescriptor.Fields.EXCEPT_FIELDS,
+            RoleDescriptor.Fields.METADATA_FLATTENED,
+            RoleDescriptor.Fields.TRANSIENT_METADATA,
+            RoleDescriptor.Fields.RESTRICTION,
+            RoleDescriptor.Fields.WORKFLOWS
+        );
+
+        String serializedOutput = Strings.toString(rolesStore.createRoleXContentBuilder(allNullDescriptor));
+        Field[] fields = RoleDescriptor.Fields.class.getFields();
+
+        for (Field field : fields) {
+            ParseField fieldValue = (ParseField) field.get(null);
+            if (fieldsWithoutDefaultValue.contains(fieldValue) == false) {
+                assertThat(
+                    "New RoleDescriptor field without a default value detected. "
+                        + "Set a value or add to excluded list if not expected to be set to empty through role APIs",
+                    serializedOutput,
+                    containsString(fieldValue.getPreferredName())
+                );
+            }
+        }
     }
 
     private ClusterService mockClusterServiceWithMinNodeVersion(TransportVersion transportVersion) {

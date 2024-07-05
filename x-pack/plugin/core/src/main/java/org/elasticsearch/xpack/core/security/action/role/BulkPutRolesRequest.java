@@ -22,7 +22,9 @@ public class BulkPutRolesRequest extends ActionRequest {
 
     private List<RoleDescriptor> roles;
 
-    public BulkPutRolesRequest() {}
+    public BulkPutRolesRequest(List<RoleDescriptor> roles) {
+        this.roles = roles;
+    }
 
     public void setRoles(List<RoleDescriptor> roles) {
         this.roles = roles;

@@ -122,40 +122,16 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         loadQueuedModels(trainedModelAssignmentNodeService, false);
     }
 
-    private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService, boolean expectedRunImmediately) {
-        trainedModelAssignmentNodeService.loadQueuedModels(ActionListener.wrap(actualRunImmediately -> {
+    private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService, boolean expectedRunImmediately)
+        throws InterruptedException {
+        var latch = new CountDownLatch(1);
+        trainedModelAssignmentNodeService.loadQueuedModels(ActionListener.runAfter(ActionListener.wrap(actualRunImmediately -> {
             assertThat(
                 "We should rerun immediately if there are still model loading tasks to process.",
                 actualRunImmediately,
                 equalTo(expectedRunImmediately)
             );
-        }, e -> fail("We should never call the onFailure method of this listener.")));
-    }
-
-    private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService, int times)
-        throws InterruptedException {
-        var modelQueueSize = new AtomicInteger(times);
-        BiConsumer<ActionListener<Object>, Boolean> verifyRerunningImmediately = (listener, result) -> {
-            var runImmediately = modelQueueSize.decrementAndGet() > 0;
-            assertThat(
-                "We should rerun immediately if there are still model loading tasks to process.  Models remaining: " + modelQueueSize.get(),
-                result,
-                is(runImmediately)
-            );
-            listener.onResponse(null);
-        };
-
-        var chain = SubscribableListener.newForked(
-            l -> trainedModelAssignmentNodeService.loadQueuedModels(l.delegateFailure(verifyRerunningImmediately))
-        );
-        for (int i = 1; i < times; i++) {
-            chain = chain.andThen(
-                (l, r) -> trainedModelAssignmentNodeService.loadQueuedModels(l.delegateFailure(verifyRerunningImmediately))
-            );
-        }
-
-        var latch = new CountDownLatch(1);
-        chain.addListener(ActionListener.running(latch::countDown));
+        }, e -> fail("We should never call the onFailure method of this listener.")), latch::countDown));
         assertTrue("Timed out waiting for loadQueuedModels to finish.", latch.await(10, TimeUnit.SECONDS));
     }
 

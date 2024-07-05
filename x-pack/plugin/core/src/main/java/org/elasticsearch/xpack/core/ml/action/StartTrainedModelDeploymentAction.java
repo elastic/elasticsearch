@@ -384,7 +384,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 validationException.addValidationError("[" + TIMEOUT + "] must be positive");
             }
             if (priority == Priority.LOW) {
-                if (numberOfAllocations > 1) {
+                if (numberOfAllocations != null && numberOfAllocations > 1) {
                     validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be 1 when [" + PRIORITY + "] is low");
                 }
                 if (threadsPerAllocation > 1) {

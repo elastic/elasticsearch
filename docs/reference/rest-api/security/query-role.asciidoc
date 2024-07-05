@@ -49,13 +49,13 @@ You can query the following values associated with a role.
 [%collapsible%open]
 ====
 `name`::
-The <<security-api-put-role-path-params,name>> of the role, which is internally indexed as a keyword.
+(keyword) The <<security-api-put-role-path-params,name>> of the role.
 
 `description`::
-The <<defining-roles,description>> of the role, which is internally indexed as a text.
+(text) The <<defining-roles,description>> of the role.
 
 `metadata`::
-Metadata field associated with the <<defining-roles,role>>, such as `metadata.app_tag`.
+(flattened) Metadata field associated with the <<defining-roles,role>>, such as `metadata.app_tag`.
 Note that metadata is internally indexed as a <<flattened,flattened>> field type.
 This means that all sub-fields act like `keyword` fields when querying and sorting.
 It also implies that it is not possible to refer to a subset of metadata fields using wildcard patterns,
@@ -65,16 +65,15 @@ Lastly, all the metadata fields can be searched together when simply mentioning 
 
 `applications`::
 The list of <<roles-application-priv,application privileges>> that the role grants.
-These are all internally indexed as keywords.
 
 `application`:::
-The name of the application associated to the privileges and resources.
+(keyword) The name of the application associated to the privileges and resources.
 
 `privileges`:::
-The names of the privileges that the role grants.
+(keyword) The names of the privileges that the role grants.
 
 `resources`:::
-The resources to which the privileges apply.
+(keyword) The resources to which the privileges apply.
 
 ====
 
@@ -115,15 +114,14 @@ A list of roles that match the query.
 The returned role format is an extension of the <<defining-roles,role definition>> format.
 It adds the `transient_metadata.enabled` and the `_sort` fields.
 `transient_metadata.enabled` is set to `false` in case the role is automatically disabled,
-for e.g. because the role grants privileges that are not allowed by the installed license.
+for example when the role grants privileges that are not allowed by the installed license.
 `_sort` is present when the search query sorts on some field.
 It contains the array of values that have been used for sorting.
 
 [[security-api-query-role-example]]
 ==== {api-examples-title}
 
-The following request lists all roles, sorted by the role name.
-This assumes you have the `read_security` <<privileges-list-cluster,privilege>>:
+The following request lists all roles, sorted by the role name:
 
 [source,console]
 ----

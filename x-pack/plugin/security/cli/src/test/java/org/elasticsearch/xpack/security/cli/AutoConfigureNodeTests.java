@@ -133,6 +133,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
         );
         assertEquals(file1, removePreviousAutoconfiguration(file2));
     }
+
     public void testSubjectAndIssuerForGeneratedCertificates() throws Exception {
         // test no publish settings
         Path tempDir = createTempDir();
@@ -280,8 +281,9 @@ public class AutoConfigureNodeTests extends ESTestCase {
     }
 
     private boolean checkSubjectAndIssuerDN(X509Certificate certificate, String subjectName, String issuerName) throws Exception {
-        if (certificate.getSubjectDN().getName().equals(subjectName) && certificate.getIssuerDN().getName().equals(issuerName)) {
-                return true;
+        if (certificate.getSubjectX500Principal().getName().equals(subjectName)
+            && certificate.getIssuerX500Principal().getName().equals(issuerName)) {
+            return true;
         }
         return false;
     }

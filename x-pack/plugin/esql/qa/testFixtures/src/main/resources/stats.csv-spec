@@ -1819,3 +1819,12 @@ warning:Line 3:17: java.lang.ArithmeticException: / by zero
 w_avg:double
 null
 ;
+
+shadowingInternal
+FROM employees
+| STATS x = MAX(emp_no), x = MIN(emp_no)
+;
+
+x:integer
+10001
+;

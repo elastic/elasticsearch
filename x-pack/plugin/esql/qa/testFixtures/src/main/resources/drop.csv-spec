@@ -122,3 +122,28 @@ FROM employees | STATS COUNT(*), MIN(salary  * 10), MAX(languages)| DROP `COUNT(
 MIN(salary  * 10):i | MAX(languages):i
 253240              | 5
 ;
+
+// Not really shadowing, but let's keep the name consistent with the other command's tests
+shadowingInternal
+FROM employees
+| KEEP emp_no, first_name, last_name
+| DROP last_name, last_name
+| LIMIT 2
+;
+
+emp_no:integer | first_name:keyword
+         10001 | Georgi
+         10002 | Bezalel
+;
+
+shadowingInternalWildcard
+FROM employees
+| KEEP emp_no, first_name, last_name
+| DROP last*name, last*name, last*, last_name
+| LIMIT 2
+;
+
+emp_no:integer | first_name:keyword
+         10001 | Georgi
+         10002 | Bezalel
+;

@@ -1,42 +1,55 @@
 [versions]
 antlr4 = "4.13.1"
 asm = "9.7"
-bytebuddy = "1.14.12"
-httpcore = "4.4.13"
-icu4j = "68.2"
-jackson = "2.15.0"
-jmh = "1.26"
-jna = "5.12.1"
-jts = "1.15.0"
-ecsLogging = "1.2.0"
-log4j = "2.19.0"
-mockito = "5.11.0"
-junit5 = "5.8.1"
-lucene = "9.11.1"
-objenesis = "3.3"
-opentelemetry = "1.31.0"
-randomizedrunner = "2.8.0"
-slf4j = "2.0.6"
-spatial4j = "0.7"
-commonslogging = "1.2"
-protobuf = "3.21.9"
-google_oauth_client = "1.34.1"
-
 aws = "1.12.270"
 azure = "12.20.1"
 azureCommon = "12.19.1"
-azureCoreHttpNetty = "1.12.7"
 azureCore = "1.34.0"
+azureCoreHttpNetty = "1.12.7"
 azureJackson = "2.15.4"
 azureJacksonDatabind = "2.13.4.2"
+bytebuddy = "1.14.12"
+commonscodec = "1.15"
+commonscompress = "1.26.1"
+commonsio = "2.15.1"
+commonslang3 = "3.9"
+commonslogging = "1.2"
+docker = "3.3.4"
+ducttape = "1.0.8"
+ecsLogging = "1.2.0"
+google_oauth_client = "1.34.1"
+hadoopminicluster = "2.8.5"
+hadoopminicluster3 = "3.3.1"
+hamcrest = "2.1"
+httpcore = "4.4.13"
+icu4j = "68.2"
+jackson = "2.15.0"
 jakartaActivation = "1.2.1"
 jakartaXMLBind = "2.3.2"
-stax2API = "4.2.1"
-woodstox = "6.4.0"
+jmh = "1.26"
+jna = "5.12.1"
+jsonschemavalidator = "1.0.48"
+jts = "1.15.0"
+junit = "4.13.2"
+junit5 = "5.8.1"
+log4j = "2.19.0"
+log4japi = "2.19.0"
+lucene = "9.11.1"
+mockito = "5.11.0"
+mocksocket = "1.2"
 netty = "4.1.109.Final"
-reactorNetty = "1.0.39"
-reactorCore = "3.4.34"
+objenesis = "3.3"
+opentelemetry = "1.31.0"
+protobuf = "3.21.9"
+randomizedtestingrunner = "2.8.0"
 reactiveStreams = "1.0.4"
+reactorCore = "3.4.34"
+reactorNetty = "1.0.39"
+slf4j = "2.0.6"
+spatial4j = "0.7"
+stax2API = "4.2.1"
+testcontainers = "1.19.2"
+woodstox = "6.4.0"
 
 
 [libraries]
@@ -48,15 +61,15 @@ asm-analysis = { group = "org.ow2.asm", name = "asm-analysis", version.ref = "as
 asm-commons = { group = "org.ow2.asm", name = "asm-commons", version.ref = "asm" }
 asm-tree = { group = "org.ow2.asm", name = "asm-tree", version.ref = "asm" }
 asm-util = { group = "org.ow2.asm", name = "asm-util", version.ref = "asm" }
-aws-jmespath-java = { group = "com.amazonaws", name = "jmespath-java", version.ref = "aws" }
-aws-java-sdk-s3 = { group = "com.amazonaws", name = "aws-java-sdk-s3", version.ref = "aws" }
 aws-java-sdk-core = { group = "com.amazonaws", name = "aws-java-sdk-core", version.ref = "aws" }
+aws-java-sdk-s3 = { group = "com.amazonaws", name = "aws-java-sdk-s3", version.ref = "aws" }
 aws-java-sdk-sts = { group = "com.amazonaws", name = "aws-java-sdk-sts", version.ref = "aws" }
+aws-jmespath-java = { group = "com.amazonaws", name = "jmespath-java", version.ref = "aws" }
 azure-core = { group = "com.azure", name = "azure-core", version.ref = "azureCore" }
 azure-core-http-netty = { group = "com.azure", name = "azure-core-http-netty", version.ref = "azureCoreHttpNetty" }
+azure-jackson-Annotations = { group = "com.fasterxml.jackson.core", name = "jackson-annotations", version.ref = "azureJackson" }
 azure-jackson-core = { group = "com.fasterxml.jackson.core", name = "jackson-core", version.ref = "azureJackson" }
 azure-jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "azureJacksonDatabind" }
-azure-jackson-Annotations = { group = "com.fasterxml.jackson.core", name = "jackson-annotations", version.ref = "azureJackson" }
 azure-jackson-dataformat-xml = { group = "com.fasterxml.jackson.dataformat", name = "jackson-dataformat-xml", version.ref = "azureJackson" }
 azure-jackson-datatype-jsr310 = { group = "com.fasterxml.jackson.datatype", name = "jackson-datatype-jsr310", version.ref = "azureJackson" }
 azure-jackson-module-jaxb-annotations = { group = "com.fasterxml.jackson.module", name = "jackson-module-jaxb-annotations", version.ref = "azureJackson" }
@@ -65,11 +78,17 @@ azure-storage-common = { group = "com.azure", name = "azure-storage-common", ver
 bc-fips = "org.bouncycastle:bc-fips:1.0.2.4"
 bcpg-fips = "org.bouncycastle:bcpg-fips:1.0.7.1"
 byte-buddy = { group = "net.bytebuddy", name = "byte-buddy", version.ref = "bytebuddy" }
-commons-codec = { group = "commons-codec", name = "commons-codec", version = "1.15" }
-commons-compress = { group = "org.apache.commons", name = "commons-compress", version = "1.24.0" }
+commons-codec = { group = "commons-codec", name = "commons-codec", version.ref = "commonscodec" }
+commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonscompress" }
+commons-io = { group = "commons-io", name = "commons-io", version.ref = "commonsio" }
+commons-lang3 = { group = "org.apache.commons", name = "commons-lang3", version.ref = "commonslang3" }
 commons-logging = { group = "commons-logging", name = "commons-logging", version.ref = "commonslogging" }
 commons-math3 = "org.apache.commons:commons-math3:3.2"
-commons-io = "commons-io:commons-io:2.15.1"
+docker-java-api = { group = "com.github.docker-java", name = "docker-java-api", version.ref = "docker" }
+docker-java-core = { group = "com.github.docker-java", name = "docker-java-core", version.ref = "docker" }
+docker-java-transport = { group = "com.github.docker-java", name = "docker-java-transport", version.ref = "docker" }
+docker-java-transport-zerodep = { group = "com.github.docker-java", name = "docker-java-transport-zerodep", version.ref = "docker" }
+duct-tape = { group = "org.rnorth.duct-tape", name = "duct-tape", version.ref = "ducttape" }
 ecs-logging-core = { group = "co.elastic.logging", name = "ecs-logging-core", version.ref = "ecsLogging" }
 gax = { group = "com.google.api", name = "gax", version = "2.20.1" }
 gax-httpjson = { group = "com.google.api", name = "gax-httpjson", version = "0.105.1" }
@@ -87,24 +106,26 @@ google-http-client-appengine = { group = "com.google.http-client", name = "googl
 google-http-client-jackson2 = { group = "com.google.http-client", name = "google-http-client-jackson2", version = "1.42.3" }
 google-http-client-json = { group = "com.google.http-client", name = "google-http-client-gson", version = "1.42.3" }
 google-oauth-client = { group = "com.google.oauth-client", name = "google-oauth-client", version.ref = "google_oauth_client" }
-grpc-context= { group = "io.grpc", name = "grpc-context", version = "1.49.2" }
+grpc-context = { group = "io.grpc", name = "grpc-context", version = "1.49.2" }
 gson = { group = "com.google.code.gson", name = "gson", version = "2.10" }
 guava = { group = "com.google.guava", name = "guava", version = "32.0.1-jre" }
 guava-failureaccess = { group = "com.google.guava", name = "failureaccess", version = "1.0.1" }
-hamcrest = "org.hamcrest:hamcrest:2.1"
+hadoop-minicluster = { group = "org.apache.hadoop", name = "hadoop-minicluster", version.ref = "hadoopminicluster" }
+hadoop-minicluster3 = { group = "org.apache.hadoop", name = "hadoop-minicluster", version.ref = "hadoopminicluster3" }
+hamcrest = { group = "org.hamcrest", name = "hamcrest", version.ref = "hamcrest" }
+hdrhistogram = "org.hdrhistogram:HdrHistogram:2.1.9"
 hppc = "com.carrotsearch:hppc:0.8.1"
-hdrhistogram = 'org.hdrhistogram:HdrHistogram:2.1.9'
 httpasyncclient = { group = "org.apache.httpcomponents", name = "httpasyncclient", version = "4.1.5" }
 httpclient = { group = "org.apache.httpcomponents", name = "httpclient", version = "4.5.14" }
 httpcore = { group = "org.apache.httpcomponents", name = "httpcore", version.ref = "httpcore" }
 httpcore-nio = { group = "org.apache.httpcomponents", name = "httpcore-nio", version.ref = "httpcore" }
 icu4j = { group = "com.ibm.icu", name = "icu4j", version.ref = "icu4j" }
-jackson-core = { group = "com.fasterxml.jackson.core", name = "jackson-core", version.ref = "jackson" }
 jackson-annotations = { group = "com.fasterxml.jackson.core", name = "jackson-annotations", version.ref = "jackson" }
+jackson-core = { group = "com.fasterxml.jackson.core", name = "jackson-core", version.ref = "jackson" }
 jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }
+jackson-dataformat-cbor = { group = "com.fasterxml.jackson.dataformat", name = "jackson-dataformat-cbor", version.ref = "jackson" }
 jackson-dataformat-smile = { group = "com.fasterxml.jackson.dataformat", name = "jackson-dataformat-smile", version.ref = "jackson" }
 jackson-dataformat-yaml = { group = "com.fasterxml.jackson.dataformat", name = "jackson-dataformat-yaml", version.ref = "jackson" }
-jackson-dataformat-cbor = { group = "com.fasterxml.jackson.dataformat", name = "jackson-dataformat-cbor", version.ref = "jackson" }
 jakarta-activation-api = { group = "jakarta.activation", name = "jakarta.activation-api", version.ref = "jakartaActivation" }
 jakarta-xml-bind-api = { group = "jakarta.xml.bind", name = "jakarta.xml.bind-api", version.ref = "jakartaXMLBind" }
 jansi = "org.fusesource.jansi:jansi:2.4.0"
@@ -118,15 +139,15 @@ jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 joda-time = "joda-time:joda-time:2.10.14"
 joni = { group = "org.jruby.joni", name = "joni", version = "2.1.29" }
 jopt-simple = "net.sf.jopt-simple:jopt-simple:5.0.2"
+json-schema-validator = { group = "com.networknt", name = "json-schema-validator", version.ref = "jsonschemavalidator" }
 jsr305 = "com.google.code.findbugs:jsr305:3.0.2"
 jts-core = { group = "org.locationtech.jts", name = "jts-core", version.ref = "jts" }
-junit = "junit:junit:4.13.2"
+junit = { group = "junit", name = "junit", version.ref = "junit" }
 junit5-jupiter-api = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "junit5" }
-log4j12-api = { group = "org.apache.logging.log4j", name = "log4j-1.2-api", version.ref = "log4j" }
-log4j2-ecs-layout = { group = "co.elastic.logging", name = "log4j2-ecs-layout", version.ref = "ecsLogging" }
 log4j-api = { group = "org.apache.logging.log4j", name = "log4j-api", version.ref = "log4j" }
 log4j-core = { group = "org.apache.logging.log4j", name = "log4j-core", version.ref = "log4j" }
-lucene-core = { group = "org.apache.lucene", name = "lucene-core", version.ref = "lucene" }
+log4j12-api = { group = "org.apache.logging.log4j", name = "log4j-1.2-api", version.ref = "log4j" }
+log4j2-ecs-layout = { group = "co.elastic.logging", name = "log4j2-ecs-layout", version.ref = "ecsLogging" }
 lucene-analysis-common = { group = "org.apache.lucene", name = "lucene-analysis-common", version.ref = "lucene" }
 lucene-analysis-icu = { group = "org.apache.lucene", name = "lucene-analysis-icu", version.ref = "lucene" }
 lucene-analysis-kuromoji = { group = "org.apache.lucene", name = "lucene-analysis-kuromoji", version.ref = "lucene" }
@@ -137,27 +158,28 @@ lucene-analysis-smartcn = { group = "org.apache.lucene", name = "lucene-analysis
 lucene-analysis-stempel = { group = "org.apache.lucene", name = "lucene-analysis-stempel", version.ref = "lucene" }
 lucene-backward-codecs = { group = "org.apache.lucene", name = "lucene-backward-codecs", version.ref = "lucene" }
 lucene-codecs = { group = "org.apache.lucene", name = "lucene-codecs", version.ref = "lucene" }
+lucene-core = { group = "org.apache.lucene", name = "lucene-core", version.ref = "lucene" }
 lucene-expressions = { group = "org.apache.lucene", name = "lucene-expressions", version.ref = "lucene" }
-lucene-highlighter = { group = "org.apache.lucene", name = "lucene-highlighter", version.ref = "lucene" }
 lucene-grouping = { group = "org.apache.lucene", name = "lucene-grouping", version.ref = "lucene" }
+lucene-highlighter = { group = "org.apache.lucene", name = "lucene-highlighter", version.ref = "lucene" }
 lucene-join = { group = "org.apache.lucene", name = "lucene-join", version.ref = "lucene" }
 lucene-memory = { group = "org.apache.lucene", name = "lucene-memory", version.ref = "lucene" }
 lucene-misc = { group = "org.apache.lucene", name = "lucene-misc", version.ref = "lucene" }
 lucene-queries = { group = "org.apache.lucene", name = "lucene-queries", version.ref = "lucene" }
 lucene-queryparser = { group = "org.apache.lucene", name = "lucene-queryparser", version.ref = "lucene" }
 lucene-sandbox = { group = "org.apache.lucene", name = "lucene-sandbox", version.ref = "lucene" }
-lucene-suggest = { group = "org.apache.lucene", name = "lucene-suggest", version.ref = "lucene" }
-lucene-spatial3d = { group = "org.apache.lucene", name = "lucene-spatial3d", version.ref = "lucene" }
 lucene-spatial-extras = { group = "org.apache.lucene", name = "lucene-spatial-extras", version.ref = "lucene" }
+lucene-spatial3d = { group = "org.apache.lucene", name = "lucene-spatial3d", version.ref = "lucene" }
+lucene-suggest = { group = "org.apache.lucene", name = "lucene-suggest", version.ref = "lucene" }
+lucene-test-framework = { group = "org.apache.lucene", name = "lucene-test-framework", version.ref = "lucene" }
 lz4-java = { group = "org.lz4", name = "lz4-java", version = "1.8.0" }
 maxmind-db = "com.maxmind.db:maxmind-db:3.1.0"
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 mockito-subclass = { group = "org.mockito", name = "mockito-subclass", version.ref = "mockito" }
-mocksocket = "org.elasticsearch:mocksocket:1.2"
-morfologik-stemming = "org.carrot2:morfologik-stemming:2.1.1"
+mocksocket = { group = "org.elasticsearch", name = "mocksocket", version.ref = "mocksocket" }
 morfologik-fsa = "org.carrot2:morfologik-fsa:2.1.1"
+morfologik-stemming = "org.carrot2:morfologik-stemming:2.1.1"
 morfologik-ukrainian-search = "ua.net.nlp:morfologik-ukrainian-search:3.7.5"
-
 mustache-compiler = "com.github.spullara.mustache.java:compiler:0.9.10"
 netty-buffer = { group = "io.netty", name = "netty-buffer", version.ref = "netty" }
 netty-codec = { group = "io.netty", name = "netty-codec", version.ref = "netty" }
@@ -182,11 +204,11 @@ proto-google-common-protos = { group = "com.google.api.grpc", name = "proto-goog
 proto-google-iam-v1 = { group = "com.google.api.grpc", name = "proto-google-iam-v1", version = "1.6.2" }
 protobuf-java = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
 protobuf-java-util = { group = "com.google.protobuf", name = "protobuf-java-util", version.ref = "protobuf" }
-randomizedtesting-runner = { group = "com.carrotsearch.randomizedtesting", name = "randomizedtesting-runner", version.ref = "randomizedrunner" }
+randomizedtesting-runner = { group = "com.carrotsearch.randomizedtesting", name = "randomizedtesting-runner", version.ref = "randomizedtestingrunner" }
+reactive-streams = { group = "org.reactivestreams", name = "reactive-streams", version.ref = "reactiveStreams" }
+reactor-core = { group = "io.projectreactor", name = "reactor-core", version.ref = "reactorCore" }
 reactor-netty-core = { group = "io.projectreactor.netty", name = "reactor-netty-core", version.ref = "reactorNetty" }
 reactor-netty-http = { group = "io.projectreactor.netty", name = "reactor-netty-http", version.ref = "reactorNetty" }
-reactor-core = { group = "io.projectreactor", name = "reactor-core", version.ref = "reactorCore" }
-reactive-streams = { group = "org.reactivestreams", name = "reactive-streams", version.ref = "reactiveStreams" }
 s2-geometry-library-java = { group = "io.sgr", name = "s2-geometry-library-java", version = "1.0.1" }
 slf4j-api = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
 slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4j" }
@@ -194,9 +216,6 @@ slf4j-simple = { group = "org.slf4j", name = "slf4j-simple", version.ref = "slf4
 snakeyaml = "org.yaml:snakeyaml:2.0"
 spatial4j = { group = "org.locationtech.spatial4j", name = "spatial4j", version.ref = "spatial4j" }
 stax2-api = { group = "org.codehaus.woodstox", name = "stax2-api", version.ref = "stax2API" }
+testcontainers = { group = "org.testcontainers", name = "testcontainers", version.ref = "testcontainers" }
 threetenbp = { group = "org.threeten", name = "threetenbp", version = "1.6.5" }
 woodstox-core = { group = "com.fasterxml.woodstox", name = "woodstox-core", version.ref = "woodstox" }
-
-
-[bundles]
-azure = ["azure-storage-blob", "azure-storage-common", "azure-core-http-netty", "azure-core", "azure-jackson-core", "azure-jackson-databind", "azure-jackson-Annotations", "azure-jackson-dataformat-xml", "azure-jackson-datatype-jsr310", "azure-jackson-module-jaxb-annotations", "jakarta-activation-api", "jakarta-xml-bind-api", "stax2-api", "woodstox-core", "netty-codec-dns", "netty-codec-http2", "netty-codec-socks", "netty-handler-proxy", "netty-resolver-dns", "reactor-netty-core", "reactor-netty-http", "reactor-core", "reactive-streams", "slf4j-api", "slf4j-nop"]

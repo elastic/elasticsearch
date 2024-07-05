@@ -17,6 +17,7 @@ dependencies {
   compileOnly project(":libs:elasticsearch-cli")
   compileOnly project(":libs:elasticsearch-x-content")
   testImplementation project(":test:framework")
+  // TODO RG: Updated common compress and io from 1.24 to 1.26.1 (common used)
   testImplementation libs.commons.compress
   testImplementation libs.commons.io
 }

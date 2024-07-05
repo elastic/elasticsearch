@@ -14,13 +14,13 @@ dependencies {
   api project(":libs:elasticsearch-x-content")
 
   // json schema validation dependencies
-  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  implementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  implementation "org.apache.commons:commons-compress:1.26.1"
-  implementation "commons-io:commons-io:2.15.1"
-  implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+  implementation libs.jackson.core
+  implementation libs.json.schema.validator
+  implementation libs.jackson.databind
+  implementation libs.jackson.annotations
+  implementation libs.commons.compress
+  implementation libs.commons.io
+  implementation libs.commons.lang3
 }
 
 // the main files are actually test files, so use the appropriate forbidden api sigs

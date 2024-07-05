@@ -539,6 +539,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_ALIASES = "aliases";
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_MAPPINGS_UPDATED_VERSION = "mappings_updated_version";
+    static final String KEY_SHARD_READ_VERSION = "shard_read_version";
     static final String KEY_SYSTEM = "system";
     static final String KEY_TIMESTAMP_RANGE = "timestamp_range";
     static final String KEY_EVENT_INGESTED_RANGE = "event_ingested_range";
@@ -601,6 +602,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final IndexVersion indexCreatedVersion;
     private final IndexVersion mappingsUpdatedVersion;
     private final IndexVersion indexCompatibilityVersion;
+    private final Map<Integer, IndexVersion> shardReadVersions;
 
     private final ActiveShardCount waitForActiveShards;
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
@@ -669,6 +671,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final DiscoveryNodeFilters excludeFilters,
         final IndexVersion indexCreatedVersion,
         final IndexVersion mappingsUpdatedVersion,
+        final Map<Integer, IndexVersion> shardReadVersions,
         final int routingNumShards,
         final int routingPartitionSize,
         final List<String> routingPaths,
@@ -701,6 +704,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         assert mappingVersion >= 0 : mappingVersion;
         this.mappingVersion = mappingVersion;
         this.mappingsUpdatedVersion = mappingsUpdatedVersion;
+        this.shardReadVersions = shardReadVersions;
         assert settingsVersion >= 0 : settingsVersion;
         this.settingsVersion = settingsVersion;
         assert aliasesVersion >= 0 : aliasesVersion;
@@ -781,6 +785,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.excludeFilters,
             this.indexCreatedVersion,
             this.mappingsUpdatedVersion,
+            this.shardReadVersions,
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
@@ -842,6 +847,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.excludeFilters,
             this.indexCreatedVersion,
             this.mappingsUpdatedVersion,
+            this.shardReadVersions,
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
@@ -872,20 +878,40 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Creates a copy of this instance that has the primary term for the given shard id incremented.
-     * @param shardId shard id to increment primary term for
-     * @return updated instance with incremented primary term
+     * Update this instance for a new node allocation.
+     * @param shardId shard id the allocation is for
+     * @param increaseTerm {@code true} if the primary term should be increased
+     * @param newNodeIndexVersion the index version of the new node
+     * @return instance suitable updated
      */
-    public IndexMetadata withIncrementedPrimaryTerm(int shardId) {
-        final long[] incremented = this.primaryTerms.clone();
-        incremented[shardId]++;
+    public IndexMetadata updateForAllocation(int shardId, boolean increaseTerm, IndexVersion newNodeIndexVersion) {
+        boolean modified = false;
+        long[] primaryTerms = this.primaryTerms;
+        if (increaseTerm) {
+            primaryTerms = primaryTerms.clone();
+            primaryTerms[shardId]++;
+            modified = true;
+        }
+        IndexVersion shardIndexVersion = shardReadVersions.getOrDefault(shardId, IndexVersions.ZERO);
+        Map<Integer, IndexVersion> shardReadVersions = this.shardReadVersions;
+        if (newNodeIndexVersion.after(shardIndexVersion)) {
+            shardReadVersions = new HashMap<>(shardReadVersions);
+            shardReadVersions.put(shardId, newNodeIndexVersion);
+            shardReadVersions = Map.copyOf(shardReadVersions);
+            modified = true;
+        }
+
+        if (modified == false) {
+            return this;
+        }
+
         return new IndexMetadata(
             this.index,
             this.version,
             this.mappingVersion,
             this.settingsVersion,
             this.aliasesVersion,
-            incremented,
+            primaryTerms,
             this.state,
             this.numberOfShards,
             this.numberOfReplicas,
@@ -901,6 +927,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.excludeFilters,
             this.indexCreatedVersion,
             this.mappingsUpdatedVersion,
+            shardReadVersions,
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
@@ -971,6 +998,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.excludeFilters,
             this.indexCreatedVersion,
             this.mappingsUpdatedVersion,
+            this.shardReadVersions,
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
@@ -1026,6 +1054,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.excludeFilters,
             this.indexCreatedVersion,
             this.mappingsUpdatedVersion,
+            this.shardReadVersions,
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
@@ -1081,6 +1110,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public long getAliasesVersion() {
         return aliasesVersion;
+    }
+
+    public Map<Integer, IndexVersion> getShardReadVersion() {
+        return shardReadVersions;
+    }
+
+    public IndexVersion getShardReadVersion(int shardId) {
+        return shardReadVersions.getOrDefault(shardId, IndexVersions.ZERO);
     }
 
     /**
@@ -1517,6 +1554,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private static final TransportVersion SETTING_DIFF_VERSION = TransportVersions.V_8_5_0;
 
+    private static class IndexVersionDiff extends DiffableUtils.NonDiffableValueSerializer<Integer, IndexVersion> {
+        @Override
+        public void write(IndexVersion value, StreamOutput out) throws IOException {
+            out.writeVInt(value.id());
+        }
+
+        @Override
+        public IndexVersion read(StreamInput in, Integer key) throws IOException {
+            return IndexVersion.fromId(in.readVInt());
+        }
+    }
+
     private static class IndexMetadataDiff implements Diff<IndexMetadata> {
 
         private final String index;
@@ -1540,6 +1589,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<Map<Integer, Set<String>>> inSyncAllocationIds;
         private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
         private final IndexVersion mappingsUpdatedVersion;
+        private final Diff<Map<Integer, IndexVersion>> shardReadVersions;
         private final boolean isSystem;
 
         // range for the @timestamp field for the Index
@@ -1583,6 +1633,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             );
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
             mappingsUpdatedVersion = after.mappingsUpdatedVersion;
+            shardReadVersions = DiffableUtils.diff(
+                before.shardReadVersions,
+                after.shardReadVersions,
+                DiffableUtils.getVIntKeySerializer(),
+                new IndexVersionDiff()
+            );
             isSystem = after.isSystem;
             timestampRange = after.timestampRange;
             eventIngestedRange = after.eventIngestedRange;
@@ -1649,6 +1705,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 mappingsUpdatedVersion = IndexVersions.ZERO;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_SHARD_READ_VERSION)) {
+                shardReadVersions = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getVIntKeySerializer(), new IndexVersionDiff());
+            } else {
+                shardReadVersions = DiffableUtils.emptyDiff();
+            }
             if (in.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 isSystem = in.readBoolean();
             } else {
@@ -1701,6 +1762,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_METADATA_MAPPINGS_UPDATED_VERSION)) {
                 IndexVersion.writeVersion(mappingsUpdatedVersion, out);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_SHARD_READ_VERSION)) {
+                shardReadVersions.writeTo(out);
+            }
             if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 out.writeBoolean(isSystem);
             }
@@ -1737,6 +1801,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, part.mapping).build()
             ).get(MapperService.SINGLE_MAPPING_NAME);
             builder.mappingsUpdatedVersion = mappingsUpdatedVersion;
+            builder.shardReadVersions.putAll(shardReadVersions.apply(part.shardReadVersions));
             builder.inferenceFields.putAllFromMap(inferenceFields.apply(part.inferenceFields));
             builder.aliases.putAllFromMap(aliases.apply(part.aliases));
             builder.customMetadata.putAllFromMap(customData.apply(part.customData));
@@ -1812,6 +1877,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_METADATA_MAPPINGS_UPDATED_VERSION)) {
             builder.mappingsUpdatedVersion(IndexVersion.readVersion(in));
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_SHARD_READ_VERSION)) {
+            int shardVersionsSize = in.readVInt();
+            for (int i = 0; i < shardVersionsSize; i++) {
+                int key = in.readVInt();
+                IndexVersion value = IndexVersion.fromId(in.readVInt());
+                builder.putShardReadVersion(key, value);
+            }
+        }
         if (in.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             builder.system(in.readBoolean());
         }
@@ -1870,6 +1943,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_METADATA_MAPPINGS_UPDATED_VERSION)) {
             IndexVersion.writeVersion(mappingsUpdatedVersion, out);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_SHARD_READ_VERSION)) {
+            out.writeMap(shardReadVersions, StreamOutput::writeVInt, (o, v) -> o.writeVInt(v.id()));
+        }
         if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }
@@ -1924,6 +2000,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Settings settings = Settings.EMPTY;
         private MappingMetadata mapping;
         private IndexVersion mappingsUpdatedVersion = IndexVersion.current();
+        private final Map<Integer, IndexVersion> shardReadVersions;
         private final ImmutableOpenMap.Builder<String, InferenceFieldMetadata> inferenceFields;
         private final ImmutableOpenMap.Builder<String, AliasMetadata> aliases;
         private final ImmutableOpenMap.Builder<String, DiffableStringMap> customMetadata;
@@ -1940,6 +2017,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder(String index) {
             this.index = index;
+            this.shardReadVersions = new HashMap<>();
             this.inferenceFields = ImmutableOpenMap.builder();
             this.aliases = ImmutableOpenMap.builder();
             this.customMetadata = ImmutableOpenMap.builder();
@@ -1964,6 +2042,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards = indexMetadata.routingNumShards;
             this.inSyncAllocationIds = new HashMap<>(indexMetadata.inSyncAllocationIds);
             this.mappingsUpdatedVersion = indexMetadata.mappingsUpdatedVersion;
+            this.shardReadVersions = new HashMap<>(indexMetadata.shardReadVersions);
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.timestampRange = indexMetadata.timestampRange;
@@ -2058,6 +2137,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder mappingsUpdatedVersion(IndexVersion indexVersion) {
             this.mappingsUpdatedVersion = indexVersion;
+            return this;
+        }
+
+        public IndexVersion getShardReadVersion(int shardId) {
+            return shardReadVersions.get(shardId);
+        }
+
+        public Builder putShardReadVersion(int shardId, IndexVersion indexVersion) {
+            shardReadVersions.put(shardId, indexVersion);
             return this;
         }
 
@@ -2413,6 +2501,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 excludeFilters,
                 indexCreatedVersion,
                 mappingsUpdatedVersion,
+                Map.copyOf(shardReadVersions),
                 getRoutingNumShards(),
                 routingPartitionSize,
                 routingPaths,
@@ -2546,6 +2635,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.endObject();
 
             builder.field(KEY_MAPPINGS_UPDATED_VERSION, indexMetadata.mappingsUpdatedVersion);
+            builder.startObject(KEY_SHARD_READ_VERSION);
+            for (Map.Entry<Integer, IndexVersion> v : indexMetadata.shardReadVersions.entrySet()) {
+                builder.field(String.valueOf(v.getKey()), v.getValue().id());
+            }
+            builder.endObject();
             builder.field(KEY_SYSTEM, indexMetadata.isSystem);
 
             builder.startObject(KEY_TIMESTAMP_RANGE);
@@ -2662,6 +2756,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         case KEY_INFERENCE_FIELDS:
                             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                                 builder.putInferenceField(InferenceFieldMetadata.fromXContent(parser));
+                            }
+                            break;
+                        case KEY_SHARD_READ_VERSION:
+                            while ((currentFieldName = parser.nextFieldName()) != null) {
+                                token = parser.nextToken();
+                                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                                builder.putShardReadVersion(Integer.parseInt(currentFieldName), IndexVersion.fromId(parser.intValue()));
                             }
                             break;
                         default:

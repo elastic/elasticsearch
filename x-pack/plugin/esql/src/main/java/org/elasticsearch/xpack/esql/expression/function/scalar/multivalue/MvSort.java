@@ -12,6 +12,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -152,15 +153,14 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         boolean ordering = true;
         if (isValidOrder() == false) {
             throw new IllegalArgumentException(
-                "Invalid order value in ["
-                    + sourceText()
-                    + "], expected one of ["
-                    + ASC.value()
-                    + ", "
-                    + DESC.value()
-                    + "] but got ["
-                    + ((BytesRef) order.fold()).utf8ToString()
-                    + "]"
+                LoggerMessageFormat.format(
+                    null,
+                    INVALID_ORDER_ERROR,
+                    sourceText(),
+                    ASC.value(),
+                    DESC.value(),
+                    ((BytesRef) order.fold()).utf8ToString()
+                )
             );
         }
         if (order != null && order.foldable()) {

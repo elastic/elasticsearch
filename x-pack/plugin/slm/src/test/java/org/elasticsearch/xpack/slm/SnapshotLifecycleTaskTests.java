@@ -66,6 +66,30 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SnapshotLifecycleTaskTests extends ESTestCase {
 
+    public void testGetCurrentlyRunningSnapshots() {
+        final String id = randomAlphaOfLength(4);
+        final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
+        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(
+            Collections.singletonMap(id, slpm),
+            OperationMode.RUNNING,
+            new SnapshotLifecycleStats()
+        );
+
+        final ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, meta).build())
+            .build();
+
+        final Optional<SnapshotLifecyclePolicyMetadata> o = SnapshotLifecycleTask.getSnapPolicyMetadata(
+            SnapshotLifecycleService.getJobId(slpm),
+            state
+        );
+
+        assertTrue("the policy metadata should be retrieved from the cluster state", o.isPresent());
+        assertThat(o.get(), equalTo(slpm));
+
+        assertFalse(SnapshotLifecycleTask.getSnapPolicyMetadata("bad-jobid", state).isPresent());
+    }
+
     public void testGetSnapMetadata() {
         final String id = randomAlphaOfLength(4);
         final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);

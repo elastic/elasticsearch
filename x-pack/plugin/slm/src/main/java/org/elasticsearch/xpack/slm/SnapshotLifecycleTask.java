@@ -291,6 +291,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             Set<String> newPreRegisteredSnapshots = new HashSet<>();
             for (String snapshot : preRegisteredSnapshots) {
                 if (runningSnapshots.contains(snapshot)) {
+                    // snapshot is running, so keep in pre-registered set
                     newPreRegisteredSnapshots.add(snapshot);
                 } else {
                     stats.snapshotFailed(policyName);

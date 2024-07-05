@@ -78,7 +78,13 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
                         ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
-                dimensionsSetByUser = dims != null;
+
+                if (dims != null) {
+                    validationException.addValidationError(
+                        ServiceUtils.invalidSettingError(DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                }
+                dimensionsSetByUser = false;
             }
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {

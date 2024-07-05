@@ -28,9 +28,7 @@ base {
 }
 
 versions << [
-  'awsbedrockruntime': '1.12.740',
-  'aws'              : '1.12.270',
-  'jackson'          : '2.15.0'
+  'awsbedrockruntime': '1.12.740'
 ]
 
 dependencies {

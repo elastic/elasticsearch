@@ -46,10 +46,9 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         var region = "region";
         var model = "model-id";
         var provider = "amazontitan";
-        var dims = 1536;
         var maxInputTokens = 512;
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(
-            createEmbeddingsRequestSettingsMap(region, model, provider, dims, null, maxInputTokens, SimilarityMeasure.COSINE),
+            createEmbeddingsRequestSettingsMap(region, model, provider, null, null, maxInputTokens, SimilarityMeasure.COSINE),
             ConfigurationParseContext.REQUEST
         );
 
@@ -60,8 +59,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     region,
                     model,
                     AmazonBedrockProvider.AMAZONTITAN,
-                    dims,
-                    true,
+                    null,
+                    false,
                     maxInputTokens,
                     SimilarityMeasure.COSINE,
                     null
@@ -74,9 +73,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         var region = "region";
         var model = "model-id";
         var provider = "amazontitan";
-        var dims = 1536;
         var maxInputTokens = 512;
-        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, dims, null, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, null, maxInputTokens, SimilarityMeasure.COSINE);
         settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3)));
 
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
@@ -88,8 +86,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     region,
                     model,
                     AmazonBedrockProvider.AMAZONTITAN,
-                    dims,
-                    true,
+                    null,
+                    false,
                     maxInputTokens,
                     SimilarityMeasure.COSINE,
                     new RateLimitSettings(3)
@@ -144,11 +142,11 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
-    public void testFromMap_Request_DimensionsShouldBePositiveInteger() {
+    public void testFromMap_Request_Dimensions_ShouldThrowWhenPresent() {
         var region = "region";
         var model = "model-id";
         var provider = "amazontitan";
-        var dims = -128;
+        var dims = 128;
 
         var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, dims, null, null, null);
 
@@ -159,7 +157,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("[%s] must be a positive integer", DIMENSIONS))
+            containsString(Strings.format("[service_settings] does not allow the setting [%s]", DIMENSIONS))
         );
     }
 

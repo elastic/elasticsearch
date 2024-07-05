@@ -24,6 +24,8 @@ import static org.elasticsearch.TransportVersions.ML_INFERENCE_AMAZON_BEDROCK_AD
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalDoubleInRange;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MAX_NEW_TOKENS_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MAX_TEMPERATURE_TOP_P_TOP_K_VALUE;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MIN_TEMPERATURE_TOP_P_TOP_K_VALUE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TEMPERATURE_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_K_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_P_FIELD;
@@ -44,13 +46,27 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
         Double temperature = extractOptionalDoubleInRange(
             settings,
             TEMPERATURE_FIELD,
-            0.0,
-            1.0,
+            MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
+            MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
             ModelConfigurations.TASK_SETTINGS,
             validationException
         );
-        Double topP = extractOptionalDoubleInRange(settings, TOP_P_FIELD, 0.0, 1.0, ModelConfigurations.TASK_SETTINGS, validationException);
-        Double topK = extractOptionalDoubleInRange(settings, TOP_K_FIELD, 0.0, 1.0, ModelConfigurations.TASK_SETTINGS, validationException);
+        Double topP = extractOptionalDoubleInRange(
+            settings,
+            TOP_P_FIELD,
+            MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
+            MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
+            ModelConfigurations.TASK_SETTINGS,
+            validationException
+        );
+        Double topK = extractOptionalDoubleInRange(
+            settings,
+            TOP_K_FIELD,
+            MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
+            MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
+            ModelConfigurations.TASK_SETTINGS,
+            validationException
+        );
         Integer maxNewTokens = extractOptionalPositiveInteger(
             settings,
             MAX_NEW_TOKENS_FIELD,

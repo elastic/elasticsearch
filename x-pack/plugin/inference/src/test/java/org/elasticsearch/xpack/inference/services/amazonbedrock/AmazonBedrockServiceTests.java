@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -301,6 +302,30 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, null, null, null),
+                    Map.of(),
+                    getAmazonBedrockSecretSettingsMap("access", "secret")
+                ),
+                Set.of(),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testCreateModel_ForEmbeddingsTask_DimensionsIsNotAllowed() throws IOException {
+        try (var service = createAmazonBedrockService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ValidationException.class));
+                    assertThat(exception.getMessage(), containsString("[service_settings] does not allow the setting [dimensions]"));
+                }
+            );
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", 512, null, null, null),
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),

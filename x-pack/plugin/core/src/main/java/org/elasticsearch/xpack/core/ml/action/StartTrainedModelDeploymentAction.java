@@ -148,7 +148,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private TimeValue timeout = DEFAULT_TIMEOUT;
         private AllocationStatus.State waitForState = DEFAULT_WAITFOR_STATE;
         private ByteSizeValue cacheSize;
-        private int numberOfAllocations = DEFAULT_NUM_ALLOCATIONS;
+        private Integer numberOfAllocations;
         private AdaptiveAllocationsSettings adaptiveAllocationsSettings = null;
         private int threadsPerAllocation = DEFAULT_NUM_THREADS;
         private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
@@ -169,7 +169,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             modelId = in.readString();
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
-            numberOfAllocations = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+                numberOfAllocations = in.readOptionalVInt();
+            } else {
+                numberOfAllocations = in.readVInt();
+            }
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
@@ -225,11 +229,23 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return this;
         }
 
-        public int getNumberOfAllocations() {
+        public Integer getNumberOfAllocations() {
             return numberOfAllocations;
         }
 
-        public void setNumberOfAllocations(int numberOfAllocations) {
+        public int computeNumberOfAllocations() {
+            if (numberOfAllocations != null) {
+                return numberOfAllocations;
+            } else {
+                if (adaptiveAllocationsSettings == null || adaptiveAllocationsSettings.getMinNumberOfAllocations() == null) {
+                    return DEFAULT_NUM_ALLOCATIONS;
+                } else {
+                    return adaptiveAllocationsSettings.getMinNumberOfAllocations();
+                }
+            }
+        }
+
+        public void setNumberOfAllocations(Integer numberOfAllocations) {
             this.numberOfAllocations = numberOfAllocations;
         }
 
@@ -279,7 +295,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeString(modelId);
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
-            out.writeVInt(numberOfAllocations);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+                out.writeOptionalVInt(numberOfAllocations);
+            } else {
+                out.writeVInt(numberOfAllocations);
+            }
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
@@ -303,7 +323,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             builder.field(DEPLOYMENT_ID.getPreferredName(), deploymentId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.field(WAIT_FOR.getPreferredName(), waitForState);
-            builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
+            if (numberOfAllocations != null) {
+                builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
+            }
             if (adaptiveAllocationsSettings != null) {
                 builder.field(ADAPTIVE_ALLOCATIONS.getPreferredName(), adaptiveAllocationsSettings);
             }
@@ -328,8 +350,15 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                         + Strings.arrayToCommaDelimitedString(VALID_WAIT_STATES)
                 );
             }
-            if (numberOfAllocations < 1) {
-                validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
+            if (numberOfAllocations != null) {
+                if (numberOfAllocations < 1) {
+                    validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
+                }
+                if (adaptiveAllocationsSettings != null && adaptiveAllocationsSettings.getEnabled()) {
+                    validationException.addValidationError(
+                        "[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled"
+                    );
+                }
             }
             if (threadsPerAllocation < 1) {
                 validationException.addValidationError("[" + THREADS_PER_ALLOCATION + "] must be a positive integer");
@@ -399,7 +428,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 && Objects.equals(timeout, other.timeout)
                 && Objects.equals(waitForState, other.waitForState)
                 && Objects.equals(cacheSize, other.cacheSize)
-                && numberOfAllocations == other.numberOfAllocations
+                && Objects.equals(numberOfAllocations, other.numberOfAllocations)
                 && Objects.equals(adaptiveAllocationsSettings, other.adaptiveAllocationsSettings)
                 && threadsPerAllocation == other.threadsPerAllocation
                 && queueCapacity == other.queueCapacity

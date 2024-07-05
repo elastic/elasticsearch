@@ -207,7 +207,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 modelIdAndSizeInBytes.v1(),
                 request.getDeploymentId(),
                 modelIdAndSizeInBytes.v2(),
-                request.getNumberOfAllocations(),
+                request.computeNumberOfAllocations(),
                 request.getThreadsPerAllocation(),
                 request.getQueueCapacity(),
                 Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelIdAndSizeInBytes.v2())),

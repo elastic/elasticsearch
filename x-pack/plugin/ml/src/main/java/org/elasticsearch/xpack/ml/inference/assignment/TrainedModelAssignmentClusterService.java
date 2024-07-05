@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
@@ -71,6 +72,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
@@ -829,6 +831,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             adaptiveAllocationsSettingsUpdates
         );
         if (adaptiveAllocationsSettings != null) {
+            if (adaptiveAllocationsSettings.getEnabled() && numberOfAllocations != null) {
+                ValidationException validationException = new ValidationException();
+                validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled");
+                listener.onFailure(validationException);
+                return;
+            }
             ActionRequestValidationException validationException = adaptiveAllocationsSettings.validate();
             if (validationException != null) {
                 listener.onFailure(validationException);

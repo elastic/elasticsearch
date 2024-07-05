@@ -148,8 +148,15 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
-            if (numberOfAllocations != null && numberOfAllocations < 1) {
-                validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
+            if (numberOfAllocations != null) {
+                if (numberOfAllocations < 1) {
+                    validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
+                }
+                if (adaptiveAllocationsSettings != null && adaptiveAllocationsSettings.getEnabled()) {
+                    validationException.addValidationError(
+                        "[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled"
+                    );
+                }
             }
             ActionRequestValidationException autoscaleException = adaptiveAllocationsSettings == null
                 ? null

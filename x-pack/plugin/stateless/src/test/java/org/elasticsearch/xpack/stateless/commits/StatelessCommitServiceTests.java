@@ -103,6 +103,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_DELAYED;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
@@ -163,6 +164,28 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
         }) {
             assertThat(testHarness.commitService.isStatelessUploadDelayed(), is(statelessUploadDelayed));
+        }
+    }
+
+    public void testStatelessGenerationalFilesTrackingEnabledFlag() throws IOException {
+        final long primaryTerm = randomLongBetween(1L, 1000L);
+        final boolean generationalFilesTrackingEnabled = randomBoolean();
+        // Randomly leave the setting un-configured for its default value
+        final boolean explicitConfiguration = generationalFilesTrackingEnabled || randomBoolean();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                if (explicitConfiguration) {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), generationalFilesTrackingEnabled)
+                        .build();
+                } else {
+                    return super.nodeSettings();
+                }
+            }
+        }) {
+            assertThat(testHarness.commitService.isGenerationalFilesTrackingEnabled(), is(generationalFilesTrackingEnabled));
         }
     }
 

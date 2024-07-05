@@ -304,8 +304,6 @@ required_capability: casting_operator
 
 FROM sample_data, sample_data_str
 | STATS count=count(*) BY client_ip::ip
-| SORT count DESC, `client_ip::ip` ASC
-| LIMIT 10
 | STATS mc=count(count) BY count
 | SORT mc DESC, count ASC
 ;

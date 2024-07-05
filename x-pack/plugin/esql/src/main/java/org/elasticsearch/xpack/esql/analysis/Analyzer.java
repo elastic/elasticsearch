@@ -1127,7 +1127,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var named = resolveAgainstList(ua, resolved.keySet());
             return switch (named.size()) {
                 case 0 -> ua;
-                case 1 -> resolved.get(named.get(0));
+                case 1 -> named.get(0).equals(ua) ? ua : resolved.get(named.get(0));
                 default -> ua.withUnresolvedMessage("Resolved [" + ua + "] unexpectedly to multiple attributes " + named);
             };
         }

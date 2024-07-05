@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
-import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.junit.After;
 import org.junit.Before;
 

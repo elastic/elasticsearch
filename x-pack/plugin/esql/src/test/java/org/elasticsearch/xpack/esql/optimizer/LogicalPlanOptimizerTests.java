@@ -4614,7 +4614,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         doTestSimplifyComparisonArithmetics("12 * (-integer - 5) == -120 AND integer < 6 ", "integer", EQ, 5);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108525")
     public void testSimplifyComparisonArithmeticWithDisjunction() {
         doTestSimplifyComparisonArithmetics("12 * (-integer - 5) >= -120 OR integer < 5", "integer", LTE, 5);
     }

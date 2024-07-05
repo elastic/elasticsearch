@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.junit.After;
 import org.junit.Before;
@@ -54,7 +55,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
     private TestThreadPool threadPool;
     private ClusterService clusterService;
     private Client client;
-    private SystemAuditor systemAuditor;
+    private InferenceAuditor inferenceAuditor;
 
     @Override
     @Before
@@ -65,7 +66,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         );
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
-        systemAuditor = mock(SystemAuditor.class);
+        inferenceAuditor = mock(InferenceAuditor.class);
     }
 
     @Override
@@ -155,7 +156,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             client,
-            systemAuditor,
+            inferenceAuditor,
             true,
             1
         );

@@ -179,6 +179,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -2429,5 +2430,32 @@ public abstract class ESTestCase extends LuceneTestCase {
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
             () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
         );
+    }
+
+    /**
+     * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. On of the tasks will be run on the
+     * calling thread, the rest will be run on a new thread.
+     * @param numberOfTasks number of tasks to run in parallel
+     * @param taskFactory task factory
+     */
+    public static void runInParallel(int numberOfTasks, IntFunction<Runnable> taskFactory) throws InterruptedException, ExecutionException {
+        final ArrayList<Future<?>> futures = new ArrayList<>(numberOfTasks);
+        final Thread[] threads = new Thread[numberOfTasks - 1];
+        for (int i = 0; i < numberOfTasks; i++) {
+            var future = new FutureTask<Void>(taskFactory.apply(i), null);
+            futures.add(future);
+            if (i == numberOfTasks - 1) {
+                future.run();
+            } else {
+                threads[i] = new Thread(future);
+                threads[i].start();
+            }
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        for (Future<?> future : futures) {
+            future.get();
+        }
     }
 }

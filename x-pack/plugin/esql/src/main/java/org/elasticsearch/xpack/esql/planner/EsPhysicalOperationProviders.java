@@ -233,9 +233,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         boolean isUnsupported = attrSource.dataType() == DataType.UNSUPPORTED;
-        var unionTypes = findUnionTypes(attrSource);
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            shardIdx -> getBlockLoaderFor(shardIdx, attrSource.name(), isUnsupported, NONE, unionTypes),
+            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported, NONE),
             vsShardContexts,
             groupElementType,
             docChannel,

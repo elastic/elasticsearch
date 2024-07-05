@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -742,7 +743,9 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     private MapperService mapperService() throws IOException {
         IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
-        return createMapperService(indexSettings(version), mapping(b -> {
+        var mapperService = new TestMapperServiceBuilder().settings(indexSettings(version)).build();
+        mapperService.merge(null, IndexMode.TIME_SERIES.getDefaultMapping(), MapperService.MergeReason.MAPPING_UPDATE);
+        return withMapping(mapperService, mapping(b -> {
             b.startObject("r1").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("r2").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("k1").field("type", "keyword").field("time_series_dimension", true).endObject();

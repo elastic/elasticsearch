@@ -10,6 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -364,6 +366,11 @@ public final class DateFieldMapper extends FieldMapper {
                 && ignoreMalformed.isConfigured() == false) {
                 ignoreMalformed.setValue(false);
             }
+
+            // isDataStream is true when DataStreamTimestampFieldMapper is enabled
+            // which indicates a data stream or a standalone index in time series mode.
+            boolean storeTimestampValueForReuse = context.isDataStream() && ft.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+
             return new DateFieldMapper(
                 leafName(),
                 ft,
@@ -372,6 +379,7 @@ public final class DateFieldMapper extends FieldMapper {
                 nullTimestamp,
                 resolution,
                 context.isSourceSynthetic(),
+                storeTimestampValueForReuse,
                 this
             );
         }
@@ -860,6 +868,10 @@ public final class DateFieldMapper extends FieldMapper {
     private final String nullValueAsString;
     private final Resolution resolution;
     private final boolean isSourceSynthetic;
+    // DataStreamTimestampFieldMapper and TsidExtractingFieldMapper need to use timestamp value,
+    // so when this is true we store it in a well-known place
+    // instead of forcing them to iterate over all fields.
+    private final boolean storeTimestampValueForReuse;
 
     private final boolean ignoreMalformedByDefault;
     private final IndexVersion indexCreatedVersion;
@@ -869,16 +881,17 @@ public final class DateFieldMapper extends FieldMapper {
     private final FieldValues<Long> scriptValues;
 
     private DateFieldMapper(
-        String simpleName,
+        String leafName,
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
         Long nullValue,
         Resolution resolution,
         boolean isSourceSynthetic,
+        boolean storeTimestampValueForReuse,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
+        super(leafName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.hasDocValues = builder.docValues.getValue();
@@ -889,6 +902,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.nullValue = nullValue;
         this.resolution = resolution;
         this.isSourceSynthetic = isSourceSynthetic;
+        this.storeTimestampValueForReuse = storeTimestampValueForReuse;
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.script = builder.script.get();
@@ -942,6 +956,24 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, long timestamp) {
+        if (storeTimestampValueForReuse) {
+            var existingField = context.doc().getByKey(DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY);
+            if (existingField == null) {
+                context.doc()
+                    .onlyAddKey(
+                        DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY,
+                        new LongField(DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY, timestamp, Field.Store.NO)
+                    );
+            } else if (context.doc().getByKey(DataStreamTimestampFieldMapper.TIMESTAMP_MULTIPLE_VALUES_FLAG) == null) {
+                // Multiple timestamp values are not supported, we need to pass that knowledge along.
+                context.doc()
+                    .onlyAddKey(
+                        DataStreamTimestampFieldMapper.TIMESTAMP_MULTIPLE_VALUES_FLAG,
+                        new StoredField(DataStreamTimestampFieldMapper.TIMESTAMP_MULTIPLE_VALUES_FLAG, Strings.EMPTY)
+                    );
+            }
+        }
+
         if (indexed && hasDocValues) {
             context.doc().add(new LongField(fieldType().name(), timestamp));
         } else if (hasDocValues) {

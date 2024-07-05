@@ -50,6 +50,17 @@ last_name:keyword | left:keyword | foo:keyword             | middle:keyword | ri
 Facello           | left         | Georgi1 Georgi2 Facello | middle         | right         | Georgi1      | Georgi2            | Facello
 ;
 
+shadowingInternal
+FROM employees
+| KEEP last_name
+| WHERE last_name == "Facello"
+| EVAL name = concat("1 ", last_name)
+| GROK name "%{WORD:foo} %{WORD:foo}"
+;
+
+last_name:keyword | name:keyword | foo:keyword
+Facello           | 1 Facello    | [1, Facello]
+;
 
 complexPattern
 ROW a = "1953-01-23T12:15:00Z 127.0.0.1 some.email@foo.com 42" 

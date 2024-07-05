@@ -33,6 +33,16 @@ left:keyword | middle:keyword | right:keyword | x:integer | y:integer
 left         | middle         | right         | 9         | 10
 ;
 
+shadowingInternal
+ROW x = 10000
+| EVAL x = x + 1, x = x - 2
+;
+
+x:integer
+9999
+;
+
+
 withMath
 row a = 1 | eval b = 2 + 3;
 

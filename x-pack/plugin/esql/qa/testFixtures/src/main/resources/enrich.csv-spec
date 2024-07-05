@@ -107,6 +107,17 @@ ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "m
 left:keyword | city:keyword | middle:keyword | right:keyword | airport:text | region:text | city_boundary:geo_shape
 ;
 
+shadowingInternal
+required_capability: enrich_load
+ROW city = "Zürich"
+| ENRICH city_names ON city WITH x = airport, x = region
+;
+
+city:keyword | x:text
+Zürich       | Bezirk Zürich
+;
+
+
 simple
 required_capability: enrich_load
 

@@ -38,10 +38,10 @@ double e()
 "double log(?base:integer|unsigned_long|long|double, number:integer|unsigned_long|long|double)"
 "double log10(number:double|integer|long|unsigned_long)"
 "keyword|text ltrim(string:keyword|text)"
-"double|integer|long|date max(number:double|integer|long|date)"
+"boolean|double|integer|long|date max(value:boolean|double|integer|long|date)"
 "double|integer|long median(number:double|integer|long)"
 "double|integer|long median_absolute_deviation(number:double|integer|long)"
-"double|integer|long|date min(number:double|integer|long|date)"
+"boolean|double|integer|long|date min(value:boolean|double|integer|long|date)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_append(field1:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, field2:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "double mv_avg(number:double|integer|long|unsigned_long)"
 "keyword mv_concat(string:text|keyword, delim:text|keyword)"
@@ -158,10 +158,10 @@ locate        |[string, substring, start]          |["keyword|text", "keyword|te
 log           |[base, number]                      |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]                                                        |["Base of logarithm. If `null`\, the function returns `null`. If not provided\, this function returns the natural logarithm (base e) of a value.", "Numeric expression. If `null`\, the function returns `null`."]
 log10         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 ltrim         |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
-max           |number                              |"double|integer|long|date"                                                                                                        |[""]
+max           |value                               |"boolean|double|integer|long|date"                                                                                                |[""]
 median        |number                              |"double|integer|long"                                                                                                             |[""]
 median_absolut|number                              |"double|integer|long"                                                                                                             |[""]
-min           |number                              |"double|integer|long|date"                                                                                                        |[""]
+min           |value                               |"boolean|double|integer|long|date"                                                                                                |[""]
 mv_append     |[field1, field2]                    |["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"]                 | ["", ""]
 mv_avg        |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
 mv_concat     |[string, delim]                     |["text|keyword", "text|keyword"]                                                                                                  |[Multivalue expression., Delimiter.]
@@ -279,10 +279,10 @@ locate        |Returns an integer that indicates the position of a keyword subst
 log           |Returns the logarithm of a value to a base. The input can be any numeric value, the return value is always a double.  Logs of zero, negative numbers, and base of one return `null` as well as a warning.
 log10         |Returns the logarithm of a value to base 10. The input can be any numeric value, the return value is always a double.  Logs of 0 and negative numbers return `null` as well as a warning.
 ltrim         |Removes leading whitespaces from a string.
-max           |The maximum value of a numeric field.
+max           |The maximum value of a field.
 median        |The value that is greater than half of all values and less than half of all values.
 median_absolut|The median absolute deviation, a measure of variability.
-min           |The minimum value of a numeric field.
+min           |The minimum value of a field.
 mv_append     |Concatenates values of two multi-value fields.
 mv_avg        |Converts a multivalued field into a single valued field containing the average of all of the values.
 mv_concat     |Converts a multivalued string expression into a single valued column containing the concatenation of all values separated by a delimiter.
@@ -401,10 +401,10 @@ locate        |integer                                                          
 log           |double                                                                                                                      |[true, false]               |false           |false
 log10         |double                                                                                                                      |false                       |false           |false
 ltrim         |"keyword|text"                                                                                                              |false                       |false           |false
-max           |"double|integer|long|date"                                                                                                  |false                       |false           |true
+max           |"boolean|double|integer|long|date"                                                                                          |false                       |false           |true
 median        |"double|integer|long"                                                                                                       |false                       |false           |true
 median_absolut|"double|integer|long"                                                                                                       |false                       |false           |true
-min           |"double|integer|long|date"                                                                                                  |false                       |false           |true
+min           |"boolean|double|integer|long|date"                                                                                          |false                       |false           |true
 mv_append     |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |[false, false]              |false 		     |false
 mv_avg        |double                                                                                                                      |false                       |false           |false
 mv_concat     |keyword                                                                                                                     |[false, false]              |false           |false

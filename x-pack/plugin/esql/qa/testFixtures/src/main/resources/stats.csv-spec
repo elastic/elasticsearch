@@ -31,6 +31,20 @@ MIN(languages):integer
 // end::min-result[]
 ;
 
+maxOfBoolean
+from employees | stats s = max(still_hired);
+
+s:boolean
+true
+;
+
+minOfBoolean
+from employees | stats s = min(still_hired);
+
+s:boolean
+false
+;
+
 maxOfShort
 // short becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
 from employees | stats l = max(languages.short);

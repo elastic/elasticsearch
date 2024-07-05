@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -47,6 +49,17 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     @Override
     public IntBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public IntBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

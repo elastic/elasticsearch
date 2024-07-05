@@ -154,6 +154,15 @@ its <<api-key-role-descriptors,assigned role descriptors>> and the owner user's 
 (effectively limited by it). An API key cannot retrieve any API key's limited-by role descriptors
 (including itself) unless it has `manage_api_key` or higher privileges.
 
+`with_profile_uid`::
+(Optional, boolean) Determines whether to also retrieve the <<user-profile,user profile>> `uid`, for the API key owner user.
+If it exists, the profile uid is returned under the `profile_uid` response field for each API key.
+Defaults to `false`.
+
+`typed_keys`::
+(Optional, Boolean) If `true`, aggregation names are prefixed by their respective types in the response.
+Defaults to `false`.
+
 [[security-api-query-api-key-request-body]]
 ==== {api-request-body-title}
 
@@ -168,7 +177,7 @@ The query supports a subset of query types, including
 <<query-dsl-match-query,`match`>>, <<query-dsl-ids-query,`ids`>>,
 <<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>,
 <<query-dsl-exists-query,`exists`>>, <<query-dsl-range-query,`range`>>,
-and <<query-dsl-simple-query-string-query,`simple query string`>>
+and <<query-dsl-simple-query-string-query,`simple query string`>>.
 +
 You can query the following public values associated with an API key.
 +
@@ -223,7 +232,7 @@ simply mentioning `metadata` (not followed by any dot and sub-field name).
 NOTE: You cannot query the role descriptors of an API key.
 ====
 
-`aggs`::
+`aggs` or `aggregations`::
 (Optional, object) Any <<search-aggregations,aggregations>> to run over the corpus of returned API keys.
 Aggregations and queries work together. Aggregations are computed only on the API keys that match the query.
 This supports only a subset of aggregation types, namely: <<search-aggregations-bucket-terms-aggregation,terms>>,
@@ -233,7 +242,7 @@ This supports only a subset of aggregation types, namely: <<search-aggregations-
 <<search-aggregations-bucket-filter-aggregation,filter>>, and <<search-aggregations-bucket-filters-aggregation,filters>>.
 Additionally, aggregations only run over the same subset of fields that `query` works with.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the

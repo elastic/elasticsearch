@@ -18,24 +18,16 @@ import java.util.List;
 
 public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<?>, E> {
 
-    protected ArrayList<PB> breakdowns;
+    private final ArrayList<PB> breakdowns = new ArrayList<>(10);
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
-    protected ArrayList<ArrayList<Integer>> tree;
+    private final ArrayList<ArrayList<Integer>> tree = new ArrayList<>(10);
     /** A list of the original queries, keyed by index position */
-    protected ArrayList<E> elements;
+    private final ArrayList<E> elements = new ArrayList<>(10);
     /** A list of top-level "roots".  Each root can have its own tree of profiles */
-    protected ArrayList<Integer> roots;
+    private final ArrayList<Integer> roots = new ArrayList<>(10);
     /** A temporary stack used to record where we are in the dependency tree. */
-    protected Deque<Integer> stack;
+    private final Deque<Integer> stack = new ArrayDeque<>(10);
     private int currentToken = 0;
-
-    public AbstractInternalProfileTree() {
-        breakdowns = new ArrayList<>(10);
-        stack = new ArrayDeque<>(10);
-        tree = new ArrayList<>(10);
-        elements = new ArrayList<>(10);
-        roots = new ArrayList<>(10);
-    }
 
     /**
      * Returns a {@link QueryProfileBreakdown} for a scoring query.  Scoring queries (e.g. those
@@ -48,7 +40,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      * @param query The scoring query we wish to profile
      * @return      A ProfileBreakdown for this query
      */
-    public PB getProfileBreakdown(E query) {
+    public final synchronized PB getProfileBreakdown(E query) {
         int token = currentToken;
 
         boolean stackEmpty = stack.isEmpty();
@@ -109,7 +101,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
     /**
      * Removes the last (e.g. most recent) value on the stack
      */
-    public void pollLast() {
+    public final synchronized void pollLast() {
         stack.pollLast();
     }
 
@@ -120,7 +112,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      *
      * @return a hierarchical representation of the profiled query tree
      */
-    public List<ProfileResult> getTree() {
+    public final synchronized List<ProfileResult> getTree() {
         ArrayList<ProfileResult> results = new ArrayList<>(roots.size());
         for (Integer root : roots) {
             results.add(doGetTree(root));

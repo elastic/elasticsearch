@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -41,7 +40,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
- * Tests for balancing a single shard, see {@link Balancer#decideRebalance(ShardRouting)}.
+ * Tests for balancing a single shard.
  */
 public class BalancedSingleShardTests extends ESAllocationTestCase {
 
@@ -106,7 +105,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         assertNull(rebalanceDecision.getTargetNode());
         assertEquals(1, rebalanceDecision.getClusterRebalanceDecision().getDecisions().size());
         for (Decision subDecision : rebalanceDecision.getClusterRebalanceDecision().getDecisions()) {
-            assertEquals("foobar", ((Decision.Single) subDecision).getExplanation());
+            assertEquals("foobar", subDecision.getExplanation());
         }
 
         assertAssignedNodeRemainsSame(allocator, routingAllocation, shard);

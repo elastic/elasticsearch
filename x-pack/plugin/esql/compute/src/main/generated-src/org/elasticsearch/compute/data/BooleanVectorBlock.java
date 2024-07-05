@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -47,6 +49,17 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     @Override
     public BooleanBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public BooleanBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

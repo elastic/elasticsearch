@@ -6,21 +6,34 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,27 +87,27 @@ public class EnrichCacheTests extends ESTestCase {
         enrichCache.put(searchRequest2, searchResponse);
         enrichCache.put(searchRequest3, searchResponse);
         var cacheStats = enrichCache.getStats("_id");
-        assertThat(cacheStats.getCount(), equalTo(3L));
-        assertThat(cacheStats.getHits(), equalTo(0L));
-        assertThat(cacheStats.getMisses(), equalTo(0L));
-        assertThat(cacheStats.getEvictions(), equalTo(0L));
+        assertThat(cacheStats.count(), equalTo(3L));
+        assertThat(cacheStats.hits(), equalTo(0L));
+        assertThat(cacheStats.misses(), equalTo(0L));
+        assertThat(cacheStats.evictions(), equalTo(0L));
 
         assertThat(enrichCache.get(searchRequest1), notNullValue());
         assertThat(enrichCache.get(searchRequest2), notNullValue());
         assertThat(enrichCache.get(searchRequest3), notNullValue());
         assertThat(enrichCache.get(searchRequest4), nullValue());
         cacheStats = enrichCache.getStats("_id");
-        assertThat(cacheStats.getCount(), equalTo(3L));
-        assertThat(cacheStats.getHits(), equalTo(3L));
-        assertThat(cacheStats.getMisses(), equalTo(1L));
-        assertThat(cacheStats.getEvictions(), equalTo(0L));
+        assertThat(cacheStats.count(), equalTo(3L));
+        assertThat(cacheStats.hits(), equalTo(3L));
+        assertThat(cacheStats.misses(), equalTo(1L));
+        assertThat(cacheStats.evictions(), equalTo(0L));
 
         enrichCache.put(searchRequest4, searchResponse);
         cacheStats = enrichCache.getStats("_id");
-        assertThat(cacheStats.getCount(), equalTo(3L));
-        assertThat(cacheStats.getHits(), equalTo(3L));
-        assertThat(cacheStats.getMisses(), equalTo(1L));
-        assertThat(cacheStats.getEvictions(), equalTo(1L));
+        assertThat(cacheStats.count(), equalTo(3L));
+        assertThat(cacheStats.hits(), equalTo(3L));
+        assertThat(cacheStats.misses(), equalTo(1L));
+        assertThat(cacheStats.evictions(), equalTo(1L));
 
         // Simulate enrich policy execution, which should make current cache entries unused.
         metadata = Metadata.builder()
@@ -132,10 +145,134 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(enrichCache.get(searchRequest3), notNullValue());
         assertThat(enrichCache.get(searchRequest4), nullValue());
         cacheStats = enrichCache.getStats("_id");
-        assertThat(cacheStats.getCount(), equalTo(3L));
-        assertThat(cacheStats.getHits(), equalTo(6L));
-        assertThat(cacheStats.getMisses(), equalTo(6L));
-        assertThat(cacheStats.getEvictions(), equalTo(4L));
+        assertThat(cacheStats.count(), equalTo(3L));
+        assertThat(cacheStats.hits(), equalTo(6L));
+        assertThat(cacheStats.misses(), equalTo(6L));
+        assertThat(cacheStats.evictions(), equalTo(4L));
+    }
+
+    public void testComputeIfAbsent() throws InterruptedException {
+        // Emulate cluster metadata:
+        // (two enrich indices with corresponding alias entries)
+        var metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(EnrichPolicy.getBaseName("policy1") + "-1")
+                    .settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy1")).build())
+            )
+            .put(
+                IndexMetadata.builder(EnrichPolicy.getBaseName("policy2") + "-1")
+                    .settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy2")).build())
+            )
+            .build();
+
+        // Emulated search requests that an enrich processor could generate:
+        // (two unique searches for two enrich policies)
+        var searchRequest1 = new SearchRequest(EnrichPolicy.getBaseName("policy1")).source(
+            new SearchSourceBuilder().query(new MatchQueryBuilder("match_field", "1"))
+        );
+        final List<Map<String, ?>> searchResponseMap = List.of(
+            Map.of("key1", "value1", "key2", "value2"),
+            Map.of("key3", "value3", "key4", "value4")
+        );
+        final AtomicLong testNanoTime = new AtomicLong(0);
+        // We use a relative time provider that increments 1ms every time it is called. So each operation appears to take 1ms
+        EnrichCache enrichCache = new EnrichCache(3, () -> testNanoTime.addAndGet(TimeValue.timeValueMillis(1).getNanos()));
+        enrichCache.setMetadata(metadata);
+
+        {
+            CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent(searchRequest1, (searchRequest, searchResponseActionListener) -> {
+                SearchResponse searchResponse = convertToSearchResponse(searchResponseMap);
+                searchResponseActionListener.onResponse(searchResponse);
+                searchResponse.decRef();
+                queriedDatabaseLatch.countDown();
+            }, new ActionListener<>() {
+                @Override
+                public void onResponse(List<Map<?, ?>> response) {
+                    assertThat(response, equalTo(searchResponseMap));
+                    notifiedOfResultLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            });
+            assertThat(queriedDatabaseLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats(randomAlphaOfLength(10));
+            assertThat(cacheStats.count(), equalTo(1L));
+            assertThat(cacheStats.hits(), equalTo(0L));
+            assertThat(cacheStats.misses(), equalTo(1L));
+            assertThat(cacheStats.evictions(), equalTo(0L));
+            assertThat(cacheStats.hitsTimeInMillis(), equalTo(0L));
+            assertThat(cacheStats.missesTimeInMillis(), equalTo(2L)); // cache query and enrich query + cache put
+        }
+
+        {
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent(searchRequest1, (searchRequest, searchResponseActionListener) -> {
+                fail("Expected no call to the database because item should have been in the cache");
+            }, new ActionListener<>() {
+                @Override
+                public void onResponse(List<Map<?, ?>> maps) {
+                    notifiedOfResultLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            });
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats(randomAlphaOfLength(10));
+            assertThat(cacheStats.count(), equalTo(1L));
+            assertThat(cacheStats.hits(), equalTo(1L));
+            assertThat(cacheStats.misses(), equalTo(1L));
+            assertThat(cacheStats.evictions(), equalTo(0L));
+            assertThat(cacheStats.hitsTimeInMillis(), equalTo(1L));
+            assertThat(cacheStats.missesTimeInMillis(), equalTo(2L));
+        }
+    }
+
+    private SearchResponse convertToSearchResponse(List<Map<String, ?>> searchResponseList) {
+        SearchHit[] hitArray = searchResponseList.stream().map(map -> {
+            try {
+                return SearchHit.unpooled(0, "id").sourceRef(convertMapToJson(map));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).toArray(SearchHit[]::new);
+        SearchHits hits = SearchHits.unpooled(hitArray, null, 0);
+        return new SearchResponse(
+            hits,
+            null,
+            null,
+            false,
+            false,
+            null,
+            1,
+            null,
+            5,
+            4,
+            0,
+            randomLong(),
+            null,
+            SearchResponse.Clusters.EMPTY
+        );
+    }
+
+    private BytesReference convertMapToJson(Map<String, ?> simpleMap) throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder().map(simpleMap)) {
+            return BytesReference.bytes(builder);
+        }
     }
 
     public void testDeepCopy() {

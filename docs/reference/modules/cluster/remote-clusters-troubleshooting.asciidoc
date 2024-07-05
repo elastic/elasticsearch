@@ -77,6 +77,46 @@ org.elasticsearch.transport.ConnectTransportException: [][192.168.0.42:9443] *co
 server is enabled>> on the remote cluster.
 * Ensure no firewall is blocking the communication.
 
+[[remote-clusters-unreliable-network]]
+===== Remote cluster connection is unreliable
+
+====== Symptom
+
+The local cluster can connect to the remote cluster, but the connection does
+not work reliably. For example, some cross-cluster requests may succeed while
+others report connection errors, time out, or appear to be stuck waiting for
+the remote cluster to respond.
+
+When {es} detects that the remote cluster connection is not working, it will
+report the following message in its logs:
+[source,txt,subs=+quotes]
+----
+[2023-06-28T16:36:47,264][INFO ][o.e.t.ClusterConnectionManager] [local-node] transport connection to [{my-remote#192.168.0.42:9443}{...}] closed by remote
+----
+This message will also be logged if the node of the remote cluster to which
+{es} is connected is shut down or restarted.
+
+Note that with some network configurations it could take minutes or hours for
+the operating system to detect that a connection has stopped working. Until the
+failure is detected and reported to {es}, requests involving the remote cluster
+may time out or may appear to be stuck.
+
+====== Resolution
+
+* Ensure that the network between the clusters is as reliable as possible.
+
+* Ensure that the network is configured to permit <<long-lived-connections>>.
+
+* Ensure that the network is configured to detect faulty connections quickly.
+  In particular, you must enable and fully support TCP keepalives, and set a
+  short <<system-config-tcpretries,retransmission timeout>>.
+
+* On Linux systems, execute `ss -tonie` to verify the details of the
+  configuration of each network connection between the clusters.
+
+* If the problems persist, capture network packets at both ends of the
+  connection and analyse the traffic to look for delays and lost messages.
+
 [[remote-clusters-troubleshooting-tls-trust]]
 ===== TLS trust not established
 

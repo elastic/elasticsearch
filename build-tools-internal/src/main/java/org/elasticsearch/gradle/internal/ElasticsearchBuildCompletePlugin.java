@@ -28,7 +28,12 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -137,10 +142,17 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             uploadFile.getParentFile().mkdirs();
             createBuildArchiveTar(parameters.getFilteredFiles().get(), parameters.getProjectDir().get(), uploadFile);
             if (uploadFile.exists() && "true".equals(System.getenv("BUILDKITE"))) {
-                String uploadFilePath = "build/" + uploadFile.getName();
+                String uploadFilePath = uploadFile.getName();
+                File uploadFileDir = uploadFile.getParentFile();
                 try {
                     System.out.println("Uploading buildkite artifact: " + uploadFilePath + "...");
-                    new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath).start().waitFor();
+                    ProcessBuilder pb = new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath);
+                    // If we don't switch to the build directory first, the uploaded file will have a `build/` prefix
+                    // Buildkite will flip the `/` to a `\` at upload time on Windows, which will make the search command below fail
+                    // So, if you change this such that the artifact will have a slash/directory in it, you'll need to update the logic
+                    // below as well
+                    pb.directory(uploadFileDir);
+                    pb.start().waitFor();
 
                     System.out.println("Generating buildscan link for artifact...");
 
@@ -210,12 +222,15 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                         throw new IOException("Support only file!");
                     }
 
+                    long entrySize = Files.size(path);
                     TarArchiveEntry tarEntry = new TarArchiveEntry(path.toFile(), calculateArchivePath(path, projectPath));
-                    tarEntry.setSize(Files.size(path));
+                    tarEntry.setSize(entrySize);
                     tOut.putArchiveEntry(tarEntry);
 
                     // copy file to TarArchiveOutputStream
-                    Files.copy(path, tOut);
+                    try (BufferedInputStream bin = new BufferedInputStream(Files.newInputStream(path))) {
+                        IOUtils.copyLarge(bin, tOut, 0, entrySize);
+                    }
                     tOut.closeArchiveEntry();
 
                 }

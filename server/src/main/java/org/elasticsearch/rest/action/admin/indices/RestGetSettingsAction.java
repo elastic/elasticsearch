@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetSettingsAction extends BaseRestHandler {
@@ -55,7 +56,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
             .includeDefaults(renderDefaults)
             .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
-        getSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSettingsRequest.masterNodeTimeout()));
+        getSettingsRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 }

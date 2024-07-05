@@ -24,8 +24,6 @@ import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PrivateBinder;
 import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.Scope;
-import org.elasticsearch.common.inject.Stage;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
 import org.elasticsearch.common.inject.internal.AbstractBindingBuilder;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.inject.internal.BindingBuilder;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.SourceProvider;
 
-import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -54,14 +51,14 @@ public final class Elements {
      * Records the elements executed by {@code modules}.
      */
     public static List<Element> getElements(Module... modules) {
-        return getElements(Stage.DEVELOPMENT, Arrays.asList(modules));
+        return getElements(Arrays.asList(modules));
     }
 
     /**
      * Records the elements executed by {@code modules}.
      */
-    public static List<Element> getElements(Stage stage, Iterable<? extends Module> modules) {
-        RecordingBinder binder = new RecordingBinder(stage);
+    public static List<Element> getElements(Iterable<? extends Module> modules) {
+        RecordingBinder binder = new RecordingBinder();
         for (Module module : modules) {
             binder.install(module);
         }
@@ -69,7 +66,6 @@ public final class Elements {
     }
 
     private static class RecordingBinder implements Binder, PrivateBinder {
-        private final Stage stage;
         private final Set<Module> modules;
         private final List<Element> elements;
         private final Object source;
@@ -80,8 +76,7 @@ public final class Elements {
          */
         private final RecordingBinder parent;
 
-        private RecordingBinder(Stage stage) {
-            this.stage = stage;
+        private RecordingBinder() {
             this.modules = new HashSet<>();
             this.elements = new ArrayList<>();
             this.source = null;
@@ -103,17 +98,11 @@ public final class Elements {
                 throw new IllegalArgumentException();
             }
 
-            this.stage = prototype.stage;
             this.modules = prototype.modules;
             this.elements = prototype.elements;
             this.source = source;
             this.sourceProvider = sourceProvider;
             this.parent = prototype.parent;
-        }
-
-        @Override
-        public void bindScope(Class<? extends Annotation> annotationType, Scope scope) {
-            elements.add(new ScopeBinding(getSource(), annotationType, scope));
         }
 
         @Override

@@ -22,12 +22,14 @@ import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.List;
 
+import static org.elasticsearch.painless.ScriptTestCase.PAINLESS_BASE_WHITELIST;
+
 /** quick and dirty tools for debugging */
 final class Debugger {
 
     /** compiles source to bytecode, and returns debugging output */
     static String toString(final String source) {
-        return toString(PainlessTestScript.class, source, new CompilerSettings(), PainlessPlugin.BASE_WHITELISTS);
+        return toString(PainlessTestScript.class, source, new CompilerSettings(), PAINLESS_BASE_WHITELIST);
     }
 
     /** compiles to bytecode, and returns debugging output */
@@ -84,7 +86,7 @@ final class Debugger {
             PainlessTestScript.class,
             source,
             new CompilerSettings(),
-            PainlessPlugin.BASE_WHITELISTS,
+            PAINLESS_BASE_WHITELIST,
             semanticPhaseVisitor,
             irPhaseVisitor,
             asmPhaseVisitor

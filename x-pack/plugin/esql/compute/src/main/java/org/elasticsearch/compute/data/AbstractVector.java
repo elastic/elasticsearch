@@ -25,11 +25,6 @@ abstract class AbstractVector extends AbstractNonThreadSafeRefCounted implements
     }
 
     @Override
-    public final Vector getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public BlockFactory blockFactory() {
         return blockFactory;
     }

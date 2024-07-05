@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -204,7 +206,19 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             LongConsumer addRequestCircuitBreakerBytes,
             CollectConsumer consumer
         ) throws IOException {
-            SortedBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
+            final SortedBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
+            final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
+            return singleton != null
+                ? getLeafCollector(includeExclude, singleton, sub, consumer)
+                : getLeafCollector(includeExclude, values, sub, consumer);
+        }
+
+        private LeafBucketCollector getLeafCollector(
+            IncludeExclude.StringFilter includeExclude,
+            SortedBinaryDocValues values,
+            LeafBucketCollector sub,
+            CollectConsumer consumer
+        ) {
             return new LeafBucketCollectorBase(sub, values) {
                 final BytesRefBuilder previous = new BytesRefBuilder();
 
@@ -228,6 +242,26 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                         }
                         previous.copyBytes(bytes);
                         consumer.accept(sub, doc, owningBucketOrd, bytes);
+                    }
+                }
+            };
+        }
+
+        private LeafBucketCollector getLeafCollector(
+            IncludeExclude.StringFilter includeExclude,
+            BinaryDocValues values,
+            LeafBucketCollector sub,
+            CollectConsumer consumer
+        ) {
+            return new LeafBucketCollectorBase(sub, values) {
+
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    if (values.advanceExact(doc)) {
+                        BytesRef bytes = values.binaryValue();
+                        if (includeExclude == null || includeExclude.accept(bytes)) {
+                            consumer.accept(sub, doc, owningBucketOrd, bytes);
+                        }
                     }
                 }
             };

@@ -53,14 +53,7 @@ teardown:
             "access": {
               "search": [
                 {
-                  "names": ["logs*"],
-                  "query": {
-                    "term": { "category": "shared" }
-                  },
-                  "field_security": {
-                    "grant": ["*"],
-                    "except": ["private"]
-                  }
+                  "names": ["logs*"]
                 }
               ],
               "replication": [
@@ -111,6 +104,7 @@ teardown:
     "cross_cluster": {
       "cluster": [
         "cross_cluster_search",
+        "monitor_enrich",
         "cross_cluster_replication"
       ],
       "indices": [
@@ -123,15 +117,6 @@ teardown:
             "read_cross_cluster",
             "view_index_metadata"
           ],
-          "field_security": {
-            "grant": [
-              "*"
-            ],
-            "except": [
-              "private"
-            ]
-          },
-          "query": "{\"term\":{\"category\":\"shared\"}}",
           "allow_restricted_indices": false
         },
         {
@@ -160,15 +145,6 @@ teardown:
         "names": [
           "logs*"
         ],
-        "field_security": {
-          "grant": [
-            "*"
-          ],
-          "except": [
-            "private"
-          ]
-        },
-        "query": "{\"term\":{\"category\":\"shared\"}}",
         "allow_restricted_indices": false
       }
     ],
@@ -332,7 +308,7 @@ teardown:
   - match: { "api_keys.0.role_descriptors": {
     "cross_cluster": {
       "cluster": [
-        "cross_cluster_search"
+        "cross_cluster_search", "monitor_enrich"
       ],
       "indices": [
         {

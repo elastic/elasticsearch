@@ -22,7 +22,6 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ProvisionException;
-import org.elasticsearch.common.inject.Scope;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
@@ -196,33 +195,12 @@ public final class Errors {
         return addMessage("Binding to Provider is not allowed.");
     }
 
-    public Errors missingRuntimeRetention(Object source) {
-        return addMessage("Please annotate with @Retention(RUNTIME).%n" + " Bound at %s.", convert(source));
-    }
-
-    public Errors missingScopeAnnotation() {
-        return addMessage("Please annotate with @ScopeAnnotation.");
-    }
-
     public Errors optionalConstructor(Constructor constructor) {
         return addMessage("%s is annotated @Inject(optional=true), " + "but constructors cannot be optional.", constructor);
     }
 
     public Errors cannotBindToGuiceType(String simpleName) {
         return addMessage("Binding to core guice framework type is not allowed: %s.", simpleName);
-    }
-
-    public Errors scopeNotFound(Class<? extends Annotation> scopeAnnotation) {
-        return addMessage("No scope is bound to %s.", scopeAnnotation);
-    }
-
-    public Errors scopeAnnotationOnAbstractType(Class<? extends Annotation> scopeAnnotation, Class<?> type, Object source) {
-        return addMessage(
-            "%s is annotated with %s, but scope annotations are not supported " + "for abstract types.%n Bound at %s.",
-            type,
-            scopeAnnotation,
-            convert(source)
-        );
     }
 
     public Errors misplacedBindingAnnotation(Member member, Annotation bindingAnnotation) {
@@ -245,10 +223,6 @@ public final class Errors {
         return addMessage("%s has more than one constructor annotated with @Inject. " + CONSTRUCTOR_RULES, implementation);
     }
 
-    public Errors duplicateScopes(Scope existing, Class<? extends Annotation> annotationType, Scope scope) {
-        return addMessage("Scope %s is already bound to %s. Cannot bind %s.", existing, annotationType, scope);
-    }
-
     public Errors missingConstantValues() {
         return addMessage("Missing constant value. Please call to(...).");
     }
@@ -262,10 +236,6 @@ public final class Errors {
 
     public Errors duplicateBindingAnnotations(Member member, Class<? extends Annotation> a, Class<? extends Annotation> b) {
         return addMessage("%s has more than one annotation annotated with @BindingAnnotation: " + "%s and %s", member, a, b);
-    }
-
-    public Errors duplicateScopeAnnotations(Class<? extends Annotation> a, Class<? extends Annotation> b) {
-        return addMessage("More than one scope annotation was found: %s and %s.", a, b);
     }
 
     public Errors recursiveBinding() {

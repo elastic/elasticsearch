@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
@@ -204,8 +205,17 @@ public final class Validation {
 
     public static final class Roles {
 
+        public static final int MAX_DESCRIPTION_LENGTH = 1000;
+
         public static Error validateRoleName(String roleName, boolean allowReserved) {
             return validateRoleName(roleName, allowReserved, MAX_NAME_LENGTH);
+        }
+
+        public static Error validateRoleDescription(String description) {
+            if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+                return new Error(Strings.format("Role description must be less than %s characters.", MAX_DESCRIPTION_LENGTH));
+            }
+            return null;
         }
 
         static Error validateRoleName(String roleName, boolean allowReserved, int maxLength) {

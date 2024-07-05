@@ -11,9 +11,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -25,16 +27,16 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class ConfigurationSelectOption implements Writeable, ToXContentObject {
     private final String label;
-    private final String value;
+    private final Object value;
 
-    private ConfigurationSelectOption(String label, String value) {
+    private ConfigurationSelectOption(String label, Object value) {
         this.label = label;
         this.value = value;
     }
 
     public ConfigurationSelectOption(StreamInput in) throws IOException {
         this.label = in.readString();
-        this.value = in.readString();
+        this.value = in.readGenericValue();
     }
 
     private static final ParseField LABEL_FIELD = new ParseField("label");
@@ -43,12 +45,19 @@ public class ConfigurationSelectOption implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<ConfigurationSelectOption, Void> PARSER = new ConstructingObjectParser<>(
         "connector_configuration_select_option",
         true,
-        args -> new ConfigurationSelectOption.Builder().setLabel((String) args[0]).setValue((String) args[1]).build()
+        args -> new ConfigurationSelectOption.Builder().setLabel((String) args[0]).setValue(args[1]).build()
     );
 
     static {
         PARSER.declareString(constructorArg(), LABEL_FIELD);
-        PARSER.declareString(constructorArg(), VALUE_FIELD);
+        PARSER.declareField(constructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return p.text();
+            } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return p.numberValue();
+            }
+            throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
+        }, VALUE_FIELD, ObjectParser.ValueType.VALUE);
     }
 
     @Override
@@ -76,7 +85,7 @@ public class ConfigurationSelectOption implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(label);
-        out.writeString(value);
+        out.writeGenericValue(value);
     }
 
     @Override
@@ -95,14 +104,14 @@ public class ConfigurationSelectOption implements Writeable, ToXContentObject {
     public static class Builder {
 
         private String label;
-        private String value;
+        private Object value;
 
         public Builder setLabel(String label) {
             this.label = label;
             return this;
         }
 
-        public Builder setValue(String value) {
+        public Builder setValue(Object value) {
             this.value = value;
             return this;
         }

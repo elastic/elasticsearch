@@ -1,6 +1,0 @@
-pr: 106392
-summary: Resume driver when failing to fetch pages
-area: ES|QL
-type: bug
-issues:
- - 106262

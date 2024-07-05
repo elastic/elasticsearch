@@ -21,10 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -58,26 +56,10 @@ import static org.hamcrest.Matchers.hasSize;
  * crash Elasticsearch.
  */
 public class HeapAttackIT extends ESRestTestCase {
-
     @ClassRule
-    public static ElasticsearchCluster cluster = buildCluster();
+    public static ElasticsearchCluster cluster = Clusters.buildCluster();
 
     static volatile boolean SUITE_ABORTED = false;
-
-    static ElasticsearchCluster buildCluster() {
-        var spec = ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
-            .nodes(2)
-            .module("test-esql-heap-attack")
-            .setting("xpack.security.enabled", "false")
-            .setting("xpack.license.self_generated.type", "trial");
-        String javaVersion = JvmInfo.jvmInfo().version();
-        if (javaVersion.equals("20") || javaVersion.equals("21")) {
-            // see https://github.com/elastic/elasticsearch/issues/99592
-            spec.jvmArg("-XX:+UnlockDiagnosticVMOptions -XX:+G1UsePreventiveGC");
-        }
-        return spec.build();
-    }
 
     @Override
     protected String getTestRestCluster() {
@@ -94,7 +76,7 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testSortByManyLongsSuccess() throws IOException {
         initManyLongs();
-        Response response = sortByManyLongs(2000);
+        Response response = sortByManyLongs(500);
         Map<?, ?> map = responseAsMap(response);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "b").entry("type", "long"));
@@ -172,8 +154,8 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     private StringBuilder makeManyLongs(int count) {
-        StringBuilder query = new StringBuilder();
-        query.append("{\"query\":\"FROM manylongs\\n| EVAL i0 = a + b, i1 = b + i0");
+        StringBuilder query = startQuery();
+        query.append("FROM manylongs\\n| EVAL i0 = a + b, i1 = b + i0");
         for (int i = 2; i < count; i++) {
             query.append(", i").append(i).append(" = i").append(i - 2).append(" + ").append(i - 1);
         }
@@ -203,8 +185,8 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     private Response concat(int evals) throws IOException {
-        StringBuilder query = new StringBuilder();
-        query.append("{\"query\":\"FROM single | EVAL str = TO_STRING(a)");
+        StringBuilder query = startQuery();
+        query.append("FROM single | EVAL str = TO_STRING(a)");
         for (int e = 0; e < evals; e++) {
             query.append("\n| EVAL str=CONCAT(")
                 .append(IntStream.range(0, 10).mapToObj(i -> "str").collect(Collectors.joining(", ")))
@@ -240,8 +222,8 @@ public class HeapAttackIT extends ESRestTestCase {
      * Tests that generate many moderately long strings.
      */
     private Response manyConcat(int strings) throws IOException {
-        StringBuilder query = new StringBuilder();
-        query.append("{\"query\":\"FROM manylongs | EVAL str = CONCAT(");
+        StringBuilder query = startQuery();
+        query.append("FROM manylongs | EVAL str = CONCAT(");
         query.append(
             Arrays.stream(new String[] { "a", "b", "c", "d", "e" })
                 .map(f -> "TO_STRING(" + f + ")")
@@ -279,23 +261,24 @@ public class HeapAttackIT extends ESRestTestCase {
         columns = columns.item(matchesMap().entry("name", "c").entry("type", "long"));
         columns = columns.item(matchesMap().entry("name", "d").entry("type", "long"));
         columns = columns.item(matchesMap().entry("name", "e").entry("type", "long"));
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 20; i++) {
             columns = columns.item(matchesMap().entry("name", "i0" + i).entry("type", "long"));
         }
         assertMap(map, matchesMap().entry("columns", columns).entry("values", hasSize(10_000)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1874")
     public void testTooManyEval() throws IOException {
         initManyLongs();
-        assertCircuitBreaks(() -> manyEval(1000));
+        assertCircuitBreaks(() -> manyEval(490));
     }
 
     private Response manyEval(int evalLines) throws IOException {
-        StringBuilder query = new StringBuilder();
-        query.append("{\"query\":\"FROM manylongs");
+        StringBuilder query = startQuery();
+        query.append("FROM manylongs");
         for (int e = 0; e < evalLines; e++) {
             query.append("\n| EVAL ");
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < 20; i++) {
                 if (i != 0) {
                     query.append(", ");
                 }
@@ -373,7 +356,9 @@ public class HeapAttackIT extends ESRestTestCase {
      * Fetches documents containing 1000 fields which are {@code 1kb} each.
      */
     private void fetchManyBigFields(int docs) throws IOException {
-        Response response = query("{\"query\": \"FROM manybigfields | SORT f000 | LIMIT " + docs + "\"}", "columns");
+        StringBuilder query = startQuery();
+        query.append("FROM manybigfields | SORT f000 | LIMIT " + docs + "\"}");
+        Response response = query(query.toString(), "columns");
         Map<?, ?> map = responseAsMap(response);
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {
@@ -400,11 +385,12 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     private Response aggMvLongs(int fields) throws IOException {
-        StringBuilder builder = new StringBuilder("{\"query\": \"FROM mv_longs | STATS MAX(f00) BY f00");
+        StringBuilder query = startQuery();
+        query.append("FROM mv_longs | STATS MAX(f00) BY f00");
         for (int f = 1; f < fields; f++) {
-            builder.append(", f").append(String.format(Locale.ROOT, "%02d", f));
+            query.append(", f").append(String.format(Locale.ROOT, "%02d", f));
         }
-        return query(builder.append("\"}").toString(), "columns");
+        return query(query.append("\"}").toString(), "columns");
     }
 
     public void testFetchMvLongs() throws IOException {
@@ -419,13 +405,16 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106683")
     public void testFetchTooManyMvLongs() throws IOException {
         initMvLongsIndex(500, 100, 1000);
         assertCircuitBreaks(() -> fetchMvLongs());
     }
 
     private Response fetchMvLongs() throws IOException {
-        return query("{\"query\": \"FROM mv_longs\"}", "columns");
+        StringBuilder query = startQuery();
+        query.append("FROM mv_longs\"}");
+        return query(query.toString(), "columns");
     }
 
     private void initManyLongs() throws IOException {
@@ -592,5 +581,11 @@ public class HeapAttackIT extends ESRestTestCase {
                 assertMap(request, matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b"));
             }
         });
+    }
+
+    private static StringBuilder startQuery() {
+        StringBuilder query = new StringBuilder();
+        query.append("{\"query\":\"");
+        return query;
     }
 }

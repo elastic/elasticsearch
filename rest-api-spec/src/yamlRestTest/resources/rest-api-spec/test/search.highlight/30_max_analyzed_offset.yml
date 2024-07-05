@@ -40,8 +40,8 @@ setup:
 ---
 "Unified highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=20 should SUCCEED":
 
-  - skip:
-      version: " - 7.11.99"
+  - requires:
+      cluster_features: ["gte_v7.12.0"]
       reason: max_analyzed_offset query param added in 7.12.0
 
   - do:
@@ -66,8 +66,8 @@ setup:
 ---
 "Plain highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=20 should SUCCEED":
 
-  - skip:
-      version: " - 7.11.99"
+  - requires:
+      cluster_features: ["gte_v7.12.0"]
       reason: max_analyzed_offset query param added in 7.12.0
 
   - do:
@@ -103,8 +103,8 @@ setup:
 ---
 "Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=20 should SUCCEED":
 
-  - skip:
-      version: " - 7.11.99"
+  - requires:
+      cluster_features: ["gte_v7.12.0"]
       reason: max_analyzed_offset query param added in 7.12.0
 
   - do:
@@ -117,8 +117,8 @@ setup:
 ---
 "Plain highlighter with max_analyzed_offset < 0 should FAIL":
 
-  - skip:
-      version: " - 7.11.99"
+  - requires:
+      cluster_features: ["gte_v7.12.0"]
       reason: max_analyzed_offset query param added in 7.12.0
 
   - do:

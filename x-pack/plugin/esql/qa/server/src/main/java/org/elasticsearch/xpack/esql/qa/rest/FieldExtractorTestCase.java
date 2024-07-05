@@ -296,7 +296,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         new Test("flattened").createIndex("test", "flattened");
         index("test", """
             {"flattened": {"a": "foo"}}""");
-        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
 
         assertMap(
             result,
@@ -310,10 +310,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test", """
             {}""");
 
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT missing | LIMIT 3"))
-        );
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT missing | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(err, containsString("Unknown column [missing]"));
 
@@ -674,16 +671,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"f": 1}""");
 
-        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test*"));
+        Map<String, Object> result = runEsql("FROM test*");
         assertMap(
             result,
             matchesMap().entry("columns", List.of(columnInfo("f", "unsupported")))
                 .entry("values", List.of(matchesList().item(null), matchesList().item(null)))
         );
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT f | LIMIT 3"))
-        );
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT f | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
             deyaml(err),
@@ -715,7 +709,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"other": "o2"}""");
 
-        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT file, other"));
+        Map<String, Object> result = runEsql("FROM test* | SORT file, other");
         assertMap(
             result,
             matchesMap().entry("columns", List.of(columnInfo("file", "keyword"), columnInfo("other", "keyword")))
@@ -769,10 +763,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"file": {"raw": "o2"}}""");
 
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT file, file.raw | LIMIT 3"))
-        );
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT file, file.raw | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
             deyaml(err),
@@ -782,7 +773,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             )
         );
 
-        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT file.raw | LIMIT 2"));
+        Map<String, Object> result = runEsql("FROM test* | SORT file.raw | LIMIT 2");
         assertMap(
             result,
             matchesMap().entry("columns", List.of(columnInfo("file", "unsupported"), columnInfo("file.raw", "keyword")))
@@ -822,15 +813,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test", """
             {"f": "192.168.0.1/24"}""");
 
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT f, f.raw | LIMIT 3"))
-        );
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT f, f.raw | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(err, containsString("Cannot use field [f] with unsupported type [ip_range]"));
         assertThat(err, containsString("Cannot use field [f.raw] with unsupported type [ip_range]"));
 
-        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
             matchesMap().entry("columns", List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported")))
@@ -888,15 +876,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"f": {"raw": "o2"}}""");
 
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT f, f.raw | LIMIT 3"))
-        );
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT f, f.raw | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(err, containsString("Cannot use field [f] with unsupported type [ip_range]"));
         assertThat(err, containsString("Cannot use field [f.raw] with unsupported type [ip_range]"));
 
-        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
             matchesMap().entry("columns", List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported")))
@@ -931,7 +916,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"emp_no": 2}""");
 
-        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT emp_no | LIMIT 2"));
+        Map<String, Object> result = runEsql("FROM test* | SORT emp_no | LIMIT 2");
         assertMap(
             result,
             matchesMap().entry("columns", List.of(columnInfo("emp_no", "integer")))
@@ -967,10 +952,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"emp_no": 2}""");
 
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT emp_no | LIMIT 3"))
-        );
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT emp_no | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
             deyaml(err),
@@ -980,7 +962,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             )
         );
 
-        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
             matchesMap().entry("columns", List.of(columnInfo("emp_no", "unsupported")))
@@ -1016,10 +998,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"emp_no": 2}""");
 
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT emp_no | LIMIT 3"))
-        );
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT emp_no | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
             deyaml(err),
@@ -1029,7 +1008,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             )
         );
 
-        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
             matchesMap().entry("columns", List.of(columnInfo("emp_no", "unsupported")))
@@ -1071,13 +1050,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"foo": {"emp_no": "cat"}}""");
 
-        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 3"));
+        Map<String, Object> result = runEsql("FROM test* | LIMIT 3");
         assertMap(result, matchesMap().entry("columns", List.of(columnInfo("foo.emp_no", "unsupported"))).extraOk());
 
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT foo.emp_no | LIMIT 3"))
-        );
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT foo.emp_no | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
             deyaml(err),
@@ -1413,7 +1389,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         }
 
         private Map<String, Object> fetchAll() throws IOException {
-            return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 10"));
+            return runEsql("FROM test* | LIMIT 10");
         }
     }
 
@@ -1456,4 +1432,9 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private String deyaml(String err) {
         return err.replaceAll("\\\\\n\s+\\\\", "");
     }
+
+    private static Map<String, Object> runEsql(String query) throws IOException {
+        return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(query));
+    }
+
 }

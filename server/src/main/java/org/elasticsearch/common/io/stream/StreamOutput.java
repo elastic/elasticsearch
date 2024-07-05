@@ -191,6 +191,15 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes an int as four bytes, least significant bytes first.
+     */
+    public void writeIntLE(int i) throws IOException {
+        final byte[] buffer = scratch.get();
+        ByteUtils.writeIntLE(i, buffer, 0);
+        writeBytes(buffer, 0, 4);
+    }
+
+    /**
      * Writes an int in a variable-length format.  Writes between one and
      * five bytes.  Smaller values take fewer bytes.  Negative numbers
      * will always use all 5 bytes and are therefore better serialized
@@ -240,6 +249,15 @@ public abstract class StreamOutput extends OutputStream {
     public void writeLong(long i) throws IOException {
         final byte[] buffer = scratch.get();
         ByteUtils.writeLongBE(i, buffer, 0);
+        writeBytes(buffer, 0, 8);
+    }
+
+    /**
+     * Writes a long as eight bytes.
+     */
+    public void writeLongLE(long i) throws IOException {
+        final byte[] buffer = scratch.get();
+        ByteUtils.writeLongLE(i, buffer, 0);
         writeBytes(buffer, 0, 8);
     }
 
@@ -370,11 +388,12 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private final BytesRefBuilder spare = new BytesRefBuilder();
+    private static final ThreadLocal<BytesRefBuilder> spareBytesRefBuilder = ThreadLocal.withInitial(BytesRefBuilder::new);
 
     public void writeText(Text text) throws IOException {
         if (text.hasBytes() == false) {
             final String string = text.string();
+            var spare = spareBytesRefBuilder.get();
             spare.copyChars(string);
             writeInt(spare.length());
             write(spare.bytes(), 0, spare.length());
@@ -439,6 +458,10 @@ public abstract class StreamOutput extends OutputStream {
 
     public void writeDouble(double v) throws IOException {
         writeLong(Double.doubleToLongBits(v));
+    }
+
+    public void writeDoubleLE(double v) throws IOException {
+        writeLongLE(Double.doubleToLongBits(v));
     }
 
     public void writeOptionalDouble(@Nullable Double v) throws IOException {

@@ -71,7 +71,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
                 this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
-                this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)
+                this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
                     ? in.readOptionalWriteable(RepositoriesHealthInfo::new)
                     : null;
             } else {
@@ -113,13 +113,13 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeOptionalWriteable(diskHealthInfo);
                 out.writeOptionalWriteable(dslHealthInfo);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                     out.writeOptionalWriteable(repositoriesHealthInfo);
                 }
             } else {
                 // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
-                // waiting for all nodes to be on the {@link TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS} transport version
-                // before sending any requests to update the health info that'd break the pre HEALTH_INFO_ENRICHED_WITH_DSL_STATUS
+                // waiting for all nodes to be on the {@link TransportVersions.V_8_12_0} transport version
+                // before sending any requests to update the health info that'd break the pre-8.12
                 // transport invariant of always having a disk health information in the request
                 diskHealthInfo.writeTo(out);
             }

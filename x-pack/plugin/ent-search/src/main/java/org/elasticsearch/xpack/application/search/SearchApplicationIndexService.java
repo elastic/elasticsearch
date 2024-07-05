@@ -18,6 +18,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -138,7 +139,6 @@ public class SearchApplicationIndexService {
     private static Settings getIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 100)
             .put("index.refresh_interval", "1s")
@@ -223,7 +223,7 @@ public class SearchApplicationIndexService {
     public void putSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
         createOrUpdateAlias(app, new ActionListener<>() {
             @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+            public void onResponse(IndicesAliasesResponse response) {
                 updateSearchApplication(app, create, listener);
             }
 
@@ -240,7 +240,7 @@ public class SearchApplicationIndexService {
         });
     }
 
-    private void createOrUpdateAlias(SearchApplication app, ActionListener<AcknowledgedResponse> listener) {
+    private void createOrUpdateAlias(SearchApplication app, ActionListener<IndicesAliasesResponse> listener) {
 
         final Metadata metadata = clusterService.state().metadata();
         final String searchAliasName = getSearchAliasName(app);
@@ -332,14 +332,14 @@ public class SearchApplicationIndexService {
         );
         client.admin().indices().aliases(aliasesRequest, new ActionListener<>() {
             @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
+            public void onResponse(IndicesAliasesResponse response) {
+                listener.onResponse(response);
             }
 
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof ResourceNotFoundException) {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
+                    listener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
                 } else {
                     listener.onFailure(e);
                 }

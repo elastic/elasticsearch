@@ -16,15 +16,15 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
-
-import static org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.ComparisonMapper.EQUALS;
 
 public class InMapper extends ExpressionMapper<In> {
 
@@ -38,7 +38,7 @@ public class InMapper extends ExpressionMapper<In> {
         List<ExpressionEvaluator.Factory> listEvaluators = new ArrayList<>(in.list().size());
         in.list().forEach(e -> {
             Equals eq = new Equals(in.source(), in.value(), e);
-            ExpressionEvaluator.Factory eqEvaluator = ((ExpressionMapper) EQUALS).map(eq, layout);
+            ExpressionEvaluator.Factory eqEvaluator = EvalMapper.toEvaluator(eq, layout);
             listEvaluators.add(eqEvaluator);
         });
         return dvrCtx -> new InExpressionEvaluator(dvrCtx, listEvaluators.stream().map(fac -> fac.get(dvrCtx)).toList());

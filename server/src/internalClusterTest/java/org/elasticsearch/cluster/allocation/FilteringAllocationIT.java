@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.allocation;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
@@ -160,7 +161,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
         logger.info("--> remove index from the first node");
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_0), "test");
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         ensureGreen("test");
 
         logger.info("--> verify all shards are allocated on node_1 now");
@@ -175,7 +176,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> disable allocation filtering ");
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", ""), "test");
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         ensureGreen("test");
 
         logger.info("--> verify that there are shards allocated on both nodes now");

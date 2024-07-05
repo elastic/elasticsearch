@@ -300,7 +300,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                 final String taskName = task.getTaskName();
                 if (MlTasks.JOB_TASK_NAME.equals(taskName) || MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(taskName)) {
                     // Ignore failed tasks - they don't need to be assigned to a node
-                    if (((MlTaskState) task.getState()).isFailed()) {
+                    if (task.getState() == null || ((MlTaskState) task.getState()).isFailed()) {
                         continue;
                     }
                     final String mlId = ((MlTaskParams) task.getParams()).getMlId();

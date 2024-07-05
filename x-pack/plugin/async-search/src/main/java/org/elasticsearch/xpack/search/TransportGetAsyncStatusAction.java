@@ -35,6 +35,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.getTask;
 
 public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsyncStatusRequest, AsyncStatusResponse> {
     private final TransportService transportService;
@@ -76,7 +77,7 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
             if (request.getKeepAlive() != null && request.getKeepAlive().getMillis() > 0) {
                 long expirationTime = System.currentTimeMillis() + request.getKeepAlive().getMillis();
                 store.updateExpirationTime(searchId.getDocId(), expirationTime, ActionListener.wrap(p -> {
-                    AsyncSearchTask asyncSearchTask = store.getTaskAndCheckAuthentication(taskManager, searchId, AsyncSearchTask.class);
+                    AsyncSearchTask asyncSearchTask = getTask(taskManager, searchId, AsyncSearchTask.class);
                     if (asyncSearchTask != null) {
                         asyncSearchTask.setExpirationTime(expirationTime);
                     }

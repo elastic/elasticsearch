@@ -24,9 +24,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 import org.junit.After;
@@ -42,9 +44,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
@@ -225,6 +230,81 @@ public class TransformIT extends TransformRestTestCase {
         deleteTransform(transformId);
     }
 
+    public void testTransformLifecycleInALoop() throws Exception {
+        String transformId = "lifecycle-in-a-loop";
+        String indexName = transformId + "-src";
+        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        String destIndex = transformId + "-dest";
+        String config = createConfig(transformId, indexName, destIndex);
+        for (int i = 0; i < 100; ++i) {
+            long sleepAfterStartMillis = randomLongBetween(0, 5_000);
+            boolean force = randomBoolean();
+            try {
+                // Create the continuous transform.
+                putTransform(transformId, config, RequestOptions.DEFAULT);
+                assertThat(getTransformTasks(), is(empty()));
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(0)));
+
+                startTransform(transformId, RequestOptions.DEFAULT);
+                // There is 1 transform task after start.
+                assertThat(getTransformTasks(), hasSize(1));
+                assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(1)));
+
+                Thread.sleep(sleepAfterStartMillis);
+                // There should still be 1 transform task as the transform is continuous.
+                assertThat(getTransformTasks(), hasSize(1));
+                assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(1)));
+
+                // Stop the transform with force set randomly.
+                stopTransform(transformId, true, null, false, force);
+                if (force) {
+                    // If the "force" has been used, then the persistent task is removed from the cluster state but the local task can still
+                    // be seen by the PersistentTasksNodeService. We need to wait until PersistentTasksNodeService reconciles the state.
+                    assertBusy(() -> assertThat(getTransformTasks(), is(empty())));
+                } else {
+                    // If the "force" hasn't been used then we can expect the local task to be already gone.
+                    assertThat(getTransformTasks(), is(empty()));
+                }
+                // After the transform is stopped, there should be no transform task left in the cluster state.
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(0)));
+
+                // Delete the transform
+                deleteTransform(transformId);
+            } catch (AssertionError | Exception e) {
+                throw new AssertionError(
+                    format("Failure at iteration %d (sleepAfterStart=%sms,force=%s): %s", i, sleepAfterStartMillis, force, e.getMessage()),
+                    e
+                );
+            }
+        }
+    }
+
+    private String createConfig(String transformId, String sourceIndex, String destIndex) throws Exception {
+        Map<String, SingleGroupSource> groups = new HashMap<>();
+        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
+        groups.put("by-user", new TermsGroupSource("user_id", null, false));
+        groups.put("by-business", new TermsGroupSource("business_id", null, false));
+
+        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        PivotConfig pivotConfig = createPivotConfig(groups, aggs);
+
+        SyncConfig syncConfig = new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1));
+
+        TransformConfig config = createTransformConfigBuilder(transformId, destIndex, QueryConfig.matchAll(), sourceIndex).setFrequency(
+            TimeValue.timeValueSeconds(1)
+        ).setSyncConfig(syncConfig).setPivotConfig(pivotConfig).build();
+
+        return Strings.toString(config);
+    }
+
     public void testContinuousTransformUpdate() throws Exception {
         String indexName = "continuous-reviews-update";
         createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
@@ -271,7 +351,7 @@ public class TransformIT extends TransformRestTestCase {
         putPipeline.setEntity(new StringEntity(Strings.toString(pipelineBuilder), ContentType.APPLICATION_JSON));
         assertOK(client().performRequest(putPipeline));
 
-        String update = Strings.format("""
+        String update = format("""
             {
                 "description": "updated config",
                 "dest": {
@@ -312,7 +392,7 @@ public class TransformIT extends TransformRestTestCase {
             assertOK(searchResponse);
             var responseMap = entityAsMap(searchResponse);
             assertThat((Integer) XContentMapValues.extractValue("hits.total.value", responseMap), greaterThan(0));
-            refreshIndex(dest, RequestOptions.DEFAULT);
+            refreshIndex(dest);
         }, 30, TimeUnit.SECONDS);
 
         stopTransform(config.getId());
@@ -382,7 +462,7 @@ public class TransformIT extends TransformRestTestCase {
         });
 
         // waitForCheckpoint: true should make the transform continue until we hit the first checkpoint, then it will stop
-        stopTransform(transformId, false, null, true);
+        stopTransform(transformId, false, null, true, false);
 
         // Wait until the first checkpoint
         waitUntilCheckpoint(config.getId(), 1L);
@@ -416,7 +496,7 @@ public class TransformIT extends TransformRestTestCase {
             });
 
             var waitForCompletion = randomBoolean();
-            stopTransform(transformId, waitForCompletion, null, true);
+            stopTransform(transformId, waitForCompletion, null, true, false);
             assertBusy(() -> {
                 var stateAndStats = getBasicTransformStats(transformId);
                 assertThat(stateAndStats.get("state"), equalTo("stopped"));
@@ -467,7 +547,7 @@ public class TransformIT extends TransformRestTestCase {
         // test randomly: with explicit settings and reset to default
         String reqsPerSec = randomBoolean() ? "1000" : "null";
         String maxPageSize = randomBoolean() ? "1000" : "null";
-        String update = Strings.format("""
+        String update = format("""
             {
                 "settings" : {
                     "docs_per_second": %s,
@@ -510,6 +590,7 @@ public class TransformIT extends TransformRestTestCase {
         deleteTransform(config.getId());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109101")
     public void testStartTransform_GivenTimeout_Returns408() throws Exception {
         String indexName = "start-transform-timeout-index";
         String transformId = "start-transform-timeout";
@@ -556,14 +637,14 @@ public class TransformIT extends TransformRestTestCase {
     private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {
         StringBuilder bulkBuilder = new StringBuilder();
         for (int i = 0; i < 25; i++) {
-            bulkBuilder.append(Strings.format("""
+            bulkBuilder.append(format("""
                 {"create":{"_index":"%s"}}
                 """, index));
 
             int stars = (i + 20) % 5;
             long business = (i + 100) % 50;
 
-            String source = Strings.format("""
+            String source = format("""
                 {"user_id":"user_%s","count":%s,"business_id":"business_%s","stars":%s,"timestamp":%s}
                 """, userId, i, business, stars, timestamp);
             bulkBuilder.append(source);

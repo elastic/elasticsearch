@@ -33,7 +33,7 @@ public class RuleConfigTests extends ESTestCase {
             )
         );
 
-        var maxTimeOn = TimeValue.parseTimeValue(randomTimeValue(), "");
+        var maxTimeOn = randomTimeValue();
         var rule = new IlmHealthIndicatorService.ActionRule(actionName, maxTimeOn);
         var now = System.currentTimeMillis();
 
@@ -44,7 +44,7 @@ public class RuleConfigTests extends ESTestCase {
 
     public void testStepRuleConfig() {
         var stepName = randomAlphaOfLength(30);
-        var maxTimeOn = TimeValue.parseTimeValue(randomTimeValue(), "");
+        var maxTimeOn = randomTimeValue();
         var maxRetries = randomLongBetween(11, 100);
         var rule = new IlmHealthIndicatorService.StepRule(stepName, maxTimeOn, maxRetries);
         var now = System.currentTimeMillis();

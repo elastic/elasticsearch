@@ -61,6 +61,11 @@ public class S3SnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTest
         final String basePath = System.getProperty("test.s3.base_path");
         assertThat(basePath, not(blankOrNullString()));
 
-        return Settings.builder().put("client", "repo_test_kit").put("bucket", bucket).put("base_path", basePath).build();
+        return Settings.builder()
+            .put("client", "repo_test_kit")
+            .put("bucket", bucket)
+            .put("base_path", basePath)
+            .put("delete_objects_max_size", between(1, 1000))
+            .build();
     }
 }

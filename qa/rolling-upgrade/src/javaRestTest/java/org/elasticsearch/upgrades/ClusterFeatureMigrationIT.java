@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 
-public class ClusterFeatureMigrationIT extends ParameterizedRollingUpgradeTestCase {
+public class ClusterFeatureMigrationIT extends AbstractRollingUpgradeTestCase {
 
     @Before
     public void checkMigrationVersion() {

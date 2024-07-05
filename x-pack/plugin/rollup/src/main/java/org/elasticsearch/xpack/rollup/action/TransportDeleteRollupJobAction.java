@@ -46,7 +46,6 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
             actionFilters,
             DeleteRollupJobAction.Request::new,
             DeleteRollupJobAction.Response::new,
-            DeleteRollupJobAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

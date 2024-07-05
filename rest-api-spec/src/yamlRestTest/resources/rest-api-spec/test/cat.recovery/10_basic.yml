@@ -1,7 +1,7 @@
 ---
 "Test cat recovery output":
   - requires:
-      cluster_features: ["cat_recovery_new_bytes_format"]
+      cluster_features: ["gte_v8.0.0"]
       reason: format of bytes output changed in 8.0.0
 
   - do:
@@ -82,7 +82,7 @@
 ---
 "Test cat recovery output for closed index":
   - requires:
-      cluster_features: ["cat_recovery_new_bytes_format"]
+      cluster_features: ["gte_v8.0.0"]
       reason: format of bytes output changed in 8.0.0
       test_runner_features: ["allowed_warnings"]
 

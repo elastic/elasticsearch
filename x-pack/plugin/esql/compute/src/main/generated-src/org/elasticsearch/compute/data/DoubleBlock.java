@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -39,6 +41,12 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     DoubleBlock filter(int... positions);
 
     @Override
+    ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    @Override
+    DoubleBlock expand();
+
+    @Override
     default String getWriteableName() {
         return "DoubleBlock";
     }
@@ -49,7 +57,7 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
         return readFrom((BlockStreamInput) in);
     }
 
-    private static DoubleBlock readFrom(BlockStreamInput in) throws IOException {
+    static DoubleBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> DoubleBlock.readValues(in);
@@ -220,19 +228,6 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(DoubleBlock block);
 
         @Override
         DoubleBlock build();

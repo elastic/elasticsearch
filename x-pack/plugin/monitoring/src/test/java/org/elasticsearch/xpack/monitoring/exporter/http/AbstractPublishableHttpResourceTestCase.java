@@ -33,6 +33,7 @@ import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockBooleanActionListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockPublishResultActionListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
@@ -228,9 +229,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
         if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
-            assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
+            assertThat(parameters.remove(REST_MASTER_TIMEOUT_PARAM), is(masterTimeout.toString()));
         } else {
-            assertFalse(parameters.containsKey("master_timeout"));
+            assertFalse(parameters.containsKey(REST_MASTER_TIMEOUT_PARAM));
         }
 
         assertThat(parameters.remove("filter_path"), is("$NONE"));
@@ -241,9 +242,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
         if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
-            assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
+            assertThat(parameters.remove(REST_MASTER_TIMEOUT_PARAM), is(masterTimeout.toString()));
         } else {
-            assertFalse(parameters.containsKey("master_timeout"));
+            assertFalse(parameters.containsKey(REST_MASTER_TIMEOUT_PARAM));
         }
 
         assertThat(parameters.remove("filter_path"), is("*.version"));

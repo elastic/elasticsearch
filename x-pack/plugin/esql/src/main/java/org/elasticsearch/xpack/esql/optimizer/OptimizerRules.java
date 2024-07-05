@@ -7,7 +7,14 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -28,15 +35,8 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
-import org.elasticsearch.xpack.ql.common.Failures;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.plan.QueryPlan;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
-import static org.elasticsearch.xpack.ql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.common.Failure.fail;
 
 class OptimizerRules {
 
@@ -64,6 +64,16 @@ class OptimizerRules {
     }
 
     static class LogicalPlanDependencyCheck extends DependencyConsistency<LogicalPlan> {
+        @Override
+        protected AttributeSet references(LogicalPlan plan) {
+            if (plan instanceof Enrich enrich) {
+                // The enrichFields are NamedExpressions, so we compute their references as well when just calling enrich.references().
+                // But they are not actually referring to attributes from the input plan - only the match field does.
+                return enrich.matchField().references();
+            }
+            return super.references(plan);
+        }
+
         @Override
         protected AttributeSet generates(LogicalPlan logicalPlan) {
             // source-like operators
@@ -139,4 +149,5 @@ class OptimizerRules {
             return plan.references();
         }
     }
+
 }

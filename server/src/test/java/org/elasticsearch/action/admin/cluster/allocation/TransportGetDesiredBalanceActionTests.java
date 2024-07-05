@@ -91,7 +91,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         return PlainActionFuture.get(
             future -> action.masterOperation(
                 new Task(1, "test", TransportGetDesiredBalanceAction.TYPE.name(), "", TaskId.EMPTY_TASK_ID, Map.of()),
-                new DesiredBalanceRequest(),
+                new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT),
                 clusterState,
                 future
             ),

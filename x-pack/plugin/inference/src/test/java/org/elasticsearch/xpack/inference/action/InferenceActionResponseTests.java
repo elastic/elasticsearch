@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
-import org.elasticsearch.xpack.inference.results.LegacyTextEmbeddingResultsTests;
+import org.elasticsearch.xpack.inference.results.LegacyMlTextEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
@@ -44,7 +44,7 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
     protected InferenceAction.Response createTestInstance() {
         var result = switch (randomIntBetween(0, 2)) {
             case 0 -> TextEmbeddingResultsTests.createRandomResults();
-            case 1 -> LegacyTextEmbeddingResultsTests.createRandomResults().transformToTextEmbeddingResults();
+            case 1 -> LegacyMlTextEmbeddingResultsTests.createRandomResults().transformToTextEmbeddingResults();
             default -> SparseEmbeddingResultsTests.createRandomResults();
         };
 
@@ -53,7 +53,7 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected InferenceAction.Response mutateInstance(InferenceAction.Response instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, this::createTestInstance);
     }
 
     @Override
@@ -73,7 +73,7 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
     }
 
     public void testSerializesOpenAiAddedVersion_UsingLegacyTextEmbeddingResult() throws IOException {
-        var embeddingResults = LegacyTextEmbeddingResultsTests.createRandomResults().transformToTextEmbeddingResults();
+        var embeddingResults = LegacyMlTextEmbeddingResultsTests.createRandomResults().transformToTextEmbeddingResults();
         var instance = new InferenceAction.Response(embeddingResults);
         var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), V_8_12_0);
         assertOnBWCObject(copy, instance, V_8_12_0);

@@ -225,7 +225,7 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(SearchHits.Fields.HITS, parser.currentName());
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-        SearchHits searchHits = SearchHits.fromXContent(parser);
+        SearchHits searchHits = SearchResponseUtils.parseSearchHits(parser);
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         try {

@@ -112,7 +112,7 @@ that doesn't change frequently.
 [[enrich-prereqs]]
 ==== Prerequisites
 
-include::{es-repo-dir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
+include::{es-ref-dir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
 
 [[create-enrich-source-index]]
 ==== Add enrich data
@@ -203,7 +203,7 @@ documents first and verifying enrich data was added correctly using the
 [[update-enrich-data]]
 ==== Update an enrich index
 
-include::{es-repo-dir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=update-enrich-index]
+include::{es-ref-dir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=update-enrich-index]
 
 If wanted, you can <<docs-reindex,reindex>>
 or <<docs-update-by-query,update>> any already ingested documents

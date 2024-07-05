@@ -29,8 +29,8 @@ setup:
 
 ---
 "Analysis fails on readonly repositories":
-  - skip:
-      version: "- 7.13.99"
+  - requires:
+      cluster_features: "gte_v7.14.0"
       reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
@@ -45,8 +45,8 @@ setup:
 
 ---
 "Analysis without details":
-  - skip:
-      version: "- 7.13.99"
+  - requires:
+      cluster_features: "gte_v7.14.0"
       reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
@@ -100,8 +100,8 @@ setup:
 
 ---
 "Analysis with details":
-  - skip:
-      version: "- 7.13.99"
+  - requires:
+      cluster_features: "gte_v7.14.0"
       reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
@@ -131,8 +131,8 @@ setup:
 
 ---
 "Analysis with ?human=false":
-  - skip:
-      version: "- 7.13.99"
+  - requires:
+      cluster_features: "gte_v7.14.0"
       reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
@@ -157,8 +157,8 @@ setup:
 
 ---
 "Timeout with large blobs":
-  - skip:
-      version: "- 7.13.99"
+  - requires:
+      cluster_features: "gte_v7.14.0"
       reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:

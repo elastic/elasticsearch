@@ -43,3 +43,20 @@ GET _search
   }
 }
 --------------------------------------------------
+
+Since 8.15.0, the `_ignored` field supports aggregations as well.
+For example, the below query finds all fields that got ignored:
+
+[source,console]
+--------------------------------------------------
+GET _search
+{
+  "aggs": {
+    "ignored_fields": {
+      "terms": {
+         "field": "_ignored"
+      }
+    }
+  }
+}
+--------------------------------------------------

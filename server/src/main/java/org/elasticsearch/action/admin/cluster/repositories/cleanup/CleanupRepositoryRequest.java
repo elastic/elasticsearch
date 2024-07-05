@@ -7,10 +7,12 @@
  */
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -20,16 +22,34 @@ public class CleanupRepositoryRequest extends AcknowledgedRequest<CleanupReposit
 
     private String repository;
 
-    public CleanupRepositoryRequest(String repository) {
+    public CleanupRepositoryRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, String repository) {
+        super(masterNodeTimeout, ackTimeout);
         this.repository = repository;
     }
 
-    public CleanupRepositoryRequest(StreamInput in) throws IOException {
+    public static CleanupRepositoryRequest readFrom(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_REQUEST_TIMEOUTS)) {
+            return new CleanupRepositoryRequest(in);
+        } else {
+            return new CleanupRepositoryRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, in);
+        }
+    }
+
+    private CleanupRepositoryRequest(StreamInput in) throws IOException {
+        super(in);
+        repository = in.readString();
+    }
+
+    public CleanupRepositoryRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, StreamInput in) throws IOException {
+        super(masterNodeTimeout, ackTimeout);
         repository = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_REQUEST_TIMEOUTS)) {
+            super.writeTo(out);
+        }
         out.writeString(repository);
     }
 

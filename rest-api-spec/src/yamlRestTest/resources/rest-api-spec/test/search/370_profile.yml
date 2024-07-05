@@ -21,9 +21,9 @@ setup:
 
 ---
 fetch fields:
-  - skip:
-      version: ' - 8.5.99'
-      reason:  stored fields phase added in 8.6
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: _ignored is returned only from 8.15 on
 
   - do:
       search:
@@ -44,17 +44,21 @@ fetch fields:
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
   - length: { profile.shards.0.fetch.children: 2 }
   - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - match: { profile.shards.0.fetch.children.1.type: StoredFieldsPhase }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
 
 ---
 fetch source:
-  - skip:
-      version: ' - 8.5.99'
-      reason:  stored fields phase added in 8.6
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: _ignored is returned only from 8.15 on
 
   - do:
       search:
@@ -71,20 +75,21 @@ fetch source:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - length: { profile.shards.0.fetch.children: 2 }
-  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
-  - match: { profile.shards.0.fetch.children.0.debug.fast_path: 1 }
-  - match: { profile.shards.0.fetch.children.1.type: StoredFieldsPhase }
+  - length: { profile.shards.0.fetch.children: 3 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
+  - match: { profile.shards.0.fetch.children.1.type: FetchSourcePhase }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.1.debug.fast_path: 1 }
+  - match: { profile.shards.0.fetch.children.2.type: StoredFieldsPhase }
 
 ---
 fetch nested source:
-  - skip:
-      version: ' - 8.5.99'
-      reason:  stored fields phase added in 8.6
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: _ignored is returned only from 8.15 on
 
   - do:
       indices.create:
@@ -135,24 +140,25 @@ fetch nested source:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - length: { profile.shards.0.fetch.children: 3 }
-  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
-  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
-  - match: { profile.shards.0.fetch.children.1.type: InnerHitsPhase }
+  - length: { profile.shards.0.fetch.children: 4 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
+  - match: { profile.shards.0.fetch.children.1.type: FetchSourcePhase }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
-  - match: { profile.shards.0.fetch.children.2.type: StoredFieldsPhase }
+  - match: { profile.shards.0.fetch.children.2.type: InnerHitsPhase }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.3.type: StoredFieldsPhase }
 
 ---
 disabling stored fields removes fetch sub phases:
-  - skip:
-      version: ' - 7.15.99'
-      reason:  fetch profiling implemented in 7.16.0
+  - requires:
+      cluster_features: "gte_v7.16.0"
+      reason: fetch profiling implemented in 7.16.0
 
   - do:
       search:
@@ -167,8 +173,8 @@ disabling stored fields removes fetch sub phases:
 
 ---
 dfs knn vector profiling:
-  - skip:
-      version: ' - 8.6.99'
+  - requires:
+      cluster_features: "gte_v8.7.0"
       reason: multi-knn dfs profiling implemented in 8.7.0
 
   - do:
@@ -231,8 +237,8 @@ dfs knn vector profiling:
 
 ---
 dfs knn vector profiling with vector_operations_count:
-  - skip:
-      version: ' - 8.11.99'
+  - requires:
+      cluster_features: "gte_v8.12.0"
       reason: vector_operations_count in dfs profiling added in 8.12.0
 
   - do:
@@ -297,8 +303,8 @@ dfs knn vector profiling with vector_operations_count:
 
 ---
 dfs profile for search with dfs_query_then_fetch:
-  - skip:
-      version: ' - 8.5.99'
+  - requires:
+      cluster_features: "gte_v8.6.0"
       reason: dfs profiling implemented in 8.6.0
 
   - do:
@@ -467,10 +473,10 @@ dfs profile for search with dfs_query_then_fetch:
   - is_false: profile.shards.0.dfs
 ---
 composite_id_parsed:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: node_id, shard_id, index and cluster fields added in 8.10.0
-      features: "contains"
+      test_runner_features: "contains"
 
   - do:
       search:

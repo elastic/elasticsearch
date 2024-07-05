@@ -6,12 +6,13 @@
  */
 package org.elasticsearch.xpack.transform.persistence;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
@@ -151,7 +153,7 @@ public class TransformIndexTests extends ESTestCase {
         );
 
         ArgumentCaptor<CreateIndexRequest> createIndexRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
-        verify(client).execute(eq(CreateIndexAction.INSTANCE), createIndexRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportCreateIndexAction.TYPE), createIndexRequestCaptor.capture(), any());
         verify(client, atLeastOnce()).threadPool();
         verifyNoMoreInteractions(client);
 
@@ -163,6 +165,37 @@ public class TransformIndexTests extends ESTestCase {
             assertThat(extractValue("_doc._meta.created_by", map), equalTo(CREATED_BY));
         }
         assertThat(createIndexRequest.aliases(), is(empty()));
+    }
+
+    public void testCreateDestinationIndexThrowsResourceAlreadyExistsException() throws InterruptedException {
+        doAnswer(withFailure(new ResourceAlreadyExistsException("blah"))).when(client).execute(any(), any(), any());
+
+        var latch = new CountDownLatch(1);
+
+        TransformIndex.createDestinationIndex(
+            client,
+            TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
+            TransformIndex.createTransformDestIndexSettings(Settings.EMPTY, new HashMap<>(), TRANSFORM_ID, clock),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(Assert::assertFalse), latch)
+        );
+
+        assertTrue("Timed out waiting for test to finish", latch.await(10, TimeUnit.SECONDS));
+    }
+
+    public void testCreateDestinationIndexThrowsWrappedResourceAlreadyExistsException() throws InterruptedException {
+        doAnswer(withFailure(new RemoteTransportException("blah", new ResourceAlreadyExistsException("also blah")))).when(client)
+            .execute(any(), any(), any());
+
+        var latch = new CountDownLatch(1);
+
+        TransformIndex.createDestinationIndex(
+            client,
+            TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
+            TransformIndex.createTransformDestIndexSettings(Settings.EMPTY, new HashMap<>(), TRANSFORM_ID, clock),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(Assert::assertFalse), latch)
+        );
+
+        assertTrue("Timed out waiting for test to finish", latch.await(10, TimeUnit.SECONDS));
     }
 
     public void testSetUpDestinationAliases_NullAliases() {

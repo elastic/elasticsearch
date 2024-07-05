@@ -92,7 +92,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        submitUnbatchedTask("unfollow_action", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("unfollow_action", new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             @Override
             public ClusterState execute(final ClusterState current) {

@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,16 +36,20 @@ public class DeleteConnectorAction {
     public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
+        private final boolean deleteSyncJobs;
 
         private static final ParseField CONNECTOR_ID_FIELD = new ParseField("connector_id");
+        private static final ParseField DELETE_SYNC_JOB_FIELD = new ParseField("delete_sync_jobs");
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.connectorId = in.readString();
+            this.deleteSyncJobs = in.readBoolean();
         }
 
-        public Request(String connectorId) {
+        public Request(String connectorId, boolean deleteSyncJobs) {
             this.connectorId = connectorId;
+            this.deleteSyncJobs = deleteSyncJobs;
         }
 
         @Override
@@ -62,10 +67,23 @@ public class DeleteConnectorAction {
             return connectorId;
         }
 
+        public boolean shouldDeleteSyncJobs() {
+            return deleteSyncJobs;
+        }
+
+        @Override
+        public String[] indices() {
+            // When deleting a connector, corresponding sync jobs can also be deleted
+            return new String[] {
+                ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN,
+                ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN };
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(connectorId);
+            out.writeBoolean(deleteSyncJobs);
         }
 
         @Override
@@ -73,18 +91,19 @@ public class DeleteConnectorAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(connectorId, request.connectorId);
+            return deleteSyncJobs == request.deleteSyncJobs && Objects.equals(connectorId, request.connectorId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectorId);
+            return Objects.hash(connectorId, deleteSyncJobs);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CONNECTOR_ID_FIELD.getPreferredName(), connectorId);
+            builder.field(DELETE_SYNC_JOB_FIELD.getPreferredName(), deleteSyncJobs);
             builder.endObject();
             return builder;
         }
@@ -92,10 +111,11 @@ public class DeleteConnectorAction {
         private static final ConstructingObjectParser<DeleteConnectorAction.Request, Void> PARSER = new ConstructingObjectParser<>(
             "delete_connector_request",
             false,
-            (p) -> new Request((String) p[0])
+            (p) -> new Request((String) p[0], (boolean) p[1])
         );
         static {
             PARSER.declareString(constructorArg(), CONNECTOR_ID_FIELD);
+            PARSER.declareBoolean(constructorArg(), DELETE_SYNC_JOB_FIELD);
         }
 
         public static DeleteConnectorAction.Request parse(XContentParser parser) {

@@ -87,7 +87,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE = Setting.affixKeySetting(
         "cluster.remote.",
         "skip_unavailable",
-        (ns, key) -> boolSetting(key, false, new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope)
+        (ns, key) -> boolSetting(key, true, new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
@@ -260,7 +260,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             (l, nullValue) -> ActionListener.completeWith(l, () -> {
                 try {
                     return getConnection(clusterAlias);
-                } catch (NoSuchRemoteClusterException e) {
+                } catch (ConnectTransportException e) {
                     if (ensureConnected == false) {
                         // trigger another connection attempt, but don't wait for it to complete
                         ensureConnected(clusterAlias, ActionListener.noop());

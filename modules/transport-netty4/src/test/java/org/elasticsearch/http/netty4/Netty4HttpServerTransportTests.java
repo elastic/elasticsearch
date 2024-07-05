@@ -56,6 +56,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -70,7 +71,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -78,6 +79,8 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
+import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
@@ -87,6 +90,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -108,10 +112,12 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -547,6 +553,73 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
     }
 
+    public void testChannelAcceptorCannotTamperThreadContext() throws Exception {
+        HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                assertThreadContextNotTampered(threadContext);
+                channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                logger.error(() -> "--> Unexpected bad request [" + FakeRestRequest.requestToString(channel.request()) + "]", cause);
+                throw new AssertionError();
+            }
+        };
+        // there's only one netty worker thread that's reused across client requests
+        Settings settings = createBuilderWithPort().put(Netty4Plugin.WORKER_COUNT.getKey(), 1)
+            .put(Netty4Plugin.SETTING_HTTP_WORKER_COUNT.getKey(), 0)
+            .build();
+        AtomicBoolean acceptChannel = new AtomicBoolean();
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                randomClusterSettings(),
+                new SharedGroupFactory(settings),
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                new AcceptChannelHandler.AcceptPredicate() {
+                    @Override
+                    public void setBoundAddress(BoundTransportAddress boundHttpTransportAddress) {}
+
+                    @Override
+                    public boolean test(String profile, InetSocketAddress peerAddress) {
+                        assertThreadContextNotTampered(threadPool.getThreadContext());
+                        tamperThreadContext(threadPool.getThreadContext());
+                        return acceptChannel.get();
+                    }
+                },
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
+            )
+        ) {
+            transport.start();
+            int nRetries = randomIntBetween(7, 9);
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                for (int i = 0; i < nRetries; i++) {
+                    acceptChannel.set(randomBoolean());
+                    var responses = client.get(randomFrom(transport.boundAddress().boundAddresses()).address(), "/test/url");
+                    try {
+                        if (acceptChannel.get()) {
+                            assertThat(responses, iterableWithSize(1));
+                            assertThat(responses.iterator().next().status(), equalTo(HttpResponseStatus.OK));
+                        } else {
+                            assertThat(responses, emptyIterable());
+                        }
+                    } finally {
+                        for (FullHttpResponse response : responses) {
+                            response.release();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void testReadTimeout() throws Exception {
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
 
@@ -619,7 +692,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
                 try {
                     channel.sendResponse(
-                        RestResponse.chunked(OK, ChunkedRestResponseBody.fromXContent(ignored -> Iterators.single((builder, params) -> {
+                        RestResponse.chunked(OK, ChunkedRestResponseBodyPart.fromXContent(ignored -> Iterators.single((builder, params) -> {
                             throw new AssertionError("should not be called for HEAD REQUEST");
                         }), ToXContent.EMPTY_PARAMS, channel), null)
                     );
@@ -975,7 +1048,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertEquals(request.uri(), url);
                 final var response = RestResponse.chunked(
                     OK,
-                    ChunkedRestResponseBody.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
+                    ChunkedRestResponseBodyPart.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
                     responseReleasedLatch::countDown
                 );
                 transportClosedFuture.addListener(ActionListener.running(() -> channel.sendResponse(response)));
@@ -1071,5 +1144,27 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
 
         throw new IllegalArgumentException("Unexpected http method: " + httpMethod);
+    }
+
+    private static void tamperThreadContext(ThreadContext threadContext) {
+        boolean tampered = false;
+        if (randomBoolean()) {
+            threadContext.putHeader(randomAlphaOfLength(16), "tampered with request header");
+            tampered = true;
+        }
+        if (randomBoolean()) {
+            threadContext.putTransient(randomAlphaOfLength(16), "tampered with transient request header");
+            tampered = true;
+        }
+        if (randomBoolean() || tampered == false) {
+            threadContext.addResponseHeader(randomAlphaOfLength(8), "tampered with response header");
+        }
+    }
+
+    private static void assertThreadContextNotTampered(ThreadContext threadContext) {
+        if (false == threadContext.isDefaultContext()) {
+            throw new AssertionError("tampered thread context");
+        }
+        Transports.assertTransportThread();
     }
 }

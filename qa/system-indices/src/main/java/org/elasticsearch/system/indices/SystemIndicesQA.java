@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -72,7 +72,6 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .build()
                 )
@@ -95,7 +94,6 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .build()
                 )

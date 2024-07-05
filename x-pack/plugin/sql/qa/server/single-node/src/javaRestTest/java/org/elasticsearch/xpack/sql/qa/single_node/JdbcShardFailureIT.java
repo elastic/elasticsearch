@@ -99,6 +99,9 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
               "aliases": {
                 "test": {}
               },
+              "settings": {
+                "number_of_shards": 1
+              },
               "mappings": {
                 "properties": {
                   "bool": {

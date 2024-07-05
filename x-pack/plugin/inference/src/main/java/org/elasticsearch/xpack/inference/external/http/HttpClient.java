@@ -66,6 +66,25 @@ public class HttpClient implements Closeable {
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();
 
+        /*
+          By default, if a keep-alive header is not returned by the server then the connection will be kept alive
+          indefinitely. In this situation the default keep alive strategy will return -1. Since we use a connection eviction thread,
+          connections that are idle past the max idle time will be closed with the eviction thread executes. If that functionality proves
+          not to be sufficient we can add a keep-alive strategy to the builder below.
+
+          In my testing, setting a keep-alive didn't actually influence when the connection would be removed from the pool. Setting a low
+          keep alive forced later requests that occurred after the duration to recreate the connection. The stale connections would not be
+          removed from the pool until the eviction thread closes expired connections.
+
+          My understanding is that a connection marked as ready to be closed because of an elapsed keep-alive time will only be put into
+          expiry status when another request is made.
+
+          For more info see the tutorial here under section keep-alive strategy:
+          https://hc.apache.org/httpcomponents-client-4.5.x/current/tutorial/html/connmgmt.html
+
+          And this stackoverflow question:
+          https://stackoverflow.com/questions/64676200/understanding-the-lifecycle-of-a-connection-managed-by-poolinghttpclientconnecti
+         */
         return clientBuilder.build();
     }
 

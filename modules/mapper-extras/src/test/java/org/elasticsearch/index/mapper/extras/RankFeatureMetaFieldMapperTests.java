@@ -49,7 +49,11 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
                 .endObject()
         );
 
-        Mapping parsedMapping = createMapperService(mapping).parseMapping("type", new CompressedXContent(mapping));
+        Mapping parsedMapping = createMapperService(mapping).parseMapping(
+            "type",
+            MapperService.MergeReason.MAPPING_UPDATE,
+            new CompressedXContent(mapping)
+        );
         assertEquals(mapping, parsedMapping.toCompressedXContent().toString());
         assertNotNull(parsedMapping.getMetadataMapperByClass(RankFeatureMetaFieldMapper.class));
     }

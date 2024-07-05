@@ -86,9 +86,9 @@ format and omit this parameter.
 [[docs-index-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
 [[docs-index-api-op_type]]
 `op_type`::
@@ -101,11 +101,11 @@ If document id is specified, it defaults to `index`. Otherwise, it defaults to `
 NOTE: If the request targets a data stream, an `op_type` of `create` is
 required. See <<add-documents-to-a-data-stream>>.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 `timeout`::
 +
@@ -122,13 +122,13 @@ timeout before failing. The actual wait time could be longer, particularly when
 multiple waits occur.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=doc-version]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=doc-version]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
 
 [[docs-index-api-request-body]]
 ==== {api-request-body-title}

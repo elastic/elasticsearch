@@ -87,17 +87,16 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
         this.settings = settings;
         this.client = client;
-        this.transformConfigManager = transformServices.getConfigManager();
+        this.transformConfigManager = transformServices.configManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
@@ -154,7 +153,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                         TransformConfig updatedConfig = updateResult.getConfig();
                         AuthorizationState authState = updateResult.getAuthState();
                         auditor.info(updatedConfig.getId(), "Updated transform.");
-                        logger.debug("[{}] Updated transform [{}]", updatedConfig.getId(), updateResult.getStatus());
+                        logger.info("[{}] Updated transform [{}]", updatedConfig.getId(), updateResult.getStatus());
 
                         checkTransformConfigAndLogWarnings(updatedConfig);
 

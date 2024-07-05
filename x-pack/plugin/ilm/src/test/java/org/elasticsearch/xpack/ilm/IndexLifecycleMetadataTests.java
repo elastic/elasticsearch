@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
@@ -190,7 +191,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
             int numberPhases = randomInt(5);
             Map<String, Phase> phases = Maps.newMapWithExpectedSize(numberPhases);
             for (int j = 0; j < numberPhases; j++) {
-                TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+                TimeValue after = randomTimeValue(0, 1_000_000_000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
                 Map<String, LifecycleAction> actions = Collections.emptyMap();
                 if (randomBoolean()) {
                     actions = Collections.singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE);

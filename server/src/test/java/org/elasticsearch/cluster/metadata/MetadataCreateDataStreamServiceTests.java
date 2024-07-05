@@ -26,6 +26,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,9 +38,11 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMa
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -64,7 +67,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             true,
             req,
-            ActionListener.noop()
+            ActionListener.noop(),
+            false
         );
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
@@ -104,7 +108,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
-            ActionListener.noop()
+            ActionListener.noop(),
+            false
         );
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
@@ -181,7 +186,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
-            ActionListener.noop()
+            ActionListener.noop(),
+            false
         );
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
@@ -218,7 +224,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         return builder.build();
     }
 
-    public void testCreateDataStreamWithFailureStore() throws Exception {
+    public void testCreateDataStreamWithFailureStoreInitialized() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
@@ -234,7 +240,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
-            ActionListener.noop()
+            ActionListener.noop(),
+            true
         );
         var backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, req.getStartTime());
         var failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, req.getStartTime());
@@ -248,7 +255,46 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().index(backingIndexName).isSystem(), is(false));
         assertThat(newState.metadata().index(failureStoreIndexName), notNullValue());
         assertThat(newState.metadata().index(failureStoreIndexName).getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(
+            DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING.get(
+                newState.metadata().index(failureStoreIndexName).getSettings()
+            ),
+            equalTo(DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION)
+        );
         assertThat(newState.metadata().index(failureStoreIndexName).isSystem(), is(false));
+    }
+
+    public void testCreateDataStreamWithFailureStoreUninitialized() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+            .build();
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put("template", template).build())
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(
+            metadataCreateIndexService,
+            Settings.EMPTY,
+            cs,
+            randomBoolean(),
+            req,
+            ActionListener.noop(),
+            false
+        );
+        var backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, req.getStartTime());
+        var failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, req.getStartTime());
+        assertThat(newState.metadata().dataStreams().size(), equalTo(1));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).getFailureIndices().getIndices(), empty());
+        assertThat(newState.metadata().index(backingIndexName), notNullValue());
+        assertThat(newState.metadata().index(backingIndexName).getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(newState.metadata().index(backingIndexName).isSystem(), is(false));
+        assertThat(newState.metadata().index(failureStoreIndexName), nullValue());
     }
 
     public void testCreateDataStreamWithFailureStoreWithRefreshRate() throws Exception {
@@ -271,7 +317,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
-            ActionListener.noop()
+            ActionListener.noop(),
+            true
         );
         var backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, req.getStartTime());
         var failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, req.getStartTime());
@@ -280,7 +327,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().index(backingIndexName), notNullValue());
         assertThat(newState.metadata().index(failureStoreIndexName), notNullValue());
         assertThat(
-            newState.metadata().index(failureStoreIndexName).getSettings().get(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()),
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(newState.metadata().index(failureStoreIndexName).getSettings()),
             equalTo(timeValue)
         );
     }
@@ -302,7 +349,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
-            ActionListener.noop()
+            ActionListener.noop(),
+            false
         );
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
@@ -335,7 +383,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
-                ActionListener.noop()
+                ActionListener.noop(),
+                false
             )
         );
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] already exists"));
@@ -354,7 +403,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
-                ActionListener.noop()
+                ActionListener.noop(),
+                false
             )
         );
         assertThat(e.getMessage(), containsString("must not contain the following characters"));
@@ -373,7 +423,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
-                ActionListener.noop()
+                ActionListener.noop(),
+                false
             )
         );
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must be lowercase"));
@@ -392,7 +443,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
-                ActionListener.noop()
+                ActionListener.noop(),
+                false
             )
         );
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must not start with '.ds-'"));
@@ -411,7 +463,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
-                ActionListener.noop()
+                ActionListener.noop(),
+                false
             )
         );
         assertThat(e.getMessage(), equalTo("no matching index template found for data stream [my-data-stream]"));
@@ -433,7 +486,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
-                ActionListener.noop()
+                ActionListener.noop(),
+                false
             )
         );
         assertThat(
@@ -458,36 +512,41 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
-            ActionListener.noop()
+            ActionListener.noop(),
+            false
         );
     }
 
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
         MetadataCreateIndexService s = mock(MetadataCreateIndexService.class);
         when(s.getSystemIndices()).thenReturn(getSystemIndices());
-        when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any()))
-            .thenAnswer(mockInvocation -> {
-                ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
-                CreateIndexClusterStateUpdateRequest request = (CreateIndexClusterStateUpdateRequest) mockInvocation.getArguments()[1];
+        Answer<Object> objectAnswer = mockInvocation -> {
+            ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
+            CreateIndexClusterStateUpdateRequest request = (CreateIndexClusterStateUpdateRequest) mockInvocation.getArguments()[1];
 
-                Metadata.Builder b = Metadata.builder(currentState.metadata())
-                    .put(
-                        IndexMetadata.builder(request.index())
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                                    .put(request.settings())
-                                    .build()
-                            )
-                            .putMapping(generateMapping("@timestamp"))
-                            .system(getSystemIndices().isSystemName(request.index()))
-                            .numberOfShards(1)
-                            .numberOfReplicas(1)
-                            .build(),
-                        false
-                    );
-                return ClusterState.builder(currentState).metadata(b.build()).build();
-            });
+            Metadata.Builder b = Metadata.builder(currentState.metadata())
+                .put(
+                    IndexMetadata.builder(request.index())
+                        .settings(
+                            Settings.builder()
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                .put(request.settings())
+                                .build()
+                        )
+                        .putMapping(generateMapping("@timestamp"))
+                        .system(getSystemIndices().isSystemName(request.index()))
+                        .numberOfShards(1)
+                        .numberOfReplicas(1)
+                        .build(),
+                    false
+                );
+            return ClusterState.builder(currentState).metadata(b.build()).build();
+        };
+        when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any()))
+            .thenAnswer(objectAnswer);
+        when(
+            s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any(), any())
+        ).thenAnswer(objectAnswer);
 
         return s;
     }

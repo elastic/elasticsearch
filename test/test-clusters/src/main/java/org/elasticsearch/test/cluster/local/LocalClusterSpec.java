@@ -71,6 +71,15 @@ public class LocalClusterSpec implements ClusterSpec {
         if (nodeNames.isEmpty() == false) {
             throw new IllegalArgumentException("Cluster cannot contain nodes with duplicates names: " + nodeNames);
         }
+
+        // Ensure we do not configure older version nodes with the integTest distribution
+        if (nodes.stream().anyMatch(n -> n.getVersion() != Version.CURRENT && n.getDistributionType() == DistributionType.INTEG_TEST)) {
+            throw new IllegalArgumentException(
+                "Error configuring test cluster '"
+                    + name
+                    + "'. When configuring a node for a prior Elasticsearch version, the default distribution type must be used."
+            );
+        }
     }
 
     public static class LocalNodeSpec {

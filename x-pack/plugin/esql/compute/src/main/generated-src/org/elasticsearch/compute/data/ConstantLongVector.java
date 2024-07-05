@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * Vector implementation that stores a constant long value.
@@ -37,6 +39,28 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     @Override
     public LongVector filter(int... positions) {
         return blockFactory().newConstantLongVector(value, positions.length);
+    }
+
+    @Override
+    public ReleasableIterator<LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new LongLookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single((LongBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstantLongBlockWith(value, positions.getPositionCount()));
+        }
+        return new LongLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

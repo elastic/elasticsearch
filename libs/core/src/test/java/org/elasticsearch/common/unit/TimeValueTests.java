@@ -17,6 +17,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.object.HasToString.hasToString;
 
@@ -103,7 +104,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testRoundTrip() {
-        final String s = randomTimeValue();
+        final String s = randomTimeValue().getStringRep();
         assertThat(TimeValue.parseTimeValue(s, null, "test").getStringRep(), equalTo(s));
         final TimeValue t = new TimeValue(randomIntBetween(1, 128), randomFrom(TimeUnit.values()));
         assertThat(TimeValue.parseTimeValue(t.getStringRep(), null, "test"), equalTo(t));
@@ -231,6 +232,12 @@ public class TimeValueTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("duration cannot be negative"));
     }
 
+    public void testMin() {
+        assertThat(TimeValue.min(TimeValue.ZERO, TimeValue.timeValueNanos(1)), is(TimeValue.timeValueNanos(0)));
+        assertThat(TimeValue.min(TimeValue.MAX_VALUE, TimeValue.timeValueNanos(1)), is(TimeValue.timeValueNanos(1)));
+        assertThat(TimeValue.min(TimeValue.MINUS_ONE, TimeValue.timeValueHours(1)), is(TimeValue.MINUS_ONE));
+    }
+
     private TimeUnit randomTimeUnitObject() {
         return randomFrom(
             TimeUnit.NANOSECONDS,
@@ -241,5 +248,17 @@ public class TimeValueTests extends ESTestCase {
             TimeUnit.HOURS,
             TimeUnit.DAYS
         );
+    }
+
+    public void testInternedValues() {
+        assertSame(TimeValue.timeValueMillis(-1), TimeValue.MINUS_ONE);
+        assertSame(TimeValue.timeValueMillis(0), TimeValue.ZERO);
+        assertSame(TimeValue.timeValueSeconds(30), TimeValue.THIRTY_SECONDS);
+        assertSame(TimeValue.timeValueMinutes(1), TimeValue.ONE_MINUTE);
+
+        assertSame(TimeValue.parseTimeValue("-1", getTestName()), TimeValue.MINUS_ONE);
+        assertSame(TimeValue.parseTimeValue("0", getTestName()), TimeValue.ZERO);
+        assertSame(TimeValue.parseTimeValue("30s", getTestName()), TimeValue.THIRTY_SECONDS);
+        assertSame(TimeValue.parseTimeValue("1m", getTestName()), TimeValue.ONE_MINUTE);
     }
 }

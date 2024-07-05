@@ -8,12 +8,14 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -39,6 +41,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
+import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -70,6 +74,7 @@ import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_CA
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_FETCH_SCROLL_ACTION_METRIC;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_ID_ACTION_METRIC;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_SCROLL_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.RANK_SHARD_FEATURE_ACTION_METRIC;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
@@ -96,12 +101,16 @@ public class SearchTransportService {
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
 
+    public static final String RANK_FEATURE_SHARD_ACTION_NAME = "indices:data/read/search[phase/rank/feature]";
+
     /**
      * The Can-Match phase. It is executed to pre-filter shards that a search request hits. It rewrites the query on
      * the shard and checks whether the result of the rewrite matches no documents, in which case the shard can be
      * filtered out.
      */
     public static final String QUERY_CAN_MATCH_NODE_NAME = "indices:data/read/search[can_match][n]";
+
+    private static final Logger logger = LogManager.getLogger(SearchTransportService.class);
 
     private final TransportService transportService;
     private final NodeClient client;
@@ -173,7 +182,7 @@ public class SearchTransportService {
         transportService.sendRequest(
             connection,
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-            TransportRequest.Empty.INSTANCE,
+            new ClearScrollContextsRequest(),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(
                 listener,
@@ -247,6 +256,21 @@ public class SearchTransportService {
             request,
             task,
             new ConnectionCountingHandler<>(listener, ScrollQuerySearchResult::new, connection)
+        );
+    }
+
+    public void sendExecuteRankFeature(
+        Transport.Connection connection,
+        final RankFeatureShardRequest request,
+        SearchTask task,
+        final SearchActionListener<RankFeatureResult> listener
+    ) {
+        transportService.sendChildRequest(
+            connection,
+            RANK_FEATURE_SHARD_ACTION_NAME,
+            request,
+            task,
+            new ConnectionCountingHandler<>(listener, RankFeatureResult::new, connection)
         );
     }
 
@@ -349,6 +373,14 @@ public class SearchTransportService {
 
     }
 
+    private static class ClearScrollContextsRequest extends TransportRequest {
+        ClearScrollContextsRequest() {}
+
+        ClearScrollContextsRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
+
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private final OriginalIndices originalIndices;
 
@@ -414,12 +446,13 @@ public class SearchTransportService {
         SearchTransportAPMMetrics searchTransportMetrics
     ) {
         final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
+            logger.trace("releasing search context [{}]", request.id());
             boolean freed = searchService.freeReaderContext(request.id());
             channel.sendResponse(new SearchFreeContextResponse(freed));
         };
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            transportService.getThreadPool().generic(),
             ScrollFreeContextRequest::new,
             instrumentedHandler(FREE_CONTEXT_SCROLL_ACTION_METRIC, transportService, searchTransportMetrics, freeContextHandler)
         );
@@ -427,7 +460,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(
             FREE_CONTEXT_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            transportService.getThreadPool().generic(),
             SearchFreeContextRequest::new,
             instrumentedHandler(FREE_CONTEXT_ACTION_METRIC, transportService, searchTransportMetrics, freeContextHandler)
         );
@@ -435,8 +468,8 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            TransportRequest.Empty::new,
+            transportService.getThreadPool().generic(),
+            ClearScrollContextsRequest::new,
             instrumentedHandler(CLEAR_SCROLL_CONTEXTS_ACTION_METRIC, transportService, searchTransportMetrics, (request, channel, task) -> {
                 searchService.freeAllScrollContexts();
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -538,6 +571,16 @@ public class SearchTransportService {
             )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, true, ScrollQueryFetchSearchResult::new);
+
+        final TransportRequestHandler<RankFeatureShardRequest> rankShardFeatureRequest = (request, channel, task) -> searchService
+            .executeRankFeaturePhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+        transportService.registerRequestHandler(
+            RANK_FEATURE_SHARD_ACTION_NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            RankFeatureShardRequest::new,
+            instrumentedHandler(RANK_SHARD_FEATURE_ACTION_METRIC, transportService, searchTransportMetrics, rankShardFeatureRequest)
+        );
+        TransportActionProxy.registerProxyAction(transportService, RANK_FEATURE_SHARD_ACTION_NAME, true, RankFeatureResult::new);
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
             .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
@@ -656,6 +699,6 @@ public class SearchTransportService {
         CancelTasksRequest req = new CancelTasksRequest().setTargetTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
             .setReason("Fatal failure during search: " + reason);
         // force the origin to execute the cancellation as a system user
-        new OriginSettingClient(client, GetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.noop());
+        new OriginSettingClient(client, TransportGetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.noop());
     }
 }

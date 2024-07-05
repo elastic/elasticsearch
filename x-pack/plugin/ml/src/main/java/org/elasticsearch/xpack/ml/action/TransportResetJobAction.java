@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -156,8 +156,8 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(existingTaskId);
         getTaskRequest.setWaitForCompletion(true);
-        getTaskRequest.setTimeout(request.timeout());
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetTaskAction.INSTANCE, getTaskRequest, ActionListener.wrap(getTaskResponse -> {
+        getTaskRequest.setTimeout(request.ackTimeout());
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetTaskAction.TYPE, getTaskRequest, ActionListener.wrap(getTaskResponse -> {
             TaskResult taskResult = getTaskResponse.getTask();
             if (taskResult.isCompleted()) {
                 listener.onResponse(AcknowledgedResponse.of(true));

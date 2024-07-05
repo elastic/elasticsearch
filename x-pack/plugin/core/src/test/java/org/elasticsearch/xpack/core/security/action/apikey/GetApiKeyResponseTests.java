@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,7 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.ROLE_DESCRIPTOR_NAME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetApiKeyResponseTests extends ESTestCase {
@@ -119,7 +121,14 @@ public class GetApiKeyResponseTests extends ESTestCase {
             crossClusterAccessRoleDescriptors,
             null
         );
-        GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3, apiKeyInfo4));
+        String profileUid2 = "profileUid2";
+        String profileUid4 = "profileUid4";
+        List<String> profileUids = new ArrayList<>(4);
+        profileUids.add(null);
+        profileUids.add(profileUid2);
+        profileUids.add(null);
+        profileUids.add(profileUid4);
+        GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3, apiKeyInfo4), profileUids);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace(Strings.format("""
@@ -179,7 +188,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
                         }
                       }
                     }
-                  ]
+                  ],
+                  "profile_uid": "profileUid2"
                 },
                 {
                   "id": "id-3",
@@ -265,7 +275,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "role_descriptors": {
                     "cross_cluster": {
                       "cluster": [
-                        "cross_cluster_search", "cross_cluster_replication"
+                        "cross_cluster_search", "monitor_enrich", "cross_cluster_replication"
                       ],
                       "indices": [
                         {
@@ -312,10 +322,38 @@ public class GetApiKeyResponseTests extends ESTestCase {
                         "allow_restricted_indices": false
                       }
                     ]
-                  }
+                  },
+                  "profile_uid": "profileUid4"
                 }
               ]
             }""", getType("rest"), getType("rest"), getType("rest"), getType("cross_cluster")))));
+    }
+
+    public void testMismatchApiKeyInfoAndProfileData() {
+        List<ApiKey> apiKeys = randomList(
+            0,
+            3,
+            () -> new ApiKey(
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                randomFrom(ApiKey.Type.values()),
+                Instant.now(),
+                Instant.now(),
+                randomBoolean(),
+                null,
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        List<String> profileUids = randomList(0, 5, () -> randomFrom(randomAlphaOfLength(4), null));
+        if (apiKeys.size() != profileUids.size()) {
+            IllegalStateException ise = expectThrows(IllegalStateException.class, () -> new GetApiKeyResponse(apiKeys, profileUids));
+            assertThat(ise.getMessage(), containsString("Each api key info must be associated to a (nullable) owner profile uid"));
+        }
     }
 
     private ApiKey createApiKeyInfo(

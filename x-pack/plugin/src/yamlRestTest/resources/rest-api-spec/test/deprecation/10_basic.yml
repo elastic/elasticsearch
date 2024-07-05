@@ -17,9 +17,10 @@ setup:
 ---
 "Test ml":
   - skip:
-      version: "7.0.0 - "
-      features: ["headers", "warnings"]
+      cluster_features: ["gte_v7.0.0"]
       reason: this test needs adjusting to contain syntax deprecated in 7.x and removed in 8.0
+  - requires:
+      test_runner_features: ["headers", "warnings"]
 
 # Index the config directly to prevent the deprecated
 # use_dis_max field being rewritten by the parser. This

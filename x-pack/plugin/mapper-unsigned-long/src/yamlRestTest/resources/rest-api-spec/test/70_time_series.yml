@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: _tsid introduced in 8.1.0
 
   - do:
@@ -49,8 +49,8 @@ setup:
 
 ---
 fetch the _tsid:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -73,8 +73,8 @@ fetch the _tsid:
 
 ---
 fetch the _source:
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: synthetic source support to unsigned long added in 8.7.0
 
   - do:
@@ -102,8 +102,8 @@ fetch the _source:
 # This is caused by the encoding of unsigned_long as a signed long before
 # being serialized in _tsid
 aggregate the _tsid:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -134,8 +134,8 @@ aggregate the _tsid:
 # This is caused by the encoding of unsigned_long as a signed long before
 # being serialized in _tsid
 sort by tsid:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -158,8 +158,8 @@ sort by tsid:
 
 ---
 composite aggregation on tsid:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: _tsid introduced in 8.1.0
 
   - do:

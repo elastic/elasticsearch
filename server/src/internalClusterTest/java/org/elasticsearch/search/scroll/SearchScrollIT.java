@@ -458,7 +458,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             SearchRequestBuilder builder = prepareSearch("index").setSearchType(searchType)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(Integer.MAX_VALUE)
-                .setScroll("1m");
+                .setScroll(TimeValue.timeValueMinutes(1));
 
             SearchResponse response = builder.get();
             try {
@@ -477,7 +477,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         prepareIndex("index").setId("1").setSource("field", "value").execute().get();
         refresh();
 
-        SearchResponse searchResponse = prepareSearch("index").setSize(1).setScroll("1m").get();
+        SearchResponse searchResponse = prepareSearch("index").setSize(1).setScroll(TimeValue.timeValueMinutes(1)).get();
         try {
             assertThat(searchResponse.getScrollId(), is(notNullValue()));
 
@@ -498,7 +498,8 @@ public class SearchScrollIT extends ESIntegTestCase {
         refresh();
 
         assertResponse(
-            prepareSearch("test").addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_last")).setScroll("1m"),
+            prepareSearch("test").addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_last"))
+                .setScroll(TimeValue.timeValueMinutes(1)),
             response -> {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "1");
@@ -510,7 +511,8 @@ public class SearchScrollIT extends ESIntegTestCase {
         );
 
         assertResponse(
-            prepareSearch("test").addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_first")).setScroll("1m"),
+            prepareSearch("test").addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_first"))
+                .setScroll(TimeValue.timeValueMinutes(1)),
             response -> {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "1");

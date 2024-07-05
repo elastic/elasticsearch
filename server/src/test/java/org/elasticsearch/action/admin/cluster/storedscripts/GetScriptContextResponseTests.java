@@ -8,13 +8,37 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.script.ScriptContextInfo;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class GetScriptContextResponseTests extends AbstractXContentSerializingTestCase<GetScriptContextResponse> {
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<GetScriptContextResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_script_context",
+        true,
+        (a) -> {
+            Map<String, ScriptContextInfo> contexts = ((List<ScriptContextInfo>) a[0]).stream()
+                .collect(Collectors.toMap(ScriptContextInfo::getName, c -> c));
+            return new GetScriptContextResponse(contexts);
+        }
+    );
+
+    static {
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            ScriptContextInfo.PARSER::apply,
+            GetScriptContextResponse.CONTEXTS
+        );
+    }
 
     @Override
     protected GetScriptContextResponse createTestInstance() {
@@ -31,7 +55,7 @@ public class GetScriptContextResponseTests extends AbstractXContentSerializingTe
 
     @Override
     protected GetScriptContextResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetScriptContextResponse.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override

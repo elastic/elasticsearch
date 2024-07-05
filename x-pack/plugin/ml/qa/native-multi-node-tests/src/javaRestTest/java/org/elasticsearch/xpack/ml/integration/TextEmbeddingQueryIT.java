@@ -428,9 +428,11 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         }
     }
 
-    public void testSearchWithMissingModel() {
+    public void testSearchWithMissingModel() throws IOException {
         String modelId = "missing-model";
         String indexName = modelId + "-index";
+        createVectorSearchIndex(indexName);
+
         for (String template : new String[] { TOP_LEVEL_KNN_TEMPLATE, QUERY_DSL_KNN_TEMPLATE }) {
             var e = expectThrows(
                 ResponseException.class,

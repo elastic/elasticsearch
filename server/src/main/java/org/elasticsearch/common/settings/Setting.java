@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -22,6 +23,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -112,7 +114,7 @@ public class Setting<T> implements ToXContentObject {
         DeprecatedWarning,
 
         /**
-         * Node scope
+         * Cluster-level or configuration file-level setting. Not an index setting.
          */
         NodeScope,
 
@@ -147,6 +149,7 @@ public class Setting<T> implements ToXContentObject {
          * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
+        @UpdateForV9 // introduce IndexSettingDeprecatedInV8AndRemovedInV9 to replace this constant
         IndexSettingDeprecatedInV7AndRemovedInV8,
 
         /**
@@ -626,12 +629,20 @@ public class Setting<T> implements ToXContentObject {
         return defaultValue.apply(settings);
     }
 
+    /**
+     * Returns the raw (string) settings value, which is for logging use
+     */
+    String getLogString(final Settings settings) {
+        return getRaw(settings);
+    }
+
     /** Logs a deprecation warning if the setting is deprecated and used. */
     void checkDeprecation(Settings settings) {
         // They're using the setting, so we need to tell them to stop
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
+            @UpdateForV9 // https://github.com/elastic/elasticsearch/issues/79666
             String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
@@ -881,6 +892,18 @@ public class Setting<T> implements ToXContentObject {
             return settings.keySet().stream().filter(this::match).map(key::getConcreteString);
         }
 
+        @Override
+        public boolean exists(Settings settings) {
+            // concrete settings might be secure, so don't exclude these here
+            return key.exists(settings.keySet(), Collections.emptySet());
+        }
+
+        @Override
+        public boolean exists(Settings.Builder builder) {
+            // concrete settings might be secure, so don't exclude these here
+            return key.exists(builder.keys(), Collections.emptySet());
+        }
+
         /**
          * Get the raw list of dependencies. This method is exposed for testing purposes and {@link #getSettingsDependencies(String)}
          * should be preferred for most all cases.
@@ -989,6 +1012,7 @@ public class Setting<T> implements ToXContentObject {
 
                 @Override
                 public void apply(Map<String, T> value, Settings current, Settings previous) {
+                    Setting.logSettingUpdate(AffixSetting.this, current, previous, logger);
                     consumer.accept(value);
                 }
             };
@@ -1006,6 +1030,20 @@ public class Setting<T> implements ToXContentObject {
             throw new UnsupportedOperationException(
                 "affix settings can't return values" + " use #getConcreteSetting to obtain a concrete setting"
             );
+        }
+
+        @Override
+        String getLogString(final Settings settings) {
+            Settings filteredAffixSetting = settings.filter(this::match);
+            try {
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                builder.startObject();
+                filteredAffixSetting.toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+                builder.endObject();
+                return Strings.toString(builder);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
@@ -1807,11 +1845,18 @@ public class Setting<T> implements ToXContentObject {
     }
 
     static void logSettingUpdate(Setting<?> setting, Settings current, Settings previous, Logger logger) {
-        if (logger.isInfoEnabled()) {
+        Level level = setting.hasIndexScope() ? Level.DEBUG : Level.INFO;
+        if (logger.isEnabled(level)) {
             if (setting.isFiltered()) {
-                logger.info("updating [{}]", setting.key);
+                logger.log(level, "updating [{}]", setting.key);
             } else {
-                logger.info("updating [{}] from [{}] to [{}]", setting.key, setting.getRaw(previous), setting.getRaw(current));
+                logger.log(
+                    level,
+                    "updating [{}] from [{}] to [{}]",
+                    setting.key,
+                    setting.getLogString(previous),
+                    setting.getLogString(current)
+                );
             }
         }
     }

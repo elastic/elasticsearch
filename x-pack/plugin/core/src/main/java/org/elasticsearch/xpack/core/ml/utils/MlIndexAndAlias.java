@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -295,7 +296,7 @@ public final class MlIndexAndAlias {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             request,
-            listener.<AcknowledgedResponse>delegateFailureAndWrap((l, resp) -> l.onResponse(resp.isAcknowledged())),
+            listener.<IndicesAliasesResponse>delegateFailureAndWrap((l, resp) -> l.onResponse(resp.isAcknowledged())),
             client.admin().indices()::aliases
         );
     }

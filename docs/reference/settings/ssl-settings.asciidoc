@@ -1,6 +1,7 @@
 ==== {component} TLS/SSL settings
 You can configure the following TLS/SSL settings.
 
+ifndef::no-enabled-setting[]
 +{ssl-prefix}.ssl.enabled+::
 (<<static-cluster-setting,Static>>)
 Used to enable or disable TLS/SSL on the {ssl-layer}.
@@ -10,10 +11,11 @@ endif::enabled-by-default[]
 ifndef::enabled-by-default[]
 The default is `false`.
 endif::enabled-by-default[]
+endif::no-enabled-setting[]
 
 +{ssl-prefix}.ssl.supported_protocols+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 ifdef::server[]
 +{ssl-prefix}.ssl.client_authentication+::
@@ -39,11 +41,11 @@ a TLS _server_ is discouraged.
 endif::verifies[]
 Defines how to verify the certificates presented by another party in the TLS
 connection:
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 +{ssl-prefix}.ssl.cipher_suites+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 
 [#{ssl-context}-tls-ssl-key-trusted-certificate-settings]
 ===== {component} TLS/SSL key and trusted certificate settings
@@ -64,25 +66,25 @@ When using PEM encoded files, use the following settings:
 
 +{ssl-prefix}.ssl.key+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 
 ifndef::secure-pass[]
 +{ssl-prefix}.ssl.key_passphrase+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 endif::secure-pass[]
 
 +{ssl-prefix}.ssl.secure_key_passphrase+::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 
 +{ssl-prefix}.ssl.certificate+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
 
 +{ssl-prefix}.ssl.certificate_authorities+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
 
 ===== Java keystore files
 
@@ -91,41 +93,41 @@ and certificates that should be trusted, use the following settings:
 
 +{ssl-prefix}.ssl.keystore.path+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 
 ifndef::secure-pass[]
 +{ssl-prefix}.ssl.keystore.password+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 endif::secure-pass[]
 
 +{ssl-prefix}.ssl.keystore.secure_password+::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
 ifndef::secure-pass[]
 +{ssl-prefix}.ssl.keystore.key_password+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 endif::secure-pass[]
 
 +{ssl-prefix}.ssl.keystore.secure_key_password+::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 +{ssl-prefix}.ssl.truststore.path+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 
 ifndef::secure-pass[]
 +{ssl-prefix}.ssl.truststore.password+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 endif::secure-pass[]
 
 +{ssl-prefix}.ssl.truststore.secure_password+::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 [#{ssl-context}-pkcs12-files]
 ===== PKCS#12 files
@@ -137,35 +139,35 @@ PKCS#12 files are configured in the same way as Java keystore files:
 
 +{ssl-prefix}.ssl.keystore.path+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 
 +{ssl-prefix}.ssl.keystore.type+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 ifndef::secure-pass[]
 +{ssl-prefix}.ssl.keystore.password+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 endif::secure-pass[]
 
 +{ssl-prefix}.ssl.keystore.secure_password+::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
 ifndef::secure-pass[]
 +{ssl-prefix}.ssl.keystore.key_password+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 endif::secure-pass[]
 
 +{ssl-prefix}.ssl.keystore.secure_key_password+::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 +{ssl-prefix}.ssl.truststore.path+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 
 +{ssl-prefix}.ssl.truststore.type+::
 (<<static-cluster-setting,Static>>)
@@ -175,10 +177,10 @@ Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
 ifndef::secure-pass[]
 +{ssl-prefix}.ssl.truststore.password+::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 endif::secure-pass[]
 
 +{ssl-prefix}.ssl.truststore.secure_password+::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 

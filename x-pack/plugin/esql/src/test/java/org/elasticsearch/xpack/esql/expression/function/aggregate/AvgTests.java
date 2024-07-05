@@ -35,9 +35,9 @@ public class AvgTests extends AbstractAggregationTestCase {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
         for (var fieldCaseSupplier : Stream.of(
-            MultiRowTestCaseSupplier.multiRowIntCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.multiRowLongCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.multiRowDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
+            MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).toList()) {
             suppliers.add(AvgTests.makeSupplier(fieldCaseSupplier));
         }

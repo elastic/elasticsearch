@@ -12,6 +12,15 @@ Security::
 * Apply stricter Document Level Security (DLS) rules for the validate query API with the rewrite parameter {es-pull}105709[#105709]
 * Apply stricter Document Level Security (DLS) rules for terms aggregations when min_doc_count is set to 0 {es-pull}105714[#105714]
 
+[[known-issues-8.14.0]]
+[float]
+=== Known issues
+* When upgrading clusters with non-master-eligible nodes in them from versions before 8.13, information on new functionality
+of the upgraded nodes may not be registered properly with the master. This can lead to some new functionality
+added since 8.13.0 not being accessible on the upgraded cluster. The workaround is to perform a rolling restart
+on the non-master-eligible nodes once the upgrade is complete. This is only necessary when upgrading from a version
+prior to 8.13.0.
+
 [[bug-8.14.0]]
 [float]
 === Bug fixes

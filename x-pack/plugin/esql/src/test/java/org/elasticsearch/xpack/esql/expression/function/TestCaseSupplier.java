@@ -1301,8 +1301,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return data.stream().filter(d -> d.forceLiteral == false).map(TypedData::data).collect(Collectors.toList());
         }
 
-        public List<List<Object>> getMultiRowDataValues() {
-            return data.stream().filter(TypedData::isMultiRow).map(TypedData::multiRowData).collect(Collectors.toList());
+        public List<TypedData> getMultiRowFields() {
+            return data.stream().filter(TypedData::isMultiRow).collect(Collectors.toList());
         }
 
         public boolean canGetDataAsLiterals() {

@@ -88,12 +88,6 @@ tests:
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testMinVersionAsOldVersion
   issue: https://github.com/elastic/elasticsearch/issues/109454
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial}
-  issue: https://github.com/elastic/elasticsearch/issues/110310
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testInfoParameters {class org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial}
-  issue: https://github.com/elastic/elasticsearch/issues/110310
 - class: org.elasticsearch.search.vectors.ExactKnnQueryBuilderTests
   method: testToQuery
   issue: https://github.com/elastic/elasticsearch/issues/110357

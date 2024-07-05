@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonWriter;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 
 import java.util.Objects;
 
 public final class AmazonBedrockEmbeddingsEntityFactory {
-    public static AmazonBedrockJsonWriter createEntity(AmazonBedrockEmbeddingsModel model, Truncator.TruncationResult truncationResult) {
+    public static ToXContent createEntity(AmazonBedrockEmbeddingsModel model, Truncator.TruncationResult truncationResult) {
         Objects.requireNonNull(model);
         Objects.requireNonNull(truncationResult);
 

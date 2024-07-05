@@ -14,12 +14,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonBuilder;
-import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonWriter;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.embeddings.AmazonBedrockEmbeddingsResponseListener;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
@@ -31,7 +31,7 @@ import java.util.Objects;
 
 public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     private final AmazonBedrockEmbeddingsModel embeddingsModel;
-    private final AmazonBedrockJsonWriter requestEntity;
+    private final ToXContent requestEntity;
     private final Truncator truncator;
     private final Truncator.TruncationResult truncationResult;
     private final AmazonBedrockProvider provider;
@@ -41,7 +41,7 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
         Truncator truncator,
         Truncator.TruncationResult input,
         AmazonBedrockEmbeddingsModel model,
-        AmazonBedrockJsonWriter requestEntity,
+        ToXContent requestEntity,
         @Nullable TimeValue timeout
     ) {
         super(model, timeout);

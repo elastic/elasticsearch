@@ -7,30 +7,24 @@
 
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock;
 
-import com.fasterxml.jackson.core.JsonFactory;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.xcontent.ToXContent;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class AmazonBedrockJsonBuilder {
 
-    private final AmazonBedrockJsonWriter jsonWriter;
+    private final ToXContent jsonWriter;
 
-    public AmazonBedrockJsonBuilder(AmazonBedrockJsonWriter jsonWriter) {
+    public AmazonBedrockJsonBuilder(ToXContent jsonWriter) {
         this.jsonWriter = jsonWriter;
     }
 
     public String getStringContent() throws IOException {
-        var factory = new JsonFactory();
-        var outputStream = new ByteArrayOutputStream();
-        var generator = factory.createGenerator(outputStream);
-        try {
-            jsonWriter.writeJson(generator);
-            generator.flush();
-            return outputStream.toString(StandardCharsets.UTF_8);
-        } finally {
-            generator.close();
+        try (var builder = jsonBuilder()) {
+            return Strings.toString(jsonWriter.toXContent(builder, null));
         }
     }
 }

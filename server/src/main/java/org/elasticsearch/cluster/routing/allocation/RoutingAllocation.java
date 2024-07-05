@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -343,7 +344,10 @@ public class RoutingAllocation {
         Metadata metadata = indexMetadataUpdater.applyChanges(
             metadata(),
             newRoutingTable,
-            n -> nodes.get(n).getMaxIndexVersion(),
+            n -> {
+                var node = nodes.get(n);
+                return node != null ? node.getMaxIndexVersion() : IndexVersions.ZERO;
+            },
             clusterState.getMinTransportVersion()
         );
         return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);

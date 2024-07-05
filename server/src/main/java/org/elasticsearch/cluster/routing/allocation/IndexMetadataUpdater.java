@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Comparator;
@@ -139,9 +140,8 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                 );
 
                 // TODO: primaries? or replicas too?
-                IndexVersion allocatedNodeIndexVersion = getNodeIndexVersion.apply(
-                    newRoutingTable.shardRoutingTable(shardId).primaryShard().currentNodeId()
-                );
+                String nodeId = newRoutingTable.shardRoutingTable(shardId).primaryShard().currentNodeId();
+                IndexVersion allocatedNodeIndexVersion = nodeId != null ? getNodeIndexVersion.apply(nodeId) : IndexVersions.ZERO;
                 updatedIndexMetadata = updatedIndexMetadata.updateForAllocation(
                     shardId.id(),
                     updates.increaseTerm,

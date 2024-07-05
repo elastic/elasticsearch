@@ -14,14 +14,16 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
@@ -65,7 +67,6 @@ public class InlineStats extends UnaryPlan implements Phased {
 
     @Override
     public List<Attribute> output() {
-        // NOCOMMIT when is this one called?
         if (this.output == null) {
             this.output = mergeOutputAttributes(Expressions.asAttributes(aggregates), child().output());
         }
@@ -83,7 +84,6 @@ public class InlineStats extends UnaryPlan implements Phased {
         if (firstPhaseResult.size() > 1) {
             throw new UnsupportedOperationException();
         }
-        List<NamedExpression> namedGroupings = groupings.stream().map(Expressions::wrapAsNamed).toList();
         Page page = firstPhaseResult.get(0);
         Block[] blocks = IntStream.range(0, page.getBlockCount()).mapToObj(b -> {
             Block block = page.getBlock(b);
@@ -92,7 +92,31 @@ public class InlineStats extends UnaryPlan implements Phased {
             return builder.build();
         }).toArray(Block[]::new);
         LocalRelation local = new LocalRelation(source(), layout, LocalSupplier.of(blocks));
-        return new Lookup(source(), child(), new ReferenceAttribute(source(), "unused", DataType.KEYWORD), namedGroupings, local);
+
+        List<Attribute> groupingAttributes = new ArrayList<>(groupings.size());
+        for (Expression g : groupings) {
+            if (g instanceof Attribute a) {
+                groupingAttributes.add(a);
+            } else {
+                throw new UnsupportedOperationException("INLINESTATS doesn't support expressions in grouping position yet");
+            }
+        }
+
+        List<Attribute> leftFields = new ArrayList<>(groupingAttributes.size());
+        List<Attribute> rightFields = new ArrayList<>(groupingAttributes.size());
+        List<Attribute> rhsOutput = Join.makeReference(local.output());
+        for (Attribute lhs : groupingAttributes) {
+            for (Attribute rhs : rhsOutput) {
+                if (lhs.name().equals(rhs.name())) {
+                    leftFields.add(lhs);
+                    rightFields.add(rhs);
+                    break;
+                }
+            }
+        }
+        JoinConfig config = new JoinConfig(JoinType.LEFT, groupingAttributes, leftFields, rightFields);
+
+        return new Join(source(), child(), local, config);
     }
 
     @Override

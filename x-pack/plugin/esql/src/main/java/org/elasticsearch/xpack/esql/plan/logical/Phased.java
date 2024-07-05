@@ -19,25 +19,33 @@ import java.util.List;
 public interface Phased {
     LogicalPlan firstPhase();
 
-    LogicalPlan nextPhase(List<Attribute> layout, List<Page> firstPhaseResult);
+    LogicalPlan nextPhase(List<Attribute> schema, List<Page> firstPhaseResult);
 
     static LogicalPlan extractNextPhase(LogicalPlan plan) {
+        assert plan.analyzed();
         var firstPhase = new Holder<LogicalPlan>();
         plan.forEachUp(t -> {
             if (t instanceof Phased phased) {
                 firstPhase.set(phased.firstPhase());
             }
         });
-        return firstPhase.get();
+        LogicalPlan firstPhasePlan = firstPhase.get();
+        if (firstPhasePlan != null) {
+            firstPhasePlan.setAnalyzed();
+        }
+        return firstPhasePlan;
     }
 
-    static LogicalPlan applyResultsFromNextPhase(LogicalPlan plan, List<Attribute> layout, List<Page> result) {
-        return plan.transformUp(logicalPlan -> {
+    static LogicalPlan applyResultsFromNextPhase(LogicalPlan plan, List<Attribute> schema, List<Page> result) {
+        assert plan.analyzed();
+        LogicalPlan applied = plan.transformUp(logicalPlan -> {
             // NOCOMMIT make sure this stops after the first one.
             if (logicalPlan instanceof Phased phased) {
-                return phased.nextPhase(layout, result);
+                return phased.nextPhase(schema, result);
             }
             return logicalPlan;
         });
+        applied.setAnalyzed();
+        return applied;
     }
 }

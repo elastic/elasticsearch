@@ -11,7 +11,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -50,13 +49,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterServiceTests.shutdownMetadata;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -122,41 +120,20 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         loadQueuedModels(trainedModelAssignmentNodeService, false);
     }
 
-    private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService, boolean expectedRunImmediately) {
-        trainedModelAssignmentNodeService.loadQueuedModels(ActionListener.wrap(actualRunImmediately -> {
-            assertThat(
-                "We should rerun immediately if there are still model loading tasks to process.",
-                actualRunImmediately,
-                equalTo(expectedRunImmediately)
-            );
-        }, e -> fail("We should never call the onFailure method of this listener.")));
-    }
-
-    private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService, int times)
+    private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService, boolean expectedRunImmediately)
         throws InterruptedException {
-        var modelQueueSize = new AtomicInteger(times);
-        BiConsumer<ActionListener<Object>, Boolean> verifyRerunningImmediately = (listener, result) -> {
-            var runImmediately = modelQueueSize.decrementAndGet() > 0;
-            assertThat(
-                "We should rerun immediately if there are still model loading tasks to process.  Models remaining: " + modelQueueSize.get(),
-                result,
-                is(runImmediately)
-            );
-            listener.onResponse(null);
-        };
-
-        var chain = SubscribableListener.newForked(
-            l -> trainedModelAssignmentNodeService.loadQueuedModels(l.delegateFailure(verifyRerunningImmediately))
-        );
-        for (int i = 1; i < times; i++) {
-            chain = chain.andThen(
-                (l, r) -> trainedModelAssignmentNodeService.loadQueuedModels(l.delegateFailure(verifyRerunningImmediately))
-            );
-        }
-
         var latch = new CountDownLatch(1);
-        chain.addListener(ActionListener.running(latch::countDown));
+        var actual = new AtomicReference<Boolean>(); // AtomicReference for nullable
+        trainedModelAssignmentNodeService.loadQueuedModels(
+            ActionListener.runAfter(ActionListener.wrap(actual::set, e -> {}), latch::countDown)
+        );
         assertTrue("Timed out waiting for loadQueuedModels to finish.", latch.await(10, TimeUnit.SECONDS));
+        assertThat("Test failed to call the onResponse handler.", actual.get(), notNullValue());
+        assertThat(
+            "We should rerun immediately if there are still model loading tasks to process.",
+            actual.get(),
+            equalTo(expectedRunImmediately)
+        );
     }
 
     public void testLoadQueuedModels() throws InterruptedException {
@@ -237,7 +214,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testLoadQueuedModelsWhenStopped() {
+    public void testLoadQueuedModelsWhenStopped() throws InterruptedException {
         TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
 
         // When there are no queued models
@@ -247,8 +224,11 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(modelToLoad, modelToLoad));
         trainedModelAssignmentNodeService.stop();
 
-        trainedModelAssignmentNodeService.loadQueuedModels(
-            ActionListener.running(() -> fail("When stopped, then loadQueuedModels should never run."))
+        var latch = new CountDownLatch(1);
+        trainedModelAssignmentNodeService.loadQueuedModels(ActionListener.running(latch::countDown));
+        assertTrue(
+            "loadQueuedModels should immediately call the listener without forking to another thread.",
+            latch.await(0, TimeUnit.SECONDS)
         );
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }

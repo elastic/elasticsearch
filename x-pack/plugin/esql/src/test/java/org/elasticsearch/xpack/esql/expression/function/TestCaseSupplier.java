@@ -823,7 +823,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#INTEGER}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#multiRowIntCases}.
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#intCases}.
      * </p>
      */
     public static List<TypedDataSupplier> intCases(int min, int max, boolean includeZero) {
@@ -853,7 +853,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#LONG}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#multiRowLongCases}.
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#longCases}.
      * </p>
      */
     public static List<TypedDataSupplier> longCases(long min, long max, boolean includeZero) {
@@ -924,7 +924,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#DOUBLE}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#multiRowDoubleCases}.
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#doubleCases}.
      * </p>
      */
     public static List<TypedDataSupplier> doubleCases(double min, double max, boolean includeZero) {
@@ -1001,7 +1001,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#DATETIME}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#multiRowDateCases}.
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
      * </p>
      */
     public static List<TypedDataSupplier> dateCases() {

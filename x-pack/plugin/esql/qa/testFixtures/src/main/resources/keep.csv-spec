@@ -539,3 +539,28 @@ c:i
 1
 1
 ;
+
+shadowingInternal
+FROM employees
+| SORT emp_no ASC
+| KEEP last_name, last_name
+| LIMIT 2
+;
+
+last_name:keyword
+Facello
+Simmel
+;
+
+
+shadowingInternalWildcard
+FROM employees
+| SORT emp_no ASC
+| KEEP last*name, last*name, last*, last_name
+| LIMIT 2
+;
+
+last_name:keyword
+Facello
+Simmel
+;

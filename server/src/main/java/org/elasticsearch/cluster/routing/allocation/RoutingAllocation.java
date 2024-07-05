@@ -341,15 +341,10 @@ public class RoutingAllocation {
      */
     public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
         DiscoveryNodes nodes = clusterState.nodes();
-        Metadata metadata = indexMetadataUpdater.applyChanges(
-            metadata(),
-            newRoutingTable,
-            n -> {
-                var node = nodes.get(n);
-                return node != null ? node.getMaxIndexVersion() : IndexVersions.ZERO;
-            },
-            clusterState.getMinTransportVersion()
-        );
+        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable, n -> {
+            var node = nodes.get(n);
+            return node != null ? node.getMaxIndexVersion() : IndexVersions.ZERO;
+        }, clusterState.getMinTransportVersion());
         return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);
     }
 

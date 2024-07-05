@@ -196,8 +196,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                  */
                 if (p instanceof AggregateExec agg
                     && agg.groupings().size() == 1
-                    // Union types rely on field extraction.
-                    && (isMultiTypeFieldAttribute(agg.groupings().get(0)) == false)) {
+                    && (isMultiTypeFieldAttribute(agg.groupings().get(0)) == false) // Union types rely on field extraction.
+                ) {
                     var leaves = new LinkedList<>();
                     // TODO: this seems out of place
                     agg.aggregates()

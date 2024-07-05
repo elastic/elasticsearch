@@ -76,12 +76,6 @@ tests:
 - class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/110244
-- class: org.elasticsearch.painless.LangPainlessClientYamlTestSuiteIT
-  method: test {yaml=painless/146_dense_vector_bit_basic/Cosine Similarity is not supported}
-  issue: https://github.com/elastic/elasticsearch/issues/110290
-- class: org.elasticsearch.painless.LangPainlessClientYamlTestSuiteIT
-  method: test {yaml=painless/146_dense_vector_bit_basic/Dot Product is not supported}
-  issue: https://github.com/elastic/elasticsearch/issues/110291
 - class: org.elasticsearch.action.search.SearchProgressActionListenerIT
   method: testSearchProgressWithQuery
   issue: https://github.com/elastic/elasticsearch/issues/109867

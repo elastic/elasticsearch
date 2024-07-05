@@ -10,15 +10,12 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.SequenceBooleanBlockSourceOperator;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 

@@ -5,7 +5,7 @@ type: deprecation
 issues: []
 deprecation:
   title: Deprecate using slm privileges to access ilm
-  area: ILM+SLM
+  area: REST API
   details: The `read_slm` privilege can get the ILM status, and
     the `manage_slm` privilege can start and stop ILM. Access to these 
     APIs should be granted using the `read_ilm` and `manage_ilm` privileges

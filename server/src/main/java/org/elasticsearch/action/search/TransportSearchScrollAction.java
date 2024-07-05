@@ -21,8 +21,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Set;
 
 import static org.elasticsearch.action.search.ParsedScrollId.QUERY_AND_FETCH_TYPE;
 import static org.elasticsearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TYPE;
@@ -59,7 +62,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 try {
-                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis(), Set.of(QueryCategory.SCROLL));
                     SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                         SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                     if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
@@ -76,7 +79,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     listener.onResponse(searchResponse);
                     // increment after the delegated onResponse to ensure we don't
                     // record both a success and a failure if there is an exception
-                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus, Set.of(QueryCategory.SCROLL));
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -84,7 +87,10 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
 
             @Override
             public void onFailure(Exception e) {
-                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+                searchResponseMetrics.incrementResponseCount(
+                    SearchResponseMetrics.ResponseCountTotalStatus.FAILURE,
+                    Set.of(QueryCategory.SCROLL)
+                );
                 listener.onFailure(e);
             }
         };

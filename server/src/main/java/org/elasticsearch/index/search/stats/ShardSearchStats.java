@@ -121,7 +121,7 @@ public final class ShardSearchStats implements SearchOperationListener {
             }
         }
         for (QueryCategory queryCategory : searchContext.queryCategories()) {
-            consumer.accept(queryCategoriesStats(queryCategory.category));
+            consumer.accept(queryCategoriesStats(queryCategory.displayName()));
         }
     }
 

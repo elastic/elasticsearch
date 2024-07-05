@@ -8,11 +8,15 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class SearchResponseMetrics {
 
@@ -62,15 +66,23 @@ public class SearchResponseMetrics {
         this.responseCountTotalCounter = responseCountTotalCounter;
     }
 
-    public long recordTookTime(long tookTime) {
-        tookDurationTotalMillisHistogram.record(tookTime);
+    public long recordTookTime(long tookTime, Set<QueryCategory> queryCategories) {
+        tookDurationTotalMillisHistogram.record(tookTime, categoriesToAttributes(queryCategories));
         return tookTime;
     }
 
-    public void incrementResponseCount(ResponseCountTotalStatus responseCountTotalStatus) {
+    private static Map<String, Object> categoriesToAttributes(Set<QueryCategory> queryCategories) {
+        return queryCategories.stream().collect(Collectors.toUnmodifiableMap(c -> "query_category." + c.displayName(), c -> true));
+    }
+
+    public void incrementResponseCount(ResponseCountTotalStatus responseCountTotalStatus, Set<QueryCategory> queryCategories) {
         responseCountTotalCounter.incrementBy(
             1L,
-            Map.of(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME, responseCountTotalStatus.getDisplayName())
+            Maps.copyMapWithAddedEntry(
+                categoriesToAttributes(queryCategories),
+                RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME,
+                responseCountTotalStatus.getDisplayName()
+            )
         );
     }
 }

@@ -16,11 +16,16 @@ public enum QueryCategory {
     FULL_TEXT("text"),
     SPAN("span"),
     SPECIALIZED("specialized"),
+    SCROLL("scroll"),
     JOINING("join");
 
-    public final String category;
+    private final String displayName;
 
-    QueryCategory(String category) {
-        this.category = category;
+    QueryCategory(String displayName) {
+        this.displayName = displayName;
+    }
+
+    public String displayName() {
+        return displayName;
     }
 }

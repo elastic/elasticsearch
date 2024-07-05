@@ -66,6 +66,7 @@ import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -296,7 +297,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 try {
-                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                    Set<QueryCategory> queryCategories = searchRequest.source().queryCategories();
+                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis(), queryCategories);
                     SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                         SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                     if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
@@ -317,7 +319,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     listener.onResponse(searchResponse);
                     // increment after the delegated onResponse to ensure we don't
                     // record both a success and a failure if there is an exception
-                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus, queryCategories);
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -325,7 +327,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             @Override
             public void onFailure(Exception e) {
-                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+                searchResponseMetrics.incrementResponseCount(
+                    SearchResponseMetrics.ResponseCountTotalStatus.FAILURE,
+                    searchRequest.source().queryCategories()
+                );
                 listener.onFailure(e);
             }
         };

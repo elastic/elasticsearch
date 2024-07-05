@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -193,7 +194,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                  * it loads the field lazily. If we have more than one field we need to
                  * make sure the fields are loaded for the standard hash aggregator.
                  */
-                if (p instanceof AggregateExec agg && agg.groupings().size() == 1) {
+                if (p instanceof AggregateExec agg
+                    && agg.groupings().size() == 1
+                    // Union types rely on field extraction.
+                    && (isMultiTypeFieldAttribute(agg.groupings().get(0)) == false)) {
                     var leaves = new LinkedList<>();
                     // TODO: this seems out of place
                     agg.aggregates()
@@ -215,6 +219,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             });
 
             return plan;
+        }
+
+        private static boolean isMultiTypeFieldAttribute(Expression attribute) {
+            return attribute instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
         }
 
         private static Set<Attribute> missingAttributes(PhysicalPlan p) {

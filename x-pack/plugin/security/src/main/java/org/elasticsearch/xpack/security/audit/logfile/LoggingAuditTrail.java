@@ -1178,13 +1178,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return withRequestBody(putRoleRequest.name(), putRoleRequest.roleDescriptor());
         }
 
-        LogEntryBuilder withRequestBody(BulkPutRolesRequest bulkPutRoleRequest) throws IOException {
-            for (RoleDescriptor roleDescriptor : bulkPutRoleRequest.getRoles()) {
-                withRequestBody(roleDescriptor.getName(), roleDescriptor);
-            }
-            return this;
-        }
-
         LogEntryBuilder withRequestBody(String roleName, RoleDescriptor roleDescriptor) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "put_role");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);

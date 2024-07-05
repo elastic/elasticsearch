@@ -25,7 +25,7 @@ Retrieves roles with <<query-dsl,Query DSL>> in a <<paginate-search-results,pagi
 
 The role management APIs are generally the preferred way to manage roles, rather than using
 <<roles-management-file,file-based role management>>.
-The query roles API does not retrieve roles that are defined in roles files.
+The query roles API does not retrieve roles that are defined in roles files, nor <<built-in-roles,built-in>> ones.
 You can optionally filter the results with a query. Also, the results can be paginated and sorted.
 
 [[security-api-query-role-request-body]]

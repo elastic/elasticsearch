@@ -60,6 +60,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     final FlatVectorsScorer flatVectorScorer;
 
     public ES814ScalarQuantizedVectorsFormat(Float confidenceInterval) {
+        super(NAME);
         if (confidenceInterval != null
             && (confidenceInterval < MINIMUM_CONFIDENCE_INTERVAL || confidenceInterval > MAXIMUM_CONFIDENCE_INTERVAL)) {
             throw new IllegalArgumentException(

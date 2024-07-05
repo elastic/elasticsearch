@@ -181,15 +181,74 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
     public void testBulkUpdates() throws Exception {
         String request = """
             {"roles": {"test1": {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test2":
-            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test3":
-            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}]}}}""";
-
+            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["read"]}], "description": "something"}, "test3":
+            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}], "remote_indices":[{"names":["logs-*"],
+            "privileges":["read"],"clusters":["my_cluster*","other_cluster"]}]}}}""";
         {
             Map<String, Object> responseMap = upsertRoles(request);
             assertThat(responseMap, not(hasKey("errors")));
 
             List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("created");
             assertEquals(3, items.size());
+
+            fetchRoleAndAssertEqualsExpected(
+                "test1",
+                new RoleDescriptor(
+                    "test1",
+                    new String[] { "all" },
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build() },
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            );
+            fetchRoleAndAssertEqualsExpected(
+                "test2",
+                new RoleDescriptor(
+                    "test2",
+                    new String[] { "all" },
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("read").build() },
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "something"
+                )
+            );
+            fetchRoleAndAssertEqualsExpected(
+                "test3",
+                new RoleDescriptor(
+                    "test3",
+                    new String[] { "all" },
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("write").build() },
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new RoleDescriptor.RemoteIndicesPrivileges[] {
+                        RoleDescriptor.RemoteIndicesPrivileges.builder("my_cluster*", "other_cluster")
+                            .indices("logs-*")
+                            .privileges("read")
+                            .build() },
+                    null,
+                    null,
+                    null
+                )
+            );
         }
         {
             Map<String, Object> responseMap = upsertRoles(request);
@@ -200,7 +259,7 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
         {
             request = """
-                {"roles": {"test1": {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test2":
+                {"roles": {"test1": {}, "test2":
                 {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test3":
                 {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}}}""";
 
@@ -208,6 +267,49 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             assertThat(responseMap, not(hasKey("errors")));
             List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("updated");
             assertEquals(3, items.size());
+
+            assertThat(responseMap, not(hasKey("errors")));
+
+            fetchRoleAndAssertEqualsExpected(
+                "test1",
+                new RoleDescriptor("test1", null, null, null, null, null, null, null, null, null, null, null)
+            );
+            fetchRoleAndAssertEqualsExpected(
+                "test2",
+                new RoleDescriptor(
+                    "test2",
+                    new String[] { "all" },
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build() },
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            );
+            fetchRoleAndAssertEqualsExpected(
+                "test3",
+                new RoleDescriptor(
+                    "test3",
+                    new String[] { "all" },
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build() },
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            );
         }
     }
 }

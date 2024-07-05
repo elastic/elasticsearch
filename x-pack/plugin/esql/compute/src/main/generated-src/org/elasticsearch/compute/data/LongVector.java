@@ -10,6 +10,8 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -26,6 +28,9 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
 
     @Override
     LongVector filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -81,6 +86,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
             case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
             case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantLongVector(in.readLong(), positions);
             case SERIALIZE_VECTOR_ARRAY -> LongArrayVector.readArrayVector(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_BIG_ARRAY -> LongBigArrayVector.readArrayVector(positions, in, blockFactory);
             default -> {
                 assert false : "invalid vector serialization type [" + serializationType + "]";
                 throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
@@ -99,6 +105,9 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
         } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof LongArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof LongBigArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
+            v.writeArrayVector(positions, out);
         } else {
             out.writeByte(SERIALIZE_VECTOR_VALUES);
             writeValues(this, positions, out);
@@ -108,7 +117,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     private static LongVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newLongVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendLong(in.readLong());
+                builder.appendLong(i, in.readLong());
             }
             return builder.build();
         }
@@ -142,5 +151,8 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
          */
         @Override
         FixedBuilder appendLong(long value);
+
+        FixedBuilder appendLong(int index, long value);
+
     }
 }

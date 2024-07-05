@@ -73,6 +73,10 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
                     builder.startObject();
                     builder.array("cluster", translatedResponse.getClusterPrivileges());
                     builder.array("index", translatedResponse.getIndexPrivileges());
+                    String[] remoteClusterPrivileges = translatedResponse.getRemoteClusterPrivileges();
+                    if (remoteClusterPrivileges.length > 0) { // remote clusters are not supported in stateless mode, so hide entirely
+                        builder.array("remote_cluster", remoteClusterPrivileges);
+                    }
                     builder.endObject();
                     return new RestResponse(RestStatus.OK, builder);
                 }

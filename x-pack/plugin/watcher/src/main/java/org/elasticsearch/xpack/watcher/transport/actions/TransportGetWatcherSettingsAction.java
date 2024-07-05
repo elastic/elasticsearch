@@ -46,7 +46,7 @@ public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction
             clusterService,
             threadPool,
             actionFilters,
-            GetWatcherSettingsAction.Request::new,
+            GetWatcherSettingsAction.Request::readFrom,
             indexNameExpressionResolver,
             GetWatcherSettingsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE

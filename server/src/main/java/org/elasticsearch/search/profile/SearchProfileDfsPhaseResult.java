@@ -15,19 +15,15 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
-import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ParserConstructor;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject {
 
@@ -63,24 +59,8 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
         }
     }
 
-    private static final ParseField STATISTICS = new ParseField("statistics");
-    private static final ParseField KNN = new ParseField("knn");
-    private static final InstantiatingObjectParser<SearchProfileDfsPhaseResult, Void> PARSER;
-
-    static {
-        InstantiatingObjectParser.Builder<SearchProfileDfsPhaseResult, Void> parser = InstantiatingObjectParser.builder(
-            "search_profile_dfs_phase_result",
-            true,
-            SearchProfileDfsPhaseResult.class
-        );
-        parser.declareObject(optionalConstructorArg(), (p, c) -> ProfileResult.fromXContent(p), STATISTICS);
-        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> QueryProfileShardResult.fromXContent(p), KNN);
-        PARSER = parser.build();
-    }
-
-    public static SearchProfileDfsPhaseResult fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
+    public static final ParseField STATISTICS = new ParseField("statistics");
+    public static final ParseField KNN = new ParseField("knn");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

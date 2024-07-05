@@ -109,6 +109,76 @@ setup:
   - match: {hits.hits.0.fields.prefixed_node: [node_c] }
 
 ---
+"fetch multiple stored fields":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "bug fixed in 8.14"
+
+  - do:
+      indices.create:
+        index: sensor-test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              prefixed_node:
+                type: keyword
+                script:
+                  source: |
+                    for (String node : params._fields.node.values) {
+                      emit(params.prefix + node);
+                    }
+                  params:
+                    prefix: node_
+              prefixed_region:
+                type: keyword
+                script:
+                  source: |
+                    for (String region : params._fields.region.values) {
+                      emit(params.prefix + region)
+                    }
+                  params:
+                    prefix: us-
+            properties:
+              timestamp:
+                type: date
+              node:
+                type: keyword
+                store: true
+              region:
+                type: keyword
+                store: true
+
+  - do:
+      bulk:
+        index: sensor-test
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "node": "a", "region": "west-1" }
+          {"index":{}}
+          {"timestamp": 1516642894000, "node": "b", "region": "west-2" }
+          {"index":{}}
+          {"timestamp": 1516556494000, "node": "a", "region": "west-1"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "node": "b", "region": "west-2"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "node": "c", "region": "west-2"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "node": "c", "region": "west-2"}
+  - do:
+      search:
+        index: sensor-test
+        body:
+          sort: timestamp
+          fields: [prefixed_node, prefixed_region]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.prefixed_node: [node_c] }
+  - match: {hits.hits.0.fields.prefixed_region: [us-west-2]}
+
+---
 "docvalue_fields":
   - do:
       search:

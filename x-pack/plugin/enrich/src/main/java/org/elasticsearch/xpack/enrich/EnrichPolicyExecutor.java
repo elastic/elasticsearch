@@ -85,7 +85,7 @@ public class EnrichPolicyExecutor {
         String enrichIndexName = EnrichPolicy.getIndexName(request.getName(), nowTimestamp);
         Releasable policyLock = tryLockingPolicy(request.getName(), enrichIndexName);
         try {
-            Request internalRequest = new Request(request.getName(), enrichIndexName);
+            Request internalRequest = new Request(request.masterNodeTimeout(), request.getName(), enrichIndexName);
             internalRequest.setWaitForCompletion(request.isWaitForCompletion());
             internalRequest.setParentTask(request.getParentTask());
             client.execute(InternalExecutePolicyAction.INSTANCE, internalRequest, ActionListener.wrap(response -> {

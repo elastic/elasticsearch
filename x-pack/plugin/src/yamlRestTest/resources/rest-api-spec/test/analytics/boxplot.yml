@@ -195,10 +195,10 @@ setup:
 
 ---
 "Counter field":
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "counter field support added in 8.10"
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       indices.create:

@@ -21,8 +21,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.AbstractRestChannel;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
-import org.elasticsearch.rest.LoggingChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
+import org.elasticsearch.rest.LoggingChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -113,7 +113,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
         try {
             final HttpResponse httpResponse;
             if (isHeadRequest == false && restResponse.isChunked()) {
-                ChunkedRestResponseBody chunkedContent = restResponse.chunkedContent();
+                ChunkedRestResponseBodyPart chunkedContent = restResponse.chunkedContent();
                 if (httpLogger != null && httpLogger.isBodyTracerEnabled()) {
                     final var loggerStream = httpLogger.openResponseBodyLoggingStream(request.getRequestId());
                     toClose.add(() -> {
@@ -123,7 +123,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
                             assert false : e; // nothing much to go wrong here
                         }
                     });
-                    chunkedContent = new LoggingChunkedRestResponseBody(chunkedContent, loggerStream);
+                    chunkedContent = new LoggingChunkedRestResponseBodyPart(chunkedContent, loggerStream);
                 }
 
                 httpResponse = httpRequest.createResponse(restResponse.status(), chunkedContent);

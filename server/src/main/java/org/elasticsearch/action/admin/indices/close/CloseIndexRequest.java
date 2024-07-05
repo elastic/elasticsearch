@@ -37,12 +37,15 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
         waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
-    public CloseIndexRequest() {}
+    public CloseIndexRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Constructs a new close index request for the specified index.
      */
     public CloseIndexRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.indices = indices;
     }
 

@@ -13,13 +13,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -137,7 +137,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(BulkAction.class));
+                assertSame(TransportBulkAction.TYPE, action);
                 assertThat(request, instanceOf(BulkRequest.class));
                 BulkRequest bulkRequest = (BulkRequest) request;
                 bulkRequest.requests().forEach(dwr -> assertEquals(ILM_HISTORY_DATA_STREAM, dwr.index()));
@@ -177,11 +177,11 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
-                if (action instanceof CreateIndexAction && request instanceof CreateIndexRequest) {
+                if (action == TransportCreateIndexAction.TYPE && request instanceof CreateIndexRequest) {
                     return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
                 }
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(BulkAction.class));
+                assertSame(TransportBulkAction.TYPE, action);
                 assertThat(request, instanceOf(BulkRequest.class));
                 BulkRequest bulkRequest = (BulkRequest) request;
                 bulkRequest.requests().forEach(dwr -> {
@@ -230,7 +230,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
         long numberOfDocs = 400_000;
         CountDownLatch latch = new CountDownLatch((int) numberOfDocs);
         client.setVerifier((action, request, listener) -> {
-            assertThat(action, instanceOf(BulkAction.class));
+            assertSame(TransportBulkAction.TYPE, action);
             assertThat(request, instanceOf(BulkRequest.class));
             BulkRequest bulkRequest = (BulkRequest) request;
             List<DocWriteRequest<?>> realRequests = bulkRequest.requests();

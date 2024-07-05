@@ -137,7 +137,11 @@ public class NodeClient extends AbstractClient {
     }
 
     @Override
-    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
-        return remoteClusterService.getRemoteClusterClient(clusterAlias, responseExecutor, true);
+    public RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+    ) {
+        return remoteClusterService.getRemoteClusterClient(clusterAlias, responseExecutor, disconnectedStrategy);
     }
 }

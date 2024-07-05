@@ -47,7 +47,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .version(OLD_CLUSTER_VERSION)
-            .distribution(DistributionType.INTEG_TEST)
+            .distribution(DistributionType.DEFAULT)
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")
@@ -99,6 +99,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
+                  "description": "This description should not be sent to remote clusters.",
                   "cluster": ["manage_own_api_key"],
                   "indices": [
                     {

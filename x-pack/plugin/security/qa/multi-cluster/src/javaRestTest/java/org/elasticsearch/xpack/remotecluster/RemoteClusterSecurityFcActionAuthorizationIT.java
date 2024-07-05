@@ -11,30 +11,43 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
@@ -52,10 +65,13 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.junit.ClassRule;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.PASS;
@@ -67,6 +83,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase {
@@ -161,13 +178,20 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         }
 
         // Simulate QC behaviours by directly connecting to the FC using a transport service
-        try (MockTransportService service = startTransport("node", threadPool, (String) crossClusterApiKeyMap.get("encoded"))) {
+        final String apiKey = (String) crossClusterApiKeyMap.get("encoded");
+        final boolean skipUnavailable = randomBoolean();
+        try (MockTransportService service = startTransport("node", threadPool, apiKey, skipUnavailable)) {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
             final List<RemoteConnectionInfo> remoteConnectionInfos = remoteClusterService.getRemoteConnectionInfos().toList();
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
 
-            final var remoteClusterClient = remoteClusterService.getRemoteClusterClient("my_remote_cluster", threadPool.generic());
+            Executor responseExecutor = threadPool.generic();
+            final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                "my_remote_cluster",
+                responseExecutor,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+            );
 
             // Creating a restore session fails if index is not accessible
             final ShardId privateShardId = new ShardId("private-index", privateIndexUUID, 0);
@@ -308,27 +332,35 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
         assertOK(createApiKeyResponse);
         final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
-        try (MockTransportService service = startTransport("node", threadPool, (String) apiKeyMap.get("encoded"))) {
+        final String apiKey = (String) apiKeyMap.get("encoded");
+        final boolean skipUnavailable = randomBoolean();
+        try (MockTransportService service = startTransport("node", threadPool, apiKey, skipUnavailable)) {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
             final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 "my_remote_cluster",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
             );
-
-            final ElasticsearchSecurityException e = expectThrows(
-                ElasticsearchSecurityException.class,
+            final Exception e = expectThrows(
+                Exception.class,
                 () -> executeRemote(
                     remoteClusterClient,
                     RemoteClusterNodesAction.REMOTE_TYPE,
                     RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES
                 )
             );
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "authentication expected API key type of [cross_cluster], but API key [" + apiKeyMap.get("id") + "] has type [rest]"
-                )
-            );
+            if (skipUnavailable) {
+                assertThat(e, instanceOf(ConnectTransportException.class));
+                assertThat(e.getMessage(), containsString("Unable to connect to [my_remote_cluster]"));
+            } else {
+                assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+                assertThat(
+                    e.getMessage(),
+                    containsString(
+                        "authentication expected API key type of [cross_cluster], but API key [" + apiKeyMap.get("id") + "] has type [rest]"
+                    )
+                );
+            }
         }
     }
 
@@ -371,12 +403,14 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         final FieldCapabilitiesRequest request = new FieldCapabilitiesRequest().indices("index").fields("name");
 
         // Perform cross-cluster requests
+        boolean skipUnavailable = randomBoolean();
         try (
             MockTransportService service = startTransport(
                 "node",
                 threadPool,
                 (String) crossClusterApiKeyMap.get("encoded"),
-                Map.of(TransportFieldCapabilitiesAction.NAME, crossClusterAccessSubjectInfo)
+                Map.of(TransportFieldCapabilitiesAction.NAME, crossClusterAccessSubjectInfo),
+                skipUnavailable
             )
         ) {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -385,7 +419,8 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
             final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 "my_remote_cluster",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
             );
 
             // 1. Not accessible because API key does not grant the access
@@ -454,15 +489,98 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         }
     }
 
-    private static MockTransportService startTransport(final String nodeName, final ThreadPool threadPool, String encodedApiKey) {
-        return startTransport(nodeName, threadPool, encodedApiKey, Map.of());
+    public void testMalformedShardLevelActionIsRejected() throws Exception {
+        final Map<String, Object> crossClusterApiKeyMap = createCrossClusterAccessApiKey(adminClient(), """
+            {
+              "search": [
+                {
+                   "names": ["idx-a", "idx-b"]
+                }
+              ]
+            }""");
+
+        final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity(Strings.format("""
+            { "index": { "_index": "idx-a", "_id": "1" } }
+            { "name": "doc-1" }
+            { "index": { "_index": "idx-b", "_id": "1" } }
+            { "name": "doc-1" }
+            """));
+        assertOK(adminClient().performRequest(bulkRequest));
+
+        final Request getIndexSettingsRequest = new Request("GET", "/idx-b/_settings");
+        getIndexSettingsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        final ObjectPath indexSettings = assertOKAndCreateObjectPath(adminClient().performRequest(getIndexSettingsRequest));
+        String otherIndexId = indexSettings.evaluate(".idx-b.settings.index.uuid");
+
+        // Create the malformed request with a mismatch between with the request index and shard ID
+        String indexA = "idx-a";
+
+        try (
+            MockTransportService service = startTransport(
+                "node",
+                threadPool,
+                (String) crossClusterApiKeyMap.get("encoded"),
+                Map.of(TransportGetAction.TYPE.name() + "[s]", buildCrossClusterAccessSubjectInfo(indexA)),
+                randomBoolean()
+            )
+        ) {
+            final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            final List<RemoteConnectionInfo> remoteConnectionInfos = remoteClusterService.getRemoteConnectionInfos().toList();
+            assertThat(remoteConnectionInfos, hasSize(1));
+            assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
+
+            MalformedGetRequest malformedGetRequest = new MalformedGetRequest(otherIndexId);
+            malformedGetRequest.assertParsesAsGetRequest();
+            final ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> executeRemote(
+                    remoteClusterService.getRemoteClusterClient(
+                        "my_remote_cluster",
+                        threadPool.generic(),
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    ),
+                    new RemoteClusterActionType<>(TransportGetAction.TYPE.name() + "[s]", GetResponse::new),
+                    malformedGetRequest
+                )
+            );
+            assertThat(e.getMessage(), containsString("is unauthorized"));
+        }
+
+        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+    }
+
+    private static CrossClusterAccessSubjectInfo buildCrossClusterAccessSubjectInfo(String... indices) throws IOException {
+        return new CrossClusterAccessSubjectInfo(
+            Authentication.newRealmAuthentication(new User("query-user", "role"), new Authentication.RealmRef("file", "file", "node")),
+            new RoleDescriptorsIntersection(
+                new RoleDescriptor(
+                    "cross_cluster",
+                    null,
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("read", "read_cross_cluster").build() },
+                    null
+                )
+            )
+        );
     }
 
     private static MockTransportService startTransport(
         final String nodeName,
         final ThreadPool threadPool,
         String encodedApiKey,
-        Map<String, CrossClusterAccessSubjectInfo> subjectInfoLookup
+        boolean skipUnavailable
+    ) {
+        return startTransport(nodeName, threadPool, encodedApiKey, Map.of(), skipUnavailable);
+    }
+
+    private static MockTransportService startTransport(
+        final String nodeName,
+        final ThreadPool threadPool,
+        String encodedApiKey,
+        Map<String, CrossClusterAccessSubjectInfo> subjectInfoLookup,
+        boolean skipUnavailable
     ) {
         final String remoteClusterServerEndpoint = testCluster.getRemoteClusterServerEndpoint(0);
 
@@ -475,9 +593,11 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         builder.setSecureSettings(secureSettings);
         if (randomBoolean()) {
             builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
+                .put("cluster.remote.my_remote_cluster.skip_unavailable", Boolean.toString(skipUnavailable))
                 .put("cluster.remote.my_remote_cluster.seeds", remoteClusterServerEndpoint);
         } else {
             builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
+                .put("cluster.remote.my_remote_cluster.skip_unavailable", Boolean.toString(skipUnavailable))
                 .put("cluster.remote.my_remote_cluster.proxy_address", remoteClusterServerEndpoint);
         }
 
@@ -511,5 +631,53 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             }
         }
         return service;
+    }
+
+    private static class MalformedGetRequest extends ActionRequest {
+        private final String otherIndexId;
+
+        MalformedGetRequest(String otherIndexId) {
+            this.otherIndexId = otherIndexId;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null; // this space intentionally left blank
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            // This is a manually-written malformed get request, since it's intentionally difficult to form this kind of
+            // request with production code.
+            TaskId.EMPTY_TASK_ID.writeTo(out);
+            out.writeOptionalWriteable(new ShardId("idx-b", otherIndexId, 0)); // InternalShardId
+            out.writeOptionalString("idx-a"); // index name
+            out.writeString("1"); // doc id
+            out.writeOptionalString(null); // routing
+            out.writeOptionalString(null); // preference
+
+            out.writeBoolean(true); // refresh
+            out.writeOptionalStringArray(null); // stored fields
+            out.writeBoolean(true); // realtime
+            out.writeByte(VersionType.INTERNAL.getValue()); // version type
+            out.writeLong(Versions.MATCH_ANY); // version
+            out.writeOptionalWriteable(null); // fetch source context
+            out.writeBoolean(false); // force synthetic source
+        }
+
+        /**
+         * Checks that this fake request can actually be parsed as a get request. If this assertion fails,
+         * check that the above writeTo method matches GetRequest's streaming methods.
+         */
+        public void assertParsesAsGetRequest() throws Exception {
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            this.writeTo(out);
+            InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
+            GetRequest parsedRequest = new GetRequest(inputStreamStreamInput);
+            assertEquals("idx-a", parsedRequest.index());
+            assertEquals("1", parsedRequest.id());
+            assertEquals("idx-b", parsedRequest.shards().get(0).getIndexName());
+        }
     }
 }

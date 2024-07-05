@@ -39,7 +39,7 @@ The cat recovery API returns information about shard recoveries, both
 ongoing and completed. It is a more compact view of the JSON
 <<indices-recovery,index recovery>> API.
 
-include::{es-repo-dir}/indices/recovery.asciidoc[tag=shard-recovery-desc]
+include::{es-ref-dir}/indices/recovery.asciidoc[tag=shard-recovery-desc]
 
 
 [[cat-recovery-path-params]]
@@ -53,25 +53,25 @@ and indices, omit this parameter or use `*` or `_all`.
 [[cat-recovery-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=active-only]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=active-only]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-recovery-api-example]]

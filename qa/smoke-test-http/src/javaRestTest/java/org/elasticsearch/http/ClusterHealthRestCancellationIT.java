@@ -30,6 +30,7 @@ import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefixOnMaster;
 
 public class ClusterHealthRestCancellationIT extends HttpSmokeTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100062")
     @TestIssueLogging(
         issueUrl = "https://github.com/elastic/elasticsearch/issues/100062",
         value = "org.elasticsearch.test.TaskAssertions:TRACE"

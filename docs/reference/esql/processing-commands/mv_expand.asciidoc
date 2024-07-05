@@ -2,6 +2,8 @@
 [[esql-mv_expand]]
 === `MV_EXPAND`
 
+preview::[]
+
 **Syntax**
 
 [source,esql]

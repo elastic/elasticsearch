@@ -41,8 +41,6 @@ public final class QueryPragmas implements Writeable {
         DataPartitioning.SEGMENT
     );
 
-    public static final Setting<Boolean> TIME_SERIES_MODE = Setting.boolSetting("time_series", false);
-
     /**
      * Size of a page in entries with {@code 0} being a special value asking
      * to adaptively size based on the number of columns in the page.
@@ -56,6 +54,8 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<TimeValue> STATUS_INTERVAL = Setting.timeSetting("status_interval", Driver.DEFAULT_STATUS_INTERVAL);
 
     public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
+
+    public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", false);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -126,12 +126,16 @@ public final class QueryPragmas implements Writeable {
         return MAX_CONCURRENT_SHARDS_PER_NODE.get(settings);
     }
 
-    public boolean isEmpty() {
-        return settings.isEmpty();
+    /**
+     * Returns true if each data node should perform a local reduction for sort, limit, topN, stats or false if the coordinator node
+     * will perform the reduction.
+     */
+    public boolean nodeLevelReduction() {
+        return NODE_LEVEL_REDUCTION.get(settings);
     }
 
-    public boolean timeSeriesMode() {
-        return TIME_SERIES_MODE.get(settings);
+    public boolean isEmpty() {
+        return settings.isEmpty();
     }
 
     @Override
@@ -145,5 +149,10 @@ public final class QueryPragmas implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(settings);
+    }
+
+    @Override
+    public String toString() {
+        return settings.toString();
     }
 }

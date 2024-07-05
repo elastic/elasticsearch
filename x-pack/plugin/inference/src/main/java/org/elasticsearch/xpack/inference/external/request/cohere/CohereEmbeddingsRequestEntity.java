@@ -33,9 +33,7 @@ public record CohereEmbeddingsRequestEntity(
     private static final String SEARCH_QUERY = "search_query";
     private static final String CLUSTERING = "clustering";
     private static final String CLASSIFICATION = "classification";
-
     private static final String TEXTS_FIELD = "texts";
-
     static final String INPUT_TYPE_FIELD = "input_type";
     static final String EMBEDDING_TYPES_FIELD = "embedding_types";
 
@@ -57,7 +55,7 @@ public record CohereEmbeddingsRequestEntity(
         }
 
         if (embeddingType != null) {
-            builder.field(EMBEDDING_TYPES_FIELD, List.of(embeddingType));
+            builder.field(EMBEDDING_TYPES_FIELD, List.of(embeddingType.toRequestString()));
         }
 
         if (taskSettings.getTruncation() != null) {

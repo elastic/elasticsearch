@@ -8,6 +8,8 @@
 package org.elasticsearch.action.admin.cluster.repositories.verify;
 
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
@@ -15,9 +17,28 @@ import java.util.List;
 
 public class VerifyRepositoryResponseTests extends AbstractXContentTestCase<VerifyRepositoryResponse> {
 
+    private static final ObjectParser<VerifyRepositoryResponse, Void> PARSER = new ObjectParser<>(
+        VerifyRepositoryResponse.class.getName(),
+        true,
+        VerifyRepositoryResponse::new
+    );
+    static {
+        ObjectParser<VerifyRepositoryResponse.NodeView, Void> internalParser = new ObjectParser<>(
+            VerifyRepositoryResponse.NODES,
+            true,
+            null
+        );
+        internalParser.declareString(VerifyRepositoryResponse.NodeView::setName, new ParseField(VerifyRepositoryResponse.NAME));
+        PARSER.declareNamedObjects(
+            VerifyRepositoryResponse::setNodes,
+            (p, v, name) -> internalParser.parse(p, new VerifyRepositoryResponse.NodeView(name), null),
+            new ParseField("nodes")
+        );
+    }
+
     @Override
     protected VerifyRepositoryResponse doParseInstance(XContentParser parser) {
-        return VerifyRepositoryResponse.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override

@@ -58,4 +58,4 @@ or setting the index setting `index.mapping.total_fields.ignore_dynamic_beyond_l
     unless a user starts to add a huge number of fields with really long names. Default is
     `Long.MAX_VALUE` (no limit).
 
-include::{es-repo-dir}/data-streams/tsds-index-settings.asciidoc[tag=dimensions-limit]
+include::{es-ref-dir}/data-streams/tsds-index-settings.asciidoc[tag=dimensions-limit]

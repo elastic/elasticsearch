@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.slm.history;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -137,7 +137,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
 
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
-                if (action instanceof CreateIndexAction && request instanceof CreateIndexRequest) {
+                if (action == TransportCreateIndexAction.TYPE && request instanceof CreateIndexRequest) {
                     return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
                 }
                 calledTimes.incrementAndGet();

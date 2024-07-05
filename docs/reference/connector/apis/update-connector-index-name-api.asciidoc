@@ -4,9 +4,11 @@
 <titleabbrev>Update connector index name</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Updates the `index_name` field of a connector, specifying the index where the data ingested by the connector is stored.
+
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 [[update-connector-index-name-api-request]]
 ==== {api-request-title}
@@ -16,7 +18,7 @@ Updates the `index_name` field of a connector, specifying the index where the da
 [[update-connector-index-name-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `connector_id` parameter should reference an existing connector.
 
 [[update-connector-index-name-api-path-params]]

@@ -205,11 +205,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public String getCustomDataPath() {
             return customDataPath;
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
-        }
     }
 
     public static class NodesGatewayStartedShards extends BaseNodesResponse<NodeGatewayStartedShards> {
@@ -284,10 +279,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         private final String allocationId;
         private final boolean primary;
         private final Exception storeException;
-
-        public NodeGatewayStartedShards(StreamInput in) throws IOException {
-            this(in, null);
-        }
 
         public NodeGatewayStartedShards(StreamInput in, DiscoveryNode node) throws IOException {
             super(in, node);

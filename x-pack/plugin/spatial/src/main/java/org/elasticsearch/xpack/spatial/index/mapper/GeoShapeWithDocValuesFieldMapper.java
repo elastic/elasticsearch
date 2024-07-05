@@ -173,7 +173,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeometryFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), GeometryFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -194,7 +194,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             );
             GeoShapeParser parser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 indexed.get(),
                 hasDocValues.get(),
                 stored.get(),
@@ -206,7 +206,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             );
             if (script.get() == null) {
                 return new GeoShapeWithDocValuesFieldMapper(
-                    name(),
+                    leafName(),
                     ft,
                     multiFieldsBuilder.build(this, context),
                     copyTo,
@@ -216,7 +216,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 );
             }
             return new GeoShapeWithDocValuesFieldMapper(
-                name(),
+                leafName(),
                 ft,
                 multiFieldsBuilder.build(this, context),
                 copyTo,
@@ -458,7 +458,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
-            simpleName(),
+            leafName(),
             builder.version,
             builder.scriptCompiler,
             builder.ignoreMalformed.getDefaultValue().value(),
@@ -476,7 +476,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
         if (mergeWith instanceof GeoShapeWithDocValuesFieldMapper == false && CONTENT_TYPE.equals(mergeWith.typeName())) {
             throw new IllegalArgumentException(
-                "mapper [" + name() + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"
+                "mapper [" + fullPath() + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"
             );
         }
         super.checkIncomingMergeType(mergeWith);

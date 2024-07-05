@@ -357,7 +357,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         }
                     }
                     assertEquals(size, Math.min(queue.size(), expected.length - pos));
-                    int ptr = pos + (queue.size() - 1);
+                    int ptr = pos + ((int) queue.size() - 1);
                     pos += queue.size();
                     last = null;
                     while (queue.size() > pos) {

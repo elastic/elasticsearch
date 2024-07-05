@@ -16,6 +16,7 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.concurrent.Executor;
@@ -64,8 +65,12 @@ public class ParentTaskAssigningClient extends FilterClient {
     }
 
     @Override
-    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
-        final var delegate = super.getRemoteClusterClient(clusterAlias, responseExecutor);
+    public RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+    ) {
+        final var delegate = super.getRemoteClusterClient(clusterAlias, responseExecutor, disconnectedStrategy);
         return new RemoteClusterClient() {
             @Override
             public <Request extends ActionRequest, Response extends TransportResponse> void execute(

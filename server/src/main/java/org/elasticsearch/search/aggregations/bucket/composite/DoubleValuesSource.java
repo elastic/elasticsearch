@@ -16,6 +16,8 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
@@ -154,6 +156,11 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
         final SortedNumericDoubleValues dvs = docValuesFunc.apply(context);
+        final NumericDoubleValues singleton = FieldData.unwrapSingleton(dvs);
+        return singleton != null ? getLeafCollector(singleton, next) : getLeafCollector(dvs, next);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericDoubleValues dvs, LeafBucketCollector next) {
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -168,6 +175,22 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
                             previous = currentValue;
                         }
                     }
+                } else if (missingBucket) {
+                    missingCurrentValue = true;
+                    next.collect(doc, bucket);
+                }
+            }
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(NumericDoubleValues dvs, LeafBucketCollector next) {
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (dvs.advanceExact(doc)) {
+                    currentValue = dvs.doubleValue();
+                    missingCurrentValue = false;
+                    next.collect(doc, bucket);
                 } else if (missingBucket) {
                     missingCurrentValue = true;
                     next.collect(doc, bucket);

@@ -713,6 +713,17 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
+        public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+            assertPurpose(purpose);
+            final var register = registers.get(key);
+            if (register == null) {
+                listener.onResponse(OptionalBytesReference.EMPTY);
+            } else {
+                listener.onResponse(OptionalBytesReference.of(register.get()));
+            }
+        }
+
+        @Override
         public void compareAndExchangeRegister(
             OperationPurpose purpose,
             String key,

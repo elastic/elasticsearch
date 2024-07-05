@@ -1405,9 +1405,15 @@ public abstract class StreamInput extends InputStream {
      * Read a {@link TimeValue} from the stream
      */
     public TimeValue readTimeValue() throws IOException {
-        long duration = readZLong();
-        TimeUnit timeUnit = TIME_UNITS[readByte()];
-        return new TimeValue(duration, timeUnit);
+        final long duration = readZLong();
+        final TimeUnit timeUnit = TIME_UNITS[readByte()];
+        return switch (timeUnit) {
+            // avoid unnecessary allocation for some common cases:
+            case MILLISECONDS -> TimeValue.timeValueMillis(duration);
+            case SECONDS -> TimeValue.timeValueSeconds(duration);
+            case MINUTES -> TimeValue.timeValueMinutes(duration);
+            default -> new TimeValue(duration, timeUnit);
+        };
     }
 
     /**

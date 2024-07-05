@@ -371,6 +371,19 @@ public class BigArraysTests extends ESTestCase {
             }
         }
         assertThat(offset, equalTo(bytes.length));
+        int newLen = randomIntBetween(bytes.length, bytes.length + 100_000);
+        array = bigArrays.resize(array, newLen);
+        it = array.iterator();
+        offset = 0;
+        while ((ref = it.next()) != null) {
+            for (int i = 0; i < ref.length; i++) {
+                if (offset < bytes.length) {
+                    assertEquals(bytes[offset], ref.bytes[ref.offset + i]);
+                }
+                offset++;
+            }
+        }
+        assertThat(offset, equalTo(newLen));
         array.close();
     }
 

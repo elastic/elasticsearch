@@ -1,6 +1,8 @@
 [[targz]]
 === Install {es} from archive on Linux or MacOS
 
+:include-xpack: true
+
 {es} is available as a `.tar.gz` archive for Linux and MacOS.
 
 include::license.asciidoc[]
@@ -45,6 +47,21 @@ ifeval::["{release-state}"=="unreleased"]
 WARNING: Version {version} of {es} has not yet been released.
 
 endif::[]
+
+[IMPORTANT]
+.macOS Gatekeeper warnings
+====
+Apple's rollout of stricter notarization requirements affected the notarization of the {version} {es} artifacts. If macOS displays a dialog when you first run {es} that interrupts it, then you need to take an action to allow it to run.
+
+To prevent Gatekeeper checks on the {es} files, run the following command on the downloaded .tar.gz archive or the directory to which was extracted:
+
+[source,sh]
+----
+xattr -d -r com.apple.quarantine <archive-or-directory>
+----
+
+Alternatively, you can add a security override by following the instructions in the _If you want to open an app that hasn't been notarized or is from an unidentified developer_ section of https://support.apple.com/en-us/HT202491[Safely open apps on your Mac].
+====
 
 The MacOS archive for {es} v{version} can be downloaded and installed as follows:
 

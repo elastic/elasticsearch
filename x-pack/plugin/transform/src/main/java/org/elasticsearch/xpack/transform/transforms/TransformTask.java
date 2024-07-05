@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
@@ -53,7 +54,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
-import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_FAILED_TRANSFORM;
+import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_SINGLE_FAILED_TRANSFORM;
 
 public class TransformTask extends AllocatedPersistentTask implements TransformScheduler.Listener, TransformContext.Listener {
 
@@ -68,10 +69,11 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private final TransformIndexerPosition initialPosition;
     private final IndexerState initialIndexerState;
     private final TransformContext context;
+    private final TransformNode transformNode;
     private final SetOnce<ClientTransformIndexer> indexer = new SetOnce<>();
 
     @SuppressWarnings("this-escape")
-    public TransformTask(
+    TransformTask(
         long id,
         String type,
         String action,
@@ -81,7 +83,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         TransformScheduler transformScheduler,
         TransformAuditor auditor,
         ThreadPool threadPool,
-        Map<String, String> headers
+        Map<String, String> headers,
+        TransformNode transformNode
     ) {
         super(id, type, action, TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
         this.transform = transform;
@@ -118,6 +121,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         if (state != null) {
             this.context.setAuthState(state.getAuthState());
         }
+        this.transformNode = transformNode;
     }
 
     public String getTransformId() {
@@ -359,7 +363,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         synchronized (context) {
             if (context.getTaskState() == TransformTaskState.FAILED && force == false) {
                 throw new ElasticsearchStatusException(
-                    TransformMessages.getMessage(CANNOT_STOP_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
+                    TransformMessages.getMessage(CANNOT_STOP_SINGLE_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
                     RestStatus.CONFLICT
                 );
             }
@@ -524,11 +528,26 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 return;
             }
 
-            logger.atError().withThrowable(exception).log("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
-            auditor.error(transform.getId(), reason);
             // We should not keep retrying. Either the task will be stopped, or started
             // If it is started again, it is registered again.
             transformScheduler.deregisterTransform(getTransformId());
+
+            if (transformNode.isShuttingDown().orElse(false)) {
+                logger.atDebug()
+                    .withThrowable(exception)
+                    .log(
+                        "Aborting transform [{}]. Transform has failed while node [{}] is shutting down. Reason: [{}]",
+                        transform.getId(),
+                        transformNode.nodeId(),
+                        reason
+                    );
+                markAsLocallyAborted("Node is shutting down.");
+                listener.onResponse(null);
+                return;
+            }
+
+            logger.atError().withThrowable(exception).log("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
+            auditor.error(transform.getId(), reason);
             // The idea of stopping at the next checkpoint is no longer valid. Since a failed task could potentially START again,
             // we should set this flag to false.
             context.setShouldStopAtCheckpoint(false);

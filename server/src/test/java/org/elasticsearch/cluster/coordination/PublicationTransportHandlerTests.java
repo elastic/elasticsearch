@@ -458,6 +458,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 new PublishRequest(clusterState0),
                 ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
             );
+            deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(completed.getAndSet(false));
             receivedState0 = receivedStateRef.getAndSet(null);
             assertEquals(clusterState0.stateUUID(), receivedState0.stateUUID());
@@ -499,6 +500,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 new PublishRequest(clusterState1),
                 ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
             );
+            deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(completed.getAndSet(false));
             var receivedState1 = receivedStateRef.getAndSet(null);
             assertEquals(clusterState1.stateUUID(), receivedState1.stateUUID());

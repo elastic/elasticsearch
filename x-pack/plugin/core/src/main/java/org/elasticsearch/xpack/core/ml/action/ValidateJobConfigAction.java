@@ -14,11 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.io.IOException;
 import java.util.Date;
-import java.util.List;
 import java.util.Objects;
 
 public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
@@ -32,10 +30,10 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends ActionRequest {
 
-        private Job job;
+        private final Job job;
 
         public static Request parseRequest(XContentParser parser) {
-            Job.Builder jobBuilder = Job.STRICT_PARSER.apply(parser, null);
+            Job.Builder jobBuilder = Job.REST_REQUEST_PARSER.apply(parser, null);
             // When jobs are PUT their ID must be supplied in the URL - assume this will
             // be valid unless an invalid job ID is specified in the JSON to be validated
             jobBuilder.setId(jobBuilder.getId() != null ? jobBuilder.getId() : "ok");
@@ -44,14 +42,6 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
             // This validation logically belongs to validateInputFields call but we perform it only for PUT action to avoid BWC issues which
             // would occur when parsing an old job config that already had duplicate detectors.
             jobBuilder.validateDetectorsAreUnique();
-
-            // Some fields cannot be set at create time
-            List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();
-            if (invalidJobCreationSettings.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS, String.join(",", invalidJobCreationSettings))
-                );
-            }
 
             return new Request(jobBuilder.build(new Date()));
         }

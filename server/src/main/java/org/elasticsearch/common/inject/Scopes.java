@@ -16,11 +16,9 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.InternalFactory;
 import org.elasticsearch.common.inject.internal.Scoping;
 
-import java.lang.annotation.Annotation;
 import java.util.Locale;
 
 /**
@@ -33,7 +31,7 @@ public class Scopes {
     private Scopes() {}
 
     /**
-     * One instance per {@link Injector}. Also see {@code @}{@link Singleton}.
+     * One instance per {@link Injector}.
      */
     public static final Scope SINGLETON = new Scope() {
         @Override
@@ -82,8 +80,7 @@ public class Scopes {
      * binding arrives it will need to obtain the instance over again.
      * <p>
      * This exists only in case a class has been annotated with a scope
-     * annotation such as {@link Singleton @Singleton}, and you need to override
-     * this to "no scope" in your binding.
+     * annotation and you need to override this to "no scope" in your binding.
      *
      * @since 2.0
      */
@@ -115,23 +112,4 @@ public class Scopes {
         return new InternalFactoryToProviderAdapter<>(Initializables.of(scoped));
     }
 
-    /**
-     * Replaces annotation scopes with instance scopes using the Injector's annotation-to-instance
-     * map. If the scope annotation has no corresponding instance, an error will be added and unscoped
-     * will be retuned.
-     */
-    static Scoping makeInjectable(Scoping scoping, InjectorImpl injector, Errors errors) {
-        Class<? extends Annotation> scopeAnnotation = scoping.getScopeAnnotation();
-        if (scopeAnnotation == null) {
-            return scoping;
-        }
-
-        Scope scope = injector.state.getScope(scopeAnnotation);
-        if (scope != null) {
-            return Scoping.forInstance(scope);
-        }
-
-        errors.scopeNotFound(scopeAnnotation);
-        return Scoping.UNSCOPED;
-    }
 }

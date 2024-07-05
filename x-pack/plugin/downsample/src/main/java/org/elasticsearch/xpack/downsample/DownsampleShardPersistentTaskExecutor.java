@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -187,6 +188,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     static void realNodeOperation(
         Client client,
         IndicesService indicesService,
+        DownsampleMetrics downsampleMetrics,
         DownsampleShardTask task,
         DownsampleShardTaskParams params,
         BytesRef lastDownsampledTsid
@@ -208,6 +210,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                         task,
                         client,
                         indicesService.indexServiceSafe(params.shardId().getIndex()),
+                        downsampleMetrics,
                         params.shardId(),
                         params.downsampleIndex(),
                         params.downsampleConfig(),
@@ -260,7 +263,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             super(NAME);
         }
 
-        public static class Request extends ActionRequest implements IndicesRequest {
+        public static class Request extends ActionRequest implements IndicesRequest.RemoteClusterShardRequest {
 
             private final DownsampleShardTask task;
             private final BytesRef lastDownsampleTsid;
@@ -291,23 +294,36 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             public void writeTo(StreamOutput out) {
                 throw new IllegalStateException("request should stay local");
             }
+
+            @Override
+            public Collection<ShardId> shards() {
+                return Collections.singletonList(task.shardId());
+            }
         }
 
         public static class TA extends TransportAction<Request, ActionResponse.Empty> {
 
             private final Client client;
             private final IndicesService indicesService;
+            private final DownsampleMetrics downsampleMetrics;
 
             @Inject
-            public TA(TransportService transportService, ActionFilters actionFilters, Client client, IndicesService indicesService) {
+            public TA(
+                TransportService transportService,
+                ActionFilters actionFilters,
+                Client client,
+                IndicesService indicesService,
+                DownsampleMetrics downsampleMetrics
+            ) {
                 super(NAME, actionFilters, transportService.getTaskManager());
                 this.client = client;
                 this.indicesService = indicesService;
+                this.downsampleMetrics = downsampleMetrics;
             }
 
             @Override
             protected void doExecute(Task t, Request request, ActionListener<ActionResponse.Empty> listener) {
-                realNodeOperation(client, indicesService, request.task, request.params, request.lastDownsampleTsid);
+                realNodeOperation(client, indicesService, downsampleMetrics, request.task, request.params, request.lastDownsampleTsid);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
         }

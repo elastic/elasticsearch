@@ -21,7 +21,7 @@ public class CustomPassageFormatterTests extends ESTestCase {
     public void testSimpleFormat() {
         String content = "This is a really cool highlighter. Unified highlighter gives nice snippets back. No matches here.";
 
-        CustomPassageFormatter passageFormatter = new CustomPassageFormatter("<em>", "</em>", new DefaultEncoder());
+        CustomPassageFormatter passageFormatter = new CustomPassageFormatter("<em>", "</em>", new DefaultEncoder(), 3);
 
         Passage[] passages = new Passage[3];
         String match = "highlighter";
@@ -62,7 +62,7 @@ public class CustomPassageFormatterTests extends ESTestCase {
     public void testHtmlEncodeFormat() {
         String content = "<b>This is a really cool highlighter.</b> Unified highlighter gives nice snippets back.";
 
-        CustomPassageFormatter passageFormatter = new CustomPassageFormatter("<em>", "</em>", new SimpleHTMLEncoder());
+        CustomPassageFormatter passageFormatter = new CustomPassageFormatter("<em>", "</em>", new SimpleHTMLEncoder(), 3);
 
         Passage[] passages = new Passage[2];
         String match = "highlighter";

@@ -19,4 +19,9 @@ public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuil
     public IndicesSegmentsRequestBuilder(ElasticsearchClient client) {
         super(client, IndicesSegmentsAction.INSTANCE, new IndicesSegmentsRequest());
     }
+
+    public IndicesSegmentsRequestBuilder includeVectorFormatInfo(boolean includeVectorFormatInfo) {
+        this.request.withVectorFormatsInfo(includeVectorFormatInfo);
+        return this;
+    }
 }

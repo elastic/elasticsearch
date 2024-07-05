@@ -44,7 +44,15 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
             );
             coordinatorStats.add(stats);
             cacheStats.add(
-                new CacheStats(nodeId, randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+                new CacheStats(
+                    nodeId,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
             );
         }
         return new EnrichStatsAction.Response(executingPolicies, coordinatorStats, cacheStats);

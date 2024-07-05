@@ -1,10 +1,9 @@
 ---
 setup:
   - skip:
-      version: "all"
-      reason: "waiting for final decisions on supporting generic expressions on the right https://github.com/elastic/elasticsearch/issues/103599"
-
-      features: allowed_warnings_regex
+      awaits_fix: "waiting for final decisions on supporting generic expressions on the right https://github.com/elastic/elasticsearch/issues/103599"
+  - requires:
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index: test

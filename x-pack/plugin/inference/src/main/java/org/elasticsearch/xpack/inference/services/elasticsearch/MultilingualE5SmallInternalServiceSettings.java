@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
@@ -19,11 +21,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 
 public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
     public static final String NAME = "multilingual_e5_small_service_settings";
+
+    static final int DIMENSIONS = 384;
+    static final SimilarityMeasure SIMILARITY = SimilarityMeasure.COSINE;
 
     public MultilingualE5SmallInternalServiceSettings(int numAllocations, int numThreads, String modelId) {
         super(numAllocations, numThreads, modelId);
@@ -44,10 +49,23 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
      */
     public static MultilingualE5SmallInternalServiceSettings.Builder fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
-        Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
-        Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
+        var requestFields = extractRequestFields(map, validationException);
 
-        validateParameters(numAllocations, validationException, numThreads);
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
+        return createBuilder(requestFields);
+    }
+
+    private static RequestFields extractRequestFields(Map<String, Object> map, ValidationException validationException) {
+        Integer numAllocations = extractRequiredPositiveInteger(
+            map,
+            NUM_ALLOCATIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         String modelId = ServiceUtils.removeAsType(map, MODEL_ID, String.class);
         if (modelId != null) {
@@ -61,26 +79,23 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
             }
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        return new RequestFields(numAllocations, numThreads, modelId);
+    }
 
+    private static MultilingualE5SmallInternalServiceSettings.Builder createBuilder(RequestFields requestFields) {
         var builder = new InternalServiceSettings.Builder() {
             @Override
             public MultilingualE5SmallInternalServiceSettings build() {
                 return new MultilingualE5SmallInternalServiceSettings(getNumAllocations(), getNumThreads(), getModelId());
             }
         };
-        builder.setNumAllocations(numAllocations);
-        builder.setNumThreads(numThreads);
-        builder.setModelId(modelId);
+        builder.setNumAllocations(requestFields.numAllocations);
+        builder.setNumThreads(requestFields.numThreads);
+        builder.setModelId(requestFields.modelId);
         return builder;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return super.toXContent(builder, params);
-    }
+    private record RequestFields(@Nullable Integer numAllocations, @Nullable Integer numThreads, @Nullable String modelId) {}
 
     @Override
     public boolean isFragment() {
@@ -93,17 +108,22 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
     }
 
     @Override
+    public SimilarityMeasure similarity() {
+        return SIMILARITY;
+    }
+
+    @Override
     public Integer dimensions() {
-        return 384;
+        return DIMENSIONS;
+    }
+
+    @Override
+    public DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.FLOAT;
     }
 }

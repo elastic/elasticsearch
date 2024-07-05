@@ -18,10 +18,11 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.shard.TransportGetShardSnapshotAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -91,9 +93,15 @@ public class ShardSnapshotsService {
 
         logger.debug("Searching for peer recovery compatible snapshots in [{}]", repositories);
 
-        GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, repositories);
+        GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInRepositories(
+            clusterService.state().getMinTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_REQUEST_TIMEOUTS)
+                ? TimeValue.MINUS_ONE
+                : TimeValue.MAX_VALUE,
+            shardId,
+            repositories
+        );
         client.execute(
-            GetShardSnapshotAction.INSTANCE,
+            TransportGetShardSnapshotAction.TYPE,
             request,
             new ThreadedActionListener<>(
                 threadPool.generic(),

@@ -1,0 +1,5 @@
+pr: 108612
+summary: "[Connector API] Change `UpdateConnectorFiltering` API to have better defaults"
+area: Application
+type: enhancement
+issues: []

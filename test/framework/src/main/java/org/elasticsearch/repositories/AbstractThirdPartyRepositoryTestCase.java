@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupReposi
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
@@ -69,7 +71,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     @Override
     public void tearDown() throws Exception {
         deleteAndAssertEmpty(getRepository().basePath());
-        clusterAdmin().prepareDeleteRepository(TEST_REPO_NAME).get();
+        clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME).get();
         super.tearDown();
     }
 
@@ -103,10 +105,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final String snapshotName = "test-snap-" + System.currentTimeMillis();
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REPO_NAME, snapshotName)
-            .setWaitForCompletion(true)
-            .setIndices("test-idx-*", "-test-idx-3")
-            .get();
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REPO_NAME,
+            snapshotName
+        ).setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(
             createSnapshotResponse.getSnapshotInfo().successfulShards(),
@@ -114,14 +117,19 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         );
 
         assertThat(
-            clusterAdmin().prepareGetSnapshots(TEST_REPO_NAME).setSnapshots(snapshotName).get().getSnapshots().get(0).state(),
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
+                .setSnapshots(snapshotName)
+                .get()
+                .getSnapshots()
+                .get(0)
+                .state(),
             equalTo(SnapshotState.SUCCESS)
         );
 
-        assertTrue(clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, snapshotName).get().isAcknowledged());
+        assertTrue(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName).get().isAcknowledged());
     }
 
-    public void testListChildren() throws Exception {
+    public void testListChildren() {
         final BlobStoreRepository repo = getRepository();
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final Executor genericExec = repo.threadPool().generic();
@@ -176,10 +184,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final String snapshotName = "test-snap-" + System.currentTimeMillis();
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REPO_NAME, snapshotName)
-            .setWaitForCompletion(true)
-            .setIndices("test-idx-*", "-test-idx-3")
-            .get();
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REPO_NAME,
+            snapshotName
+        ).setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(
             createSnapshotResponse.getSnapshotInfo().successfulShards(),
@@ -187,7 +196,12 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         );
 
         assertThat(
-            clusterAdmin().prepareGetSnapshots(TEST_REPO_NAME).setSnapshots(snapshotName).get().getSnapshots().get(0).state(),
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
+                .setSnapshots(snapshotName)
+                .get()
+                .getSnapshots()
+                .get(0)
+                .state(),
             equalTo(SnapshotState.SUCCESS)
         );
 
@@ -199,7 +213,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         createDanglingIndex(repo, genericExec);
 
         logger.info("--> deleting a snapshot to trigger repository cleanup");
-        clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, snapshotName).get();
+        clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName).get();
 
         BlobStoreTestUtil.assertConsistency(repo);
 
@@ -207,7 +221,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         createDanglingIndex(repo, genericExec);
 
         logger.info("--> Execute repository cleanup");
-        final CleanupRepositoryResponse response = clusterAdmin().prepareCleanupRepository(TEST_REPO_NAME).get();
+        final CleanupRepositoryResponse response = clusterAdmin().prepareCleanupRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REPO_NAME
+        ).get();
         assertCleanupResponse(response, 3L, 1L);
     }
 
@@ -226,24 +244,87 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final var repository = getRepository();
         final var blobContents = new HashSet<BytesReference>();
 
-        final var createSnapshot1Response = clusterAdmin().prepareCreateSnapshot(TEST_REPO_NAME, randomIdentifier())
+        final var createSnapshot1Response = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, randomIdentifier())
             .setWaitForCompletion(true)
             .get();
         assertTrue(blobContents.add(readIndexLatest(repository)));
 
-        clusterAdmin().prepareGetSnapshots(TEST_REPO_NAME).get();
+        clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME).get();
         assertFalse(blobContents.add(readIndexLatest(repository)));
 
-        final var createSnapshot2Response = clusterAdmin().prepareCreateSnapshot(TEST_REPO_NAME, randomIdentifier())
+        final var createSnapshot2Response = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, randomIdentifier())
             .setWaitForCompletion(true)
             .get();
         assertTrue(blobContents.add(readIndexLatest(repository)));
 
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, createSnapshot1Response.getSnapshotInfo().snapshotId().getName()));
+        assertAcked(
+            clusterAdmin().prepareDeleteSnapshot(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REPO_NAME,
+                createSnapshot1Response.getSnapshotInfo().snapshotId().getName()
+            )
+        );
         assertTrue(blobContents.add(readIndexLatest(repository)));
 
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, createSnapshot2Response.getSnapshotInfo().snapshotId().getName()));
+        assertAcked(
+            clusterAdmin().prepareDeleteSnapshot(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REPO_NAME,
+                createSnapshot2Response.getSnapshotInfo().snapshotId().getName()
+            )
+        );
         assertTrue(blobContents.add(readIndexLatest(repository)));
+    }
+
+    public void testReadFromPositionWithLength() {
+        final var blobName = randomIdentifier();
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
+
+        final var repository = getRepository();
+        executeOnBlobStore(repository, blobStore -> {
+            blobStore.writeBlob(randomPurpose(), blobName, blobBytes, true);
+            return null;
+        });
+
+        {
+            assertThat("Exact Range", readBlob(repository, blobName, 0L, blobBytes.length()), equalTo(blobBytes));
+        }
+        {
+            int position = randomIntBetween(0, blobBytes.length() - 1);
+            int length = randomIntBetween(1, blobBytes.length() - position);
+            assertThat(
+                "Random Range: " + position + '-' + (position + length),
+                readBlob(repository, blobName, position, length),
+                equalTo(blobBytes.slice(position, length))
+            );
+        }
+        {
+            int position = randomIntBetween(0, blobBytes.length() - 1);
+            long length = randomLongBetween(1L, Long.MAX_VALUE - position - 1L);
+            assertThat(
+                "Random Larger Range: " + position + '-' + (position + length),
+                readBlob(repository, blobName, position, length),
+                equalTo(blobBytes.slice(position, Math.toIntExact(Math.min(length, blobBytes.length() - position))))
+            );
+        }
+    }
+
+    protected static <T> T executeOnBlobStore(BlobStoreRepository repository, CheckedFunction<BlobContainer, T, IOException> fn) {
+        final var future = new PlainActionFuture<T>();
+        repository.threadPool().generic().execute(ActionRunnable.supply(future, () -> {
+            var blobContainer = repository.blobStore().blobContainer(repository.basePath());
+            return fn.apply(blobContainer);
+        }));
+        return future.actionGet();
+    }
+
+    protected static BytesReference readBlob(BlobStoreRepository repository, String blobName, long position, long length) {
+        return executeOnBlobStore(repository, blobContainer -> {
+            try (var input = blobContainer.readBlob(randomPurpose(), blobName, position, length); var output = new BytesStreamOutput()) {
+                Streams.copy(input, output);
+                return output.bytes();
+            }
+        });
     }
 
     private static BytesReference readIndexLatest(BlobStoreRepository repository) throws IOException {

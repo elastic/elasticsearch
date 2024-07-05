@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContent;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Handler for REST requests
@@ -86,6 +87,34 @@ public interface RestHandler {
     }
 
     /**
+     * The set of path and query parameters that could be present on this handler.
+     * This method is only required due to <a href="https://github.com/elastic/elasticsearch/issues/36785">#36785</a>,
+     * which conflates query and path parameters inside the rest handler.
+     * This method should be overridden to add path parameters to {@link #supportedQueryParameters}
+     * if the handler has path parameters.
+     * This method will be removed when {@link #supportedQueryParameters()} and {@link BaseRestHandler#responseParams()} are combined.
+     */
+    default @Nullable Set<String> allSupportedParameters() {
+        return supportedQueryParameters();
+    }
+
+    /**
+     * The set of query parameters accepted by this rest handler,
+     * {@code null} if query parameters should not be checked nor validated.
+     * TODO - make this not nullable when all handlers have been updated
+     */
+    default @Nullable Set<String> supportedQueryParameters() {
+        return null;
+    }
+
+    /**
+     * The set of capabilities this rest handler supports.
+     */
+    default Set<String> supportedCapabilities() {
+        return Set.of();
+    }
+
+    /**
      * Controls whether requests handled by this class are allowed to to access system indices by default.
      * @return {@code true} if requests handled by this class should be allowed to access system indices.
      */
@@ -95,6 +124,10 @@ public interface RestHandler {
 
     default boolean mediaTypesValid(RestRequest request) {
         return request.getXContentType() != null;
+    }
+
+    default String getName() {
+        return this.getClass().getSimpleName();
     }
 
     class Route {

@@ -20,8 +20,16 @@ template:
         index: false
 
       # http.*
-      http.request.body:
+      http.request.headers:
         type: flattened
+      http.response.headers:
+        type: flattened
+      http.request.cookies:
+        type: object
+        dynamic: false
+      http.request.body:
+        type: object
+        dynamic: false
       http.response.transfer_size:
         type: long
         index: false
@@ -40,11 +48,13 @@ template:
         scaling_factor: 1000
         index: false
       span.stacktrace:
-        type: flattened
+        type: object
+        dynamic: false
 
       # transaction.*
       transaction.custom:
-        type: flattened
+        type: object
+        dynamic: false
       transaction.duration.us:
         type: long
       transaction.representative_count:

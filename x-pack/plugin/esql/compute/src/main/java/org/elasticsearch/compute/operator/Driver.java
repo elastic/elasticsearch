@@ -361,11 +361,11 @@ public class Driver implements Releasable, Describable {
 
             @Override
             protected void doRun() {
+                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, System::nanoTime);
                 if (driver.isFinished()) {
                     onComplete(listener);
                     return;
                 }
-                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, System::nanoTime);
                 if (fut.isDone()) {
                     schedule(maxTime, maxIterations, threadContext, executor, driver, listener);
                 } else {

@@ -8,6 +8,10 @@
 
 deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
+WARNING: From 8.15.0 invoking this API in a cluster with no rollup usage will fail with a message about Rollup's
+deprecation and planned removal. A cluster either needs to contain a rollup job or a rollup index in order for this API
+to be allowed to execute.
+
 Creates a {rollup-job}.
 
 [[rollup-put-job-api-request]]

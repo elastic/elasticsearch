@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Exact subfields fixed in v 8.13"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index: test
@@ -242,7 +242,6 @@ setup:
   - length: { values: 1 }
   - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
 
-
 ---
 "sort ignore above":
   - do:
@@ -341,8 +340,6 @@ setup:
   - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
   - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
 
-
-
 ---
 "sort normalizer":
   - do:
@@ -369,7 +366,6 @@ setup:
   - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
   - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ]}
 
-
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -393,7 +389,6 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
   - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
-
 
   - do:
       allowed_warnings_regex:

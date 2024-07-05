@@ -150,8 +150,16 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    LongVector sum = page.<LongBlock>getBlock(channels.get(0)).asVector();
-    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    Block sumUncast = page.getBlock(channels.get(0));
+    if (sumUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector sum = ((LongBlock) sumUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert sum.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));

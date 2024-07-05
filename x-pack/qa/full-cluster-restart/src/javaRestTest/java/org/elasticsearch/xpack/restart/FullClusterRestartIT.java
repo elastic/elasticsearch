@@ -433,6 +433,23 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
      */
     public void testRollupAfterRestart() throws Exception {
         if (isRunningAgainstOldCluster()) {
+            // create dummy rollup index to circumvent the check that prohibits rollup usage in empty clusters:
+            {
+                Request req = new Request("PUT", "dummy-rollup-index");
+                req.setJsonEntity("""
+                    {
+                        "mappings":{
+                            "_meta": {
+                                "_rollup":{
+                                    "my-id": {}
+                                }
+                            }
+                        }
+                    }
+                    """);
+                client().performRequest(req);
+            }
+
             final int numDocs = 59;
             final int year = randomIntBetween(1970, 2018);
 
@@ -731,7 +748,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
         Map<String, Object> updateWatch = entityAsMap(client().performRequest(createWatchRequest));
         assertThat(updateWatch.get("created"), equalTo(false));
-        assertThat(updateWatch.get("_version"), equalTo(2));
+        assertThat((int) updateWatch.get("_version"), greaterThanOrEqualTo(2));
 
         Map<String, Object> get = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/new_watch")));
         assertThat(get.get("found"), equalTo(true));

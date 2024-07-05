@@ -75,7 +75,6 @@ public class TransportCloseJobAction extends TransportTasksAction<
 
     private final ThreadPool threadPool;
     private final Client client;
-    private final ClusterService clusterService;
     private final AnomalyDetectionAuditor auditor;
     private final PersistentTasksService persistentTasksService;
     private final JobConfigProvider jobConfigProvider;
@@ -101,12 +100,10 @@ public class TransportCloseJobAction extends TransportTasksAction<
             actionFilters,
             CloseJobAction.Request::new,
             CloseJobAction.Response::new,
-            CloseJobAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
         this.client = client;
-        this.clusterService = clusterService;
         this.auditor = auditor;
         this.persistentTasksService = persistentTasksService;
         this.jobConfigProvider = jobConfigProvider;

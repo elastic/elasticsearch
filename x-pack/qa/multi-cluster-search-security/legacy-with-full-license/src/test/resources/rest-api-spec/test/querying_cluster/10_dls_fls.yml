@@ -50,8 +50,8 @@ teardown:
 
 ---
 "Async search with document and field level security":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "async search available since 7.7"
 
   - do:

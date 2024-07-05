@@ -124,6 +124,13 @@ final class S3ClientSettings {
         key -> Setting.timeSetting(key, TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope)
     );
 
+    /** The maximum number of concurrent connections to use. */
+    static final Setting.AffixSetting<Integer> MAX_CONNECTIONS_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "max_connections",
+        key -> Setting.intSetting(key, ClientConfiguration.DEFAULT_MAX_CONNECTIONS, 1, Property.NodeScope)
+    );
+
     /** The number of retries to use when an s3 request fails. */
     static final Setting.AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
@@ -195,6 +202,9 @@ final class S3ClientSettings {
     /** The read timeout for the s3 client. */
     final int readTimeoutMillis;
 
+    /** The maximum number of concurrent connections to use. */
+    final int maxConnections;
+
     /** The number of retries to use for the s3 client. */
     final int maxRetries;
 
@@ -223,6 +233,7 @@ final class S3ClientSettings {
         String proxyUsername,
         String proxyPassword,
         int readTimeoutMillis,
+        int maxConnections,
         int maxRetries,
         boolean throttleRetries,
         boolean pathStyleAccess,
@@ -239,6 +250,7 @@ final class S3ClientSettings {
         this.proxyUsername = proxyUsername;
         this.proxyPassword = proxyPassword;
         this.readTimeoutMillis = readTimeoutMillis;
+        this.maxConnections = maxConnections;
         this.maxRetries = maxRetries;
         this.throttleRetries = throttleRetries;
         this.pathStyleAccess = pathStyleAccess;
@@ -268,6 +280,7 @@ final class S3ClientSettings {
         final int newReadTimeoutMillis = Math.toIntExact(
             getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis()
         );
+        final int newMaxConnections = getRepoSettingOrDefault(MAX_CONNECTIONS_SETTING, normalizedSettings, maxConnections);
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
         final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
         final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
@@ -290,6 +303,7 @@ final class S3ClientSettings {
             && proxyPort == newProxyPort
             && proxyScheme == newProxyScheme
             && newReadTimeoutMillis == readTimeoutMillis
+            && maxConnections == newMaxConnections
             && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries
             && Objects.equals(credentials, newCredentials)
@@ -309,6 +323,7 @@ final class S3ClientSettings {
             proxyUsername,
             proxyPassword,
             newReadTimeoutMillis,
+            newMaxConnections,
             newMaxRetries,
             newThrottleRetries,
             newPathStyleAccess,
@@ -417,6 +432,7 @@ final class S3ClientSettings {
                 proxyUsername.toString(),
                 proxyPassword.toString(),
                 Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
+                getConfigValue(settings, clientName, MAX_CONNECTIONS_SETTING),
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
@@ -438,6 +454,7 @@ final class S3ClientSettings {
         final S3ClientSettings that = (S3ClientSettings) o;
         return proxyPort == that.proxyPort
             && readTimeoutMillis == that.readTimeoutMillis
+            && maxConnections == that.maxConnections
             && maxRetries == that.maxRetries
             && throttleRetries == that.throttleRetries
             && Objects.equals(credentials, that.credentials)
@@ -465,6 +482,7 @@ final class S3ClientSettings {
             proxyPassword,
             readTimeoutMillis,
             maxRetries,
+            maxConnections,
             throttleRetries,
             disableChunkedEncoding,
             region,

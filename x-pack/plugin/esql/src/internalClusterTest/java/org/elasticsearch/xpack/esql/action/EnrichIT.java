@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
@@ -165,15 +166,17 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             client().prepareIndex("songs").setSource("song_id", s.id, "title", s.title, "artist", s.artist, "length", s.length).get();
         }
         client().admin().indices().prepareRefresh("songs").get();
-        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("songs", policy)).actionGet();
-        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("songs")).actionGet();
+        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs", policy))
+            .actionGet();
+        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs"))
+            .actionGet();
         assertAcked(client().admin().indices().prepareDelete("songs"));
     }
 
     @After
     public void cleanEnrichPolicies() {
         cluster().wipe(Set.of());
-        client().execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request("songs"));
+        client().execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs"));
     }
 
     @Before
@@ -223,12 +226,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     public void testSumDurationByArtist() {
         Function<EsqlQueryResponse, Map<String, Double>> extractStats = resp -> {
-            List<ColumnInfo> columns = resp.columns();
+            List<ColumnInfoImpl> columns = resp.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("sum(duration)"));
-            assertThat(columns.get(0).type(), equalTo("double"));
+            assertThat(columns.get(0).type(), equalTo(DataType.DOUBLE));
             assertThat(columns.get(1).name(), equalTo("artist"));
-            assertThat(columns.get(1).type(), equalTo("keyword"));
+            assertThat(columns.get(1).type(), equalTo(DataType.KEYWORD));
             Iterator<Iterator<Object>> rows = resp.values();
             Map<String, Double> actualValues = new HashMap<>();
             while (rows.hasNext()) {
@@ -253,12 +256,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     public void testAvgDurationByArtist() {
         Function<EsqlQueryResponse, Map<String, Double>> extractStats = resp -> {
-            List<ColumnInfo> columns = resp.columns();
+            List<ColumnInfoImpl> columns = resp.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("avg(duration)"));
-            assertThat(columns.get(0).type(), equalTo("double"));
+            assertThat(columns.get(0).type(), equalTo(DataType.DOUBLE));
             assertThat(columns.get(1).name(), equalTo("artist"));
-            assertThat(columns.get(1).type(), equalTo("keyword"));
+            assertThat(columns.get(1).type(), equalTo(DataType.KEYWORD));
             Iterator<Iterator<Object>> rows = resp.values();
             Map<String, Double> actualValues = new HashMap<>();
             while (rows.hasNext()) {
@@ -279,12 +282,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     public void testListeningRatio() {
         Function<EsqlQueryResponse, Map<String, Double>> extractStats = resp -> {
-            List<ColumnInfo> columns = resp.columns();
+            List<ColumnInfoImpl> columns = resp.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("ratio"));
-            assertThat(columns.get(0).type(), equalTo("double"));
+            assertThat(columns.get(0).type(), equalTo(DataType.DOUBLE));
             assertThat(columns.get(1).name(), equalTo("artist"));
-            assertThat(columns.get(1).type(), equalTo("keyword"));
+            assertThat(columns.get(1).type(), equalTo(DataType.KEYWORD));
             Iterator<Iterator<Object>> rows = resp.values();
             Map<String, Double> actualValues = new HashMap<>();
             while (rows.hasNext()) {
@@ -327,7 +330,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProfile() {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.pragmas(randomPragmas());
         request.query("from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist");
         request.profile(true);
@@ -381,6 +384,39 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             try (EsqlQueryResponse resp = run(query)) {
                 assertThat(EsqlTestUtils.getValuesList(resp), equalTo(List.of(List.of("Hotel California", "s1"))));
             }
+        }
+    }
+
+    /**
+     * To enable enrich lookup using ordinals
+     */
+    public void testManyDocuments() {
+        int numDocs = between(200, 2000);
+        var artists = Map.of("s1", "Eagles", "s2", "Linkin Park", "s3", "Linkin Park", "s4", "Disturbed");
+        client().admin()
+            .indices()
+            .prepareCreate("many_docs")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+            .setMapping("song_id", "type=keyword")
+            .get();
+        Map<String, Long> songs = new HashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            String song = randomFrom(artists.keySet());
+            client().prepareIndex("many_docs").setSource("song_id", song).get();
+            songs.merge(song, 1L, Long::sum);
+        }
+        client().admin().indices().prepareRefresh("many_docs").get();
+        try (EsqlQueryResponse resp = run("FROM many_docs | ENRICH songs | STATS count(*) BY artist")) {
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            Map<String, Long> actual = new HashMap<>();
+            for (List<Object> value : values) {
+                actual.merge((String) value.get(1), (Long) value.get(0), Long::sum);
+            }
+            Map<String, Long> expected = new HashMap<>();
+            for (Map.Entry<String, Long> e : songs.entrySet()) {
+                expected.merge(artists.get(e.getKey()), e.getValue(), Long::sum);
+            }
+            assertThat(actual, equalTo(expected));
         }
     }
 

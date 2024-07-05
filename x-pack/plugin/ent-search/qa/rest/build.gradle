@@ -7,7 +7,19 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'cluster', 'connector', 'nodes', 'indices', 'index', 'query_ruleset', 'search_application', 'xpack', 'security', 'search', 'ml'
+    include '_common',
+      'bulk',
+      'cluster',
+      'connector',
+      'nodes',
+      'indices',
+      'index',
+      'query_rules',
+      'search_application',
+      'xpack',
+      'security',
+      'search',
+      'ml'
   }
 }
 
@@ -20,4 +32,8 @@ testClusters.configureEach {
   user username: 'entsearch-admin', password: 'entsearch-admin-password', role: 'admin'
   user username: 'entsearch-user', password: 'entsearch-user-password', role: 'user'
   user username: 'entsearch-unprivileged', password: 'entsearch-unprivileged-password', role: 'unprivileged'
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

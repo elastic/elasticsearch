@@ -65,6 +65,8 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.enrich;
     exports org.elasticsearch.xpack.core.eql;
     exports org.elasticsearch.xpack.core.esql;
+    exports org.elasticsearch.xpack.core.esql.action;
+    exports org.elasticsearch.xpack.core.esql.action.internal; // TODO: qualify to esql when modularized
     exports org.elasticsearch.xpack.core.frozen.action;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.graph.action;
@@ -117,9 +119,11 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
     exports org.elasticsearch.xpack.core.ml.job.results;
     exports org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
+    exports org.elasticsearch.xpack.core.ml.ltr;
     exports org.elasticsearch.xpack.core.ml.notifications;
     exports org.elasticsearch.xpack.core.ml.packageloader.action;
     exports org.elasticsearch.xpack.core.ml.process.writer;
+    exports org.elasticsearch.xpack.core.ml.search;
     exports org.elasticsearch.xpack.core.ml.stats;
     exports org.elasticsearch.xpack.core.ml.utils.time;
     exports org.elasticsearch.xpack.core.ml.utils;
@@ -225,12 +229,12 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.trigger;
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
-    exports org.elasticsearch.xpack.core.ml.ltr;
 
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with
             org.elasticsearch.xpack.core.ml.MlConfigVersionComponent,
-            org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent;
+            org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent,
+            org.elasticsearch.xpack.core.security.action.apikey.ApiKey.VersionComponent;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.core.XPackFeatures;
 }

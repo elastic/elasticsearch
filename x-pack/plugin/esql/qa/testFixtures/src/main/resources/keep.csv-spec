@@ -280,10 +280,10 @@ avg_salary:double | x:double
 ;
 
 averageOfEvalValue
-from employees | eval ratio = salary / height | stats avg(ratio);
+from employees | eval ratio = salary / height | stats avg = avg(ratio) | eval avg = round(avg, 8);
 
-avg(ratio):double
-27517.279737149947
+avg:double
+27517.27973715
 ;
 
 simpleWhere

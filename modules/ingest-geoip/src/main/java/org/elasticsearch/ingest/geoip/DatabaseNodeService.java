@@ -29,6 +29,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.geoip.stats.CacheStats;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -63,7 +64,7 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTaskWithId;
+import static org.elasticsearch.ingest.geoip.GeoIpTaskState.getGeoIpTaskState;
 
 /**
  * A component that is responsible for making the databases maintained by {@link GeoIpDownloader}
@@ -178,11 +179,10 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         ClusterState currentState = clusterService.state();
         assert currentState != null;
 
-        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(currentState, GeoIpDownloader.GEOIP_DOWNLOADER);
-        if (task == null || task.getState() == null) {
+        GeoIpTaskState state = getGeoIpTaskState(currentState);
+        if (state == null) {
             return true;
         }
-        GeoIpTaskState state = (GeoIpTaskState) task.getState();
         GeoIpTaskState.Metadata metadata = state.getDatabases().get(databaseFile);
         // we never remove metadata from cluster state, if metadata is null we deal with built-in database, which is always valid
         if (metadata == null) {
@@ -269,12 +269,11 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             }
         }
 
-        PersistentTasksCustomMetadata.PersistentTask<?> task = PersistentTasksCustomMetadata.getTaskWithId(
-            state,
-            GeoIpDownloader.GEOIP_DOWNLOADER
-        );
-        // Empty state will purge stale entries in databases map.
-        GeoIpTaskState taskState = task == null || task.getState() == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) task.getState();
+        GeoIpTaskState taskState = getGeoIpTaskState(state);
+        if (taskState == null) {
+            // Note: an empty state will purge stale entries in databases map
+            taskState = GeoIpTaskState.EMPTY;
+        }
 
         taskState.getDatabases().entrySet().stream().filter(e -> e.getValue().isValid(state.getMetadata().settings())).forEach(e -> {
             String name = e.getKey();
@@ -290,7 +289,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             try {
                 retrieveAndUpdateDatabase(name, metadata);
             } catch (Exception ex) {
-                logger.error(() -> "attempt to download database [" + name + "] failed", ex);
+                logger.error(() -> "failed to retrieve database [" + name + "]", ex);
             }
         });
 
@@ -506,4 +505,9 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             throw new UncheckedIOException(e);
         }
     }
+
+    public CacheStats getCacheStats() {
+        return cache.getCacheStats();
+    }
+
 }

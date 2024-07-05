@@ -53,8 +53,8 @@ public final class LinkedBindingImpl<T> extends BindingImpl<T> implements Linked
     }
 
     @Override
-    public BindingImpl<T> withScoping(Scoping scoping) {
-        return new LinkedBindingImpl<>(getSource(), getKey(), scoping, targetKey);
+    public BindingImpl<T> withEagerSingletonScoping() {
+        return new LinkedBindingImpl<>(getSource(), getKey(), Scoping.EAGER_SINGLETON, targetKey);
     }
 
     @Override

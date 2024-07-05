@@ -24,7 +24,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
@@ -247,6 +246,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static void configureRemoteCluster() throws IOException {
         final Settings.Builder builder = Settings.builder();
+        builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", "false");
         if (randomBoolean()) {
             builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
                 .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));
@@ -294,20 +294,9 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 getClusterStateFeatures(adminSearchClient),
                 semanticNodeVersions
             );
-            final TestFeatureService combinedTestFeatureService = new TestFeatureService() {
-                @Override
-                public boolean clusterHasFeature(String featureId) {
-                    return testFeatureService.clusterHasFeature(featureId) && searchTestFeatureService.clusterHasFeature(featureId);
-                }
+            final TestFeatureService combinedTestFeatureService = featureId -> testFeatureService.clusterHasFeature(featureId)
+                && searchTestFeatureService.clusterHasFeature(featureId);
 
-                @Override
-                public Set<String> getAllSupportedFeatures() {
-                    return Sets.intersection(
-                        testFeatureService.getAllSupportedFeatures(),
-                        searchTestFeatureService.getAllSupportedFeatures()
-                    );
-                }
-            };
             final Set<String> combinedOsSet = Stream.concat(osSet.stream(), Stream.of(searchOs)).collect(Collectors.toSet());
             final Set<String> combinedNodeVersions = Stream.concat(nodesVersions.stream(), searchNodeVersions.stream())
                 .collect(Collectors.toSet());

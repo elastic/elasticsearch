@@ -10,6 +10,8 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -26,6 +28,9 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
 
     @Override
     BooleanVector filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -80,6 +85,7 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
             case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
             case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantBooleanVector(in.readBoolean(), positions);
             case SERIALIZE_VECTOR_ARRAY -> BooleanArrayVector.readArrayVector(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_BIG_ARRAY -> BooleanBigArrayVector.readArrayVector(positions, in, blockFactory);
             default -> {
                 assert false : "invalid vector serialization type [" + serializationType + "]";
                 throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
@@ -98,6 +104,9 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
         } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof BooleanArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof BooleanBigArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
+            v.writeArrayVector(positions, out);
         } else {
             out.writeByte(SERIALIZE_VECTOR_VALUES);
             writeValues(this, positions, out);
@@ -107,7 +116,7 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     private static BooleanVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newBooleanVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendBoolean(in.readBoolean());
+                builder.appendBoolean(i, in.readBoolean());
             }
             return builder.build();
         }
@@ -141,5 +150,8 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
          */
         @Override
         FixedBuilder appendBoolean(boolean value);
+
+        FixedBuilder appendBoolean(int index, boolean value);
+
     }
 }

@@ -20,6 +20,7 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -56,6 +57,7 @@ import static org.elasticsearch.gradle.util.GradleUtils.projectPath;
 /**
  * Checks for split packages with dependencies. These are not allowed in a future modularized world.
  */
+@CacheableTask
 public class SplitPackagesAuditTask extends DefaultTask {
 
     private static final Logger LOGGER = Logging.getLogger(SplitPackagesAuditTask.class);

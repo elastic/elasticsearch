@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
 /**
  * Defines the task settings for the openai service.
@@ -33,7 +34,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
 
     public static final String NAME = "openai_embeddings_task_settings";
-    public static final String USER = "user";
 
     public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -68,7 +68,7 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
     }
 
     public OpenAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.user = in.readOptionalString();
         } else {
             var discard = in.readString();
@@ -102,7 +102,7 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalString(user);
         } else {
             out.writeString("m"); // write any string

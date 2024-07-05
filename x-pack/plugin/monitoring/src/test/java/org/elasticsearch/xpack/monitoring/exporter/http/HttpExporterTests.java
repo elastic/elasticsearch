@@ -49,6 +49,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -764,7 +765,10 @@ public class HttpExporterTests extends ESTestCase {
         if (timeout != null) {
             for (final HttpResource resource : resources) {
                 if (resource instanceof PublishableHttpResource) {
-                    assertEquals(timeout.getStringRep(), ((PublishableHttpResource) resource).getDefaultParameters().get("master_timeout"));
+                    assertEquals(
+                        timeout.getStringRep(),
+                        ((PublishableHttpResource) resource).getDefaultParameters().get(REST_MASTER_TIMEOUT_PARAM)
+                    );
                 }
             }
         }

@@ -34,8 +34,6 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadA
     public static final ActionType<PendingClusterTasksResponse> TYPE = new ActionType<>("cluster:monitor/task");
     private static final Logger logger = LogManager.getLogger(TransportPendingClusterTasksAction.class);
 
-    private final ClusterService clusterService;
-
     @Inject
     public TransportPendingClusterTasksAction(
         TransportService transportService,
@@ -55,7 +53,6 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadA
             PendingClusterTasksResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.clusterService = clusterService;
     }
 
     @Override

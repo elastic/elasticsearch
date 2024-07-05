@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.reservedstate.NonStateTransformResult;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
@@ -80,6 +81,13 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     }
 
     protected ClusterState execute(final ClusterState currentState) {
+        if (currentState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            // If cluster state has become blocked, this task was submitted while the node was master but is now not master.
+            // The new master will re-read file settings, so whatever update was to be written here will be handled
+            // by the new master.
+            return currentState;
+        }
+
         ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(namespace);
         Map<String, Object> reservedState = stateChunk.state();
         ReservedStateVersion reservedStateVersion = stateChunk.metadata();
@@ -169,14 +177,17 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             return false;
         }
 
-        // Version 0 is special, snapshot restores will reset to 0.
+        if (reservedStateVersion.version().equals(ReservedStateMetadata.EMPTY_VERSION)) {
+            return true;
+        }
+
+        // require a regular positive version, reject any special version
         if (reservedStateVersion.version() <= 0L) {
             logger.warn(
                 () -> format(
                     "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal to 0",
                     namespace,
-                    reservedStateVersion.version(),
-                    existingMetadata.version()
+                    reservedStateVersion.version()
                 )
             );
             return false;

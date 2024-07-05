@@ -89,7 +89,7 @@ min(<<search-threadpool,search thread pool size>>, 10)))+.
 (Optional, Boolean) If `true`, the response returns `hits.total` as an integer.
 If false, it returns `hits.total` as an object. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `typed_keys`::
 (Optional, Boolean) If `true`, the response prefixes aggregation and suggester

@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   - do:
@@ -34,8 +34,8 @@ setup:
 
 ---
 teardown:
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   - do:
@@ -46,8 +46,8 @@ teardown:
 
 ---
 "Test disallow expensive queries":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   ### Check for initial setting = null -> false

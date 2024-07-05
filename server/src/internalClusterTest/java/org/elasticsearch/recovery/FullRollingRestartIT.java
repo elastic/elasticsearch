@@ -46,7 +46,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().startNode();
         createIndex("test");
 
-        final String healthTimeout = "1m";
+        final var healthTimeout = TimeValue.timeValueMinutes(1);
 
         for (int i = 0; i < 1000; i++) {
             prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();

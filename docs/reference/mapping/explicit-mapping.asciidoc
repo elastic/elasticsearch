@@ -63,9 +63,9 @@ PUT /my-index-000001/_mapping
 [[update-mapping]]
 === Update the mapping of a field
 
-include::{es-repo-dir}/indices/put-mapping.asciidoc[tag=change-field-mapping]
+include::{es-ref-dir}/indices/put-mapping.asciidoc[tag=change-field-mapping]
 
-include::{es-repo-dir}/indices/put-mapping.asciidoc[tag=rename-field]
+include::{es-ref-dir}/indices/put-mapping.asciidoc[tag=rename-field]
 
 [discrete]
 [[view-mapping]]

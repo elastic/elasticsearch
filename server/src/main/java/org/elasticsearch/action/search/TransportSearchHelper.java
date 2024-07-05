@@ -139,7 +139,7 @@ public final class TransportSearchHelper {
                 "["
                     + writeableRequest.getClass()
                     + "] is not compatible with version "
-                    + TransportVersions.MINIMUM_CCS_VERSION
+                    + TransportVersions.MINIMUM_CCS_VERSION.toReleaseVersion()
                     + " and the '"
                     + SearchService.CCS_VERSION_CHECK_SETTING.getKey()
                     + "' setting is enabled.",

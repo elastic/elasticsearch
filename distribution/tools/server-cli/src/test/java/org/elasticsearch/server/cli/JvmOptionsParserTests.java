@@ -394,9 +394,12 @@ public class JvmOptionsParserTests extends ESTestCase {
     public void testLibraryPath() {
         assertLibraryPath("Mac OS", "aarch64", "darwin-aarch64");
         assertLibraryPath("Mac OS", "amd64", "darwin-x64");
+        assertLibraryPath("Mac OS", "x86_64", "darwin-x64");
         assertLibraryPath("Linux", "aarch64", "linux-aarch64");
         assertLibraryPath("Linux", "amd64", "linux-x64");
+        assertLibraryPath("Linux", "x86_64", "linux-x64");
         assertLibraryPath("Windows", "amd64", "windows-x64");
+        assertLibraryPath("Windows", "x86_64", "windows-x64");
         assertLibraryPath("Unknown", "aarch64", "unsupported_os[Unknown]-aarch64");
         assertLibraryPath("Mac OS", "Unknown", "darwin-unsupported_arch[Unknown]");
     }

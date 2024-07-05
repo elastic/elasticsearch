@@ -172,9 +172,10 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     // visible for testing
     void processDatabase(Map<String, Object> databaseInfo) {
         String name = databaseInfo.get("name").toString().replace(".tgz", "") + ".mmdb";
+        Metadata metadata = state.getDatabases().getOrDefault(name, Metadata.EMPTY);
         String md5 = (String) databaseInfo.get("md5_hash");
-        if (state.getDatabases().containsKey(name) && Objects.equals(md5, state.getDatabases().get(name).md5())) {
-            updateTimestamp(name, state.getDatabases().get(name));
+        if (Objects.equals(metadata.md5(), md5)) {
+            updateTimestamp(name, metadata);
             return;
         }
         logger.debug("downloading geoip database [{}]", name);
@@ -186,7 +187,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         }
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
-            int firstChunk = state.getDatabases().containsKey(name) ? state.getDatabases().get(name).lastChunk() + 1 : 0;
+            int firstChunk = metadata.lastChunk() + 1; // if there is no metadata, then Metadata.EMPTY.lastChunk() + 1 = 0
             int lastChunk = indexChunks(name, is, firstChunk, md5, start);
             if (lastChunk > firstChunk) {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));

@@ -134,6 +134,12 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     record Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck) implements ToXContentObject {
 
+        /**
+         * An empty Metadata object useful for getOrDefault -type calls. Crucially, the 'lastChunk' is -1, so it's safe to use
+         * with logic that says the new firstChunk is the old lastChunk + 1.
+         */
+        static Metadata EMPTY = new Metadata(-1, -1, -1, "", -1);
+
         private static final String NAME = GEOIP_DOWNLOADER + "-metadata";
         private static final ParseField LAST_CHECK = new ParseField("last_check");
         private static final ParseField LAST_UPDATE = new ParseField("last_update");

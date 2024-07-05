@@ -1,0 +1,11 @@
+pr: 110540
+summary: Deprecate using slm privileges to access ilm
+area: ILM+SLM
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate using slm privileges to access ilm
+  area: ILM+SLM
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

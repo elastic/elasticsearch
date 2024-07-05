@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -228,13 +229,17 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         }, ToXContent.EMPTY_PARAMS);
     }
 
-    private static Set<String> currentlyRunningSnapshots(String policyId, SnapshotsInProgress snapshots) {
+    private static Set<String> currentlyRunningSnapshots(String policyId, ClusterState clusterState) {
+        SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE);
+        if (snapshots == null) {
+            return Set.of();
+        }
         Set<String> currentlyRunning = new HashSet<>();
         for (final List<SnapshotsInProgress.Entry> entriesForRepo : snapshots.entriesByRepo()) {
             for (SnapshotsInProgress.Entry entry : entriesForRepo) {
                 Map<String, Object> metadata = entry.userMetadata();
                 if (metadata != null && policyId.equals(metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD))) {
-                    currentlyRunning.add(entry.snapshot().getSnapshotId().getName()); // TODO toString?
+                    currentlyRunning.add(entry.snapshot().getSnapshotId().getName());
                 }
             }
         }
@@ -278,28 +283,21 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 return currentState;
             }
 
-
             Set<String> preRegisteredSnapshots = policyMetadata.getPreRegisteredSnapshots();
-            SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-            final Set<String> snapshotsRunning = snapshots == null ? Set.of() : currentlyRunningSnapshots(policyName, snapshots);
-
+            Set<String> runningSnapshots = currentlyRunningSnapshots(policyName, currentState);
             SnapshotLifecyclePolicyMetadata.Builder newPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder(policyMetadata);
-
-            final SnapshotLifecycleStats stats = snapMeta.getStats();
-
+            SnapshotLifecycleStats stats = snapMeta.getStats();
             long unrecordedFailures = 0;
             Set<String> newPreRegisteredSnapshots = new HashSet<>();
             for (String snapshot : preRegisteredSnapshots) {
-                if (snapshotsRunning.contains(snapshot)) {
+                if (runningSnapshots.contains(snapshot)) {
                     newPreRegisteredSnapshots.add(snapshot);
                 } else {
-                    // snapshot failed!
                     stats.snapshotFailed(policyName);
                     unrecordedFailures++;
+                    newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, null, Instant.now().toEpochMilli(),
+                        "found pre-registered snapshot which is no longer running, assuming failure"));
                 }
-                // TODO should probably just do for one
-                newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, null, Instant.now().toEpochMilli(),
-                    "found pre-registered snapshot which is no longer running, assuming failure"));
             }
             newPreRegisteredSnapshots.add(snapshotName);
             newPolicyMetadata.setPreRegisteredSnapshots(newPreRegisteredSnapshots);

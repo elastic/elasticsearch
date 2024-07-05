@@ -137,7 +137,6 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNotNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
             assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
             assertEquals(Set.of(), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
-            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = []");
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -192,7 +191,6 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
             assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
             assertEquals(Set.of(snapshotName), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
-            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = [snap]");
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
@@ -222,7 +220,6 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNotNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
             assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
             assertEquals(Set.of(), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
-            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = []");
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -279,7 +276,6 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
             assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
             assertEquals(Set.of(snapshotName), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
-            logger.info("Verified stats: invocationsSinceLastSuccess = 0, preRegisteredRuns = [snap]");
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
@@ -313,7 +309,6 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
             assertEquals(2, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
             assertEquals(Set.of(), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
-            logger.info("Verified stats: invocationsSinceLastSuccess = 2, preRegisteredRuns = []");
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -364,7 +359,6 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
             assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
-            logger.info("Verified stats: invocationsSinceLastSuccess = 0");
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -411,7 +405,6 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNotNull(snapshotLifecyclePolicyMetadata.getLastFailure());
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
             assertEquals(1, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
-            logger.info("Verified stats: invocationsSinceLastSuccess = 1");
         }, 1, TimeUnit.MINUTES);
     }
 

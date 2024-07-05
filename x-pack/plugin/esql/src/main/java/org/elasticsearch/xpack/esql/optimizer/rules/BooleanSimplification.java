@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 
-public final class BooleanSimplification extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification {
+public final class BooleanSimplification extends OptimizerRules.BooleanSimplification {
 
     public BooleanSimplification() {
         super();

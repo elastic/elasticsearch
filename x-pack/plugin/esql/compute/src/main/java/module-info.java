@@ -17,6 +17,7 @@ module org.elasticsearch.compute {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.geo;
+    requires hppc;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;
@@ -29,4 +30,5 @@ module org.elasticsearch.compute {
     exports org.elasticsearch.compute.operator.topn;
     exports org.elasticsearch.compute.operator.mvdedupe;
     exports org.elasticsearch.compute.aggregation.table;
+    exports org.elasticsearch.compute.data.sort;
 }

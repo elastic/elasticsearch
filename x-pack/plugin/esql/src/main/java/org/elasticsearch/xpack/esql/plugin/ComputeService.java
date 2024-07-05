@@ -72,7 +72,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -135,7 +135,7 @@ public class ComputeService {
         CancellableTask rootTask,
         PhysicalPlan physicalPlan,
         EsqlConfiguration configuration,
-        ActionListener<EsqlSession.Result> listener
+        ActionListener<Result> listener
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
@@ -175,7 +175,7 @@ public class ComputeService {
                 rootTask,
                 computeContext,
                 coordinatorPlan,
-                listener.map(driverProfiles -> new EsqlSession.Result(collectedPages, physicalPlan.output(), driverProfiles))
+                listener.map(driverProfiles -> new Result(physicalPlan.output(), collectedPages, driverProfiles))
             );
             return;
         } else {
@@ -201,7 +201,7 @@ public class ComputeService {
         try (
             Releasable ignored = exchangeSource.addEmptySink();
             RefCountingListener refs = new RefCountingListener(
-                listener.map(unused -> new EsqlSession.Result(collectedPages, physicalPlan.output(), collectedProfiles))
+                listener.map(unused -> new Result(physicalPlan.output(), collectedPages, collectedProfiles))
             )
         ) {
             // run compute on the coordinator

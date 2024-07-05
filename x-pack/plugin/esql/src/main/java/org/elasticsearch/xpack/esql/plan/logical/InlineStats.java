@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -76,7 +74,7 @@ public class InlineStats extends UnaryPlan implements Phased {
 
     @Override
     public LogicalPlan firstPhase() {
-        return new Aggregate(source(), child(), groupings, aggregates);
+        return new Aggregate(source(), child(), Aggregate.AggregateType.STANDARD, groupings, aggregates);
     }
 
     @Override

@@ -214,12 +214,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
                     @Override
                     public void onResponse(RolloverResponse result) {
-                        // A successful response has rolled_over false when in the following cases:
-                        // - A request had the parameter lazy or dry_run enabled
-                        // - A request had conditions that were not met
-                        // Since none of the above apply, getting a response with rolled_over false is considered a bug
-                        // that should be caught here and inform the developer.
-                        assert result.isRolledOver() : "An successful lazy rollover should always result in a rolled over data stream";
+                        logger.debug(
+                            "Data stream failure store {} has {} over, the latest index is {}",
+                            dataStream,
+                            result.isRolledOver() ? "been successfully rolled" : "skipped rolling",
+                            result.getNewIndex()
+                        );
                     }
 
                     @Override
@@ -294,8 +294,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 ia = concreteIndices.resolveIfAbsent(docWriteRequest);
                 indexOperationValidator.accept(ia, docWriteRequest);
 
-                TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
-                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
+                TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, ia);
+                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia);
                 docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
 
                 final Index concreteIndex = docWriteRequest.getConcreteWriteIndex(ia, metadata);

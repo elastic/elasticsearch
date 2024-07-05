@@ -9,11 +9,8 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -24,13 +21,9 @@ import java.util.Set;
 
 public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     private final LocalSourceExec joinData;
-    private final List<NamedExpression> matchFields;
-    /**
-     * Conditions that must match for rows to be joined. The {@link Equals#left()}
-     * is always from the child and the {@link Equals#right()} is always from the
-     * {@link #joinData()}.
-     */
-    private final List<Equals> conditions;
+    private final List<Attribute> matchFields;
+    private final List<Attribute> leftFields;
+    private final List<Attribute> rightFields;
     private final List<Attribute> output;
     private AttributeSet lazyAddedFields;
 
@@ -38,22 +31,25 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         Source source,
         PhysicalPlan child,
         LocalSourceExec hashData,
-        List<NamedExpression> matchFields,
-        List<Equals> conditions,
+        List<Attribute> matchFields,
+        List<Attribute> leftFields,
+        List<Attribute> rightFields,
         List<Attribute> output
     ) {
         super(source, child);
         this.joinData = hashData;
         this.matchFields = matchFields;
-        this.conditions = conditions;
+        this.leftFields = leftFields;
+        this.rightFields = rightFields;
         this.output = output;
     }
 
     public HashJoinExec(PlanStreamInput in) throws IOException {
         super(Source.readFrom(in), in.readPhysicalPlanNode());
         this.joinData = new LocalSourceExec(in);
-        this.matchFields = in.readNamedWriteableCollectionAsList(NamedExpression.class);
-        this.conditions = in.readCollectionAsList(i -> (Equals) PlanNamedTypes.readBinComparison(in, "equals"));
+        this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
+        this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
+        this.rightFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
     }
 
@@ -62,7 +58,8 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         out.writePhysicalPlanNode(child());
         joinData.writeTo(out);
         out.writeNamedWriteableCollection(matchFields);
-        out.writeCollection(conditions, (o, v) -> PlanNamedTypes.writeBinComparison(out, v));
+        out.writeNamedWriteableCollection(leftFields);
+        out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(output);
     }
 
@@ -70,17 +67,16 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         return joinData;
     }
 
-    public List<NamedExpression> matchFields() {
+    public List<Attribute> matchFields() {
         return matchFields;
     }
 
-    /**
-     * Conditions that must match for rows to be joined. The {@link Equals#left()}
-     * is always from the child and the {@link Equals#right()} is always from the
-     * {@link #joinData()}.
-     */
-    public List<Equals> conditions() {
-        return conditions;
+    public List<Attribute> leftFields() {
+        return leftFields;
+    }
+
+    public List<Attribute> rightFields() {
+        return rightFields;
     }
 
     public Set<Attribute> addedFields() {
@@ -104,12 +100,12 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public HashJoinExec replaceChild(PhysicalPlan newChild) {
-        return new HashJoinExec(source(), newChild, joinData, matchFields, conditions, output);
+        return new HashJoinExec(source(), newChild, joinData, matchFields, leftFields, rightFields, output);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, HashJoinExec::new, child(), joinData, matchFields, conditions, output);
+        return NodeInfo.create(this, HashJoinExec::new, child(), joinData, matchFields, leftFields, rightFields, output);
     }
 
     @Override
@@ -126,12 +122,13 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         HashJoinExec hash = (HashJoinExec) o;
         return joinData.equals(hash.joinData)
             && matchFields.equals(hash.matchFields)
-            && conditions.equals(hash.conditions)
+            && leftFields.equals(hash.leftFields)
+            && rightFields.equals(hash.rightFields)
             && output.equals(hash.output);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), joinData, matchFields, conditions, output);
+        return Objects.hash(super.hashCode(), joinData, matchFields, leftFields, rightFields, output);
     }
 }

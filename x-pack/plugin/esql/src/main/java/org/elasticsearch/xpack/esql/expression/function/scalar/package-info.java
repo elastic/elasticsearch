@@ -54,7 +54,7 @@
  *     </li>
  *     <li>
  *         Find a function in this package similar to the one you are working on and copy it to build
- *         yours. There's some ceremony required in each function class to make it constant foldable
+ *         yours. There's some ceremony required in each function class to make it constant foldable,
  *         and return the right types. Take a stab at these, but don't worry too much about getting
  *         it right. Your function might extend from one of several abstract base classes, all of
  *         those are fine for this guide, but might have special instructions called out later.
@@ -104,9 +104,17 @@
  *     </li>
  *     <li>
  *         Add your function to {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
- *         This links it into the language and {@code META FUNCTIONS}. Also add your function to
- *         {@link org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes}. This makes your function
- *         serializable over the wire. Mostly you can copy existing implementations for both.
+ *         This links it into the language and {@code META FUNCTIONS}.
+ *     </li>
+ *     <li>
+ *         Implement serialization for your function by implementing
+ *         {@link org.elasticsearch.common.io.stream.NamedWriteable#getWriteableName},
+ *         {@link org.elasticsearch.common.io.stream.NamedWriteable#writeTo},
+ *         and a deserializing constructor. Then add an {@link org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry}
+ *         constant and register it. To register it, look for a method like
+ *         {@link org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction#getNamedWriteables()}
+ *         in your function's class hierarchy. Keep going up until you hit a function with that name.
+ *         Then add your new "ENTRY" constant to the list it returns.
  *     </li>
  *     <li>
  *         Rerun the {@code CsvTests}. They should find your function and maybe even pass. Add a

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.search.VectorScorer;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.ByteKnnDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.DenseVector;
@@ -230,6 +231,11 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
                 }
                 return index = target;
             }
+
+            @Override
+            public VectorScorer scorer(byte[] floats) throws IOException {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
@@ -269,6 +275,11 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
                     return NO_MORE_DOCS;
                 }
                 return index = target;
+            }
+
+            @Override
+            public VectorScorer scorer(float[] floats) throws IOException {
+                throw new UnsupportedOperationException();
             }
         };
     }

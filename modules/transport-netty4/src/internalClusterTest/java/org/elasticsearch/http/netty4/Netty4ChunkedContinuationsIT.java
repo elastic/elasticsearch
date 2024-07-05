@@ -310,7 +310,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                 safeSleep(scaledRandomIntBetween(10, 500)); // make it more likely the request started executing
             }
             cancellable.cancel();
-        } // closing the request tracker ensures that everything is released, including all response chunks and the overall response
+        } // closing the resource tracker ensures that everything is released, including all response chunks and the overall response
     }
 
     private static Releasable withResourceTracker() {
@@ -525,6 +525,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         public static class Response extends ActionResponse {
             private final Executor executor;
             volatile boolean computingContinuation;
+            boolean recursive = false;
 
             public Response(Executor executor) {
                 this.executor = executor;
@@ -551,11 +552,17 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
                     @Override
                     public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
-                        computingContinuation = true;
-                        executor.execute(ActionRunnable.supply(listener, () -> {
-                            computingContinuation = false;
-                            return getResponseBodyPart();
-                        }));
+                        assertFalse(recursive);
+                        recursive = true;
+                        try {
+                            computingContinuation = true;
+                            executor.execute(ActionRunnable.supply(listener, () -> {
+                                computingContinuation = false;
+                                return getResponseBodyPart();
+                            }));
+                        } finally {
+                            recursive = false;
+                        }
                     }
 
                     @Override
@@ -585,7 +592,10 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
             @Override
             protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
                 executor.execute(
-                    ActionRunnable.supply(ActionTestUtils.assertNoFailureListener(listener::onResponse), () -> new Response(executor))
+                    ActionRunnable.supply(
+                        ActionTestUtils.assertNoFailureListener(listener::onResponse),
+                        () -> new Response(randomFrom(executor, EsExecutors.DIRECT_EXECUTOR_SERVICE))
+                    )
                 );
             }
         }
@@ -626,9 +636,10 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                             @Override
                             public void accept(RestChannel channel) {
                                 localRefs.mustIncRef();
-                                client.execute(TYPE, new Request(), new RestActionListener<>(channel) {
+                                client.execute(TYPE, new Request(), ActionListener.releaseAfter(new RestActionListener<>(channel) {
                                     @Override
                                     protected void processResponse(Response response) {
+                                        localRefs.mustIncRef();
                                         channel.sendResponse(RestResponse.chunked(RestStatus.OK, response.getResponseBodyPart(), () -> {
                                             // cancellation notification only happens while processing a continuation, not while computing
                                             // the next one; prompt cancellation requires use of something like RestCancellableNodeClient
@@ -637,7 +648,10 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                                             localRefs.decRef();
                                         }));
                                     }
-                                });
+                                }, () -> {
+                                    assertSame(localRefs, refs);
+                                    localRefs.decRef();
+                                }));
                             }
                         };
                     } else {

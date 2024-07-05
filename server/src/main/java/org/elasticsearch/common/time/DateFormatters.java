@@ -44,6 +44,7 @@ import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
+import static org.elasticsearch.common.util.ArrayUtils.prepend;
 
 public class DateFormatters {
 
@@ -202,7 +203,11 @@ public class DateFormatters {
             new JavaTimeDateTimePrinter(STRICT_DATE_OPTIONAL_TIME_PRINTER),
             JAVA_TIME_PARSERS_ONLY
                 ? new DateTimeParser[] { javaTimeParser }
-                : new DateTimeParser[] { new Iso8601DateTimeParser(Set.of(), false).withLocale(Locale.ROOT), javaTimeParser }
+                : new DateTimeParser[] {
+                    new Iso8601DateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(
+                        Locale.ROOT
+                    ),
+                    javaTimeParser }
         );
     }
 
@@ -266,7 +271,13 @@ public class DateFormatters {
             JAVA_TIME_PARSERS_ONLY
                 ? new DateTimeParser[] { javaTimeParser }
                 : new DateTimeParser[] {
-                    new Iso8601DateTimeParser(Set.of(HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE), true).withLocale(Locale.ROOT),
+                    new Iso8601DateTimeParser(
+                        Set.of(HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
+                        true,
+                        null,
+                        DecimalSeparator.BOTH,
+                        TimezonePresence.OPTIONAL
+                    ).withLocale(Locale.ROOT),
                     javaTimeParser }
         );
     }
@@ -316,7 +327,11 @@ public class DateFormatters {
             new JavaTimeDateTimePrinter(STRICT_DATE_OPTIONAL_TIME_PRINTER),
             JAVA_TIME_PARSERS_ONLY
                 ? new DateTimeParser[] { javaTimeParser }
-                : new DateTimeParser[] { new Iso8601DateTimeParser(Set.of(), false).withLocale(Locale.ROOT), javaTimeParser }
+                : new DateTimeParser[] {
+                    new Iso8601DateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(
+                        Locale.ROOT
+                    ),
+                    javaTimeParser }
         );
     }
 
@@ -739,24 +754,53 @@ public class DateFormatters {
     /*
      * A strict formatter that formats or parses a year and a month, such as '2011-12'.
      */
-    private static final DateFormatter STRICT_YEAR_MONTH = newDateFormatter(
-        "strict_year_month",
-        new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
+    private static final DateFormatter STRICT_YEAR_MONTH;
+    static {
+        DateTimeFormatter javaTimeFormatter = new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
             .appendLiteral("-")
             .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
             .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT)
-    );
+            .withResolverStyle(ResolverStyle.STRICT);
+        DateTimeParser javaTimeParser = new JavaTimeDateTimeParser(javaTimeFormatter);
+
+        STRICT_YEAR_MONTH = new JavaDateFormatter(
+            "strict_year_month",
+            new JavaTimeDateTimePrinter(javaTimeFormatter),
+            JAVA_TIME_PARSERS_ONLY
+                ? new DateTimeParser[] { javaTimeParser }
+                : new DateTimeParser[] {
+                    new Iso8601DateTimeParser(
+                        Set.of(MONTH_OF_YEAR),
+                        false,
+                        MONTH_OF_YEAR,
+                        DecimalSeparator.BOTH,
+                        TimezonePresence.FORBIDDEN
+                    ).withLocale(Locale.ROOT),
+                    javaTimeParser }
+        );
+    }
 
     /*
      * A strict formatter that formats or parses a year, such as '2011'.
      */
-    private static final DateFormatter STRICT_YEAR = newDateFormatter(
-        "strict_year",
-        new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
+    private static final DateFormatter STRICT_YEAR;
+    static {
+        DateTimeFormatter javaTimeFormatter = new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
             .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT)
-    );
+            .withResolverStyle(ResolverStyle.STRICT);
+        DateTimeParser javaTimeParser = new JavaTimeDateTimeParser(javaTimeFormatter);
+
+        STRICT_YEAR = new JavaDateFormatter(
+            "strict_year",
+            new JavaTimeDateTimePrinter(javaTimeFormatter),
+            JAVA_TIME_PARSERS_ONLY
+                ? new DateTimeParser[] { javaTimeParser }
+                : new DateTimeParser[] {
+                    new Iso8601DateTimeParser(Set.of(), false, ChronoField.YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN)
+                        .withLocale(Locale.ROOT),
+                    javaTimeParser }
+        );
+    }
 
     /*
      * A strict formatter that formats or parses a hour, minute and second, such as '09:43:25'.
@@ -787,18 +831,39 @@ public class DateFormatters {
      * Returns a formatter that combines a full date and time, separated by a 'T'
      * (uuuu-MM-dd'T'HH:mm:ss.SSSZZ).
      */
-    private static final DateFormatter STRICT_DATE_TIME = newDateFormatter(
-        "strict_date_time",
-        STRICT_DATE_PRINTER,
-        new DateTimeFormatterBuilder().append(STRICT_DATE_FORMATTER)
-            .appendZoneOrOffsetId()
-            .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT),
-        new DateTimeFormatterBuilder().append(STRICT_DATE_FORMATTER)
-            .append(TIME_ZONE_FORMATTER_NO_COLON)
-            .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT)
-    );
+    private static final DateFormatter STRICT_DATE_TIME;
+    static {
+        DateTimeParser[] javaTimeParsers = new DateTimeParser[] {
+            new JavaTimeDateTimeParser(
+                new DateTimeFormatterBuilder().append(STRICT_DATE_FORMATTER)
+                    .appendZoneOrOffsetId()
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT)
+            ),
+            new JavaTimeDateTimeParser(
+                new DateTimeFormatterBuilder().append(STRICT_DATE_FORMATTER)
+                    .append(TIME_ZONE_FORMATTER_NO_COLON)
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT)
+            ) };
+
+        STRICT_DATE_TIME = new JavaDateFormatter(
+            "strict_date_time",
+            new JavaTimeDateTimePrinter(STRICT_DATE_PRINTER),
+            JAVA_TIME_PARSERS_ONLY
+                ? javaTimeParsers
+                : prepend(
+                    new Iso8601DateTimeParser(
+                        Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
+                        false,
+                        null,
+                        DecimalSeparator.DOT,
+                        TimezonePresence.MANDATORY
+                    ).withLocale(Locale.ROOT),
+                    javaTimeParsers
+                )
+        );
+    }
 
     private static final DateTimeFormatter STRICT_ORDINAL_DATE_TIME_NO_MILLIS_BASE = new DateTimeFormatterBuilder().appendValue(
         ChronoField.YEAR,
@@ -841,21 +906,44 @@ public class DateFormatters {
      * Returns a formatter that combines a full date and time without millis,
      * separated by a 'T' (uuuu-MM-dd'T'HH:mm:ssZZ).
      */
-    private static final DateFormatter STRICT_DATE_TIME_NO_MILLIS = newDateFormatter(
-        "strict_date_time_no_millis",
-        new DateTimeFormatterBuilder().append(STRICT_DATE_TIME_NO_MILLIS_FORMATTER)
-            .appendOffset("+HH:MM", "Z")
-            .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT),
-        new DateTimeFormatterBuilder().append(STRICT_DATE_TIME_NO_MILLIS_FORMATTER)
-            .appendZoneOrOffsetId()
-            .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT),
-        new DateTimeFormatterBuilder().append(STRICT_DATE_TIME_NO_MILLIS_FORMATTER)
-            .append(TIME_ZONE_FORMATTER_NO_COLON)
-            .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT)
-    );
+    private static final DateFormatter STRICT_DATE_TIME_NO_MILLIS;
+    static {
+        DateTimeParser[] javaTimeParsers = new DateTimeParser[] {
+            new JavaTimeDateTimeParser(
+                new DateTimeFormatterBuilder().append(STRICT_DATE_TIME_NO_MILLIS_FORMATTER)
+                    .appendZoneOrOffsetId()
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT)
+            ),
+            new JavaTimeDateTimeParser(
+                new DateTimeFormatterBuilder().append(STRICT_DATE_TIME_NO_MILLIS_FORMATTER)
+                    .append(TIME_ZONE_FORMATTER_NO_COLON)
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT)
+            ) };
+
+        STRICT_DATE_TIME_NO_MILLIS = new JavaDateFormatter(
+            "strict_date_time_no_millis",
+            new JavaTimeDateTimePrinter(
+                new DateTimeFormatterBuilder().append(STRICT_DATE_TIME_NO_MILLIS_FORMATTER)
+                    .appendOffset("+HH:MM", "Z")
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT)
+            ),
+            JAVA_TIME_PARSERS_ONLY
+                ? javaTimeParsers
+                : prepend(
+                    new Iso8601DateTimeParser(
+                        Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
+                        false,
+                        SECOND_OF_MINUTE,
+                        DecimalSeparator.BOTH,
+                        TimezonePresence.MANDATORY
+                    ).withLocale(Locale.ROOT),
+                    javaTimeParsers
+                )
+        );
+    }
 
     // NOTE: this is not a strict formatter to retain the joda time based behaviour, even though it's named like this
     private static final DateTimeFormatter STRICT_HOUR_MINUTE_SECOND_MILLIS_FORMATTER = new DateTimeFormatterBuilder().append(
@@ -891,37 +979,75 @@ public class DateFormatters {
      * two digit minute of hour, two digit second of minute, and three digit
      * fraction of second (uuuu-MM-dd'T'HH:mm:ss.SSS).
      */
-    private static final DateFormatter STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION = newDateFormatter(
-        "strict_date_hour_minute_second_fraction",
-        new DateTimeFormatterBuilder().append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-            .appendLiteral("T")
-            .append(STRICT_HOUR_MINUTE_SECOND_MILLIS_PRINTER)
-            .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT),
-        new DateTimeFormatterBuilder().append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-            .appendLiteral("T")
-            .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-            // this one here is lenient as well to retain joda time based bwc compatibility
-            .appendFraction(NANO_OF_SECOND, 1, 9, true)
-            .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT)
-    );
+    private static final DateFormatter STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION;
+    static {
+        DateTimeParser javaTimeParser = new JavaTimeDateTimeParser(
+            new DateTimeFormatterBuilder().append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+                .appendLiteral("T")
+                .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+                // this one here is lenient as well to retain joda time based bwc compatibility
+                .appendFraction(NANO_OF_SECOND, 1, 9, true)
+                .toFormatter(Locale.ROOT)
+                .withResolverStyle(ResolverStyle.STRICT)
+        );
 
-    private static final DateFormatter STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS = newDateFormatter(
-        "strict_date_hour_minute_second_millis",
-        new DateTimeFormatterBuilder().append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-            .appendLiteral("T")
-            .append(STRICT_HOUR_MINUTE_SECOND_MILLIS_PRINTER)
-            .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT),
-        new DateTimeFormatterBuilder().append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-            .appendLiteral("T")
-            .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-            // this one here is lenient as well to retain joda time based bwc compatibility
-            .appendFraction(NANO_OF_SECOND, 1, 9, true)
-            .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT)
-    );
+        STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION = new JavaDateFormatter(
+            "strict_date_hour_minute_second_fraction",
+            new JavaTimeDateTimePrinter(
+                new DateTimeFormatterBuilder().append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+                    .appendLiteral("T")
+                    .append(STRICT_HOUR_MINUTE_SECOND_MILLIS_PRINTER)
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT)
+            ),
+            JAVA_TIME_PARSERS_ONLY
+                ? new DateTimeParser[] { javaTimeParser }
+                : new DateTimeParser[] {
+                    new Iso8601DateTimeParser(
+                        Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE, NANO_OF_SECOND),
+                        false,
+                        null,
+                        DecimalSeparator.DOT,
+                        TimezonePresence.FORBIDDEN
+                    ).withLocale(Locale.ROOT),
+                    javaTimeParser }
+        );
+    }
+
+    private static final DateFormatter STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS;
+    static {
+        DateTimeParser javaTimeParser = new JavaTimeDateTimeParser(
+            new DateTimeFormatterBuilder().append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+                .appendLiteral("T")
+                .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+                // this one here is lenient as well to retain joda time based bwc compatibility
+                .appendFraction(NANO_OF_SECOND, 1, 9, true)
+                .toFormatter(Locale.ROOT)
+                .withResolverStyle(ResolverStyle.STRICT)
+        );
+
+        STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS = new JavaDateFormatter(
+            "strict_date_hour_minute_second_millis",
+            new JavaTimeDateTimePrinter(
+                new DateTimeFormatterBuilder().append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+                    .appendLiteral("T")
+                    .append(STRICT_HOUR_MINUTE_SECOND_MILLIS_PRINTER)
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT)
+            ),
+            JAVA_TIME_PARSERS_ONLY
+                ? new DateTimeParser[] { javaTimeParser }
+                : new DateTimeParser[] {
+                    new Iso8601DateTimeParser(
+                        Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE, NANO_OF_SECOND),
+                        false,
+                        null,
+                        DecimalSeparator.DOT,
+                        TimezonePresence.FORBIDDEN
+                    ).withLocale(Locale.ROOT),
+                    javaTimeParser }
+        );
+    }
 
     /*
      * Returns a formatter for a two digit hour of day. (HH)
@@ -1235,10 +1361,27 @@ public class DateFormatters {
      * two digit minute of hour, and two digit second of
      * minute. (uuuu-MM-dd'T'HH:mm:ss)
      */
-    private static final DateFormatter STRICT_DATE_HOUR_MINUTE_SECOND = newDateFormatter(
-        "strict_date_hour_minute_second",
-        DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss", Locale.ROOT)
-    );
+    private static final DateFormatter STRICT_DATE_HOUR_MINUTE_SECOND;
+    static {
+        DateTimeFormatter javaTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss", Locale.ROOT);
+        DateTimeParser javaTimeParser = new JavaTimeDateTimeParser(javaTimeFormatter);
+
+        STRICT_DATE_HOUR_MINUTE_SECOND = new JavaDateFormatter(
+            "strict_date_hour_minute_second",
+            new JavaTimeDateTimePrinter(javaTimeFormatter),
+            JAVA_TIME_PARSERS_ONLY
+                ? new DateTimeParser[] { javaTimeParser }
+                : new DateTimeParser[] {
+                    new Iso8601DateTimeParser(
+                        Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
+                        false,
+                        SECOND_OF_MINUTE,
+                        DecimalSeparator.BOTH,
+                        TimezonePresence.FORBIDDEN
+                    ).withLocale(Locale.ROOT),
+                    javaTimeParser }
+        );
+    }
 
     /*
      * A basic formatter for a full date as four digit year, two digit

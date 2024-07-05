@@ -38,7 +38,7 @@ public abstract class AsyncOperator implements Operator {
     private volatile SubscribableListener<Void> blockedFuture;
 
     private final Map<Long, Page> buffers = ConcurrentCollections.newConcurrentMap();
-    private final FailureCollector failure = new FailureCollector();
+    private final FailureCollector failureCollector = new FailureCollector();
     private final DriverContext driverContext;
 
     private final int maxOutstandingRequests;
@@ -75,7 +75,7 @@ public abstract class AsyncOperator implements Operator {
 
     @Override
     public void addInput(Page input) {
-        if (failure.get() != null) {
+        if (failureCollector.hasFailure()) {
             input.releaseBlocks();
             return;
         }
@@ -88,7 +88,7 @@ public abstract class AsyncOperator implements Operator {
                 onSeqNoCompleted(seqNo);
             }, e -> {
                 releasePageOnAnyThread(input);
-                failure.unwrapAndCollect(e);
+                failureCollector.unwrapAndCollect(e);
                 onSeqNoCompleted(seqNo);
             });
             final long startNanos = System.nanoTime();
@@ -124,7 +124,7 @@ public abstract class AsyncOperator implements Operator {
         if (checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint()) {
             notifyIfBlocked();
         }
-        if (closed || failure.get() != null) {
+        if (closed || failureCollector.hasFailure()) {
             discardPages();
         }
     }
@@ -143,7 +143,7 @@ public abstract class AsyncOperator implements Operator {
     }
 
     private void checkFailure() {
-        Exception e = failure.get();
+        Exception e = failureCollector.getFailure();
         if (e != null) {
             discardPages();
             throw ExceptionsHelper.convertToElastic(e);

@@ -51,7 +51,7 @@ public final class ExchangeSourceHandler {
         }
 
         private void checkFailure() {
-            Exception e = failure.get();
+            Exception e = failure.getFailure();
             if (e != null) {
                 throw ExceptionsHelper.convertToElastic(e);
             }
@@ -169,7 +169,7 @@ public final class ExchangeSourceHandler {
             while (loopControl.isRunning()) {
                 loopControl.exiting();
                 // finish other sinks if one of them failed or source no longer need pages.
-                boolean toFinishSinks = buffer.noMoreInputs() || failure.get() != null;
+                boolean toFinishSinks = buffer.noMoreInputs() || failure.hasFailure();
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
                     Page page = resp.takePage();
                     if (page != null) {

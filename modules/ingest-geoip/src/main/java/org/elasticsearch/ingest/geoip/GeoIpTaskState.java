@@ -84,14 +84,6 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         return databases;
     }
 
-    public boolean contains(String name) {
-        return databases.containsKey(name);
-    }
-
-    public Metadata get(String name) {
-        return databases.get(name);
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

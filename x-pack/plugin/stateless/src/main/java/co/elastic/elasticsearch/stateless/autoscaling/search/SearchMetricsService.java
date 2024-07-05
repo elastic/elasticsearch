@@ -425,7 +425,7 @@ public class SearchMetricsService implements ClusterStateListener {
                 this.latestSampleTimeInNanos = relativeTimeInNanos();
                 this.maxSeqNo = metricSeqNo;
                 SEARCH_LOAD_LOGGER.trace(
-                    "Set the load reading for node [{}] to: searchLoad: [{}], isSearchLoadValid: [{}], quality: [{}]",
+                    "Set the load reading for node [{}] to: searchLoad: [{}], quality: [{}]",
                     nodeId,
                     searchLoad,
                     quality

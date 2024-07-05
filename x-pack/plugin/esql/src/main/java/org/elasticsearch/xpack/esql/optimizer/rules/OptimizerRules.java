@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.optimizer;
+package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -12,36 +12,24 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.SurrogateFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -56,34 +44,6 @@ import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 
 public final class OptimizerRules {
-
-    /**
-     * This rule must always be placed after LiteralsOnTheRight, since it looks at TRUE/FALSE literals' existence
-     * on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
-     */
-    public static final class BooleanFunctionEqualsElimination extends OptimizerExpressionRule<BinaryComparison> {
-
-        public BooleanFunctionEqualsElimination() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected Expression rule(BinaryComparison bc) {
-            if ((bc instanceof Equals || bc instanceof NotEquals) && bc.left() instanceof Function) {
-                // for expression "==" or "!=" TRUE/FALSE, return the expression itself or its negated variant
-
-                if (TRUE.equals(bc.right())) {
-                    return bc instanceof Equals ? bc.left() : new Not(bc.left().source(), bc.left());
-                }
-                if (FALSE.equals(bc.right())) {
-                    return bc instanceof Equals ? new Not(bc.left().source(), bc.left()) : bc.left();
-                }
-            }
-
-            return bc;
-        }
-    }
-
     public static class BooleanSimplification extends OptimizerExpressionRule<ScalarFunction> {
 
         public BooleanSimplification() {
@@ -218,178 +178,6 @@ public final class OptimizerRules {
             }
             return null;
         }
-    }
-
-    /**
-     * Combine disjunctions on the same field into an In expression.
-     * This rule looks for both simple equalities:
-     * 1. a == 1 OR a == 2 becomes a IN (1, 2)
-     * and combinations of In
-     * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
-     * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
-     *
-     * This rule does NOT check for type compatibility as that phase has been
-     * already be verified in the analyzer.
-     */
-    public static class CombineDisjunctionsToIn extends OptimizerExpressionRule<Or> {
-        public CombineDisjunctionsToIn() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected Expression rule(Or or) {
-            Expression e = or;
-            // look only at equals and In
-            List<Expression> exps = splitOr(e);
-
-            Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
-            ZoneId zoneId = null;
-            List<Expression> ors = new LinkedList<>();
-
-            for (Expression exp : exps) {
-                if (exp instanceof Equals eq) {
-                    // consider only equals against foldables
-                    if (eq.right().foldable()) {
-                        found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
-                    } else {
-                        ors.add(exp);
-                    }
-                    if (zoneId == null) {
-                        zoneId = eq.zoneId();
-                    }
-                } else if (exp instanceof In in) {
-                    found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
-                    if (zoneId == null) {
-                        zoneId = in.zoneId();
-                    }
-                } else {
-                    ors.add(exp);
-                }
-            }
-
-            if (found.isEmpty() == false) {
-                // combine equals alongside the existing ors
-                final ZoneId finalZoneId = zoneId;
-                found.forEach(
-                    (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
-                );
-
-                Expression combineOr = combineOr(ors);
-                // check the result semantically since the result might different in order
-                // but be actually the same which can trigger a loop
-                // e.g. a == 1 OR a == 2 OR null --> null OR a in (1,2) --> literalsOnTheRight --> cycle
-                if (e.semanticEquals(combineOr) == false) {
-                    e = combineOr;
-                }
-            }
-
-            return e;
-        }
-
-        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
-            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
-        }
-
-        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
-            return new In(key.source(), key, values, zoneId);
-        }
-    }
-
-    public static class ReplaceSurrogateFunction extends OptimizerExpressionRule<Expression> {
-
-        public ReplaceSurrogateFunction() {
-            super(TransformDirection.DOWN);
-        }
-
-        @Override
-        protected Expression rule(Expression e) {
-            if (e instanceof SurrogateFunction) {
-                e = ((SurrogateFunction) e).substitute();
-            }
-            return e;
-        }
-    }
-
-    public abstract static class PruneFilters extends OptimizerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            Expression condition = filter.condition().transformUp(BinaryLogic.class, PruneFilters::foldBinaryLogic);
-
-            if (condition instanceof Literal) {
-                if (TRUE.equals(condition)) {
-                    return filter.child();
-                }
-                if (FALSE.equals(condition) || Expressions.isNull(condition)) {
-                    return skipPlan(filter);
-                }
-            }
-
-            if (condition.equals(filter.condition()) == false) {
-                return new Filter(filter.source(), filter.child(), condition);
-            }
-            return filter;
-        }
-
-        protected abstract LogicalPlan skipPlan(Filter filter);
-
-        private static Expression foldBinaryLogic(BinaryLogic binaryLogic) {
-            if (binaryLogic instanceof Or or) {
-                boolean nullLeft = Expressions.isNull(or.left());
-                boolean nullRight = Expressions.isNull(or.right());
-                if (nullLeft && nullRight) {
-                    return new Literal(binaryLogic.source(), null, DataType.NULL);
-                }
-                if (nullLeft) {
-                    return or.right();
-                }
-                if (nullRight) {
-                    return or.left();
-                }
-            }
-            if (binaryLogic instanceof And and) {
-                if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
-                    return new Literal(binaryLogic.source(), null, DataType.NULL);
-                }
-            }
-            return binaryLogic;
-        }
-    }
-
-    // NB: it is important to start replacing casts from the bottom to properly replace aliases
-    public abstract static class PruneCast<C extends Expression> extends Rule<LogicalPlan, LogicalPlan> {
-
-        private final Class<C> castType;
-
-        public PruneCast(Class<C> castType) {
-            this.castType = castType;
-        }
-
-        @Override
-        public final LogicalPlan apply(LogicalPlan plan) {
-            return rule(plan);
-        }
-
-        protected final LogicalPlan rule(LogicalPlan plan) {
-            // eliminate redundant casts
-            return plan.transformExpressionsUp(castType, this::maybePruneCast);
-        }
-
-        protected abstract Expression maybePruneCast(C cast);
-    }
-
-    public abstract static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
-        @Override
-        protected LogicalPlan rule(Limit limit) {
-            if (limit.limit().foldable()) {
-                if (Integer.valueOf(0).equals((limit.limit().fold()))) {
-                    return skipPlan(limit);
-                }
-            }
-            return limit;
-        }
-
-        protected abstract LogicalPlan skipPlan(Limit limit);
     }
 
     public static class FoldNull extends OptimizerExpressionRule<Expression> {

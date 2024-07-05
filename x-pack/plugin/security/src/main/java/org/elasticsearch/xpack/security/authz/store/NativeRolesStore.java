@@ -621,6 +621,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             builder.field(RoleDescriptor.Fields.METADATA_FLATTENED.getPreferredName(), role.getMetadata());
         }
 
+        // When role descriptor XContent is generated for the security index all empty fields need to have default values to make sure
+        // existing values are overwritten if not present since the request to update could be an UpdateRequest
+        // (update provided fields in existing document or create document) or IndexRequest (replace and reindex document)
         if (role.hasConfigurableClusterPrivileges() == false) {
             builder.startObject(RoleDescriptor.Fields.GLOBAL.getPreferredName()).endObject();
         }

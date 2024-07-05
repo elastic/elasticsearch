@@ -779,8 +779,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
-        BulkPutRolesRequest bulkPutRolesRequest = new BulkPutRolesRequest();
-        bulkPutRolesRequest.setRoles(allTestRoleDescriptors);
+        BulkPutRolesRequest bulkPutRolesRequest = new BulkPutRolesRequest(allTestRoleDescriptors);
         bulkPutRolesRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         auditTrail.accessGranted(requestId, authentication, ActionTypes.BULK_PUT_ROLES.name(), bulkPutRolesRequest, authorizationInfo);
         output = CapturingLogger.output(logger.getName(), Level.INFO);

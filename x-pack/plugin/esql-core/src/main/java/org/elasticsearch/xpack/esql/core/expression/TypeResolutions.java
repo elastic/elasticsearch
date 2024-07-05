@@ -50,8 +50,8 @@ public final class TypeResolutions {
         return isType(e, dt -> dt == BOOLEAN, operationName, paramOrd, "boolean");
     }
 
-    public static TypeResolution isInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isInteger, operationName, paramOrd, "integer");
+    public static TypeResolution isWholeNumber(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, DataType::isWholeNumber, operationName, paramOrd, "integer");
     }
 
     public static TypeResolution isNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {
@@ -130,6 +130,28 @@ public final class TypeResolutions {
             );
         }
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    public static TypeResolution isNotNullAndFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
+        TypeResolution resolution = isFoldable(e, operationName, paramOrd);
+
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        if (e.dataType() == DataType.NULL || e.fold() == null) {
+            resolution = new TypeResolution(
+                format(
+                    null,
+                    "{}argument of [{}] cannot be null, received [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    Expressions.name(e)
+                )
+            );
+        }
+
+        return resolution;
     }
 
     public static TypeResolution isNotFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {

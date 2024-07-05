@@ -63,6 +63,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -295,7 +296,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         ActionListener<Void> finalListener = listener.delegateFailureAndWrap((l, r) -> {
             // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
             if (context.getPageSize() == 0) {
-                configurePageSize(getConfig().getSettings().getMaxPageSearchSize());
+                // check the pageSize again in case another thread has updated it
+                configurePageSize(() -> context.getPageSize() == 0, getConfig().getSettings().getMaxPageSearchSize());
             }
 
             runState = determineRunStateAtStart();
@@ -571,7 +573,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private void finalizeCheckpoint(ActionListener<Void> listener) {
         try {
             // reset the page size, so we do not memorize a low page size forever
-            resetPageSize();
+            var pageSize = initialConfiguredPageSize;
+            // only update if the initialConfiguredPageSize hadn't been changed by the user between the last line and the next line
+            // if the user also called configurePageSize, keep their new value rather than resetting it to their previous value
+            configurePageSize(() -> Objects.equals(pageSize, initialConfiguredPageSize), pageSize);
+
             // reset the changed bucket to free memory
             if (changeCollector != null) {
                 changeCollector.clear();
@@ -670,9 +676,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         logger.info("[{}] transform settings have been updated.", transformConfig.getId());
 
         docsPerSecond = newSettings.getDocsPerSecond() != null ? newSettings.getDocsPerSecond() : -1;
-        if (Objects.equals(newSettings.getMaxPageSearchSize(), initialConfiguredPageSize) == false) {
-            configurePageSize(newSettings.getMaxPageSearchSize());
-        }
+        configurePageSize(
+            () -> Objects.equals(newSettings.getMaxPageSearchSize(), initialConfiguredPageSize) == false,
+            newSettings.getMaxPageSearchSize()
+        );
         rethrottle();
     }
 
@@ -1231,19 +1238,19 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return RunState.IDENTIFY_CHANGES;
     }
 
-    private void configurePageSize(Integer newPageSize) {
-        initialConfiguredPageSize = newPageSize;
-        resetPageSize();
-    }
-
-    private void resetPageSize() {
-        if (initialConfiguredPageSize != null && initialConfiguredPageSize > 0) {
-            context.setPageSize(initialConfiguredPageSize);
-        } else if (function != null) {
-            context.setPageSize(function.getInitialPageSize());
-        } else {
-            // we should never be in a state where both initialConfiguredPageSize and function are null, but just in case...
-            context.setPageSize(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE);
+    private void configurePageSize(Supplier<Boolean> shouldUpdate, Integer newPageSize) {
+        synchronized (context) {
+            if (shouldUpdate.get()) {
+                initialConfiguredPageSize = newPageSize;
+                if (newPageSize != null && newPageSize > 0) {
+                    context.setPageSize(initialConfiguredPageSize);
+                } else if (function != null) {
+                    context.setPageSize(function.getInitialPageSize());
+                } else {
+                    // we should never be in a state where both initialConfiguredPageSize and function are null, but just in case...
+                    context.setPageSize(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE);
+                }
+            }
         }
     }
 

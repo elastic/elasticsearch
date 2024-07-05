@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -64,20 +65,37 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     static final String TASK_TYPE_FIELD = "task_type";
     static final String DIMENSIONS_FIELD = "dimensions";
     static final String SIMILARITY_FIELD = "similarity";
+    static final String ELEMENT_TYPE_FIELD = "element_type";
 
     public record InferenceResult(String inferenceId, ModelSettings modelSettings, List<Chunk> chunks) {}
 
     public record Chunk(String text, BytesReference rawEmbeddings) {}
 
-    public record ModelSettings(TaskType taskType, Integer dimensions, SimilarityMeasure similarity) implements ToXContentObject {
+    public record ModelSettings(
+        TaskType taskType,
+        Integer dimensions,
+        SimilarityMeasure similarity,
+        DenseVectorFieldMapper.ElementType elementType
+    ) implements ToXContentObject {
         public ModelSettings(Model model) {
-            this(model.getTaskType(), model.getServiceSettings().dimensions(), model.getServiceSettings().similarity());
+            this(
+                model.getTaskType(),
+                model.getServiceSettings().dimensions(),
+                model.getServiceSettings().similarity(),
+                model.getServiceSettings().elementType()
+            );
         }
 
-        public ModelSettings(TaskType taskType, Integer dimensions, SimilarityMeasure similarity) {
+        public ModelSettings(
+            TaskType taskType,
+            Integer dimensions,
+            SimilarityMeasure similarity,
+            DenseVectorFieldMapper.ElementType elementType
+        ) {
             this.taskType = Objects.requireNonNull(taskType, "task type must not be null");
             this.dimensions = dimensions;
             this.similarity = similarity;
+            this.elementType = elementType;
             validate();
         }
 
@@ -90,6 +108,9 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
             }
             if (similarity != null) {
                 builder.field(SIMILARITY_FIELD, similarity);
+            }
+            if (elementType != null) {
+                builder.field(ELEMENT_TYPE_FIELD, elementType);
             }
             return builder.endObject();
         }
@@ -104,6 +125,9 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
             if (similarity != null) {
                 sb.append(", similarity=").append(similarity);
             }
+            if (elementType != null) {
+                sb.append(", element_type=").append(elementType);
+            }
             return sb.toString();
         }
 
@@ -112,10 +136,12 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
                 case TEXT_EMBEDDING:
                     validateFieldPresent(DIMENSIONS_FIELD, dimensions);
                     validateFieldPresent(SIMILARITY_FIELD, similarity);
+                    validateFieldPresent(ELEMENT_TYPE_FIELD, elementType);
                     break;
                 case SPARSE_EMBEDDING:
                     validateFieldNotPresent(DIMENSIONS_FIELD, dimensions);
                     validateFieldNotPresent(SIMILARITY_FIELD, similarity);
+                    validateFieldNotPresent(ELEMENT_TYPE_FIELD, elementType);
                     break;
 
                 default:
@@ -247,7 +273,10 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
             TaskType taskType = TaskType.fromString((String) args[0]);
             Integer dimensions = (Integer) args[1];
             SimilarityMeasure similarity = args[2] == null ? null : SimilarityMeasure.fromString((String) args[2]);
-            return new ModelSettings(taskType, dimensions, similarity);
+            DenseVectorFieldMapper.ElementType elementType = args[3] == null
+                ? null
+                : DenseVectorFieldMapper.ElementType.fromString((String) args[3]);
+            return new ModelSettings(taskType, dimensions, similarity, elementType);
         }
     );
 
@@ -273,6 +302,7 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(TASK_TYPE_FIELD));
         MODEL_SETTINGS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DIMENSIONS_FIELD));
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(SIMILARITY_FIELD));
+        MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ELEMENT_TYPE_FIELD));
     }
 
     /**

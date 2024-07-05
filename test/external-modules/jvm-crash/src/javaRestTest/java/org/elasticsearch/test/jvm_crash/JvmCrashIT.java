@@ -22,9 +22,11 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.distribution.LocalDistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.ReleasedDistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.SnapshotDistributionResolver;
+import org.elasticsearch.test.cluster.util.OS;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.BufferedReader;
@@ -45,6 +47,11 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 public class JvmCrashIT extends ESRestTestCase {
+
+    @BeforeClass
+    public static void dontRunWindows() {
+        assumeFalse("JVM crash log doesn't go to stdout on windows", OS.current() == OS.WINDOWS);
+    }
 
     private static class StdOutCatchingClusterBuilder extends AbstractLocalClusterSpecBuilder<ElasticsearchCluster> {
 

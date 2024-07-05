@@ -73,6 +73,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         private String deploymentId;
         private Integer numberOfAllocations;
         private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
+        private boolean isInternal;
 
         private Request() {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
@@ -89,9 +90,11 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             if (in.getTransportVersion().before(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
                 numberOfAllocations = in.readVInt();
                 adaptiveAllocationsSettings = null;
+                isInternal = false;
             } else {
                 numberOfAllocations = in.readOptionalVInt();
                 adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+                isInternal = in.readBoolean();
             }
         }
 
@@ -115,6 +118,14 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
         }
 
+        public boolean isInternal() {
+            return isInternal;
+        }
+
+        public void setIsInternal(boolean isInternal) {
+            this.isInternal = isInternal;
+        }
+
         public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
             return adaptiveAllocationsSettings;
         }
@@ -128,6 +139,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             } else {
                 out.writeOptionalVInt(numberOfAllocations);
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
+                out.writeBoolean(isInternal);
             }
         }
 
@@ -152,7 +164,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
                 if (numberOfAllocations < 1) {
                     validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
                 }
-                if (adaptiveAllocationsSettings != null && adaptiveAllocationsSettings.getEnabled()) {
+                if (isInternal == false && adaptiveAllocationsSettings != null && adaptiveAllocationsSettings.getEnabled()) {
                     validationException.addValidationError(
                         "[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled"
                     );
@@ -169,7 +181,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, numberOfAllocations, adaptiveAllocationsSettings);
+            return Objects.hash(deploymentId, numberOfAllocations, adaptiveAllocationsSettings, isInternal);
         }
 
         @Override
@@ -183,7 +195,8 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             Request other = (Request) obj;
             return Objects.equals(deploymentId, other.deploymentId)
                 && Objects.equals(numberOfAllocations, other.numberOfAllocations)
-                && Objects.equals(adaptiveAllocationsSettings, other.adaptiveAllocationsSettings);
+                && Objects.equals(adaptiveAllocationsSettings, other.adaptiveAllocationsSettings)
+                && isInternal == other.isInternal;
         }
 
         @Override

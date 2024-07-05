@@ -808,9 +808,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         String deploymentId,
         Integer numberOfAllocations,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings,
+        boolean isInternal,
         ActionListener<TrainedModelAssignment> listener
     ) {
-        updateDeployment(clusterService.state(), deploymentId, numberOfAllocations, adaptiveAllocationsSettings, listener);
+        updateDeployment(clusterService.state(), deploymentId, numberOfAllocations, adaptiveAllocationsSettings, isInternal, listener);
     }
 
     private void updateDeployment(
@@ -818,6 +819,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         String deploymentId,
         Integer numberOfAllocations,
         AdaptiveAllocationsSettings adaptiveAllocationsSettingsUpdates,
+        boolean isInternal,
         ActionListener<TrainedModelAssignment> listener
     ) {
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterState);
@@ -831,7 +833,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             adaptiveAllocationsSettingsUpdates
         );
         if (adaptiveAllocationsSettings != null) {
-            if (adaptiveAllocationsSettings.getEnabled() && numberOfAllocations != null) {
+            if (isInternal == false && adaptiveAllocationsSettings.getEnabled() && numberOfAllocations != null) {
                 ValidationException validationException = new ValidationException();
                 validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled");
                 listener.onFailure(validationException);
@@ -883,7 +885,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         return updatedState;
                     }
                     logger.debug(() -> format("[%s] Retrying update as cluster state has been modified", deploymentId));
-                    updateDeployment(currentState, deploymentId, numberOfAllocations, adaptiveAllocationsSettings, listener);
+                    updateDeployment(currentState, deploymentId, numberOfAllocations, adaptiveAllocationsSettings, isInternal, listener);
                     return currentState;
                 }
 

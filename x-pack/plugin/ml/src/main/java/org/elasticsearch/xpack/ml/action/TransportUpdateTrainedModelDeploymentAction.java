@@ -85,6 +85,7 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
             request.getDeploymentId(),
             request.getNumberOfAllocations(),
             request.getAdaptiveAllocationsSettings(),
+            request.isInternal(),
             ActionListener.wrap(updatedAssignment -> {
                 auditor.info(
                     request.getDeploymentId(),

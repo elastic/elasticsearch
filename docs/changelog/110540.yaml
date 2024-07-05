@@ -1,0 +1,16 @@
+pr: 110540
+summary: Deprecate using slm privileges to access ilm
+area: ILM+SLM
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate using slm privileges to access ilm
+  area: REST API
+  details: The `read_slm` privilege can get the ILM status, and
+    the `manage_slm` privilege can start and stop ILM. Access to these 
+    APIs should be granted using the `read_ilm` and `manage_ilm` privileges
+    instead. Access to ILM APIs will be removed from SLM privileges in
+    a future major release, and is now deprecated.
+  impact: Users that need access to the ILM status API should now 
+    use the `read_ilm` privilege. Users that need to start and stop ILM, 
+    should use the `manage_ilm` privilege.

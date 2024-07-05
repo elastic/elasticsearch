@@ -11,7 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 

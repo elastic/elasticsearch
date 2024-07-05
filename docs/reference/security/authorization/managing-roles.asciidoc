@@ -13,7 +13,9 @@ A role is defined by the following JSON structure:
   "indices": [ ... ], <4>
   "applications": [ ... ], <5>
   "remote_indices": [ ... ], <6>
-  "remote_cluster": [ ... ] <7>
+  "remote_cluster": [ ... ], <7>
+  "metadata": { ... }, <8>
+  "description": "..." <9>
 }
 -----
 // NOTCONSOLE
@@ -40,6 +42,16 @@ A role is defined by the following JSON structure:
     <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
     This field is optional (missing `remote_cluster` privileges effectively means
     no additional cluster permissions for any API key based remote clusters).
+<8> Metadata field associated with the role, such as `metadata.app_tag`.
+    Metadata is internally indexed as a <<flattened,flattened>> field type.
+    This means that all sub-fields act like `keyword` fields when querying and sorting.
+    Metadata values can be simple values, but also lists and maps.
+    This field is optional.
+<9> A string value with the description text of the role.
+    The maximum length of it is `1000` chars.
+    The field is internally indexed as a <<text-field-type,text>> field type
+    (with default values for all parameters).
+    This field is optional.
 
 [[valid-role-name]]
 NOTE: Role names must be at least 1 and no more than 507 characters. They can

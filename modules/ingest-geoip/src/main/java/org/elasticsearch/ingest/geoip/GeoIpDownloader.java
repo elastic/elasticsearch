@@ -170,21 +170,25 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     // visible for testing
-    void processDatabase(Map<String, Object> databaseInfo) {
+    void processDatabase(final Map<String, Object> databaseInfo) {
         String name = databaseInfo.get("name").toString().replace(".tgz", "") + ".mmdb";
-        Metadata metadata = state.getDatabases().getOrDefault(name, Metadata.EMPTY);
         String md5 = (String) databaseInfo.get("md5_hash");
-        if (Objects.equals(metadata.md5(), md5)) {
-            updateTimestamp(name, metadata);
-            return;
-        }
-        logger.debug("downloading geoip database [{}]", name);
         String url = databaseInfo.get("url").toString();
         if (url.startsWith("http") == false) {
             // relative url, add it after last slash (i.e. resolve sibling) or at the end if there's no slash after http[s]://
             int lastSlash = endpoint.substring(8).lastIndexOf('/');
             url = (lastSlash != -1 ? endpoint.substring(0, lastSlash + 8) : endpoint) + "/" + url;
         }
+        processDatabase(name, md5, url);
+    }
+
+    private void processDatabase(final String name, final String md5, final String url) {
+        Metadata metadata = state.getDatabases().getOrDefault(name, Metadata.EMPTY);
+        if (Objects.equals(metadata.md5(), md5)) {
+            updateTimestamp(name, metadata);
+            return;
+        }
+        logger.debug("downloading geoip database [{}]", name);
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
             int firstChunk = metadata.lastChunk() + 1; // if there is no metadata, then Metadata.EMPTY.lastChunk() + 1 = 0

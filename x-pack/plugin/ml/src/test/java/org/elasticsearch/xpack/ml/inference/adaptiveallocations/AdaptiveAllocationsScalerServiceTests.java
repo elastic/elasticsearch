@@ -203,6 +203,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
         var updateRequest = new UpdateTrainedModelDeploymentAction.Request("test-deployment");
         updateRequest.setNumberOfAllocations(2);
+        updateRequest.setIsInternal(true);
         verify(client, times(1)).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any());
         verifyNoMoreInteractions(client, clusterService);
         reset(client, clusterService);

@@ -67,7 +67,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataType.KEYWORD);
     private static final Literal DESC = new Literal(Source.EMPTY, "DESC", DataType.KEYWORD);
 
-    private static final String invalidOrderError = "Invalid order value in [{}], expected one of [{}, {}] but got [{}]";
+    private static final String INVALID_ORDER_ERROR = "Invalid order value in [{}], expected one of [{}, {}] but got [{}]";
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
@@ -242,7 +242,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         failures.add(isFoldable(order, operation, SECOND));
         if (isValidOrder() == false) {
             failures.add(
-                Failure.fail(order, invalidOrderError, sourceText(), ASC.value(), DESC.value(), ((BytesRef) order.fold()).utf8ToString())
+                Failure.fail(order, INVALID_ORDER_ERROR, sourceText(), ASC.value(), DESC.value(), ((BytesRef) order.fold()).utf8ToString())
             );
         }
     }

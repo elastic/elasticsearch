@@ -21,11 +21,12 @@ This affects clusters running version 8.10 or later, with an active downsampling
 https://www.elastic.co/guide/en/elasticsearch/reference/current/downsampling-ilm.html[configuration]
 or a configuration that was activated at some point since upgrading to version 8.10 or later.
 
-* When upgrading clusters with non-master-eligible nodes in them from versions before 8.13, information on new functionality
-of the upgraded nodes may not be registered properly with the master. This can lead to some new functionality
-added since 8.13.0 not being accessible on the upgraded cluster. The workaround is to perform a rolling restart
-on the non-master-eligible nodes once the upgrade is complete. This is only necessary when upgrading from a version
-prior to 8.13.0.
+* When upgrading clusters from version 8.12.2 or earlier, if your cluster contains non-master-eligible nodes,
+information about the new functionality of these upgraded nodes may not be registered properly with the master node.
+This can lead to some new functionality added since 8.13.0 not being accessible on the upgraded cluster.
+If your cluster is running on ECK 2.12.1 and above, this may cause problems with finalizing the upgrade.
+To resolve this issue, perform a rolling restart on the non-master-eligible nodes once all Elasticsearch nodes
+are upgraded.
 
 [[breaking-8.13.0]]
 [float]

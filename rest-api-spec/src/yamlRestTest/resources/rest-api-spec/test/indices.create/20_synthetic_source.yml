@@ -459,6 +459,7 @@ object array:
           mappings:
             _source:
               mode: synthetic
+            subobjects: auto
             properties:
               id:
                 type: integer
@@ -490,20 +491,21 @@ object array:
         refresh: true
         body:
           - '{ "create": { } }'
-          - '{  "id": 1, "regular": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+          - '{  "id": 1, "foo": 10, "foo.bar": 100, "regular": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
           - '{ "create": { } }'
-          - '{  "id": 2, "stored": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+          - '{  "id": 2, "foo": 20, "foo.bar": 200, "stored": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
 
   - do:
       search:
         index: test
         sort: id
 
-  - length: { hits.hits.0._source.regular: 2 }
+  - match: { hits.hits.0._source.foo: 10  }
+  - match: { hits.hits.0._source.foo\.bar: 100  }
   - match: { hits.hits.0._source.regular.span.id: "1" }
   - match: { hits.hits.0._source.regular.trace.id: [ "a", "b" ] }
-
-  - length: { hits.hits.1._source.stored: 2 }
+  - match: { hits.hits.1._source.foo: 20 }
+  - match: { hits.hits.1._source.foo\.bar: 200 }
   - match: { hits.hits.1._source.stored.0.trace.id: a  }
   - match: { hits.hits.1._source.stored.0.span.id: "1"  }
   - match: { hits.hits.1._source.stored.1.trace.id: b }

@@ -41,6 +41,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
@@ -470,7 +471,7 @@ public final class DocumentParser {
 
     private static boolean shouldFlattenObject(DocumentParserContext context, FieldMapper fieldMapper) {
         return context.parser().currentToken() == XContentParser.Token.START_OBJECT
-            && context.parent().subobjects() == false
+            && context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
             && fieldMapper.supportsParsingObject() == false;
     }
 
@@ -511,7 +512,7 @@ public final class DocumentParser {
     private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {
         context.path().add(currentFieldName);
         boolean withinLeafObject = context.path().isWithinLeafObject();
-        if (objectMapper instanceof ObjectMapper objMapper && objMapper.subobjects() == false) {
+        if (objectMapper instanceof ObjectMapper objMapper && objMapper.subobjects() == ObjectMapper.Subobjects.DISABLED) {
             context.path().setWithinLeafObject(true);
         }
         parseObjectOrField(context, objectMapper);
@@ -557,7 +558,7 @@ public final class DocumentParser {
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
             }
-            if (context.parent().subobjects() == false) {
+            if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
                     throw new DocumentParsingException(
                         context.parser().getTokenLocation(),
@@ -1006,7 +1007,7 @@ public final class DocumentParser {
                 name,
                 fullPath,
                 Explicit.IMPLICIT_TRUE,
-                Explicit.IMPLICIT_TRUE,
+                Optional.empty(),
                 Explicit.IMPLICIT_FALSE,
                 Dynamic.RUNTIME,
                 Collections.emptyMap()
@@ -1045,7 +1046,7 @@ public final class DocumentParser {
                 mappingLookup.getMapping().getRoot(),
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );
-            if (mappingLookup.getMapping().getRoot().subobjects()) {
+            if (mappingLookup.getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
                 this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
             } else {
                 this.parser = parser;

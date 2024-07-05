@@ -1388,7 +1388,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals(ObjectMapper.Dynamic.FALSE, metrics.dynamic());
         assertEquals(1, metrics.mappers.size());
         ObjectMapper service = (ObjectMapper) metrics.getMapper("service");
-        assertFalse(service.subobjects());
+        assertEquals(ObjectMapper.Subobjects.DISABLED, service.subobjects());
         assertEquals(1, service.mappers.size());
         assertNotNull(service.getMapper("time"));
     }
@@ -1803,7 +1803,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         Mapping mapping = doc.dynamicMappingsUpdate();
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper leaf = (ObjectMapper) artifacts.getMapper("leaf");
-        assertFalse(leaf.subobjects());
+        assertEquals(ObjectMapper.Subobjects.DISABLED, leaf.subobjects());
     }
 
     public void testSubobjectsFalseFlattened() throws IOException {

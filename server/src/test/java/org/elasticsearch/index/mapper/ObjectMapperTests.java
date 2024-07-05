@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -24,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -164,7 +164,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper objectMapper = mapper.mappers().objectMappers().get("object");
         assertNotNull(objectMapper);
         assertFalse(objectMapper.isEnabled());
-        assertTrue(objectMapper.subobjects());
+        assertEquals(ObjectMapper.Subobjects.ENABLED, objectMapper.subobjects());
         assertFalse(objectMapper.storeArraySource());
 
         // Setting 'enabled' to true is allowed, and updates the mapping.
@@ -186,7 +186,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         objectMapper = mapper.mappers().objectMappers().get("object");
         assertNotNull(objectMapper);
         assertTrue(objectMapper.isEnabled());
-        assertFalse(objectMapper.subobjects());
+        assertEquals(ObjectMapper.Subobjects.DISABLED, objectMapper.subobjects());
         assertTrue(objectMapper.storeArraySource());
     }
 
@@ -554,8 +554,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testNestedObjectWithMultiFieldsgetTotalFieldsCount() {
-        ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Explicit.IMPLICIT_TRUE).add(
-            new ObjectMapper.Builder("child_size_2", Explicit.IMPLICIT_TRUE).add(
+        ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Optional.empty()).add(
+            new ObjectMapper.Builder("child_size_2", Optional.empty()).add(
                 new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers(), false).addMultiField(
                     new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current())
                 )
@@ -602,10 +602,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlatten() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).add(
-            new ObjectMapper.Builder("child", Explicit.IMPLICIT_TRUE).add(
-                new KeywordFieldMapper.Builder("keyword2", IndexVersion.current())
-            )
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.empty()).add(
+            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
         ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
@@ -613,8 +611,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenDynamicIncompatible() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).add(
-            new ObjectMapper.Builder("child", Explicit.IMPLICIT_TRUE).dynamic(Dynamic.FALSE)
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.empty()).add(
+            new ObjectMapper.Builder("child", Optional.empty()).dynamic(Dynamic.FALSE)
         ).build(rootContext);
 
         IllegalArgumentException exception = expectThrows(
@@ -631,7 +629,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenEnabledFalse() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).enabled(false).build(rootContext);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.empty()).enabled(false).build(rootContext);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -646,7 +644,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenExplicitSubobjectsTrue() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.EXPLICIT_TRUE).build(rootContext);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.ENABLED)).build(rootContext);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,

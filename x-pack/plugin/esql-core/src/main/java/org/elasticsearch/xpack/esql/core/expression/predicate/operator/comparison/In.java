@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,6 +46,16 @@ public class In extends ScalarFunction {
         this.value = value;
         this.list = new ArrayList<>(new LinkedHashSet<>(list));
         this.zoneId = zoneId;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -89,7 +101,20 @@ public class In extends ScalarFunction {
         if (Expressions.isNull(value) || list.size() == 1 && Expressions.isNull(list.get(0))) {
             return null;
         }
-        return InProcessor.apply(value.fold(), foldAndConvertListOfValues(list, value.dataType()));
+        return apply(value.fold(), foldAndConvertListOfValues(list, value.dataType()));
+    }
+
+    private static Boolean apply(Object input, List<Object> values) {
+        Boolean result = Boolean.FALSE;
+        for (Object v : values) {
+            Boolean compResult = Comparisons.eq(input, v);
+            if (compResult == null) {
+                result = null;
+            } else if (compResult == Boolean.TRUE) {
+                return Boolean.TRUE;
+            }
+        }
+        return result;
     }
 
     @Override

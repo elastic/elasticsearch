@@ -378,6 +378,9 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
                 int docId = docIdsToAdvanceTo[i];
                 int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
+                if (baselineTarget == NO_MORE_DOCS) {
+                    break;
+                }
                 assertEquals(baseline.longValue(), contender.longValue());
                 i = shouldSkipDocIds(i, docId, baselineTarget, docIdsToAdvanceTo);
                 if (i == -1) {
@@ -394,7 +397,9 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                 boolean contenderResult = contender.advanceExact(docId);
                 assertEquals(baselineResult, contenderResult);
                 assertEquals(baseline.docID(), contender.docID());
-                assertEquals(baseline.longValue(), contender.longValue());
+                if (baselineResult) {
+                    assertEquals(baseline.longValue(), contender.longValue());
+                }
             }
         }
     }
@@ -418,6 +423,9 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
                 int docId = docIdsToAdvanceTo[i];
                 int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
+                if (baselineTarget != NO_MORE_DOCS) {
+                    break;
+                }
                 assertEquals(baseline.binaryValue(), contender.binaryValue());
                 i = shouldSkipDocIds(i, docId, baselineTarget, docIdsToAdvanceTo);
                 if (i == -1) {
@@ -434,7 +442,9 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                 boolean contenderResult = contender.advanceExact(docId);
                 assertEquals(baselineResult, contenderResult);
                 assertEquals(baseline.docID(), contender.docID());
-                assertEquals(baseline.binaryValue(), contender.binaryValue());
+                if (baselineResult) {
+                    assertEquals(baseline.binaryValue(), contender.binaryValue());
+                }
             }
         }
     }

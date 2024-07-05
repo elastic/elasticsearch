@@ -11,13 +11,12 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -73,6 +72,15 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
                 // if the child is a nested expression
                 Expression child = as.child();
 
+                // do not replace nested aggregates
+                if (child instanceof AggregateFunction af) {
+                    Holder<Boolean> foundNestedAggs = new Holder<>(Boolean.FALSE);
+                    af.children().forEach(e -> e.forEachDown(AggregateFunction.class, unused -> foundNestedAggs.set(Boolean.TRUE)));
+                    if (foundNestedAggs.get()) {
+                        return as;
+                    }
+                }
+
                 // shortcut for common scenario
                 if (child instanceof AggregateFunction af && af.field() instanceof Attribute) {
                     return as;
@@ -125,7 +133,7 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
             var aggregates = aggsChanged.get() ? newAggs : aggregate.aggregates();
 
             var newEval = new Eval(aggregate.source(), aggregate.child(), evals);
-            aggregate = new Aggregate(aggregate.source(), newEval, groupings, aggregates);
+            aggregate = new Aggregate(aggregate.source(), newEval, aggregate.aggregateType(), groupings, aggregates);
         }
 
         return aggregate;

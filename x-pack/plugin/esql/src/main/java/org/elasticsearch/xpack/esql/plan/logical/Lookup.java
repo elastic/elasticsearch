@@ -11,13 +11,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -39,7 +34,7 @@ public class Lookup extends UnaryPlan {
     /**
      * References to the input fields to match against the {@link #localRelation}.
      */
-    private final List<NamedExpression> matchFields;
+    private final List<Attribute> matchFields;
     // initialized during the analysis phase for output and validation
     // afterward, it is converted into a Join (BinaryPlan) hence why here it is not a child
     private final LocalRelation localRelation;
@@ -49,7 +44,7 @@ public class Lookup extends UnaryPlan {
         Source source,
         LogicalPlan child,
         Expression tableName,
-        List<NamedExpression> matchFields,
+        List<Attribute> matchFields,
         @Nullable LocalRelation localRelation
     ) {
         super(source, child);
@@ -60,15 +55,15 @@ public class Lookup extends UnaryPlan {
 
     public Lookup(PlanStreamInput in) throws IOException {
         super(Source.readFrom(in), in.readLogicalPlanNode());
-        this.tableName = in.readExpression();
-        this.matchFields = in.readNamedWriteableCollectionAsList(NamedExpression.class);
+        this.tableName = in.readNamedWriteable(Expression.class);
+        this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.localRelation = in.readBoolean() ? new LocalRelation(in) : null;
     }
 
     public void writeTo(PlanStreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeLogicalPlanNode(child());
-        out.writeExpression(tableName);
+        out.writeNamedWriteable(tableName);
         out.writeNamedWriteableCollection(matchFields);
         if (localRelation == null) {
             out.writeBoolean(false);
@@ -82,7 +77,7 @@ public class Lookup extends UnaryPlan {
         return tableName;
     }
 
-    public List<NamedExpression> matchFields() {
+    public List<Attribute> matchFields() {
         return matchFields;
     }
 
@@ -91,17 +86,19 @@ public class Lookup extends UnaryPlan {
     }
 
     public JoinConfig joinConfig() {
-        List<Expression> conditions = new ArrayList<>(matchFields.size());
+        List<Attribute> leftFields = new ArrayList<>(matchFields.size());
+        List<Attribute> rightFields = new ArrayList<>(matchFields.size());
         List<Attribute> rhsOutput = Join.makeReference(localRelation.output());
-        for (NamedExpression lhs : matchFields) {
+        for (Attribute lhs : matchFields) {
             for (Attribute rhs : rhsOutput) {
                 if (lhs.name().equals(rhs.name())) {
-                    conditions.add(new Equals(source(), lhs, rhs));
+                    leftFields.add(lhs);
+                    rightFields.add(rhs);
                     break;
                 }
             }
         }
-        return new JoinConfig(JoinType.LEFT, matchFields, conditions);
+        return new JoinConfig(JoinType.LEFT, matchFields, leftFields, rightFields);
     }
 
     @Override
@@ -122,10 +119,10 @@ public class Lookup extends UnaryPlan {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            List<Attribute> rightSide = localRelation != null
-                ? Join.makeNullable(Join.makeReference(localRelation.output()))
-                : Expressions.asAttributes(matchFields);
-            lazyOutput = Join.mergeOutput(child().output(), rightSide, matchFields);
+            if (localRelation == null) {
+                throw new IllegalStateException("Cannot determine output of LOOKUP with unresolved table");
+            }
+            lazyOutput = Join.computeOutput(child().output(), localRelation.output(), joinConfig());
         }
         return lazyOutput;
     }

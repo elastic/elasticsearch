@@ -48,6 +48,7 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -75,6 +76,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -649,7 +651,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
      * are assumed to be at WARNING level.
-     * @param expectedWarnings expected general deprecation warnings.
+     * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertWarnings(String... expectedWarnings) {
         assertWarnings(
@@ -663,7 +665,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
      * are assumed to be at CRITICAL level.
-     * @param expectedWarnings expected general deprecation warnings.
+     * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertCriticalWarnings(String... expectedWarnings) {
         assertWarnings(
@@ -995,6 +997,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static int randomNonNegativeInt() {
         return randomInt() & Integer.MAX_VALUE;
+    }
+
+    /**
+     * @return an <code>int</code> between <code>Integer.MIN_VALUE</code> and <code>-1</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNegativeInt() {
+        return randomInt() | Integer.MIN_VALUE;
     }
 
     public static float randomFloat() {
@@ -2211,6 +2220,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static final TimeValue SAFE_AWAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
+    /**
+     * Await on the given {@link CyclicBarrier} with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's interrupt status flag
+     * and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     */
     public static void safeAwait(CyclicBarrier barrier) {
         try {
             barrier.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -2222,6 +2235,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Await on the given {@link CountDownLatch} with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's interrupt status
+     * flag and asserting that the latch is indeed completed before the timeout.
+     */
     public static void safeAwait(CountDownLatch countDownLatch) {
         try {
             assertTrue(
@@ -2234,10 +2251,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Acquire a single permit from the given {@link Semaphore}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's
+     * interrupt status flag and asserting that the permit was successfully acquired.
+     */
     public static void safeAcquire(Semaphore semaphore) {
         safeAcquire(1, semaphore);
     }
 
+    /**
+     * Acquire the specified number of permits from the given {@link Semaphore}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving
+     * the thread's interrupt status flag and asserting that the permits were all successfully acquired.
+     */
     public static void safeAcquire(int permits, Semaphore semaphore) {
         try {
             assertTrue(
@@ -2250,12 +2275,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Wait for the successful completion of the given {@link SubscribableListener}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code listener} was completed.
+     */
     public static <T> T safeAwait(SubscribableListener<T> listener) {
         final var future = new PlainActionFuture<T>();
         listener.addListener(future);
         return safeGet(future);
     }
 
+    /**
+     * Wait for the successful completion of the given {@link Future}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the
+     * thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code future} was completed.
+     */
     public static <T> T safeGet(Future<T> future) {
         try {
             return future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -2269,6 +2306,27 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Call a {@link CheckedSupplier}, converting all exceptions into an {@link AssertionError}. Useful for avoiding
+     * try/catch boilerplate or cumbersome propagation of checked exceptions around something that <i>should</i> never throw.
+     *
+     * @return The value returned by the {@code supplier}.
+     */
+    public static <T> T safeGet(CheckedSupplier<T, ?> supplier) {
+        try {
+            return supplier.get();
+        } catch (Exception e) {
+            return fail(e);
+        }
+    }
+
+    /**
+     * Wait for the exceptional completion of the given {@link SubscribableListener}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure.
+     *
+     * @return The exception with which the {@code listener} was completed exceptionally.
+     */
     public static Exception safeAwaitFailure(SubscribableListener<?> listener) {
         return safeAwait(
             SubscribableListener.newForked(
@@ -2277,10 +2335,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
+    /**
+     * Send the current thread to sleep for the given duration, asserting that the sleep is not interrupted but preserving the thread's
+     * interrupt status flag in any case.
+     */
     public static void safeSleep(TimeValue timeValue) {
         safeSleep(timeValue.millis());
     }
 
+    /**
+     * Send the current thread to sleep for the given number of milliseconds, asserting that the sleep is not interrupted but preserving the
+     * thread's interrupt status flag in any case.
+     */
     public static void safeSleep(long millis) {
         try {
             Thread.sleep(millis);
@@ -2288,6 +2354,34 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.currentThread().interrupt();
             fail(e, "safeSleep: interrupted");
         }
+    }
+
+    /**
+     * Wait for all tasks currently running or enqueued on the given executor to complete.
+     */
+    public static void flushThreadPoolExecutor(ThreadPool threadPool, String executorName) {
+        final var maxThreads = threadPool.info(executorName).getMax();
+        final var barrier = new CyclicBarrier(maxThreads + 1);
+        final var executor = threadPool.executor(executorName);
+        for (int i = 0; i < maxThreads; i++) {
+            executor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    safeAwait(barrier);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e, "unexpected");
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+            });
+        }
+        safeAwait(barrier);
     }
 
     protected static boolean isTurkishLocale() {

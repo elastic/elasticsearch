@@ -21,13 +21,13 @@ configurations {
 }
 
 dependencies {
-  compileOnly("org.apache.hadoop:hadoop-minicluster:2.8.5")
-  api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
+  compileOnly libs.hadoop.minicluster
+  api(libs.randomizedtesting.runner) {
     transitive false
   }
   compileOnly libs.junit
   hdfs2 libs.hadoop.minicluster
-  hdfs3 libs.hadoop.minicluster
+  hdfs3 libs.hadoop.minicluster3
 
 }
 

@@ -18,10 +18,6 @@ esplugin {
   classname 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
-versions << [
-  'hadoop': '3.3.3'
-]
-
 configurations {
   hdfsFixture2
   hdfsFixture3
@@ -36,8 +32,8 @@ dependencies {
      */
     api project(path: 'hadoop-client-api')
   }
-  runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
-  implementation "org.apache.hadoop:hadoop-hdfs:${versions.hadoop}"
+  runtimeOnly "org.apache.hadoop:hadoop-client-runtime:3.3.3"
+  implementation "org.apache.hadoop:hadoop-hdfs:3.3.3"
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"

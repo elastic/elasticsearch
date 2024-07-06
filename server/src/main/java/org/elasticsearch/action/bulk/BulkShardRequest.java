@@ -161,6 +161,9 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             out.writeBoolean(true);
             item.serializeThin(out, result);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_VALIDATES_MAPPINGS)) {
+            out.writeBoolean(isSimulated);
+        }
     }
 
     @Override

@@ -35,8 +35,8 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
@@ -104,7 +104,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        return decimals == null ? TypeResolution.TYPE_RESOLVED : isInteger(decimals, sourceText(), SECOND);
+        return decimals == null ? TypeResolution.TYPE_RESOLVED : isWholeNumber(decimals, sourceText(), SECOND);
     }
 
     @Override

@@ -11,7 +11,9 @@ package org.elasticsearch.cluster.allocation;
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -42,7 +44,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -99,12 +101,14 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, *under dry_run*");
-        state = clusterAdmin().prepareReroute()
-            .setExplain(randomBoolean())
-            .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
-            .setDryRun(true)
-            .get()
-            .getState();
+        state = safeGet(
+            client().execute(
+                TransportClusterRerouteAction.TYPE,
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
+                    .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
+                    .dryRun(true)
+            )
+        ).getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
         assertThat(
             state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
@@ -116,11 +120,13 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
-        state = clusterAdmin().prepareReroute()
-            .setExplain(randomBoolean())
-            .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
-            .get()
-            .getState();
+        state = safeGet(
+            client().execute(
+                TransportClusterRerouteAction.TYPE,
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
+                    .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
+            )
+        ).getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
         assertThat(
             state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
@@ -143,11 +149,13 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         );
 
         logger.info("--> move shard 1 primary from node1 to node2");
-        state = clusterAdmin().prepareReroute()
-            .setExplain(randomBoolean())
-            .add(new MoveAllocationCommand("test", 0, node_1, node_2))
-            .get()
-            .getState();
+        state = safeGet(
+            client().execute(
+                TransportClusterRerouteAction.TYPE,
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
+                    .add(new MoveAllocationCommand("test", 0, node_1, node_2))
+            )
+        ).getState();
 
         assertThat(
             state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
@@ -250,11 +258,13 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
-        state = clusterAdmin().prepareReroute()
-            .setExplain(randomBoolean())
-            .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
-            .get()
-            .getState();
+        state = safeGet(
+            client().execute(
+                TransportClusterRerouteAction.TYPE,
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
+                    .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
+            )
+        ).getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
         assertThat(
             state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
@@ -295,17 +305,19 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         internalCluster().startNode(commonSettings);
         // wait a bit for the cluster to realize that the shard is not there...
         // TODO can we get around this? the cluster is RED, so what do we wait for?
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         assertThat(
             clusterAdmin().prepareHealth().setIndices("test").setWaitForNodes("2").get().getStatus(),
             equalTo(ClusterHealthStatus.RED)
         );
         logger.info("--> explicitly allocate primary");
-        state = clusterAdmin().prepareReroute()
-            .setExplain(randomBoolean())
-            .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
-            .get()
-            .getState();
+        state = safeGet(
+            client().execute(
+                TransportClusterRerouteAction.TYPE,
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
+                    .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
+            )
+        ).getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
         assertThat(
             state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
@@ -350,7 +362,12 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
         logger.info("--> try to move the shard from node1 to node2");
         MoveAllocationCommand cmd = new MoveAllocationCommand("test", 0, node_1, node_2);
-        ClusterRerouteResponse resp = clusterAdmin().prepareReroute().add(cmd).setExplain(true).get();
+        ClusterRerouteResponse resp = safeGet(
+            client().execute(
+                TransportClusterRerouteAction.TYPE,
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(cmd).explain(true)
+            )
+        );
         RoutingExplanations e = resp.getExplanations();
         assertThat(e.explanations().size(), equalTo(1));
         RerouteExplanation explanation = e.explanations().get(0);
@@ -387,23 +404,25 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             )
             .get();
 
-        MockLogAppender dryRunMockLog = new MockLogAppender();
-        dryRunMockLog.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no completed message logged on dry run",
-                TransportClusterRerouteAction.class.getName(),
-                Level.INFO,
-                "allocated an empty primary*"
-            )
-        );
+        try (var dryRunMockLog = MockLog.capture(TransportClusterRerouteAction.class)) {
+            dryRunMockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no completed message logged on dry run",
+                    TransportClusterRerouteAction.class.getName(),
+                    Level.INFO,
+                    "allocated an empty primary*"
+                )
+            );
 
-        try (var ignored = dryRunMockLog.capturing(TransportClusterRerouteAction.class)) {
             AllocationCommand dryRunAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
-            ClusterRerouteResponse dryRunResponse = clusterAdmin().prepareReroute()
-                .setExplain(randomBoolean())
-                .setDryRun(true)
-                .add(dryRunAllocation)
-                .get();
+            ClusterRerouteResponse dryRunResponse = safeGet(
+                client().execute(
+                    TransportClusterRerouteAction.TYPE,
+                    new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
+                        .dryRun(true)
+                        .add(dryRunAllocation)
+                )
+            );
 
             // during a dry run, messages exist but are not logged or exposed
             assertThat(dryRunResponse.getExplanations().getYesDecisionMessages(), hasSize(1));
@@ -412,32 +431,36 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             dryRunMockLog.assertAllExpectationsMatched();
         }
 
-        MockLogAppender allocateMockLog = new MockLogAppender();
-        allocateMockLog.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "message for first allocate empty primary",
-                TransportClusterRerouteAction.class.getName(),
-                Level.INFO,
-                "allocated an empty primary*" + nodeName1 + "*"
-            )
-        );
-        allocateMockLog.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no message for second allocate empty primary",
-                TransportClusterRerouteAction.class.getName(),
-                Level.INFO,
-                "allocated an empty primary*" + nodeName2 + "*"
-            )
-        );
-        try (var ignored = allocateMockLog.capturing(TransportClusterRerouteAction.class)) {
+        try (var allocateMockLog = MockLog.capture(TransportClusterRerouteAction.class)) {
+            allocateMockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "message for first allocate empty primary",
+                    TransportClusterRerouteAction.class.getName(),
+                    Level.INFO,
+                    "allocated an empty primary*" + nodeName1 + "*"
+                )
+            );
+            allocateMockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no message for second allocate empty primary",
+                    TransportClusterRerouteAction.class.getName(),
+                    Level.INFO,
+                    "allocated an empty primary*" + nodeName2 + "*"
+                )
+            );
 
             AllocationCommand yesDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
             AllocationCommand noDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand("noexist", 1, nodeName2, true);
-            ClusterRerouteResponse response = clusterAdmin().prepareReroute()
-                .setExplain(true) // so we get a NO decision back rather than an exception
-                .add(yesDecisionAllocation)
-                .add(noDecisionAllocation)
-                .get();
+            ClusterRerouteResponse response = safeGet(
+                client().execute(
+                    TransportClusterRerouteAction.TYPE,
+                    new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                        // set explain(true) so we get a NO decision back rather than an exception
+                        .explain(true)
+                        .add(yesDecisionAllocation)
+                        .add(noDecisionAllocation)
+                )
+            );
 
             assertThat(response.getExplanations().getYesDecisionMessages(), hasSize(1));
             assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString("allocated an empty primary"));
@@ -484,9 +507,9 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);
-                assertAcked(
-                    clusterAdmin().prepareReroute()
-                        .add(new MoveAllocationCommand("test-blocks", 0, nodesIds.get(toggle % 2), nodesIds.get(++toggle % 2)))
+                ClusterRerouteUtils.reroute(
+                    client(),
+                    new MoveAllocationCommand("test-blocks", 0, nodesIds.get(toggle % 2), nodesIds.get(++toggle % 2))
                 );
 
                 ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth()
@@ -504,8 +527,11 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         try {
             setClusterReadOnly(true);
             assertBlocked(
-                clusterAdmin().prepareReroute()
-                    .add(new MoveAllocationCommand("test-blocks", 1, nodesIds.get(toggle % 2), nodesIds.get(++toggle % 2)))
+                null,
+                ClusterRerouteUtils.expectRerouteFailure(
+                    client(),
+                    new MoveAllocationCommand("test-blocks", 1, nodesIds.get(toggle % 2), nodesIds.get(++toggle % 2))
+                )
             );
         } finally {
             setClusterReadOnly(false);

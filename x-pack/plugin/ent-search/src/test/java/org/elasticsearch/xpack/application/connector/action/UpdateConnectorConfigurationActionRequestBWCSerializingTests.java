@@ -28,7 +28,11 @@ public class UpdateConnectorConfigurationActionRequestBWCSerializingTests extend
     @Override
     protected UpdateConnectorConfigurationAction.Request createTestInstance() {
         this.connectorId = randomUUID();
-        return new UpdateConnectorConfigurationAction.Request(connectorId, ConnectorTestUtils.getRandomConnectorConfiguration());
+        return new UpdateConnectorConfigurationAction.Request(
+            connectorId,
+            ConnectorTestUtils.getRandomConnectorConfiguration(),
+            ConnectorTestUtils.getRandomConnectorConfigurationValues()
+        );
     }
 
     @Override

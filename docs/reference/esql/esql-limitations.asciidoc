@@ -9,7 +9,7 @@
 [[esql-max-rows]]
 === Result set size limit
 
-By default, an {esql} query returns up to 500 rows. You can increase the number
+By default, an {esql} query returns up to 1000 rows. You can increase the number
 of rows up to 10,000 using the <<esql-limit>> command.
 include::processing-commands/limit.asciidoc[tag=limitation]
 
@@ -32,7 +32,7 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 * `long`
 * `null`
 * `text`
-* `unsigned_long`
+* experimental:[] `unsigned_long`
 * `version`
 * Spatial types
 ** `geo_point`
@@ -72,6 +72,28 @@ Querying a column with an unsupported type returns an error. If a column with an
 unsupported type is not explicitly used in a query, it is returned with `null`
 values, with the exception of nested fields. Nested fields are not returned at
 all.
+
+[discrete]
+==== Limitations on supported types
+
+Some <<mapping-types,field types>> are not supported in all contexts:
+
+* Spatial types are not supported in the <<esql-sort,SORT>> processing command.
+  Specifying a column of one of these types as a sort parameter will result in an error:
+** `geo_point`
+** `geo_shape`
+** `cartesian_point`
+** `cartesian_shape`
+
+[discrete]
+[[esql-_source-availability]]
+=== _source availability
+
+{esql} does not support configurations where the
+<<mapping-source-field,_source field>> is <<disable-source-field,disabled>>.
+
+experimental:[] {esql}'s support for <<synthetic-source,synthetic `_source`>>
+is currently experimental.
 
 [discrete]
 [[esql-limitations-full-text-search]]
@@ -129,12 +151,6 @@ you query, and query `keyword` sub-fields instead of `text` fields.
 === Time series data streams are not supported
 
 {esql} does not support querying time series data streams (TSDS).
-
-[discrete]
-[[esql-limitations-ccs]]
-=== {ccs-cap} is not supported
-
-{esql} does not support {ccs}.
 
 [discrete]
 [[esql-limitations-date-math]]

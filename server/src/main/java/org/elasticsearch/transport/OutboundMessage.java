@@ -64,7 +64,7 @@ abstract class OutboundMessage extends NetworkMessage {
             if (message.supportsZeroCopy() && stream instanceof RecyclerBytesStreamOutput b) {
                 int posBefore = Math.toIntExact(b.position());
                 final Writeable.SerializationContext serializationContext = new Writeable.SerializationContext(b);
-                message.serialize(b, serializationContext);
+                message.serialize(serializationContext);
                 zeroCopyBuffer = serializationContext.finish();
                 b.seek(posBefore);
             } else if (message instanceof BytesTransportRequest bRequest) {

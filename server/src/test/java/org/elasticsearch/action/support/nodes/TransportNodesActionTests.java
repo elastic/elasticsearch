@@ -139,6 +139,7 @@ public class TransportNodesActionTests extends ESTestCase {
                 successfulNodes.add(capturedRequest.node());
                 final var response = new TestNodeResponse(capturedRequest.node());
                 transport.handleResponse(capturedRequest.requestId(), response);
+                response.decRef();
                 assertFalse(response.hasReferences()); // response is copied (via the wire protocol) so this instance is released
             } else {
                 failedNodeIds.add(capturedRequest.node().getId());
@@ -322,11 +323,9 @@ public class TransportNodesActionTests extends ESTestCase {
 
     public DataNodesOnlyTransportNodesAction getDataNodesOnlyTransportNodesAction(TransportService transportService) {
         return new DataNodesOnlyTransportNodesAction(
-            THREAD_POOL,
             clusterService,
             transportService,
             new ActionFilters(Collections.emptySet()),
-            TestNodesRequest::new,
             TestNodeRequest::new,
             THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
@@ -382,11 +381,9 @@ public class TransportNodesActionTests extends ESTestCase {
     private static class DataNodesOnlyTransportNodesAction extends TestTransportNodesAction {
 
         DataNodesOnlyTransportNodesAction(
-            ThreadPool threadPool,
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
-            Writeable.Reader<TestNodesRequest> request,
             Writeable.Reader<TestNodeRequest> nodeRequest,
             Executor nodeExecutor
         ) {
@@ -394,16 +391,12 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected void resolveRequest(TestNodesRequest request, ClusterState clusterState) {
-            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new));
+        protected DiscoveryNode[] resolveRequest(TestNodesRequest request, ClusterState clusterState) {
+            return clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         }
     }
 
     private static class TestNodesRequest extends BaseNodesRequest<TestNodesRequest> {
-        TestNodesRequest(StreamInput in) throws IOException {
-            super(in);
-        }
-
         TestNodesRequest(String... nodesIds) {
             super(nodesIds);
         }

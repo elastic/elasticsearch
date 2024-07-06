@@ -19,7 +19,6 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
 import com.google.common.annotations.VisibleForTesting;
 
 import org.elasticsearch.gradle.Version;
-import org.gradle.api.DefaultTask;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.TaskAction;
@@ -27,9 +26,7 @@ import org.gradle.api.tasks.options.Option;
 import org.gradle.initialization.layout.BuildLayout;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -42,15 +39,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
-public class UpdateVersionsTask extends DefaultTask {
+public class UpdateVersionsTask extends AbstractVersionsTask {
+
     private static final Logger LOGGER = Logging.getLogger(UpdateVersionsTask.class);
 
-    static final String SERVER_MODULE_PATH = "server/src/main/java/";
-    static final String VERSION_FILE_PATH = SERVER_MODULE_PATH + "org/elasticsearch/Version.java";
-
     static final Pattern VERSION_FIELD = Pattern.compile("V_(\\d+)_(\\d+)_(\\d+)(?:_(\\w+))?");
-
-    final Path rootDir;
 
     @Nullable
     private Version addVersion;
@@ -60,7 +53,7 @@ public class UpdateVersionsTask extends DefaultTask {
 
     @Inject
     public UpdateVersionsTask(BuildLayout layout) {
-        rootDir = layout.getRootDirectory().toPath();
+        super(layout);
     }
 
     @Option(option = "add-version", description = "Specifies the version to add")
@@ -204,12 +197,5 @@ public class UpdateVersionsTask extends DefaultTask {
         declaration.get().remove();
 
         return Optional.of(versionJava);
-    }
-
-    static void writeOutNewContents(Path file, CompilationUnit unit) throws IOException {
-        if (unit.containsData(LexicalPreservingPrinter.NODE_TEXT_DATA) == false) {
-            throw new IllegalArgumentException("CompilationUnit has no lexical information for output");
-        }
-        Files.writeString(file, LexicalPreservingPrinter.print(unit), StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
     }
 }

@@ -13,11 +13,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -44,7 +45,7 @@ public abstract class RestActionTestCase extends ESTestCase {
     public void setUpController() {
         threadPool = createThreadPool();
         verifyingClient = new VerifyingClient(threadPool);
-        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), Tracer.NOOP);
+        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), TelemetryProvider.NOOP);
     }
 
     @After
@@ -68,6 +69,8 @@ public abstract class RestActionTestCase extends ESTestCase {
         ThreadContext threadContext = verifyingClient.threadPool().getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             controller.dispatchRequest(request, channel, threadContext);
+        } finally {
+            Releasables.close(channel.capturedResponse());
         }
     }
 
@@ -154,7 +157,7 @@ public abstract class RestActionTestCase extends ESTestCase {
         ) {
             @SuppressWarnings("unchecked") // Callers are responsible for lining this up
             Response response = (Response) executeLocallyVerifier.get().apply(action, request);
-            listener.onResponse(response);
+            ActionListener.respondAndRelease(listener, response);
             return request.createTask(
                 taskIdGenerator.incrementAndGet(),
                 "transport",

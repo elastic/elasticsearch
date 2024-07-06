@@ -219,7 +219,7 @@ public record Build(
         final String minWireVersion;
         final String minIndexVersion;
         final String displayString;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.BUILD_QUALIFIER_SEPARATED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             version = in.readString();
             qualifier = in.readOptionalString();
             snapshot = in.readBoolean();
@@ -257,7 +257,7 @@ public record Build(
         out.writeString(build.type().displayName());
         out.writeString(build.hash());
         out.writeString(build.date());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.BUILD_QUALIFIER_SEPARATED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeString(build.version());
             out.writeOptionalString(build.qualifier());
             out.writeBoolean(build.isSnapshot());

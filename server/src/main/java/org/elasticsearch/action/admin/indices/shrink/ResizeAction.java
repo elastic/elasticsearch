@@ -17,7 +17,7 @@ public class ResizeAction extends ActionType<CreateIndexResponse> {
     public static final String NAME = "indices:admin/resize";
 
     private ResizeAction() {
-        super(NAME, CreateIndexResponse::new);
+        super(NAME);
     }
 
 }

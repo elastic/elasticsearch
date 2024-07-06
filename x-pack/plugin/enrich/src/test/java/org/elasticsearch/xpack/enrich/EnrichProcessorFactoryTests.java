@@ -303,10 +303,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             assertThat(failure[0], nullValue());
             assertThat(result[0], notNullValue());
             assertThat(requestCounter[0], equalTo(1));
-            assertThat(enrichCache.getStats("_id").getCount(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getMisses(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getHits(), equalTo(0L));
-            assertThat(enrichCache.getStats("_id").getEvictions(), equalTo(0L));
+            assertThat(enrichCache.getStats("_id").count(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").misses(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").hits(), equalTo(0L));
+            assertThat(enrichCache.getStats("_id").evictions(), equalTo(0L));
 
             // No search is performed, result is read from the cache:
             result[0] = null;
@@ -318,10 +318,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             assertThat(failure[0], nullValue());
             assertThat(result[0], notNullValue());
             assertThat(requestCounter[0], equalTo(1));
-            assertThat(enrichCache.getStats("_id").getCount(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getMisses(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getHits(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getEvictions(), equalTo(0L));
+            assertThat(enrichCache.getStats("_id").count(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").misses(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").hits(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").evictions(), equalTo(0L));
         }
     }
 

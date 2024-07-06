@@ -96,7 +96,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
     private static final String NAME = "indices:data/read/shard_multi_search";
 
     private EnrichShardMultiSearchAction() {
-        super(NAME, MultiSearchResponse::new);
+        super(NAME);
     }
 
     public static class Request extends SingleShardRequest<Request> {

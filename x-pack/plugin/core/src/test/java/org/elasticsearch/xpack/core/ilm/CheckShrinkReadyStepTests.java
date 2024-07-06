@@ -33,6 +33,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.containsString;
 
 public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkReadyStep> {
@@ -300,14 +302,9 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
             .addShard(
-                TestShardRouting.newShardRouting(
-                    new ShardId(index, 0),
-                    null,
-                    null,
-                    false,
-                    ShardRoutingState.UNASSIGNED,
+                shardRoutingBuilder(new ShardId(index, 0), null, false, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                     randomUnassignedInfo("the shard is intentionally unassigned")
-                )
+                ).build()
             );
 
         CheckShrinkReadyStep step = createRandomInstance();
@@ -358,14 +355,9 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node1", false, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node2", true, ShardRoutingState.STARTED))
             .addShard(
-                TestShardRouting.newShardRouting(
-                    new ShardId(index, 0),
-                    null,
-                    null,
-                    false,
-                    ShardRoutingState.UNASSIGNED,
+                shardRoutingBuilder(new ShardId(index, 0), null, false, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                     new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "no attempt")
-                )
+                ).build()
             );
 
         CheckShrinkReadyStep step = createRandomInstance();
@@ -399,14 +391,9 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node2", false, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node3", true, ShardRoutingState.STARTED))
             .addShard(
-                TestShardRouting.newShardRouting(
-                    new ShardId(index, 0),
-                    null,
-                    null,
-                    false,
-                    ShardRoutingState.UNASSIGNED,
+                shardRoutingBuilder(new ShardId(index, 0), null, false, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                     new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "no attempt")
-                )
+                ).build()
             );
 
         CheckShrinkReadyStep step = createRandomInstance();
@@ -463,9 +450,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
-                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                : null;
+            final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
             ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
                     Metadata.builder()
@@ -544,9 +529,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
-                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                : null;
+            final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
             ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
                     Metadata.builder()

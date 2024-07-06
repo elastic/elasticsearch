@@ -37,7 +37,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
     public static final String NAME = "indices:admin/xpack/downsample_indexer";
 
     private DownsampleIndexerAction() {
-        super(NAME, DownsampleIndexerAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BroadcastRequest<Request> implements IndicesRequest, ToXContentObject {

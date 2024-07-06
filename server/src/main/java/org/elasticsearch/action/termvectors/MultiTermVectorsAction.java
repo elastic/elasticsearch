@@ -16,6 +16,6 @@ public class MultiTermVectorsAction extends ActionType<MultiTermVectorsResponse>
     public static final String NAME = "indices:data/read/mtv";
 
     private MultiTermVectorsAction() {
-        super(NAME, MultiTermVectorsResponse::new);
+        super(NAME);
     }
 }

@@ -203,7 +203,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         if (shardFailures.isEmpty()) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
-        return shardFailures.toArray(new ShardSearchFailure[shardFailures.size()]);
+        return shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
     }
 
     // we do our best to return the shard failures, but its ok if its not fully concurrently safe

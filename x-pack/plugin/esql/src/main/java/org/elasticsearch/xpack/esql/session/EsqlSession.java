@@ -9,58 +9,63 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.analyzer.TableInfo;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.index.MappingException;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
-import org.elasticsearch.xpack.ql.analyzer.TableInfo;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.index.MappingException;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.type.InvalidMappedField;
-import org.elasticsearch.xpack.ql.util.Holder;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.xpack.ql.index.IndexResolver.UNMAPPED;
-import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
-import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
+import static org.elasticsearch.xpack.esql.core.util.ActionListeners.map;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class EsqlSession {
 
@@ -73,7 +78,7 @@ public class EsqlSession {
 
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
-    private final FunctionRegistry functionRegistry;
+    private final EsqlFunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
 
     private final Mapper mapper;
@@ -85,7 +90,7 @@ public class EsqlSession {
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
-        FunctionRegistry functionRegistry,
+        EsqlFunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
         Verifier verifier
@@ -106,10 +111,19 @@ public class EsqlSession {
         return sessionId;
     }
 
-    public void execute(EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
+    public void execute(
+        EsqlQueryRequest request,
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        ActionListener<Result> listener
+    ) {
         LOGGER.debug("ESQL query:\n{}", request.query());
+        LogicalPlan logicalPlan = parse(request.query(), request.params());
+        logicalPlanToPhysicalPlan(logicalPlan, request, listener.delegateFailureAndWrap((l, r) -> runPhase.accept(r, l)));
+    }
+
+    private void logicalPlanToPhysicalPlan(LogicalPlan logicalPlan, EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
         optimizedPhysicalPlan(
-            parse(request.query(), request.params()),
+            logicalPlan,
             listener.map(plan -> EstimatesRowSize.estimateRowSize(0, plan.transformUp(FragmentExec.class, f -> {
                 QueryBuilder filter = request.filter();
                 if (filter != null) {
@@ -119,14 +133,14 @@ public class EsqlSession {
                     // TODO: filter integration testing
                     filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
                     LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                    f = new FragmentExec(f.source(), f.fragment(), filter, f.estimatedRowSize());
+                    f = f.withFilter(filter);
                 }
                 return f;
             })))
         );
     }
 
-    private LogicalPlan parse(String query, List<TypedParamValue> params) {
+    private LogicalPlan parse(String query, QueryParams params) {
         var parsed = new EsqlParser().createStatement(query, params);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
@@ -148,17 +162,39 @@ public class EsqlSession {
 
     private <T> void preAnalyze(LogicalPlan parsed, BiFunction<IndexResolution, EnrichResolution, T> action, ActionListener<T> listener) {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        enrichPolicyResolver.resolvePolicy(preAnalysis.policyNames, listener.delegateFailureAndWrap((l, enrichResolution) -> {
+        var unresolvedPolicies = preAnalysis.enriches.stream()
+            .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
+            .collect(Collectors.toSet());
+        final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
+            preAnalysis.indices.stream()
+                .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index())))
+                .toArray(String[]::new)
+        ).keySet();
+        enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, listener.delegateFailureAndWrap((l, enrichResolution) -> {
             // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
             var matchFields = enrichResolution.resolvedEnrichPolicies()
-                .stream()                 // triggered
-                .map(EnrichPolicy::getMatchField)
+                .stream()
+                .map(ResolvedEnrichPolicy::matchField)
                 .collect(Collectors.toSet());
-            preAnalyzeIndices(
-                parsed,
-                l.delegateFailureAndWrap((ll, indexResolution) -> ll.onResponse(action.apply(indexResolution, enrichResolution))),
-                matchFields
-            );
+            preAnalyzeIndices(parsed, l.delegateFailureAndWrap((ll, indexResolution) -> {
+                if (indexResolution.isValid()) {
+                    Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
+                        indexResolution.get().concreteIndices().toArray(String[]::new)
+                    ).keySet();
+                    // If new clusters appear when resolving the main indices, we need to resolve the enrich policies again
+                    // or exclude main concrete indices. Since this is rare, it's simpler to resolve the enrich policies again.
+                    // TODO: add a test for this
+                    if (targetClusters.containsAll(newClusters) == false) {
+                        enrichPolicyResolver.resolvePolicies(
+                            newClusters,
+                            unresolvedPolicies,
+                            ll.map(newEnrichResolution -> action.apply(indexResolution, newEnrichResolution))
+                        );
+                        return;
+                    }
+                }
+                ll.onResponse(action.apply(indexResolution, enrichResolution));
+            }), matchFields);
         }));
     }
 
@@ -172,19 +208,7 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
-
-            indexResolver.resolveAsMergedMapping(
-                table.index(),
-                fieldNames,
-                false,
-                Map.of(),
-                listener,
-                EsqlSession::specificValidity,
-                IndexResolver.PRESERVE_PROPERTIES,
-                // TODO no matter what metadata fields are asked in a query, the "allowedMetadataFields" is always _index, does it make
-                // sense to reflect the actual list of metadata fields instead?
-                IndexResolver.INDEX_METADATA_FIELD
-            );
+            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
@@ -216,17 +240,17 @@ public class EsqlSession {
         // "keep" attributes are special whenever a wildcard is used in their name
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
         AttributeSet keepCommandReferences = new AttributeSet();
+        List<Predicate<String>> keepMatches = new ArrayList<>();
+        List<String> keepPatterns = new ArrayList<>();
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
-                AttributeSet dissectRefs = p.references();
-                // don't add to the list of fields the extracted ones (they are not real fields in mappings)
-                dissectRefs.removeAll(re.extractedFields());
-                references.addAll(dissectRefs);
-                // also remove other down-the-tree references to the extracted fields
+                // remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
                     references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
                 }
+                // but keep the inputs needed by Grok/Dissect
+                references.addAll(re.input().references());
             } else if (p instanceof Enrich) {
                 AttributeSet enrichRefs = p.references();
                 // Enrich adds an EmptyAttribute if no match field is specified
@@ -235,6 +259,15 @@ public class EsqlSession {
                 references.addAll(enrichRefs);
             } else {
                 references.addAll(p.references());
+                // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
+                p.forEachExpression(UnresolvedNamePattern.class, up -> {
+                    var ua = new UnresolvedAttribute(up.source(), up.name());
+                    references.add(ua);
+                    if (p instanceof Keep) {
+                        keepCommandReferences.add(ua);
+                        keepMatches.add(up::match);
+                    }
+                });
                 if (p instanceof Keep) {
                     keepCommandReferences.addAll(p.references());
                 }
@@ -257,6 +290,7 @@ public class EsqlSession {
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
         references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.qualifiedName()));
         Set<String> fieldNames = references.names();
+
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return IndexResolver.INDEX_METADATA_FIELD;
@@ -273,7 +307,8 @@ public class EsqlSession {
         if (skipIfPattern && isPattern) {
             return false;
         }
-        return isPattern ? Regex.simpleMatch(attr.qualifiedName(), other) : attr.qualifiedName().equals(other);
+        var name = attr.qualifiedName();
+        return isPattern ? Regex.simpleMatch(name, other) : name.equals(other);
     }
 
     private static Set<String> subfields(Set<String> names) {
@@ -305,14 +340,14 @@ public class EsqlSession {
     }
 
     public static InvalidMappedField specificValidity(String fieldName, Map<String, FieldCapabilities> types) {
-        boolean hasUnmapped = types.containsKey(UNMAPPED);
+        boolean hasUnmapped = types.containsKey(IndexResolver.UNMAPPED);
         boolean hasTypeConflicts = types.size() > (hasUnmapped ? 2 : 1);
         String metricConflictsTypeName = null;
         boolean hasMetricConflicts = false;
 
         if (hasTypeConflicts == false) {
             for (Map.Entry<String, FieldCapabilities> type : types.entrySet()) {
-                if (UNMAPPED.equals(type.getKey())) {
+                if (IndexResolver.UNMAPPED.equals(type.getKey())) {
                     continue;
                 }
                 if (type.getValue().metricConflictsIndices() != null && type.getValue().metricConflictsIndices().length > 0) {

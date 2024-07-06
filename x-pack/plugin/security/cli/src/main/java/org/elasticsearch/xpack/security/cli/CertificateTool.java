@@ -590,6 +590,29 @@ class CertificateTool extends MultiCommand {
                 throw new UserException(ExitCodes.CONFIG, "Certificate verification failed");
             }
         }
+
+        protected void writePemPrivateKey(
+            Terminal terminal,
+            OptionSet options,
+            ZipOutputStream outputStream,
+            JcaPEMWriter pemWriter,
+            String keyFileName,
+            PrivateKey privateKey
+        ) throws IOException {
+            final boolean usePassword = useOutputPassword(options);
+            final char[] outputPassword = getOutputPassword(options);
+            outputStream.putNextEntry(new ZipEntry(keyFileName));
+            if (usePassword) {
+                withPassword(keyFileName, outputPassword, terminal, true, password -> {
+                    pemWriter.writeObject(privateKey, getEncrypter(password));
+                    return null;
+                });
+            } else {
+                pemWriter.writeObject(privateKey);
+            }
+            pemWriter.flush();
+            outputStream.closeEntry();
+        }
     }
 
     static class SigningRequestCommand extends CertificateCommand {
@@ -621,9 +644,7 @@ class CertificateTool extends MultiCommand {
             terminal.println("");
 
             final Path output = resolveOutputPath(terminal, options, DEFAULT_CSR_ZIP);
-            final int keySize = getKeySize(options);
-            Collection<CertificateInformation> certificateInformations = getCertificateInformationList(terminal, options);
-            generateAndWriteCsrs(output, keySize, certificateInformations);
+            generateAndWriteCsrs(terminal, options, output);
 
             terminal.println("");
             terminal.println("Certificate signing requests have been written to " + output);
@@ -639,12 +660,25 @@ class CertificateTool extends MultiCommand {
             terminal.println("follow the SSL configuration instructions in the product guide.");
         }
 
+        // For testing
+        void generateAndWriteCsrs(Terminal terminal, OptionSet options, Path output) throws Exception {
+            final int keySize = getKeySize(options);
+            Collection<CertificateInformation> certificateInformations = getCertificateInformationList(terminal, options);
+            generateAndWriteCsrs(terminal, options, output, keySize, certificateInformations);
+        }
+
         /**
          * Generates certificate signing requests and writes them out to the specified file in zip format
          *
          * @param certInfo the details to use in the certificate signing requests
          */
-        void generateAndWriteCsrs(Path output, int keySize, Collection<CertificateInformation> certInfo) throws Exception {
+        void generateAndWriteCsrs(
+            Terminal terminal,
+            OptionSet options,
+            Path output,
+            int keySize,
+            Collection<CertificateInformation> certInfo
+        ) throws Exception {
             fullyWriteZipFile(output, (outputStream, pemWriter) -> {
                 for (CertificateInformation certificateInformation : certInfo) {
                     KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
@@ -667,10 +701,14 @@ class CertificateTool extends MultiCommand {
                     outputStream.closeEntry();
 
                     // write private key
-                    outputStream.putNextEntry(new ZipEntry(dirName + certificateInformation.name.filename + ".key"));
-                    pemWriter.writeObject(keyPair.getPrivate());
-                    pemWriter.flush();
-                    outputStream.closeEntry();
+                    super.writePemPrivateKey(
+                        terminal,
+                        options,
+                        outputStream,
+                        pemWriter,
+                        dirName + certificateInformation.name.filename + ".key",
+                        keyPair.getPrivate()
+                    );
                 }
             });
         }
@@ -802,10 +840,8 @@ class CertificateTool extends MultiCommand {
 
             final int keySize = getKeySize(options);
             final int days = getDays(options);
-            final char[] outputPassword = super.getOutputPassword(options);
             if (writeZipFile) {
                 final boolean usePem = usePemFormat(options);
-                final boolean usePassword = super.useOutputPassword(options);
                 fullyWriteZipFile(output, (outputStream, pemWriter) -> {
                     for (CertificateInformation certificateInformation : certs) {
                         CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days, terminal);
@@ -825,20 +861,10 @@ class CertificateTool extends MultiCommand {
                             outputStream.closeEntry();
 
                             // write private key
-                            final String keyFileName = entryBase + ".key";
-                            outputStream.putNextEntry(new ZipEntry(keyFileName));
-                            if (usePassword) {
-                                withPassword(keyFileName, outputPassword, terminal, true, password -> {
-                                    pemWriter.writeObject(pair.key, getEncrypter(password));
-                                    return null;
-                                });
-                            } else {
-                                pemWriter.writeObject(pair.key);
-                            }
-                            pemWriter.flush();
-                            outputStream.closeEntry();
+                            writePemPrivateKey(terminal, options, outputStream, pemWriter, entryBase + ".key", pair.key);
                         } else {
                             final String fileName = entryBase + ".p12";
+                            final char[] outputPassword = super.getOutputPassword(options);
                             outputStream.putNextEntry(new ZipEntry(fileName));
                             writePkcs12(
                                 fileName,
@@ -855,6 +881,7 @@ class CertificateTool extends MultiCommand {
                 });
             } else {
                 assert certs.size() == 1;
+                final char[] outputPassword = super.getOutputPassword(options);
                 CertificateInformation certificateInformation = certs.iterator().next();
                 CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days, terminal);
                 fullyWriteFile(

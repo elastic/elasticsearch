@@ -25,6 +25,6 @@ public enum FilteringValidationState {
                 return filteringValidationState;
             }
         }
-        throw new IllegalArgumentException("Unknown FilteringValidationState: " + validationState);
+        throw new IllegalArgumentException("Unknown " + FilteringValidationState.class.getSimpleName() + " [" + validationState + "].");
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -37,7 +36,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestSearchAction(new UsageService().getSearchUsageHolder(), mock(NamedWriteableRegistry.class));
+        action = new RestSearchAction(new UsageService().getSearchUsageHolder(), nf -> false);
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(SearchResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(SearchResponse.class));

@@ -20,7 +20,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -81,7 +81,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             buildSearchRequest(sourceConfig, timeout, numberOfBuckets),
             ActionListener.wrap(r -> {
                 try {
-                    final Aggregations aggregations = r.getAggregations();
+                    final InternalAggregations aggregations = r.getAggregations();
                     if (aggregations == null) {
                         listener.onFailure(
                             new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
@@ -158,7 +158,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
         TransformIndexerStats stats,
         TransformProgress progress
     ) {
-        Aggregations aggregations = searchResponse.getAggregations();
+        InternalAggregations aggregations = searchResponse.getAggregations();
 
         // Treat this as a "we reached the end".
         // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.

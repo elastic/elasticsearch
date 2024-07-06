@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -54,7 +54,7 @@ public final class CcrRequests {
      * must be at least the provided {@code mappingVersion} and {@code metadataVersion} respectively.
      */
     public static void getIndexMetadata(
-        Client client,
+        RemoteClusterClient client,
         Index index,
         long mappingVersion,
         long metadataVersion,
@@ -65,7 +65,7 @@ public final class CcrRequests {
         if (metadataVersion > 0) {
             request.waitForMetadataVersion(metadataVersion).waitForTimeout(timeoutSupplier.get());
         }
-        client.execute(ClusterStateAction.INSTANCE, request, listener.delegateFailureAndWrap((delegate, response) -> {
+        client.execute(ClusterStateAction.REMOTE_TYPE, request, listener.delegateFailureAndWrap((delegate, response) -> {
             if (response.getState() == null) { // timeout on wait_for_metadata_version
                 assert metadataVersion > 0 : metadataVersion;
                 if (timeoutSupplier.get().nanos() < 0) {

@@ -35,7 +35,7 @@ the request fails and returns an error.
 [[ilm-delete-lifecycle-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[ilm-delete-lifecycle-example]]
 ==== {api-examples-title}

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 
@@ -32,7 +31,7 @@ public interface Writeable {
         return false;
     }
 
-    default void serialize(BytesStream out, SerializationContext result) throws IOException {
+    default void serialize(SerializationContext result) throws IOException {
         var e = new UnsupportedOperationException("[" + this.getClass() + "] does not support zero copy serialization");
         assert false : e;
         throw e;
@@ -42,7 +41,7 @@ public interface Writeable {
 
         private final List<BytesReference> bytesReferences = new ArrayList<>();
 
-        private final BytesStream out;
+        public final BytesStream out;
 
         private int startingOffset;
 
@@ -69,7 +68,7 @@ public interface Writeable {
     /**
      * Reference to a method that can write some object to a {@link StreamOutput}.
      * <p>
-     * By convention this is a method from {@link StreamOutput} itself (e.g., {@link StreamOutput#writeString}). If the value can be
+     * By convention this is a method from {@link StreamOutput} itself (e.g., {@link StreamOutput#writeString(String)}. If the value can be
      * {@code null}, then the "optional" variant of methods should be used!
      * <p>
      * Most classes should implement {@link Writeable} and the {@link Writeable#writeTo(StreamOutput)} method should <em>use</em>
@@ -117,14 +116,6 @@ public interface Writeable {
          * @param in Input to read the value from
          */
         V read(StreamInput in) throws IOException;
-
-        /**
-         * A {@link Reader} which must never be called, for use in local-only transport actions. See also {@link TransportAction#localOnly}.
-         */
-        // TODO remove this when https://github.com/elastic/elasticsearch/issues/100111 is resolved
-        static <V> Reader<V> localOnly() {
-            return in -> TransportAction.localOnly();
-        }
     }
 
 }

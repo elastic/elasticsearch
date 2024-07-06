@@ -34,7 +34,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/update";
 
     public UpdateTrainedModelDeploymentAction() {
-        super(NAME, CreateTrainedModelAssignmentAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -46,7 +46,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         static {
             PARSER.declareString(Request::setDeploymentId, MODEL_ID);
             PARSER.declareInt(Request::setNumberOfAllocations, NUMBER_OF_ALLOCATIONS);
-            PARSER.declareString((r, val) -> r.timeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareString((r, val) -> r.ackTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         }
 
         public static Request parseRequest(String deploymentId, XContentParser parser) {
@@ -64,9 +64,12 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         private String deploymentId;
         private int numberOfAllocations;
 
-        private Request() {}
+        private Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
 
         public Request(String deploymentId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             setDeploymentId(deploymentId);
         }
 

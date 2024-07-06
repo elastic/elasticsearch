@@ -20,6 +20,10 @@ dependencies {
   clusterModules project(':x-pack:plugin:ccr')
   clusterModules(project(":modules:reindex")) // need for deleting transform jobs
   clusterModules(project(":x-pack:plugin:transform"))
+  // esql with enrich
+  clusterModules project(':x-pack:plugin:esql')
+  clusterModules project(':x-pack:plugin:enrich')
+  clusterModules(project(":modules:ingest-common"))
 }
 
 tasks.named("javaRestTest") {

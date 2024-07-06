@@ -42,10 +42,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class GrokProcessorGetAction {
 
-    static final ActionType<GrokProcessorGetAction.Response> INSTANCE = new ActionType<>(
-        "cluster:admin/ingest/processor/grok/get",
-        Response::new
-    );
+    static final ActionType<GrokProcessorGetAction.Response> INSTANCE = new ActionType<>("cluster:admin/ingest/processor/grok/get");
 
     private GrokProcessorGetAction() {/* no instances */}
 

@@ -186,7 +186,7 @@ public abstract class GradleUtils {
      * task execution time.
      */
     public static String getProjectPathFromTask(String taskPath) {
-        int lastDelimiterIndex = taskPath.lastIndexOf(":");
+        int lastDelimiterIndex = taskPath.lastIndexOf(':');
         return lastDelimiterIndex == 0 ? ":" : taskPath.substring(0, lastDelimiterIndex);
     }
 

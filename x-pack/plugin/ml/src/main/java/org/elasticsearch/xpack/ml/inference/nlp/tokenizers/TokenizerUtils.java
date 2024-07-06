@@ -64,19 +64,6 @@ final class TokenizerUtils {
         return bigTokens;
     }
 
-    static int numUtf8Bytes(int c) {
-        if (c < 128) {
-            return 1;
-        }
-        if (c < 2048) {
-            return 2;
-        }
-        if (c < 65536) {
-            return 3;
-        }
-        return 4;
-    }
-
     public record CharSequenceRef(CharSequence wrapped, int offset, int len) implements CharSequence {
 
         public int getOffset() {

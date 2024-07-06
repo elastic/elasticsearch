@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 7.99.99'
+  - requires:
+      cluster_features: "gte_v8.0.0"
       reason: 'kNN search added in 8.0'
   - do:
       indices.create:
@@ -15,11 +15,19 @@ setup:
                 dims: 5
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
               another_vector:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
 
   - do:
       index:
@@ -53,8 +61,8 @@ setup:
 
 ---
 "kNN search only":
-  - skip:
-      version: ' - 8.3.99'
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: 'kNN added to search endpoint in 8.4'
   - do:
       search:
@@ -74,8 +82,8 @@ setup:
   - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
 ---
 "kNN multi-field search only":
-  - skip:
-      version: ' - 8.6.99'
+  - requires:
+      cluster_features: "gte_v8.7.0"
       reason: 'multi-field kNN search added to search endpoint in 8.7'
   - do:
       search:
@@ -93,8 +101,8 @@ setup:
   - match: {hits.hits.1.fields.name.0: "moose.jpg"}
 ---
 "kNN search plus query":
-  - skip:
-      version: ' - 8.3.99'
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: 'kNN added to search endpoint in 8.4'
   - do:
       search:
@@ -120,8 +128,8 @@ setup:
   - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
 ---
 "kNN multi-field search with query":
-  - skip:
-      version: ' - 8.6.99'
+  - requires:
+      cluster_features: "gte_v8.7.0"
       reason: 'multi-field kNN search added to search endpoint in 8.7'
   - do:
       search:
@@ -145,8 +153,8 @@ setup:
   - match: {hits.hits.2.fields.name.0: "moose.jpg"}
 ---
 "kNN search with filter":
-  - skip:
-      version: ' - 8.3.99'
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: 'kNN added to search endpoint in 8.4'
   - do:
       search:
@@ -186,8 +194,8 @@ setup:
 
 ---
 "kNN search with explicit search_type":
-  - skip:
-      version: ' - 8.3.99'
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: 'kNN added to search endpoint in 8.4'
   - do:
       catch: bad_request
@@ -230,10 +238,10 @@ setup:
 
 ---
 "kNN search with filter in _knn_search endpoint":
-  - skip:
-      version: ' - 8.1.99'
+  - requires:
+      cluster_features: "gte_v8.2.0"
       reason: 'kNN with filtering added in 8.2'
-      features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings"]
   - do:
       allowed_warnings:
         - "The kNN search API has been replaced by the `knn` option in the search API."
@@ -276,8 +284,8 @@ setup:
 
 ---
 "Test nonexistent field":
-  - skip:
-      version: ' - 8.3.99'
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: 'kNN added to search endpoint in 8.4'
   - do:
       catch: bad_request
@@ -295,8 +303,8 @@ setup:
 
 ---
 "KNN Vector similarity search only":
-  - skip:
-      version: ' - 8.7.99'
+  - requires:
+      cluster_features: "gte_v8.8.0"
       reason: 'kNN similarity added in 8.8'
   - do:
       search:
@@ -316,8 +324,8 @@ setup:
   - match: {hits.hits.0.fields.name.0: "moose.jpg"}
 ---
 "Vector similarity with filter only":
-  - skip:
-      version: ' - 8.7.99'
+  - requires:
+      cluster_features: "gte_v8.8.0"
       reason: 'kNN similarity added in 8.8'
   - do:
       search:
@@ -353,10 +361,10 @@ setup:
   - length: {hits.hits: 0}
 ---
 "Knn search with mip":
-  - skip:
-      version: ' - 8.10.99'
+  - requires:
+      cluster_features: "gte_v8.11.0"
       reason: 'mip similarity added in 8.11'
-      features: close_to
+      test_runner_features: "close_to"
 
   - do:
       indices.create:
@@ -371,6 +379,10 @@ setup:
                 dims: 5
                 index: true
                 similarity: max_inner_product
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
 
   - do:
       index:
@@ -436,3 +448,40 @@ setup:
   - length: {hits.hits: 1}
   - match: {hits.hits.0._id: "2"}
   - close_to: {hits.hits.0._score: {value: 33686.29, error: 0.01}}
+---
+"Knn search with _name":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: 'support for _name in knn was added in 8.15'
+      test_runner_features: "close_to"
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+            _name: "my_knn_query"
+          query:
+            term:
+              name:
+                term: cow.jpg
+                _name: "my_query"
+
+
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.0.fields.name.0: "cow.jpg"}
+  - match: {hits.hits.0.matched_queries.0: "my_knn_query"}
+  - match: {hits.hits.0.matched_queries.1: "my_query"}
+
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+  - match: {hits.hits.1.matched_queries.0: "my_knn_query"}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
+  - match: {hits.hits.2.matched_queries.0: "my_knn_query"}

@@ -11,10 +11,10 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 
 /**
  * Rest handler for reindex actions that accepts a search request like Update-By-Query or Delete-By-Query
@@ -43,7 +44,7 @@ public abstract class AbstractBulkByQueryRestHandler<
     protected void parseInternalRequest(
         Request internal,
         RestRequest restRequest,
-        NamedWriteableRegistry namedWriteableRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature,
         Map<String, Consumer<Object>> bodyConsumers
     ) throws IOException {
         assert internal != null : "Request should not be null";
@@ -55,7 +56,7 @@ public abstract class AbstractBulkByQueryRestHandler<
             IntConsumer sizeConsumer = restRequest.getRestApiVersion() == RestApiVersion.V_7
                 ? size -> setMaxDocsFromSearchSize(internal, size)
                 : size -> failOnSizeSpecified();
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, namedWriteableRegistry, sizeConsumer);
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, clusterSupportsFeature, sizeConsumer);
         }
 
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));

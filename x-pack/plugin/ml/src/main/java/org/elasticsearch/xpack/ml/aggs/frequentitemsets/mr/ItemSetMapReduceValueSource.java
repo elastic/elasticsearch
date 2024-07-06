@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -19,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
@@ -32,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Interface to extract values from Lucene in order to feed it into the MapReducer.
@@ -48,7 +54,7 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
-            LeafReaderContext ctx
+            Optional<LeafReaderContext> ctx
         ) throws IOException;
     }
 
@@ -204,15 +210,19 @@ public abstract class ItemSetMapReduceValueSource {
             @Override
             public ValueCollector getValueCollector(LeafReaderContext ctx) throws IOException {
                 this.docValues = source.globalOrdinalsValues(ctx);
-                ;
-                final Tuple<Field, List<Object>> empty = new Tuple<>(field, Collections.emptyList());
                 final SortedSetDocValues values = this.docValues;
+                final SortedDocValues singleton = DocValues.unwrapSingleton(values);
+                final Tuple<Field, List<Object>> empty = new Tuple<>(field, Collections.emptyList());
+                return singleton != null ? getValueCollector(singleton, empty) : getValueCollector(values, empty);
+            }
+
+            private ValueCollector getValueCollector(SortedSetDocValues values, Tuple<Field, List<Object>> empty) {
                 return doc -> {
                     if (values.advanceExact(doc)) {
-                        int valuesCount = values.docValueCount();
+                        final int valuesCount = values.docValueCount();
 
                         if (valuesCount == 1) {
-                            long v = values.nextOrd();
+                            final long v = values.nextOrd();
                             assert v >= 0;
                             if (bitSetFilter == null || bitSetFilter.get(v)) {
                                 return new Tuple<>(field, Collections.singletonList(v));
@@ -220,20 +230,29 @@ public abstract class ItemSetMapReduceValueSource {
                             return empty;
                         }
 
-                        if (valuesCount == 0) {
-                            return empty;
-                        }
-
-                        List<Object> objects = new ArrayList<>(valuesCount);
-
+                        final List<Object> objects = new ArrayList<>(valuesCount);
                         for (int i = 0; i < valuesCount; ++i) {
-                            long v = values.nextOrd();
+                            final long v = values.nextOrd();
                             assert v >= 0;
                             if (bitSetFilter == null || bitSetFilter.get(v)) {
                                 objects.add(v);
                             }
                         }
                         return new Tuple<>(field, objects);
+                    }
+                    return empty;
+                };
+            }
+
+            private ValueCollector getValueCollector(SortedDocValues values, Tuple<Field, List<Object>> empty) {
+                return doc -> {
+                    if (values.advanceExact(doc)) {
+                        final long v = values.ordValue();
+                        assert v >= 0;
+                        if (bitSetFilter == null || bitSetFilter.get(v)) {
+                            return new Tuple<>(field, Collections.singletonList(v));
+                        }
+                        return empty;
                     }
                     return empty;
                 };
@@ -265,33 +284,45 @@ public abstract class ItemSetMapReduceValueSource {
             @Override
             public ValueCollector getValueCollector(LeafReaderContext ctx) throws IOException {
                 final SortedBinaryDocValues values = source.bytesValues(ctx);
+                final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
                 final Tuple<Field, List<Object>> empty = new Tuple<>(field, Collections.emptyList());
+                return singleton != null ? getValueCollector(singleton, empty) : getValueCollector(values, empty);
+            }
 
+            private ValueCollector getValueCollector(SortedBinaryDocValues values, Tuple<Field, List<Object>> empty) {
                 return doc -> {
                     if (values.advanceExact(doc)) {
-                        int valuesCount = values.docValueCount();
+                        final int valuesCount = values.docValueCount();
 
                         if (valuesCount == 1) {
-                            BytesRef v = values.nextValue();
+                            final BytesRef v = values.nextValue();
                             if (stringFilter == null || stringFilter.accept(v)) {
                                 return new Tuple<>(field, Collections.singletonList(BytesRef.deepCopyOf(v)));
                             }
                             return empty;
                         }
 
-                        if (valuesCount == 0) {
-                            return empty;
-                        }
-
-                        List<Object> objects = new ArrayList<>(valuesCount);
-
+                        final List<Object> objects = new ArrayList<>(valuesCount);
                         for (int i = 0; i < valuesCount; ++i) {
-                            BytesRef v = values.nextValue();
+                            final BytesRef v = values.nextValue();
                             if (stringFilter == null || stringFilter.accept(v)) {
                                 objects.add(BytesRef.deepCopyOf(v));
                             }
                         }
                         return new Tuple<>(field, objects);
+                    }
+                    return empty;
+                };
+            }
+
+            private ValueCollector getValueCollector(BinaryDocValues values, Tuple<Field, List<Object>> empty) {
+                return doc -> {
+                    if (values.advanceExact(doc)) {
+                        final BytesRef v = values.binaryValue();
+                        if (stringFilter == null || stringFilter.accept(v)) {
+                            return new Tuple<>(field, Collections.singletonList(BytesRef.deepCopyOf(v)));
+                        }
+                        return empty;
                     }
                     return empty;
                 };
@@ -315,20 +346,21 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
-            LeafReaderContext ctx
+            Optional<LeafReaderContext> ctx
         ) throws IOException {
             super(config, id, ValueFormatter.BYTES_REF);
 
             if (AbstractItemSetMapReducer.OrdinalOptimization.GLOBAL_ORDINALS.equals(ordinalOptimization)
                 && config.getValuesSource() instanceof Bytes.WithOrdinals
-                && ((Bytes.WithOrdinals) config.getValuesSource()).supportsGlobalOrdinalsMapping()) {
+                && ((Bytes.WithOrdinals) config.getValuesSource()).supportsGlobalOrdinalsMapping()
+                && ctx.isPresent()) {
                 logger.debug("Use ordinals for field [{}]", config.fieldContext().field());
 
                 this.executionStrategy = new GlobalOrdinalsStrategy(
                     getField(),
                     (Bytes.WithOrdinals) config.getValuesSource(),
                     includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(config.format()),
-                    ctx
+                    ctx.get()
                 );
             } else {
                 this.executionStrategy = new MapStrategy(
@@ -364,7 +396,7 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization unusedOrdinalOptimization,
-            LeafReaderContext unusedCtx
+            Optional<LeafReaderContext> unusedCtx
         ) {
             super(config, id, ValueFormatter.LONG);
             this.source = (Numeric) config.getValuesSource();
@@ -374,29 +406,28 @@ public abstract class ItemSetMapReduceValueSource {
         @Override
         ValueCollector getValueCollector(LeafReaderContext ctx) throws IOException {
             final SortedNumericDocValues values = source.longValues(ctx);
+            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
             final Field field = getField();
             final Tuple<Field, List<Object>> empty = new Tuple<>(field, Collections.emptyList());
+            return singleton != null ? getValueCollector(singleton, empty, field) : getValueCollector(values, empty, field);
+        }
 
+        private ValueCollector getValueCollector(SortedNumericDocValues values, Tuple<Field, List<Object>> empty, Field field) {
             return doc -> {
                 if (values.advanceExact(doc)) {
-                    int valuesCount = values.docValueCount();
+                    final int valuesCount = values.docValueCount();
 
                     if (valuesCount == 1) {
-                        long v = values.nextValue();
+                        final long v = values.nextValue();
                         if (longFilter == null || longFilter.accept(v)) {
-                            return new Tuple<>(getField(), Collections.singletonList(v));
+                            return new Tuple<>(field, Collections.singletonList(v));
                         }
                         return empty;
                     }
 
-                    if (valuesCount == 0) {
-                        return empty;
-                    }
-
-                    List<Object> objects = new ArrayList<>(valuesCount);
-
+                    final List<Object> objects = new ArrayList<>(valuesCount);
                     for (int i = 0; i < valuesCount; ++i) {
-                        long v = values.nextValue();
+                        final long v = values.nextValue();
                         if (longFilter == null || longFilter.accept(v)) {
                             objects.add(v);
                         }
@@ -407,5 +438,17 @@ public abstract class ItemSetMapReduceValueSource {
             };
         }
 
+        private ValueCollector getValueCollector(NumericDocValues values, Tuple<Field, List<Object>> empty, Field field) {
+            return doc -> {
+                if (values.advanceExact(doc)) {
+                    final long v = values.longValue();
+                    if (longFilter == null || longFilter.accept(v)) {
+                        return new Tuple<>(field, Collections.singletonList(v));
+                    }
+                    return empty;
+                }
+                return empty;
+            };
+        }
     }
 }

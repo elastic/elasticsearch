@@ -1,6 +1,8 @@
 [[rpm]]
 === Install Elasticsearch with RPM
 
+:include-xpack: true
+
 The RPM for Elasticsearch can be <<install-rpm,downloaded from our website>>
 or from our  <<rpm-repo,RPM repository>>. It can be used to install
 Elasticsearch on any RPM-based system such as OpenSuSE, SLES, Centos, Red Hat,
@@ -18,6 +20,8 @@ be found on the link:/downloads/past-releases[Past Releases page].
 NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
+
+TIP: For a step-by-step example of setting up the {stack} on your own premises, try out our tutorial: {stack-ref}/installing-stack-demo-self.html[Installing a self-managed Elastic Stack].
 
 [[rpm-key]]
 ==== Import the Elasticsearch GPG Key
@@ -128,6 +132,8 @@ ifdef::include-xpack[]
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
+
+:include-xpack!: true
 
 [id="{distro}-running-systemd"]
 include::systemd.asciidoc[]

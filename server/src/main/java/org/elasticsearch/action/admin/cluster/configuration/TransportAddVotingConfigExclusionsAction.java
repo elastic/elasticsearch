@@ -49,7 +49,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
     AddVotingConfigExclusionsRequest,
     ActionResponse.Empty> {
 
-    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("cluster:admin/voting_config/add_exclusions");
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/voting_config/add_exclusions");
     private static final Logger logger = LogManager.getLogger(TransportAddVotingConfigExclusionsAction.class);
 
     public static final Setting<Integer> MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING = Setting.intSetting(

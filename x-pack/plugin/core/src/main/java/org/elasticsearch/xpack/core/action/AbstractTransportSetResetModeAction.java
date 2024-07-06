@@ -33,7 +33,6 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTransportMasterNodeAction<SetResetModeActionRequest> {
 
     private static final Logger logger = LogManager.getLogger(AbstractTransportSetResetModeAction.class);
-    private final ClusterService clusterService;
 
     @Inject
     public AbstractTransportSetResetModeAction(
@@ -54,7 +53,6 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.clusterService = clusterService;
     }
 
     protected abstract boolean isResetMode(ClusterState clusterState);

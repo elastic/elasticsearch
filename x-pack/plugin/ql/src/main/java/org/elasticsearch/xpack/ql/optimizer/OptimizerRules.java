@@ -1678,14 +1678,9 @@ public final class OptimizerRules {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof IsNotNull isnn) {
-                if (isnn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
-                }
-            } else if (e instanceof IsNull isn) {
-                if (isn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
-                }
+            Expression result = tryReplaceIsNullIsNotNull(e);
+            if (result != e) {
+                return result;
             } else if (e instanceof In in) {
                 if (Expressions.isNull(in.value())) {
                     return Literal.of(in, null);
@@ -1695,6 +1690,19 @@ public final class OptimizerRules {
                 && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                     return Literal.of(e, null);
                 }
+            return e;
+        }
+
+        protected Expression tryReplaceIsNullIsNotNull(Expression e) {
+            if (e instanceof IsNotNull isnn) {
+                if (isnn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                }
+            } else if (e instanceof IsNull isn) {
+                if (isn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                }
+            }
             return e;
         }
     }
@@ -1851,7 +1859,7 @@ public final class OptimizerRules {
         private boolean doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
             boolean changed = false;
             // check if the expression can be skipped or is not nullabe
-            if (skipExpression(exp) || exp.nullable() == Nullability.FALSE) {
+            if (skipExpression(exp)) {
                 resolvedExpressions.add(exp);
             } else {
                 for (Expression e : exp.references()) {
@@ -1871,7 +1879,7 @@ public final class OptimizerRules {
         }
 
         protected boolean skipExpression(Expression e) {
-            return false;
+            return e.nullable() == Nullability.FALSE;
         }
     }
 

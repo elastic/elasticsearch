@@ -20,11 +20,9 @@ import java.io.IOException;
 
 public abstract class BroadcastShardRequest extends TransportRequest implements IndicesRequest {
 
-    private ShardId shardId;
+    private final ShardId shardId;
 
     protected OriginalIndices originalIndices;
-
-    protected BroadcastShardRequest() {}
 
     public BroadcastShardRequest(StreamInput in) throws IOException {
         super(in);

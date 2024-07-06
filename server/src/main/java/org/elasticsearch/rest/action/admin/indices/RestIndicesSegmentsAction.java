@@ -47,7 +47,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(
             Strings.splitStringByCommaToArray(request.param("index"))
-        );
+        ).withVectorFormatsInfo(request.paramAsBoolean("vector_formats", false));
         if (request.hasParam("verbose")) {
             DEPRECATION_LOGGER.warn(
                 DeprecationCategory.INDICES,

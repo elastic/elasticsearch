@@ -254,6 +254,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("request=157286400/150mb"));
             assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         }
+
+        assertCircuitBreakerLimitWarning();
     }
 
     public void testParentBreaksOnRealMemoryUsage() {
@@ -325,6 +327,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         memoryUsage.set(100);
         requestBreaker.addEstimateBytesAndMaybeBreak(reservationInBytes, "request");
         assertEquals(0, requestBreaker.getTrippedCount());
+
+        assertCircuitBreakerLimitWarning();
     }
 
     /**
@@ -628,14 +632,17 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         })).toList();
 
         threads.forEach(Thread::start);
-        safeAwait(barrier);
 
         int iterationCount = randomIntBetween(1, 5);
+        int lastIterationTriggerCount = leaderTriggerCount.get();
+
+        safeAwait(barrier);
         for (int i = 0; i < iterationCount; ++i) {
             memoryUsage.set(randomLongBetween(0, 100));
             safeAwait(countDown.get());
             assertThat(leaderTriggerCount.get(), lessThanOrEqualTo(i + 1));
-            assertThat(leaderTriggerCount.get(), greaterThanOrEqualTo(i / 2 + 1));
+            assertThat(leaderTriggerCount.get(), greaterThanOrEqualTo(lastIterationTriggerCount));
+            lastIterationTriggerCount = leaderTriggerCount.get();
             time.addAndGet(randomLongBetween(interval, interval * 2));
             countDown.set(new CountDownLatch(randomIntBetween(1, 20)));
         }
@@ -746,6 +753,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 equalTo(expectedDurability)
             );
         }
+        assertCircuitBreakerLimitWarning();
     }
 
     public void testAllocationBucketsBreaker() {
@@ -782,6 +790,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [allocated_buckets] would be"));
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [100/100b]"));
         }
+
+        assertCircuitBreakerLimitWarning();
     }
 
     public void testRegisterCustomCircuitBreakers_WithDuplicates() {
@@ -888,13 +898,22 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 service.getParentLimit()
             );
 
-            // total.limit defaults to 70% of the JVM heap if use_real_memory set to true
+            // total.limit defaults to 95% of the JVM heap if use_real_memory set to true
             clusterSettings.applySettings(Settings.builder().put(useRealMemoryUsageSetting, true).build());
             assertEquals(
                 MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", totalCircuitBreakerLimitSetting).getBytes(),
                 service.getParentLimit()
             );
         }
+    }
+
+    public void testSizeBelowMinimumWarning() {
+        ByteSizeValue sizeValue = MemorySizeValue.parseHeapRatioOrDeprecatedByteSizeValue(
+            "19%",
+            HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
+            20
+        );
+        assertWarnings("[indices.breaker.total.limit] setting of [19%] is below the recommended minimum of 20.0% of the heap");
     }
 
     public void testBuildParentTripMessage() {
@@ -968,5 +987,13 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         } finally {
             HierarchyCircuitBreakerService.permitNegativeValues = false;
         }
+    }
+
+    void assertCircuitBreakerLimitWarning() {
+        assertWarnings(
+            "[indices.breaker.total.limit] should be specified using a percentage of the heap. "
+                + "Absolute size settings will be forbidden in a future release"
+        );
+
     }
 }

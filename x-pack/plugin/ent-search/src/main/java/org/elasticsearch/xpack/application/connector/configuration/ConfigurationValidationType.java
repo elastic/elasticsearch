@@ -27,6 +27,6 @@ public enum ConfigurationValidationType {
                 return displayType;
             }
         }
-        throw new IllegalArgumentException("Unknown ValidationType: " + type);
+        throw new IllegalArgumentException("Unknown " + ConfigurationValidationType.class.getSimpleName() + " [" + type + "].");
     }
 }

@@ -109,7 +109,7 @@ public class MappingUpdatedAction {
         putMappingRequest.setConcreteIndex(index);
         putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
         putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
-        putMappingRequest.timeout(TimeValue.ZERO);
+        putMappingRequest.ackTimeout(TimeValue.ZERO);
         client.execute(
             TransportAutoPutMappingAction.TYPE,
             putMappingRequest,

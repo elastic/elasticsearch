@@ -32,14 +32,12 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ListSearchApplicationAction extends ActionType<ListSearchApplicationAction.Response> {
+public class ListSearchApplicationAction {
 
-    public static final ListSearchApplicationAction INSTANCE = new ListSearchApplicationAction();
     public static final String NAME = "cluster:admin/xpack/application/search_application/list";
+    public static final ActionType<ListSearchApplicationAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public ListSearchApplicationAction() {
-        super(NAME, ListSearchApplicationAction.Response::new);
-    }
+    private ListSearchApplicationAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
 

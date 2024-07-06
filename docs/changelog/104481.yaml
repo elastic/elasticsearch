@@ -1,6 +1,0 @@
-pr: 104481
-summary: Upgrade bundled JDK to 21.0.2
-area: Packaging
-type: upgrade
-issues:
- - 4449

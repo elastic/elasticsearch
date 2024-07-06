@@ -12,10 +12,14 @@ and set up alerts.
 Using {esql} in {elastic-sec} to investigate events in Timeline, create
 detection rules, and build {esql} queries using Elastic AI Assistant.
 
+<<esql-cross-clusters>>::
+Using {esql} to query across multiple clusters.
+
 <<esql-task-management>>::
 Using the <<tasks,task management API>> to list and cancel {esql} queries.
 
 include::esql-rest.asciidoc[]
 include::esql-kibana.asciidoc[]
 include::esql-security-solution.asciidoc[]
+include::esql-across-clusters.asciidoc[]
 include::task-management.asciidoc[]

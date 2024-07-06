@@ -115,17 +115,13 @@ public enum ChunkedToXContentHelper {
     }
 
     /**
-     * Creates an Iterator of a single ToXContent object that serializes all the given 'contents' ToXContent objects into a single chunk.
+     * Creates an Iterator of a single ToXContent object that serializes the given object as a single chunk. Just wraps {@link
+     * Iterators#single}, but still useful because it avoids any type ambiguity.
      *
-     * @param contents ToXContent objects supporting toXContent() calls.
-     * @return Iterator of a single ToXContent object serializing all the ToXContent "contents".
+     * @param item Item to wrap
+     * @return Singleton iterator for the given item.
      */
-    public static Iterator<ToXContent> singleChunk(ToXContent... contents) {
-        return Iterators.single((builder, params) -> {
-            for (ToXContent content : contents) {
-                content.toXContent(builder, params);
-            }
-            return builder;
-        });
+    public static Iterator<ToXContent> singleChunk(ToXContent item) {
+        return Iterators.single(item);
     }
 }

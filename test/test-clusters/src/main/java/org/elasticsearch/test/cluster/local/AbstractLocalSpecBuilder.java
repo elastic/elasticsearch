@@ -17,6 +17,7 @@ import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -33,7 +34,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Map<String, String> environment = new HashMap<>();
     private final Set<String> modules = new HashSet<>();
     private final Set<String> plugins = new HashSet<>();
-    private final Set<FeatureFlag> features = new HashSet<>();
+    private final Set<FeatureFlag> features = EnumSet.noneOf(FeatureFlag.class);
     private final List<SettingsProvider> keystoreProviders = new ArrayList<>();
     private final Map<String, String> keystoreSettings = new HashMap<>();
     private final Map<String, Resource> keystoreFiles = new HashMap<>();

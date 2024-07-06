@@ -43,7 +43,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class TransportDeleteComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<
     TransportDeleteComponentTemplateAction.Request> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("cluster:admin/component_template/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/component_template/delete");
 
     private final MetadataIndexTemplateService indexTemplateService;
 
@@ -109,6 +109,7 @@ public class TransportDeleteComponentTemplateAction extends AcknowledgedTranspor
          * Constructs a new delete index request for the specified name.
          */
         public Request(String... names) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.names = Objects.requireNonNull(names, "component templates to delete must not be null");
         }
 

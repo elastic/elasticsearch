@@ -17,6 +17,6 @@ public class FlushAction extends ActionType<BroadcastResponse> {
     public static final String NAME = "indices:admin/flush";
 
     private FlushAction() {
-        super(NAME, BroadcastResponse::new);
+        super(NAME);
     }
 }

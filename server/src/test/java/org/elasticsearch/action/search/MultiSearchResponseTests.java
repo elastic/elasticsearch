@@ -82,7 +82,7 @@ public class MultiSearchResponseTests extends ESTestCase {
     }
 
     private MultiSearchResponse doParseInstance(XContentParser parser) throws IOException {
-        return MultiSearchResponse.fromXContext(parser);
+        return SearchResponseUtils.parseMultiSearchResponse(parser);
     }
 
     private void assertEqualInstances(MultiSearchResponse expected, MultiSearchResponse actual) {

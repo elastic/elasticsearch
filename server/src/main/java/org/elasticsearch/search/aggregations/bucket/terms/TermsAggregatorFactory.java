@@ -102,7 +102,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             subAggCollectMode,
             showTermDocCountError,
             cardinality,
-            metadata) -> {
+            metadata,
+            excludeDeletedDocs) -> {
             ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
             ExecutionMode execution = null;
             if (executionHint != null) {
@@ -145,7 +146,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 subAggCollectMode,
                 showTermDocCountError,
                 cardinality,
-                metadata
+                metadata,
+                excludeDeletedDocs
             );
         };
     }
@@ -168,7 +170,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             subAggCollectMode,
             showTermDocCountError,
             cardinality,
-            metadata) -> {
+            metadata,
+            excludeDeletedDocs) -> {
 
             if ((includeExclude != null) && (includeExclude.isRegexBased())) {
                 throw new IllegalArgumentException(
@@ -211,7 +214,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 subAggCollectMode,
                 longFilter,
                 cardinality,
-                metadata
+                metadata,
+                excludeDeletedDocs
             );
         };
     }
@@ -223,6 +227,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final SubAggCollectionMode collectMode;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
+    private final boolean excludeDeletedDocs;
 
     TermsAggregatorFactory(
         String name,
@@ -237,7 +242,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata,
-        TermsAggregatorSupplier aggregatorSupplier
+        TermsAggregatorSupplier aggregatorSupplier,
+        boolean excludeDeletedDocs
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
@@ -247,6 +253,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.collectMode = collectMode;
         this.bucketCountThresholds = bucketCountThresholds;
         this.showTermDocCountError = showTermDocCountError;
+        this.excludeDeletedDocs = excludeDeletedDocs;
     }
 
     @Override
@@ -325,7 +332,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             collectMode,
             showTermDocCountError,
             cardinality,
-            metadata
+            metadata,
+            excludeDeletedDocs
         );
     }
 
@@ -384,7 +392,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
             ) throws IOException {
                 IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
@@ -403,7 +412,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    excludeDeletedDocs
                 );
             }
         },
@@ -422,7 +432,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
             ) throws IOException {
 
                 assert valuesSourceConfig.getValuesSource() instanceof ValuesSource.Bytes.WithOrdinals;
@@ -433,7 +444,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 if (maxOrd > 0
                     && maxOrd <= MAX_ORDS_TO_TRY_FILTERS
                     && context.enableRewriteToFilterByFilter()
-                    && false == context.isInSortOrderExecutionRequired()) {
+                    && false == context.isInSortOrderExecutionRequired()
+                    && false == excludeDeletedDocs) {
                     StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
                         name,
                         factories,
@@ -501,7 +513,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         false,
                         subAggCollectMode,
                         showTermDocCountError,
-                        metadata
+                        metadata,
+                        excludeDeletedDocs
                     );
 
                 }
@@ -547,7 +560,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    excludeDeletedDocs
                 );
             }
         };
@@ -580,7 +594,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             SubAggCollectionMode subAggCollectMode,
             boolean showTermDocCountError,
             CardinalityUpperBound cardinality,
-            Map<String, Object> metadata
+            Map<String, Object> metadata,
+            boolean excludeDeletedDocs
         ) throws IOException;
 
         @Override

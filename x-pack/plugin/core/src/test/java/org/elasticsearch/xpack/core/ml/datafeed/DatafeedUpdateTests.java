@@ -56,7 +56,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
@@ -69,6 +68,7 @@ import static org.mockito.Mockito.mock;
 
 public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<DatafeedUpdate> {
 
+    public static final String[] EXPAND_WILDCARDS_VALUES = { "open", "closed", "hidden" };
     private ClusterState clusterState;
 
     @Before
@@ -130,7 +130,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         if (randomBoolean()) {
             builder.setIndicesOptions(
                 IndicesOptions.fromParameters(
-                    randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                    randomFrom(EXPAND_WILDCARDS_VALUES),
                     Boolean.toString(randomBoolean()),
                     Boolean.toString(randomBoolean()),
                     Boolean.toString(randomBoolean()),
@@ -491,7 +491,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                 if (instance.getIndicesOptions() != null) {
                     builder.setIndicesOptions(
                         IndicesOptions.fromParameters(
-                            randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                            randomFrom(EXPAND_WILDCARDS_VALUES),
                             Boolean.toString(instance.getIndicesOptions().ignoreUnavailable() == false),
                             Boolean.toString(instance.getIndicesOptions().allowNoIndices() == false),
                             Boolean.toString(instance.getIndicesOptions().ignoreThrottled() == false),
@@ -501,7 +501,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                 } else {
                     builder.setIndicesOptions(
                         IndicesOptions.fromParameters(
-                            randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                            randomFrom(EXPAND_WILDCARDS_VALUES),
                             Boolean.toString(randomBoolean()),
                             Boolean.toString(randomBoolean()),
                             Boolean.toString(randomBoolean()),

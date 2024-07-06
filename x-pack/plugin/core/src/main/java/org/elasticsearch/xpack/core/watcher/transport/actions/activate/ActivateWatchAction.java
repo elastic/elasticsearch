@@ -17,6 +17,6 @@ public class ActivateWatchAction extends ActionType<ActivateWatchResponse> {
     public static final String NAME = "cluster:admin/xpack/watcher/watch/activate";
 
     private ActivateWatchAction() {
-        super(NAME, ActivateWatchResponse::new);
+        super(NAME);
     }
 }

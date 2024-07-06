@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
@@ -22,16 +21,14 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class UpdateConnectorLastSeenAction extends ActionType<ConnectorUpdateActionResponse> {
+public class UpdateConnectorLastSeenAction {
 
-    public static final UpdateConnectorLastSeenAction INSTANCE = new UpdateConnectorLastSeenAction();
-    public static final String NAME = "cluster:admin/xpack/connector/update_last_seen";
+    public static final String NAME = "indices:data/write/xpack/connector/update_last_seen";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorLastSeenAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
-    }
+    private UpdateConnectorLastSeenAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
 

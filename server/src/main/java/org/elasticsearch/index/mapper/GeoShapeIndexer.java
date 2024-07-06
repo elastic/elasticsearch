@@ -13,6 +13,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -94,7 +95,7 @@ public class GeoShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Line line) {
-            addFields(LatLonShape.createIndexableFields(name, toLuceneLine(line)));
+            addFields(LatLonShape.createIndexableFields(name, LuceneGeometriesUtils.toLatLonLine(line)));
             return null;
         }
 
@@ -135,7 +136,7 @@ public class GeoShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Polygon polygon) {
-            addFields(LatLonShape.createIndexableFields(name, toLucenePolygon(polygon), true));
+            addFields(LatLonShape.createIndexableFields(name, LuceneGeometriesUtils.toLatLonPolygon(polygon), true));
             return null;
         }
 
@@ -199,22 +200,10 @@ public class GeoShapeIndexer implements ShapeIndexer {
         }
     }
 
-    private static org.apache.lucene.geo.Polygon toLucenePolygon(Polygon polygon) {
-        org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[polygon.getNumberOfHoles()];
-        for (int i = 0; i < holes.length; i++) {
-            holes[i] = new org.apache.lucene.geo.Polygon(polygon.getHole(i).getY(), polygon.getHole(i).getX());
-        }
-        return new org.apache.lucene.geo.Polygon(polygon.getPolygon().getY(), polygon.getPolygon().getX(), holes);
-    }
-
     private static org.apache.lucene.geo.Polygon toLucenePolygon(Rectangle r) {
         return new org.apache.lucene.geo.Polygon(
             new double[] { r.getMinLat(), r.getMinLat(), r.getMaxLat(), r.getMaxLat(), r.getMinLat() },
             new double[] { r.getMinLon(), r.getMaxLon(), r.getMaxLon(), r.getMinLon(), r.getMinLon() }
         );
-    }
-
-    private static org.apache.lucene.geo.Line toLuceneLine(Line line) {
-        return new org.apache.lucene.geo.Line(line.getLats(), line.getLons());
     }
 }

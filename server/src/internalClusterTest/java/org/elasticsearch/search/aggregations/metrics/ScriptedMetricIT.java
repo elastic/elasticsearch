@@ -19,11 +19,11 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -722,7 +722,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo(numDocs));
                 assertThat(global.getAggregations(), notNullValue());
-                assertThat(global.getAggregations().asMap().size(), equalTo(1));
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 ScriptedMetric scriptedMetricAggregation = global.getAggregations().get("scripted");
                 assertThat(scriptedMetricAggregation, notNullValue());
@@ -1037,7 +1037,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 for (Bucket b : buckets) {
                     assertThat(b, notNullValue());
                     assertThat(b.getDocCount(), equalTo(1L));
-                    Aggregations subAggs = b.getAggregations();
+                    InternalAggregations subAggs = b.getAggregations();
                     assertThat(subAggs, notNullValue());
                     assertThat(subAggs.asList().size(), equalTo(1));
                     Aggregation subAgg = subAggs.get("scripted");
@@ -1103,7 +1103,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(response.getHits().getTotalHits().value, equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, notNullValue());
-                Histogram.Bucket bucket = histo.getBuckets().get(1);
+                Bucket bucket = histo.getBuckets().get(1);
                 assertThat(bucket, notNullValue());
 
                 ScriptedMetric scriptedMetric = bucket.getAggregations().get("scripted");

@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
@@ -48,13 +49,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -92,7 +91,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     protected final Request mainRequest;
 
     private final AtomicLong startTime = new AtomicLong(-1);
-    private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<String> destinationIndices = ConcurrentCollections.newConcurrentSet();
 
     private final ParentTaskAssigningClient searchClient;
     private final ParentTaskAssigningClient bulkClient;

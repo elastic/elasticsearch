@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 
@@ -81,7 +82,7 @@ public abstract class TransportInstanceSingleOperationAction<
         new AsyncSingleAction(request, listener).start();
     }
 
-    protected abstract String executor(ShardId shardId);
+    protected abstract Executor executor(ShardId shardId);
 
     protected abstract void shardOperation(Request request, ActionListener<Response> listener);
 
@@ -259,7 +260,8 @@ public abstract class TransportInstanceSingleOperationAction<
     }
 
     private void handleShardRequest(Request request, TransportChannel channel, Task task) {
-        threadPool.executor(executor(request.shardId))
-            .execute(ActionRunnable.wrap(new ChannelActionListener<Response>(channel), l -> shardOperation(request, l)));
+        executor(request.shardId).execute(
+            ActionRunnable.wrap(new ChannelActionListener<Response>(channel), l -> shardOperation(request, l))
+        );
     }
 }

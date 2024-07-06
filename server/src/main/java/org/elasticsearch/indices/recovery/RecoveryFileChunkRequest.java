@@ -9,7 +9,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
@@ -91,7 +90,8 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest imp
     }
 
     @Override
-    public void serialize(BytesStream out, SerializationContext result) throws IOException {
+    public void serialize(SerializationContext result) throws IOException {
+        var out = result.out;
         writeStart(out);
         result.insertBytesReference(content);
         writeEnd(out);

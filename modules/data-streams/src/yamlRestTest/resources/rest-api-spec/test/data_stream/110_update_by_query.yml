@@ -1,8 +1,8 @@
 ---
 "Update by query from data stream":
-  - skip:
-      features: allowed_warnings
-      version: " - 7.8.99"
+  - requires:
+      test_runner_features: allowed_warnings
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
 
   - do:
@@ -107,9 +107,9 @@
 
 ---
 "Update by query for multiple data streams":
-  - skip:
-      features: allowed_warnings
-      version: " - 7.8.99"
+  - requires:
+      test_runner_features: allowed_warnings
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
 
   - do:

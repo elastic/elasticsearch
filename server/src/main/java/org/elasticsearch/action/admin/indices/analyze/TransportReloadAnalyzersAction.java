@@ -51,10 +51,7 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
     ReloadAnalyzersResponse,
     TransportReloadAnalyzersAction.ReloadResult> {
 
-    public static final ActionType<ReloadAnalyzersResponse> TYPE = new ActionType<>(
-        "indices:admin/reload_analyzers",
-        ReloadAnalyzersResponse::new
-    );
+    public static final ActionType<ReloadAnalyzersResponse> TYPE = new ActionType<>("indices:admin/reload_analyzers");
     private static final Logger logger = LogManager.getLogger(TransportReloadAnalyzersAction.class);
     private final IndicesService indicesService;
 

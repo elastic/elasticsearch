@@ -76,16 +76,16 @@ public class DatafeedJobBuilder {
 
     void build(TransportStartDatafeedAction.DatafeedTask task, DatafeedContext context, ActionListener<DatafeedJob> listener) {
         final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
-        final DatafeedConfig datafeedConfig = context.getDatafeedConfig();
-        final Job job = context.getJob();
-        final long latestFinalBucketEndMs = context.getRestartTimeInfo().getLatestFinalBucketTimeMs() == null
+        final DatafeedConfig datafeedConfig = context.datafeedConfig();
+        final Job job = context.job();
+        final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
             ? -1
-            : context.getRestartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
-        final long latestRecordTimeMs = context.getRestartTimeInfo().getLatestRecordTimeMs() == null
+            : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
+        final long latestRecordTimeMs = context.restartTimeInfo().getLatestRecordTimeMs() == null
             ? -1
-            : context.getRestartTimeInfo().getLatestRecordTimeMs();
+            : context.restartTimeInfo().getLatestRecordTimeMs();
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
-            context.getTimingStats(),
+            context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
         );
 
@@ -130,7 +130,7 @@ public class DatafeedJobBuilder {
                 datafeedConfig.getMaxEmptySearches(),
                 latestFinalBucketEndMs,
                 latestRecordTimeMs,
-                context.getRestartTimeInfo().haveSeenDataPreviously(),
+                context.restartTimeInfo().haveSeenDataPreviously(),
                 delayedDataCheckFreq
             );
 

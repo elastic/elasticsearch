@@ -31,7 +31,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/flush";
 
     private FlushJobAction() {
-        super(NAME, FlushJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {

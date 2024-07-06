@@ -28,6 +28,7 @@ POST /_query/async
 }
 ----
 // TEST[setup:library]
+// TEST[skip:awaitsfix https://github.com/elastic/elasticsearch/issues/104013]
 
 If the results are not available within the given timeout period, 2 seconds
 in this case, no results are returned but rather a response that

@@ -73,7 +73,10 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     sendResponse(reducedQueryPhase, fetchResults);
                     return;
                 }
+                doRun(scoreDocs, reducedQueryPhase);
+            }
 
+            private void doRun(ScoreDoc[] scoreDocs, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
                 final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(queryResults.length(), scoreDocs);
                 final ScoreDoc[] lastEmittedDocPerShard = SearchPhaseController.getLastEmittedDocPerShard(
                     reducedQueryPhase,

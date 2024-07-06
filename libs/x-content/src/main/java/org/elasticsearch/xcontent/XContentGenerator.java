@@ -105,6 +105,11 @@ public interface XContentGenerator extends Closeable, Flushable {
      */
     void writeRawValue(InputStream value, XContentType xContentType) throws IOException;
 
+    /**
+     * Writes a raw value taken from a pre-rendered string representation
+     */
+    void writeRawValue(String value) throws IOException;
+
     void copyCurrentStructure(XContentParser parser) throws IOException;
 
     /**

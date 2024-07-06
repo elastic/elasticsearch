@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -97,15 +96,6 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
         assertValueClose(sampled.posRight, reduced.posRight);
         assertValueClose(sampled.negLeft, reduced.negLeft);
         assertValueClose(sampled.negRight, reduced.negRight);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalGeoBounds aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedGeoBounds);
-        ParsedGeoBounds parsed = (ParsedGeoBounds) parsedAggregation;
-
-        assertEquals(aggregation.topLeft(), parsed.topLeft());
-        assertEquals(aggregation.bottomRight(), parsed.bottomRight());
     }
 
     @Override

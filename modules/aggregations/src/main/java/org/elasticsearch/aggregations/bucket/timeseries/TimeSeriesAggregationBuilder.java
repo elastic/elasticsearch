@@ -35,7 +35,7 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final InstantiatingObjectParser<TimeSeriesAggregationBuilder, String> PARSER;
 
-    private boolean keyed;
+    private final boolean keyed;
     private int size;
 
     private static final int DEFAULT_SIZE = MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
@@ -124,14 +124,6 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     @Override
     public boolean isInSortOrderExecutionRequired() {
         return true;
-    }
-
-    public boolean isKeyed() {
-        return keyed;
-    }
-
-    public void setKeyed(boolean keyed) {
-        this.keyed = keyed;
     }
 
     public TimeSeriesAggregationBuilder setSize(int size) {

@@ -71,6 +71,12 @@ public class KuromojiAnalysisTests extends ESTestCase {
         filterFactory = analysis.tokenFilter.get("kuromoji_completion");
         assertThat(filterFactory, instanceOf(KuromojiCompletionFilterFactory.class));
 
+        filterFactory = analysis.tokenFilter.get("hiragana_uppercase");
+        assertThat(filterFactory, instanceOf(HiraganaUppercaseFilterFactory.class));
+
+        filterFactory = analysis.tokenFilter.get("katakana_uppercase");
+        assertThat(filterFactory, instanceOf(KatakanaUppercaseFilterFactory.class));
+
         IndexAnalyzers indexAnalyzers = analysis.indexAnalyzers;
         NamedAnalyzer analyzer = indexAnalyzers.get("kuromoji");
         assertThat(analyzer.analyzer(), instanceOf(JapaneseAnalyzer.class));
@@ -370,6 +376,28 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertThat(tokenFilter, instanceOf(KuromojiNumberFilterFactory.class));
         String source = "本日十万二千五百円のワインを買った";
         String[] expected = new String[] { "本日", "102500", "円", "の", "ワイン", "を", "買っ", "た" };
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+    }
+
+    public void testHiraganaUppercaseFilterFactory() throws Exception {
+        TestAnalysis analysis = createTestAnalysis();
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("hiragana_uppercase");
+        assertThat(tokenFilter, instanceOf(HiraganaUppercaseFilterFactory.class));
+        String source = "ぁぃぅぇぉっゃゅょゎゕゖ";
+        String[] expected = new String[] { "あいうえおつやゆよわかけ" };
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+    }
+
+    public void testKatakanaUppercaseFilterFactory() throws Exception {
+        TestAnalysis analysis = createTestAnalysis();
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("katakana_uppercase");
+        assertThat(tokenFilter, instanceOf(KatakanaUppercaseFilterFactory.class));
+        String source = "ァィゥェォヵㇰヶㇱㇲッㇳㇴㇵㇶㇷ";
+        String[] expected = new String[] { "アイウエオカクケシスツトヌハヒフ" };
         Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);

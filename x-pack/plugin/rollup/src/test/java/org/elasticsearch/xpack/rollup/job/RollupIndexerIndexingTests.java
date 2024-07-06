@@ -44,10 +44,10 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -860,7 +860,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                 .iterator()
                 .next();
 
-            CompositeAggregation result = null;
+            InternalComposite result = null;
             try {
                 result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldTypes).withQuery(query));
             } catch (IOException e) {
@@ -870,7 +870,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                 listener,
                 new SearchResponse(
                     SearchHits.EMPTY_WITH_TOTAL_HITS,
-                    new Aggregations(Collections.singletonList(result)),
+                    InternalAggregations.from(Collections.singletonList(result)),
                     null,
                     false,
                     null,

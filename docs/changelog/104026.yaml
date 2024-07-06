@@ -1,5 +1,0 @@
-pr: 104026
-summary: Include user's privileges actions in IdP plugin `_has_privileges` request
-area: IdentityProvider
-type: enhancement
-issues: []

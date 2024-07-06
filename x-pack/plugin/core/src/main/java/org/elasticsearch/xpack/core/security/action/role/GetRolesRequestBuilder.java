@@ -22,4 +22,9 @@ public class GetRolesRequestBuilder extends ActionRequestBuilder<GetRolesRequest
         request.names(names);
         return this;
     }
+
+    public GetRolesRequestBuilder nativeOnly(boolean nativeOnly) {
+        request.nativeOnly(nativeOnly);
+        return this;
+    }
 }

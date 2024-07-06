@@ -19,6 +19,6 @@ public class GetFeatureUpgradeStatusAction extends ActionType<GetFeatureUpgradeS
     public static final String NAME = "cluster:admin/migration/get_system_feature";
 
     private GetFeatureUpgradeStatusAction() {
-        super(NAME, GetFeatureUpgradeStatusResponse::new);
+        super(NAME);
     }
 }

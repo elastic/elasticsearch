@@ -39,7 +39,7 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
         int subsetSize = randomIntBetween(1, max - 1);
         ReindexRequestBuilder copy = new ReindexRequestBuilder(client()).source("source").destination("dest").refresh(true);
         copy.maxDocs(subsetSize);
-        copy.request().addSortField("foo", SortOrder.DESC);
+        copy.source().addSort("foo", SortOrder.DESC);
         assertThat(copy.get(), matcher().created(subsetSize));
 
         assertHitCount(client().prepareSearch("dest").setSize(0), subsetSize);

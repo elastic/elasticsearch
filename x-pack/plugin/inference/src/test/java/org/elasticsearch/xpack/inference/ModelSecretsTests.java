@@ -27,10 +27,6 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
         return new ModelSecrets(randomSecretSettings());
     }
 
-    public static ModelSecrets mutateTestInstance(ModelSecrets instance) {
-        return createRandomInstance();
-    }
-
     private static SecretSettings randomSecretSettings() {
         return new FakeSecretSettings(randomAlphaOfLengthBetween(8, 10));
     }
@@ -54,7 +50,7 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
 
     @Override
     protected ModelSecrets mutateInstance(ModelSecrets instance) {
-        return mutateTestInstance(instance);
+        return randomValueOtherThan(instance, ModelSecretsTests::createRandomInstance);
     }
 
     public record FakeSecretSettings(String apiKey) implements SecretSettings {
@@ -85,7 +81,7 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.INFERENCE_MODEL_SECRETS_ADDED;
+            return TransportVersions.V_8_11_X;
         }
     }
 }

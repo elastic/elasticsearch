@@ -27,7 +27,7 @@ public class MigrateToDataStreamAction extends ActionType<AcknowledgedResponse> 
     public static final String NAME = "indices:admin/data_stream/migrate";
 
     private MigrateToDataStreamAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<MigrateToDataStreamAction.Request> implements IndicesRequest {
@@ -35,6 +35,7 @@ public class MigrateToDataStreamAction extends ActionType<AcknowledgedResponse> 
         private final String aliasName;
 
         public Request(String aliasName) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.aliasName = aliasName;
         }
 

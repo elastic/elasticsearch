@@ -30,10 +30,8 @@ public enum Releasables {
 
     /** Release the provided {@link Releasable}. */
     public static void close(@Nullable Releasable releasable) {
-        try {
-            IOUtils.close(releasable);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        if (releasable != null) {
+            releasable.close();
         }
     }
 
@@ -192,10 +190,7 @@ public enum Releasables {
 
         @Override
         public void close() {
-            final var acquired = getAndSet(null);
-            if (acquired != null) {
-                acquired.close();
-            }
+            Releasables.close(getAndSet(null));
         }
 
         @Override

@@ -97,15 +97,6 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
     }
 
     /**
-     * An optional timeout to control how long the graph exploration is allowed
-     * to take.
-     */
-    public GraphExploreRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    /**
      * Add a stage in the graph exploration. Each hop represents a stage of
      * querying elasticsearch to identify terms which can then be connnected
      * to other terms in a subsequent hop.

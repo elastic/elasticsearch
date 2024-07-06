@@ -211,6 +211,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 taskParams,
+                null,
                 waitForAnalyticsToStart
             );
         }, listener::onFailure);
@@ -602,6 +603,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     ) {
         persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
+            null,
             new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {

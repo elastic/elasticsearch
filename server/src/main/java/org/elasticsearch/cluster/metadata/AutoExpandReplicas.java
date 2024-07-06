@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Setting;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
@@ -141,8 +143,21 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
         for (final IndexMetadata indexMetadata : metadata) {
             if (indexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
                 AutoExpandReplicas autoExpandReplicas = indexMetadata.getAutoExpandReplicas();
+                // Make sure auto-expand is applied only when configured, and entirely disabled in stateless
                 if (autoExpandReplicas.enabled() == false) {
                     continue;
+                }
+                // Special case for stateless indices: auto-expand is disabled, unless number_of_replicas has been set
+                // manually to 0 via index settings, which needs to be converted to 1.
+                if (Objects.equals(
+                    indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()),
+                    "stateless"
+                )) {
+                    if (indexMetadata.getNumberOfReplicas() == 0) {
+                        nrReplicasChanged.computeIfAbsent(1, ArrayList::new).add(indexMetadata.getIndex().getName());
+                    } else {
+                        continue;
+                    }
                 }
                 if (allocation == null) {
                     allocation = allocationSupplier.get();

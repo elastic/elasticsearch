@@ -151,7 +151,7 @@ public class ClientYamlTestClient implements Closeable {
                 // We prepend "/" to the path part to handle parts that start with - or other invalid characters.
                 URI uri = new URI(null, null, null, -1, "/" + pathPart.getValue(), null, null);
                 // manually escape any slash that each part may contain
-                String encodedPathPart = uri.getRawPath().substring(1).replaceAll("/", "%2F");
+                String encodedPathPart = uri.getRawPath().substring(1).replace("/", "%2F");
                 finalPath = finalPath.replace("{" + pathPart.getKey() + "}", encodedPathPart);
             } catch (URISyntaxException e) {
                 throw new RuntimeException("unable to build uri", e);

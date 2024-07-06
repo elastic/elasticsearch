@@ -9,8 +9,12 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -114,20 +118,45 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testMetadataIndex() {
-        try (EsqlQueryResponse resp = runQuery("FROM logs*,*:logs* [METADATA _index] | stats sum(v) by _index | sort _index")) {
+        try (EsqlQueryResponse resp = runQuery("FROM logs*,*:logs* METADATA _index | stats sum(v) by _index | sort _index")) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0), equalTo(List.of(285L, "cluster-a:logs-2")));
             assertThat(values.get(1), equalTo(List.of(45L, "logs-1")));
         }
     }
 
+    void waitForNoInitializingShards(Client client, TimeValue timeout, String... indices) {
+        ClusterHealthResponse resp = client.admin()
+            .cluster()
+            .prepareHealth(indices)
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .setTimeout(timeout)
+            .get();
+        assertFalse(Strings.toString(resp, true, true), resp.isTimedOut());
+    }
+
     public void testProfile() {
         assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
-        final int localOnlyProfiles;
         // uses shard partitioning as segments can be merged during these queries
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD).build());
+        // Use single replicas for the target indices, to make sure we hit the same set of target nodes
+        client(LOCAL_CLUSTER).admin()
+            .indices()
+            .prepareUpdateSettings("logs-1")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
+            .get();
+        waitForNoInitializingShards(client(LOCAL_CLUSTER), TimeValue.timeValueSeconds(30), "logs-1");
+        client(REMOTE_CLUSTER).admin()
+            .indices()
+            .prepareUpdateSettings("logs-2")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
+            .get();
+        waitForNoInitializingShards(client(REMOTE_CLUSTER), TimeValue.timeValueSeconds(30), "logs-2");
+        final int localOnlyProfiles;
         {
-            EsqlQueryRequest request = new EsqlQueryRequest();
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
             request.query("FROM logs* | stats sum(v)");
             request.pragmas(pragmas);
             request.profile(true);
@@ -142,7 +171,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
         final int remoteOnlyProfiles;
         {
-            EsqlQueryRequest request = new EsqlQueryRequest();
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
             request.query("FROM *:logs* | stats sum(v)");
             request.pragmas(pragmas);
             request.profile(true);
@@ -157,7 +186,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
         final int allProfiles;
         {
-            EsqlQueryRequest request = new EsqlQueryRequest();
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
             request.query("FROM logs*,*:logs* | stats total = sum(v)");
             request.pragmas(pragmas);
             request.profile(true);
@@ -174,7 +203,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testWarnings() throws Exception {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query("FROM logs*,*:logs* | EVAL ip = to_ip(id) | STATS total = sum(v) by ip | LIMIT 10");
         PlainActionFuture<EsqlQueryResponse> future = new PlainActionFuture<>();
         InternalTestCluster cluster = cluster(LOCAL_CLUSTER);
@@ -200,7 +229,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     protected EsqlQueryResponse runQuery(String query) {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         return runQuery(request);

@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -51,6 +52,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     AnalyzeIndexDiskUsageResponse,
     AnalyzeDiskUsageShardRequest,
     AnalyzeDiskUsageShardResponse> {
+    public static final ActionType<AnalyzeIndexDiskUsageResponse> TYPE = new ActionType<>("indices:admin/analyze_disk_usage");
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
 
@@ -63,7 +65,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            AnalyzeIndexDiskUsageAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,

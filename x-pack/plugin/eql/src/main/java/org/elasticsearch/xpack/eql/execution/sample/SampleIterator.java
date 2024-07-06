@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
-import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 import org.elasticsearch.xpack.eql.session.EmptyPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -222,9 +222,9 @@ public class SampleIterator implements Executable {
 
             for (int responseIndex = 0; responseIndex < response.length; responseIndex++) {
                 MultiSearchResponse.Item item = response[responseIndex];
-                final var hits = RuntimeUtils.searchHits(item.getResponse());
-                if (hits.size() > 0) {
-                    sample.add(hits);
+                final var hits = item.getResponse().getHits();
+                if (hits.getHits().length > 0) {
+                    sample.add(Arrays.asList(hits.getHits()));
                 }
                 if (docGroupsCounter == maxCriteria) {
                     List<List<SearchHit>> matches = matchSamples(sample, maxCriteria, maxSamplesPerKey);

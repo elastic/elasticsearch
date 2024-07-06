@@ -87,6 +87,22 @@
                             },
                             "queue_size_in_bytes": {
                               "type": "long"
+                            },
+                            "capacity": {
+                              "properties": {
+                                "max_queue_size_in_bytes": {
+                                  "type": "long"
+                                },
+                                "max_unread_events": {
+                                  "type": "long"
+                                },
+                                "page_capacity_in_bytes": {
+                                  "type": "long"
+                                },
+                                "queue_size_in_bytes": {
+                                  "type": "long"
+                                }
+                              }
                             }
                           }
                         },

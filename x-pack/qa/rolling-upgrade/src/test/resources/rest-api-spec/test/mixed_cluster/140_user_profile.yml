@@ -1,14 +1,17 @@
 ---
-"Test User Profile feature will work in a mixed cluster":
+"Test User Profile feature will work in a mixed cluster (pre 8.5.0)":
 
   - skip:
-      features: node_selector
-      version: " - 7.99.99"
-      reason: "https://github.com/elastic/elasticsearch/issues/86373"
+      cluster_features: ["gte_v8.5.0"]
+      reason: "Does not work pre 8.0 (#86373) and response format changed after 8.5 (#89023)"
+  - requires:
+      test_runner_features: node_selector
+      cluster_features: ["gte_v8.0.0"]
+      reason: "Does not work pre 8.0 (#86373) and response format changed after 8.5 (#89023)"
 
   - do:
       node_selector:
-        version: " 8.5.0 - "
+        version: "current"
       security.activate_user_profile:
         body: >
           {
@@ -22,7 +25,35 @@
 
   - do:
       node_selector:
-        version: " 8.5.0 - "
+        version: "current"
+      security.get_user_profile:
+        uid: "$profile_uid"
+
+  - length: { profiles : 1 }
+  - set: { profiles.0 : profile }
+  - match: { $profile.uid : "$profile_uid" }
+  - match: { $profile.user.username : "test_user" }
+
+---
+"Test User Profile feature will work in a mixed cluster":
+
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
+      reason: "response format is changed to support multiple UIDs #89023"
+
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "test_user",
+            "password" : "x-pack-test-password"
+          }
+  - is_true: uid
+  - match: { "user.username" : "test_user" }
+  - set: { uid: profile_uid }
+
+  - do:
       security.get_user_profile:
         uid: "$profile_uid"
 

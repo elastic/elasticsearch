@@ -24,11 +24,11 @@ import java.util.Objects;
  */
 public class ShardValidateQueryRequest extends BroadcastShardRequest {
 
-    private QueryBuilder query;
-    private boolean explain;
-    private boolean rewrite;
-    private long nowInMillis;
-    private AliasFilter filteringAliases;
+    private final QueryBuilder query;
+    private final boolean explain;
+    private final boolean rewrite;
+    private final long nowInMillis;
+    private final AliasFilter filteringAliases;
 
     public ShardValidateQueryRequest(StreamInput in) throws IOException {
         super(in);

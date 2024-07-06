@@ -78,7 +78,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
@@ -153,7 +152,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ClusterState state = createClusterState(tasksCustomMetadata);
 
         int numPipelinesToBeReloaded = randomInt(4);
-        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).collect(Collectors.toList());
+        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
         when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
 
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
@@ -208,7 +207,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
-            assertThat(files.collect(Collectors.toList()), empty());
+            assertThat(files.toList(), empty());
         }
     }
 
@@ -228,7 +227,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
-            assertThat(files.collect(Collectors.toList()), empty());
+            assertThat(files.toList(), empty());
         }
     }
 
@@ -243,7 +242,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
-            assertThat(files.collect(Collectors.toList()), empty());
+            assertThat(files.toList(), empty());
         }
     }
 
@@ -290,7 +289,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     public void testUpdateDatabase() throws Exception {
         int numPipelinesToBeReloaded = randomInt(4);
-        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).collect(Collectors.toList());
+        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
         when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
 
         databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));

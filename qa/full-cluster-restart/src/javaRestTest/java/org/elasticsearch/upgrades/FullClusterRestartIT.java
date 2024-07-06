@@ -48,7 +48,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -81,8 +80,8 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1289,7 +1288,11 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         // the format can change depending on the ES node version running & this test code running
         assertThat(
             XContentMapValues.extractValue("snapshots.version", snapResponse),
-            either(Matchers.<Object>equalTo(List.of(tookOnVersion))).or(equalTo(List.of(tookOnIndexVersion.toString())))
+            anyOf(
+                equalTo(List.of(tookOnVersion)),
+                equalTo(List.of(tookOnIndexVersion.toString())),
+                equalTo(List.of(tookOnIndexVersion.toReleaseVersion()))
+            )
         );
 
         // Remove the routing setting and template so we can test restoring them.

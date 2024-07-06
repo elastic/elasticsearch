@@ -11,9 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -484,7 +485,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             });
         }
 
-        private static ActionListener<Void> closingPitBefore(Client client, String pointInTimeId, ActionListener<Void> listener) {
+        private static ActionListener<Void> closingPitBefore(Client client, BytesReference pointInTimeId, ActionListener<Void> listener) {
             return new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -498,7 +499,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             };
         }
 
-        private static void closePit(Client client, String pointInTimeId, Runnable onCompletion) {
+        private static void closePit(Client client, BytesReference pointInTimeId, Runnable onCompletion) {
             client.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pointInTimeId), new ActionListener<>() {
                 @Override
                 public void onResponse(ClosePointInTimeResponse response) {
@@ -522,14 +523,14 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
          * The maintenance task, once it has opened its PIT and started running so that it has all the state it needs to do its job.
          */
         private class RunningPeriodicMaintenanceTask implements Runnable {
-            private final String pointInTimeId;
+            private final BytesReference pointInTimeId;
             private final RefCountingListener listeners;
             private final Instant expirationTime;
             private final Map<String, Set<String>> existingSnapshots;
             private final Set<String> existingRepositories;
 
             RunningPeriodicMaintenanceTask(
-                String pointInTimeId,
+                BytesReference pointInTimeId,
                 ActionListener<Void> listener,
                 Instant expirationTime,
                 Map<String, Set<String>> existingSnapshots,
@@ -636,7 +637,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 if (bulkRequest.numberOfActions() > 0) {
                     refs.mustIncRef();
                     clientWithOrigin.execute(
-                        BulkAction.INSTANCE,
+                        TransportBulkAction.TYPE,
                         bulkRequest,
                         ActionListener.releaseAfter(listeners.acquire(bulkResponse -> {
                             for (BulkItemResponse itemResponse : bulkResponse.getItems()) {

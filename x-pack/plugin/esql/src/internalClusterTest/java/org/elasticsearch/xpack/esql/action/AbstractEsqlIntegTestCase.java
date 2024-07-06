@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
-
     @After
     public void ensureExchangesAreReleased() throws Exception {
         for (String node : internalCluster().getNodeNames()) {
@@ -129,18 +128,20 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected EsqlQueryResponse run(String esqlCommands) {
+    protected final EsqlQueryResponse run(String esqlCommands) {
         return run(esqlCommands, randomPragmas());
     }
 
-    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
+    protected final EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
         return run(esqlCommands, pragmas, null);
     }
 
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(esqlCommands);
-        request.pragmas(pragmas);
+        if (pragmas != null) {
+            request.pragmas(pragmas);
+        }
         if (filter != null) {
             request.filter(filter);
         }
@@ -184,6 +185,12 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                     default -> throw new AssertionError("unknown");
                 };
                 settings.put("page_size", pageSize);
+            }
+            if (randomBoolean()) {
+                settings.put("max_concurrent_shards_per_node", randomIntBetween(1, 10));
+            }
+            if (randomBoolean()) {
+                settings.put("node_level_reduction", randomBoolean());
             }
         }
         return new QueryPragmas(settings.build());

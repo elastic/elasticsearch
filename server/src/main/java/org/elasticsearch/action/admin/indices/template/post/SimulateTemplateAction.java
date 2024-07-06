@@ -31,7 +31,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
     public static final String NAME = "indices:admin/index_template/simulate";
 
     private SimulateTemplateAction() {
-        super(NAME, SimulateIndexTemplateResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -43,9 +43,12 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         private TransportPutComposableIndexTemplateAction.Request indexTemplateRequest;
         private boolean includeDefaults = false;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(String templateName) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             if (templateName == null) {
                 throw new IllegalArgumentException("template name cannot be null");
             }
@@ -53,6 +56,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         }
 
         public Request(TransportPutComposableIndexTemplateAction.Request indexTemplateRequest) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             if (indexTemplateRequest == null) {
                 throw new IllegalArgumentException("index template body must be present");
             }

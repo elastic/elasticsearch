@@ -252,7 +252,7 @@ public class CollectionUtils {
         final int addedSize = elements.length;
         final int size = existingSize + addedSize;
         final E[] array = collection.toArray((E[]) new Object[size]);
-        System.arraycopy(elements, 0, array, size - 1, addedSize);
+        System.arraycopy(elements, 0, array, size - addedSize, addedSize);
         return List.of(array);
     }
 

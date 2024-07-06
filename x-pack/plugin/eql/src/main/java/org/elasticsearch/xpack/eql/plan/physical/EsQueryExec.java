@@ -11,10 +11,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.eql.execution.search.AsEventListener;
+import org.elasticsearch.xpack.eql.execution.payload.EventPayload;
 import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
-import org.elasticsearch.xpack.eql.execution.search.ReverseListener;
 import org.elasticsearch.xpack.eql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -71,8 +71,11 @@ public class EsQueryExec extends LeafExec {
     public void execute(EqlSession session, ActionListener<Payload> listener) {
         // endpoint - fetch all source
         QueryRequest request = () -> source(session, true).fetchSource(FetchSourceContext.FETCH_SOURCE);
-        listener = shouldReverse(request) ? new ReverseListener(listener) : listener;
-        new BasicQueryClient(session).query(request, new AsEventListener(listener));
+        new BasicQueryClient(session).query(request, listener.safeMap(shouldReverse(request) ? r -> {
+            var res = new EventPayload(r);
+            Collections.reverse(res.values());
+            return res;
+        } : EventPayload::new));
     }
 
     private static boolean shouldReverse(QueryRequest query) {

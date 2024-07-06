@@ -54,7 +54,7 @@ public class BertJapaneseTokenizerTests extends ESTestCase {
         ) {
 
             String msg = "日本語で、ElasticsearchのBertJapaneseTokenizerを使うテスト。";
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize(msg, Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize(msg, Tokenization.Truncate.NONE, -1, 0, null).get(0);
 
             assertThat(
                 tokenStrings(tokenization.tokens().get(0)),

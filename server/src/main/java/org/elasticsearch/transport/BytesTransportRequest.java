@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
@@ -67,8 +66,8 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     }
 
     @Override
-    public void serialize(BytesStream out, SerializationContext result) throws IOException {
-        super.writeTo(out);
+    public void serialize(SerializationContext result) throws IOException {
+        super.writeTo(result.out);
         result.insertBytesReference(bytes);
     }
 

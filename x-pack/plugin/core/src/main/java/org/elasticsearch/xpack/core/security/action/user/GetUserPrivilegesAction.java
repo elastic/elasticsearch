@@ -17,6 +17,6 @@ public final class GetUserPrivilegesAction extends ActionType<GetUserPrivilegesR
     public static final String NAME = "cluster:admin/xpack/security/user/list_privileges";
 
     private GetUserPrivilegesAction() {
-        super(NAME, GetUserPrivilegesResponse::new);
+        super(NAME);
     }
 }

@@ -101,7 +101,8 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                                 percolatorLeafReaderContext,
                                 slot,
                                 leafStoredFields.storedFields(),
-                                Source.fromBytes(document)
+                                Source.fromBytes(document),
+                                null
                             );
                             processor.process(subContext);
                             for (Map.Entry<String, HighlightField> entry : subContext.hit().getHighlightFields().entrySet()) {

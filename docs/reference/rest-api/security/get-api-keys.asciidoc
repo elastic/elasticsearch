@@ -67,6 +67,11 @@ associated with the API key. An API key's actual permission is the intersection 
 its <<api-key-role-descriptors,assigned role descriptors>> and the owner user's role descriptors
 (effectively limited by it). An API key must have `manage_api_key` or higher privileges to retrieve the limited-by role descriptors of any API key, including itself.
 
+`with_profile_uid`::
+(Optional, boolean) Determines whether to also retrieve the <<user-profile,user profile>> `uid`, for the API key owner user.
+If it exists, the profile uid is returned under the `profile_uid` response field for each API key.
+Defaults to `false`.
+
 `active_only`::
 (Optional, Boolean) A boolean flag that can be used to query API keys that are currently active.
 An API key is considered active if it is neither invalidated, nor expired at query time. You can specify this together
@@ -134,6 +139,7 @@ A successful call returns a JSON structure that contains the information of the 
       "invalidated": false, <6>
       "username": "myuser", <7>
       "realm": "native1", <8>
+      "realm_type": "native",
       "metadata": { <9>
         "application": "myapp"
       },
@@ -289,6 +295,7 @@ A successful call returns a JSON structure that contains the information of one 
       "invalidated": false,
       "username": "myuser",
       "realm": "native1",
+      "realm_type": "native",
       "metadata": {
         "application": "myapp"
       },

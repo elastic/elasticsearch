@@ -78,7 +78,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
         }
-        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        safeAcquire(10, semaphore);
         assertEquals(count * thread.length, received.get());
     }
 
@@ -131,7 +131,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
         }
-        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        safeAcquire(Integer.MAX_VALUE, semaphore);
         assertEquals(count * thread.length, received.get());
         assertEquals(actualFailed.get(), failed.get());
     }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.enrollment;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -155,7 +154,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         assertThat(token.getApiKey(), equalTo("api-key-id:api-key-secret"));
         assertThat(token.getBoundAddress().size(), equalTo(1));
         assertThat(token.getBoundAddress().get(0), equalTo("192.168.1.2:9200"));
-        assertThat(token.getVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(token.getVersion(), equalTo(EnrollmentToken.CURRENT_TOKEN_VERSION));
         assertThat(token.getFingerprint(), equalTo("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d"));
     }
 
@@ -209,7 +208,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         assertThat(token.getApiKey(), equalTo("api-key-id:api-key-secret"));
         assertThat(token.getBoundAddress().size(), equalTo(1));
         assertThat(token.getBoundAddress().get(0), equalTo("192.168.1.2:9200"));
-        assertThat(token.getVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(token.getVersion(), equalTo(EnrollmentToken.CURRENT_TOKEN_VERSION));
         assertThat(token.getFingerprint(), equalTo("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d"));
     }
 

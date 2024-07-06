@@ -12,9 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -24,7 +26,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -471,7 +472,14 @@ public abstract class PeerFinder {
                             final String message = messageBuilder.length() < 1024
                                 ? messageBuilder.toString()
                                 : (messageBuilder.substring(0, 1023) + "...");
-                            logger.warn("{}{} discovery result{}", Peer.this, believedMasterBy, message);
+                            logger.warn(
+                                "{}{} discovery result{}; for summary, see logs from {}; for troubleshooting guidance, see {}",
+                                Peer.this,
+                                believedMasterBy,
+                                message,
+                                ClusterFormationFailureHelper.class.getCanonicalName(),
+                                ReferenceDocs.DISCOVERY_TROUBLESHOOTING
+                            );
                         }
                     } else {
                         logger.debug(() -> format("%s discovery result", Peer.this), e);
@@ -544,7 +552,7 @@ public abstract class PeerFinder {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return clusterCoordinationExecutor;
                 }
             };

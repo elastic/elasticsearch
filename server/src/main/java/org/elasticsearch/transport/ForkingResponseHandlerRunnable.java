@@ -13,7 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -30,12 +31,16 @@ abstract class ForkingResponseHandlerRunnable extends AbstractRunnable {
     @Nullable
     private final TransportException transportException;
 
+    ForkingResponseHandlerRunnable(TransportResponseHandler<?> handler, @Nullable TransportException transportException) {
+        this(handler, transportException, handler.executor());
+    }
+
     ForkingResponseHandlerRunnable(
         TransportResponseHandler<?> handler,
         @Nullable TransportException transportException,
-        ThreadPool threadPool
+        Executor executorUsed
     ) {
-        assert handler.executor(threadPool) != EsExecutors.DIRECT_EXECUTOR_SERVICE : "forking handler required, but got " + handler;
+        assert executorUsed != EsExecutors.DIRECT_EXECUTOR_SERVICE : "forking handler required, but got " + handler;
         this.handler = handler;
         this.transportException = transportException;
     }

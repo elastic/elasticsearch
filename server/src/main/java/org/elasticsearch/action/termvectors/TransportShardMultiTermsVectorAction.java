@@ -37,7 +37,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     private final IndicesService indicesService;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
-    public static final ActionType<MultiTermVectorsShardResponse> TYPE = new ActionType<>(ACTION_NAME, MultiTermVectorsShardResponse::new);
+    public static final ActionType<MultiTermVectorsShardResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     @Inject
     public TransportShardMultiTermsVectorAction(

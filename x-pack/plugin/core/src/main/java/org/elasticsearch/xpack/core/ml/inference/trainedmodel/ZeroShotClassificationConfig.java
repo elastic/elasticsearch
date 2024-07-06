@@ -220,7 +220,7 @@ public class ZeroShotClassificationConfig implements NlpConfig {
                 Optional.ofNullable(configUpdate.getResultsField()).orElse(resultsField)
             );
         } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
-            var updatedTokenization = getTokenization().updateSpanSettings(tokenizationUpdate.getSpanSettings());
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
             return new ZeroShotClassificationConfig(
                 classificationLabels,
                 vocabularyConfig,

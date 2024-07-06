@@ -19,7 +19,7 @@ public class FollowInfoRequestTests extends AbstractWireSerializingTestCase<Foll
 
     @Override
     protected FollowInfoAction.Request createTestInstance() {
-        FollowInfoAction.Request request = new FollowInfoAction.Request();
+        FollowInfoAction.Request request = new FollowInfoAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndices(generateRandomStringArray(4, 4, true, false));
         return request;
     }

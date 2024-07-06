@@ -65,7 +65,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder;
@@ -82,6 +81,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<DatafeedConfig> {
+
+    private static final String[] EXPAND_WILDCARDS_VALUES = { "open", "closed", "hidden" };
 
     @Override
     protected DatafeedConfig createTestInstance() {
@@ -1034,7 +1035,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
             case 11:
                 builder.setIndicesOptions(
                     IndicesOptions.fromParameters(
-                        randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                        randomFrom(EXPAND_WILDCARDS_VALUES),
                         Boolean.toString(instance.getIndicesOptions().ignoreUnavailable() == false),
                         Boolean.toString(instance.getIndicesOptions().allowNoIndices() == false),
                         Boolean.toString(instance.getIndicesOptions().ignoreThrottled() == false),

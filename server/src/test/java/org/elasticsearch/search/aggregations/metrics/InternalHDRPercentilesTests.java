@@ -69,11 +69,6 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
         }
     }
 
-    @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedHDRPercentiles.class;
-    }
-
     public void testIterator() {
         final double[] percents = randomPercents(false);
         final double[] values = new double[frequently() ? randomIntBetween(1, 10) : 0];

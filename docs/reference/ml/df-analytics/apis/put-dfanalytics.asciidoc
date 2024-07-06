@@ -51,7 +51,7 @@ determines a value for each of the undefined parameters.
 
 `<data_frame_analytics_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
 [role="child_attributes"]
 [[ml-put-dfanalytics-request-body]]
@@ -93,16 +93,16 @@ understand the function of these parameters.
 =====
 `alpha`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
 
 `class_assignment_objective`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
 
 `dependent_variable`::::
 (Required, string)
 +
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric (`integer`, `short`, `long`, `byte`),
 categorical (`ip` or `keyword`), or boolean. There must be no more than 100
@@ -110,148 +110,148 @@ different values in this field.
 
 `downsample_factor`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
 
 `early_stopping_enabled`::::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-early-stopping-enabled]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-early-stopping-enabled]
 
 `eta`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=eta]
 
 `eta_growth_rate_per_tree`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
 
 `feature_bag_fraction`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `feature_processors`::::
 (Optional, list)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors]
 +
 .Properties of `feature_processors`
 [%collapsible%open]
 ======
 `frequency_encoding`::::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-frequency]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-frequency]
 +
 .Properties of `frequency_encoding`
 [%collapsible%open]
 =======
 `feature_name`::::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-feat-name]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-feat-name]
 
 `field`::::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
 
 `frequency_map`::::
 (Required, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-frequency-map]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-frequency-map]
 =======
 
 `multi_encoding`::::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi]
 +
 .Properties of `multi_encoding`
 [%collapsible%open]
 =======
 `processors`::::
 (Required, array)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi-proc]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi-proc]
 =======
 
 `n_gram_encoding`::::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram]
 +
 .Properties of `n_gram_encoding`
 [%collapsible%open]
 =======
 `feature_prefix`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-feat-pref]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-feat-pref]
 
 `field`::::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-field]
 
 `length`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-length]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-length]
 
 `n_grams`::::
 (Required, array)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-ngrams]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-ngrams]
 
 `start`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-start]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-start]
 =======
 
 `one_hot_encoding`::::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-one-hot]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-one-hot]
 +
 .Properties of `one_hot_encoding`
 [%collapsible%open]
 =======
 `field`::::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
 
 `hot_map`::::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-one-hot-map]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-one-hot-map]
 =======
 
 `target_mean_encoding`::::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean]
 +
 .Properties of `target_mean_encoding`
 [%collapsible%open]
 =======
 `default_value`::::
 (Required, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean-default]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean-default]
 
 `feature_name`::::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-feat-name]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-feat-name]
 
 `field`::::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
 
 `target_map`::::
 (Required, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean-map]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean-map]
 =======
 
 ======
 
 `gamma`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=gamma]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `max_optimization_rounds_per_hyperparameter`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
 
 `max_trees`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_top_classes`::::
 (Optional, integer)
@@ -276,23 +276,23 @@ By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
 `randomize_seed`::::
 (Optional, long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
 `soft_tree_depth_limit`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
 
 `soft_tree_depth_tolerance`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
 
 `training_percent`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 //End classification
 =====
 //Begin outlier_detection
@@ -306,27 +306,27 @@ The configuration information necessary to perform
 =====
 `compute_feature_influence`::::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
 
 `feature_influence_threshold`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
 
 `method`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=method]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=method]
 
 `n_neighbors`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=n-neighbors]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=n-neighbors]
 
 `outlier_fraction`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
 
 `standardization_enabled`::::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 //End outlier_detection
 =====
 //Begin regression
@@ -345,46 +345,46 @@ understand the function of these parameters.
 =====
 `alpha`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
 
 `dependent_variable`::::
 (Required, string)
 +
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric.
 
 `downsample_factor`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
 
 `early_stopping_enabled`::::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-early-stopping-enabled]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-early-stopping-enabled]
 
 `eta`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=eta]
 
 `eta_growth_rate_per_tree`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
 
 `feature_bag_fraction`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `feature_processors`::::
 (Optional, list)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors]
 
 `gamma`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=gamma]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `loss_function`::::
 (Optional, string)
@@ -401,11 +401,11 @@ A positive number that is used as a parameter to the `loss_function`.
 
 `max_optimization_rounds_per_hyperparameter`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
 
 `max_trees`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_top_feature_importance_values`::::
 (Optional, integer)
@@ -415,23 +415,23 @@ By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
 `randomize_seed`::::
 (Optional, long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
 `soft_tree_depth_limit`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
 
 `soft_tree_depth_tolerance`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
 
 `training_percent`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 =====
 //End regression
 ====
@@ -493,11 +493,11 @@ analysis.
 
 `description`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
 
 `dest`::
 (Required, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dest]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dest]
 
 `max_num_threads`::
 (Optional, integer)
@@ -509,11 +509,11 @@ functionality other than the analysis itself.
 
 `_meta`::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=meta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=meta]
 
 `model_memory_limit`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
 
 `source`::
 (object)

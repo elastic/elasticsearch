@@ -15,9 +15,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -33,9 +34,10 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 
-public final class RestResponse {
+public final class RestResponse implements Releasable {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
+    public static final Set<String> RESPONSE_PARAMS = Set.of("error_trace");
 
     static final String STATUS = "status";
 
@@ -47,9 +49,12 @@ public final class RestResponse {
     private final BytesReference content;
 
     @Nullable
-    private final ChunkedRestResponseBody chunkedResponseBody;
+    private final ChunkedRestResponseBodyPart chunkedResponseBody;
     private final String responseMediaType;
     private Map<String, List<String>> customHeaders;
+
+    @Nullable
+    private final Releasable releasable;
 
     /**
      * Creates a new response based on {@link XContentBuilder}.
@@ -73,18 +78,19 @@ public final class RestResponse {
     }
 
     public RestResponse(RestStatus status, String responseMediaType, BytesReference content) {
-        this(status, responseMediaType, content, null);
+        this(status, responseMediaType, content, null, null);
     }
 
-    public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBody content) {
-        if (content.isDone()) {
-            return new RestResponse(
-                restStatus,
-                content.getResponseContentTypeString(),
-                new ReleasableBytesReference(BytesArray.EMPTY, content)
-            );
+    private RestResponse(RestStatus status, String responseMediaType, BytesReference content, @Nullable Releasable releasable) {
+        this(status, responseMediaType, content, null, releasable);
+    }
+
+    public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBodyPart content, @Nullable Releasable releasable) {
+        if (content.isPartComplete()) {
+            assert content.isLastPart() : "response with continuations must have at least one (possibly-empty) chunk in each part";
+            return new RestResponse(restStatus, content.getResponseContentTypeString(), BytesArray.EMPTY, releasable);
         } else {
-            return new RestResponse(restStatus, content.getResponseContentTypeString(), null, content);
+            return new RestResponse(restStatus, content.getResponseContentTypeString(), null, content, releasable);
         }
     }
 
@@ -95,12 +101,14 @@ public final class RestResponse {
         RestStatus status,
         String responseMediaType,
         @Nullable BytesReference content,
-        @Nullable ChunkedRestResponseBody chunkedResponseBody
+        @Nullable ChunkedRestResponseBodyPart chunkedResponseBody,
+        @Nullable Releasable releasable
     ) {
         this.status = status;
         this.content = content;
         this.responseMediaType = responseMediaType;
         this.chunkedResponseBody = chunkedResponseBody;
+        this.releasable = releasable;
         assert (content == null) != (chunkedResponseBody == null);
     }
 
@@ -142,6 +150,7 @@ public final class RestResponse {
             copyHeaders(((ElasticsearchException) e));
         }
         this.chunkedResponseBody = null;
+        this.releasable = null;
     }
 
     public String contentType() {
@@ -154,7 +163,7 @@ public final class RestResponse {
     }
 
     @Nullable
-    public ChunkedRestResponseBody chunkedContent() {
+    public ChunkedRestResponseBodyPart chunkedContent() {
         return chunkedResponseBody;
     }
 
@@ -223,5 +232,10 @@ public final class RestResponse {
             }
         }
         return headers;
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(releasable);
     }
 }

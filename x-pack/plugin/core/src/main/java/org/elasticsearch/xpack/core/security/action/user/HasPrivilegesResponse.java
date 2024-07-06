@@ -27,11 +27,11 @@ import java.util.TreeSet;
  * Response for a {@link HasPrivilegesRequest}
  */
 public class HasPrivilegesResponse extends ActionResponse implements ToXContentObject {
-    private String username;
-    private boolean completeMatch;
-    private Map<String, Boolean> cluster;
-    private Set<ResourcePrivileges> index;
-    private Map<String, Set<ResourcePrivileges>> application;
+    private final String username;
+    private final boolean completeMatch;
+    private final Map<String, Boolean> cluster;
+    private final Set<ResourcePrivileges> index;
+    private final Map<String, Set<ResourcePrivileges>> application;
 
     public HasPrivilegesResponse() {
         this("", true, Collections.emptyMap(), Collections.emptyList(), Collections.emptyMap());

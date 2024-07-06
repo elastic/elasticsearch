@@ -167,7 +167,7 @@ public class NerConfig implements NlpConfig {
                 Optional.ofNullable(update.getResultsField()).orElse(resultsField)
             );
         } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
-            var updatedTokenization = getTokenization().updateSpanSettings(tokenizationUpdate.getSpanSettings());
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
             return new NerConfig(this.vocabularyConfig, updatedTokenization, this.classificationLabels, this.resultsField);
         } else {
             throw incompatibleUpdateException(update.getName());

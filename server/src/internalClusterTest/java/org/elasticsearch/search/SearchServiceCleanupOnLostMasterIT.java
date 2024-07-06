@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -70,7 +71,10 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
 
         index("test", "test", "{}");
 
-        assertResponse(prepareSearch("test").setScroll("30m"), response -> assertThat(response.getScrollId(), is(notNullValue())));
+        assertResponse(
+            prepareSearch("test").setScroll(TimeValue.timeValueMinutes(30)),
+            response -> assertThat(response.getScrollId(), is(notNullValue()))
+        );
         loseMaster.accept(master, dataNode);
         // in the past, this failed because the search context for the scroll would prevent the shard lock from being released.
         ensureYellow();

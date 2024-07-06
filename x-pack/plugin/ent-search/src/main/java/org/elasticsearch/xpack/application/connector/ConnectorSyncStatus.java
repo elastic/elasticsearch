@@ -37,7 +37,7 @@ public enum ConnectorSyncStatus {
             }
         }
 
-        throw new IllegalArgumentException("Unknown sync status '" + syncStatusString + "'.");
+        throw new IllegalArgumentException("Unknown " + ConnectorSyncStatus.class.getSimpleName() + " [" + syncStatusString + "].");
     }
 
     @Override
@@ -51,6 +51,6 @@ public enum ConnectorSyncStatus {
                 return connectorSyncStatus;
             }
         }
-        throw new IllegalArgumentException("Unknown ConnectorSyncStatus: " + status);
+        throw new IllegalArgumentException("Unknown " + ConnectorSyncStatus.class.getSimpleName() + " [" + status + "].");
     }
 }

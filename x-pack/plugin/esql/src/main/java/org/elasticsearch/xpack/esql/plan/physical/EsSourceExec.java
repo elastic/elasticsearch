@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.NodeUtils;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 
 import java.util.List;
 import java.util.Objects;
@@ -23,16 +24,18 @@ public class EsSourceExec extends LeafExec {
     private final EsIndex index;
     private final List<Attribute> attributes;
     private final QueryBuilder query;
+    private final IndexMode indexMode;
 
     public EsSourceExec(EsRelation relation) {
-        this(relation.source(), relation.index(), relation.output(), null);
+        this(relation.source(), relation.index(), relation.output(), null, relation.indexMode());
     }
 
-    public EsSourceExec(Source source, EsIndex index, List<Attribute> attributes, QueryBuilder query) {
+    public EsSourceExec(Source source, EsIndex index, List<Attribute> attributes, QueryBuilder query, IndexMode indexMode) {
         super(source);
         this.index = index;
         this.attributes = attributes;
         this.query = query;
+        this.indexMode = indexMode;
     }
 
     public EsIndex index() {
@@ -43,6 +46,10 @@ public class EsSourceExec extends LeafExec {
         return query;
     }
 
+    public IndexMode indexMode() {
+        return indexMode;
+    }
+
     @Override
     public List<Attribute> output() {
         return attributes;
@@ -50,7 +57,7 @@ public class EsSourceExec extends LeafExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EsSourceExec::new, index, attributes, query);
+        return NodeInfo.create(this, EsSourceExec::new, index, attributes, query, indexMode);
     }
 
     @Override

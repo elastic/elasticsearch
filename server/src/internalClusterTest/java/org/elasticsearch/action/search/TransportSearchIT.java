@@ -41,13 +41,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -280,7 +280,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 : SearchRequest.subSearchRequest(taskId, originalRequest, Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
             assertResponse(client().search(searchRequest), searchResponse -> {
                 assertEquals(2, searchResponse.getHits().getTotalHits().value);
-                Aggregations aggregations = searchResponse.getAggregations();
+                InternalAggregations aggregations = searchResponse.getAggregations();
                 LongTerms longTerms = aggregations.get("terms");
                 assertEquals(1, longTerms.getBuckets().size());
             });
@@ -296,7 +296,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             );
             assertResponse(client().search(searchRequest), searchResponse -> {
                 assertEquals(2, searchResponse.getHits().getTotalHits().value);
-                Aggregations aggregations = searchResponse.getAggregations();
+                InternalAggregations aggregations = searchResponse.getAggregations();
                 LongTerms longTerms = aggregations.get("terms");
                 assertEquals(2, longTerms.getBuckets().size());
             });

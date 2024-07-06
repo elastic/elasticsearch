@@ -49,8 +49,10 @@ public final class IngestDocument {
     private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SOURCE_KEY + ".";
 
-    public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
+    private static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     static final String TIMESTAMP = "timestamp";
+    // This is the maximum number of nested pipelines that can be within a pipeline. If there are more, we bail out with an error
+    public static final int MAX_PIPELINES = Integer.parseInt(System.getProperty("es.ingest.max_pipelines", "100"));
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
@@ -91,7 +93,7 @@ public final class IngestDocument {
     }
 
     // note: these rest of these constructors deal with the data-centric view of the IngestDocument, not the execution-centric view.
-    // For example, the copy constructor doesn't populate the `executedPipelines` or `indexHistory` (as well as some other fields),
+    // For example, the copy constructor doesn't populate the `indexHistory` (as well as some other fields),
     // because those fields are execution-centric.
 
     /**
@@ -104,6 +106,13 @@ public final class IngestDocument {
             new IngestCtxMap(deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource())), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
+        /*
+         * The executedPipelines field is clearly execution-centric rather than data centric. Despite what the comment above says, we're
+         * copying it here anyway. THe reason is that this constructor is only called from two non-test locations, and both of those
+         * involve the simulate pipeline logic. The simulate pipeline logic needs this information. Rather than making the code more
+         * complicated, we're just copying this over here since it does no harm.
+         */
+        this.executedPipelines.addAll(other.executedPipelines);
     }
 
     /**
@@ -829,7 +838,12 @@ public final class IngestDocument {
             return;
         }
 
-        if (executedPipelines.add(pipeline.getId())) {
+        if (executedPipelines.size() >= MAX_PIPELINES) {
+            handler.accept(
+                null,
+                new GraphStructureException("Too many nested pipelines. Cannot have more than " + MAX_PIPELINES + " nested pipelines")
+            );
+        } else if (executedPipelines.add(pipeline.getId())) {
             Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
             pipeline.execute(this, (result, e) -> {
                 executedPipelines.remove(pipeline.getId());
@@ -841,7 +855,7 @@ public final class IngestDocument {
                 handler.accept(result, e);
             });
         } else {
-            handler.accept(null, new IllegalStateException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
+            handler.accept(null, new GraphStructureException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
         }
     }
 

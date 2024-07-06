@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -48,7 +49,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -105,7 +105,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap(),
+            Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
             () -> true
@@ -271,15 +271,14 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap(),
+            Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
             () -> true
         ) {
             @Override
-            void updateTaskState() {
-                assertEquals(0, state.get("test").firstChunk());
-                assertEquals(10, state.get("test").lastChunk());
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
+                fail();
             }
 
             @Override
@@ -290,19 +289,22 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
-                fail();
+            void updateTaskState() {
+                assertEquals(0, state.get("test.mmdb").firstChunk());
+                assertEquals(10, state.get("test.mmdb").lastChunk());
             }
 
             @Override
             void deleteOldChunks(String name, int firstChunk) {
-                assertEquals("test", name);
+                assertEquals("test.mmdb", name);
                 assertEquals(0, firstChunk);
             }
         };
 
         geoIpDownloader.setState(GeoIpTaskState.EMPTY);
         geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
+        GeoIpDownloaderStats stats = geoIpDownloader.getStatus();
+        assertEquals(0, stats.getFailedDownloads());
     }
 
     public void testProcessDatabaseUpdate() throws IOException {
@@ -320,15 +322,14 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap(),
+            Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
             () -> true
         ) {
             @Override
-            void updateTaskState() {
-                assertEquals(9, state.get("test.mmdb").firstChunk());
-                assertEquals(10, state.get("test.mmdb").lastChunk());
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
+                fail();
             }
 
             @Override
@@ -339,8 +340,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
-                fail();
+            void updateTaskState() {
+                assertEquals(9, state.get("test.mmdb").firstChunk());
+                assertEquals(10, state.get("test.mmdb").lastChunk());
             }
 
             @Override
@@ -352,6 +354,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
         geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test.mmdb", new GeoIpTaskState.Metadata(0, 5, 8, "0", 0)));
         geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
+        GeoIpDownloaderStats stats = geoIpDownloader.getStatus();
+        assertEquals(0, stats.getFailedDownloads());
     }
 
     public void testProcessDatabaseSame() throws IOException {
@@ -371,14 +375,15 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap(),
+            Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
             () -> true
         ) {
             @Override
-            void updateTaskState() {
-                fail();
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata newMetadata) {
+                assertEquals(metadata, newMetadata);
+                assertEquals("test.mmdb", name);
             }
 
             @Override
@@ -388,9 +393,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(String name, GeoIpTaskState.Metadata newMetadata) {
-                assertEquals(metadata, newMetadata);
-                assertEquals("test.mmdb", name);
+            void updateTaskState() {
+                fail();
             }
 
             @Override
@@ -400,6 +404,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
         };
         geoIpDownloader.setState(taskState);
         geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
+        GeoIpDownloaderStats stats = geoIpDownloader.getStatus();
+        assertEquals(0, stats.getFailedDownloads());
     }
 
     @SuppressWarnings("unchecked")
@@ -415,7 +421,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap(),
+            Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
             () -> true
@@ -445,7 +451,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap(),
+            Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
             () -> true
@@ -486,7 +492,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap(),
+            Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
             atLeastOneGeoipProcessor::get

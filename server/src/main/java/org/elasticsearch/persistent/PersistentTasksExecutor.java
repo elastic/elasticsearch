@@ -17,6 +17,7 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 /**
@@ -25,10 +26,10 @@ import java.util.function.Predicate;
  */
 public abstract class PersistentTasksExecutor<Params extends PersistentTaskParams> {
 
-    private final String executor;
+    private final Executor executor;
     private final String taskName;
 
-    protected PersistentTasksExecutor(String taskName, String executor) {
+    protected PersistentTasksExecutor(String taskName, Executor executor) {
         this.taskName = taskName;
         this.executor = executor;
     }
@@ -117,7 +118,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      */
     protected abstract void nodeOperation(AllocatedPersistentTask task, Params params, @Nullable PersistentTaskState state);
 
-    public String getExecutor() {
+    public Executor getExecutor() {
         return executor;
     }
 }

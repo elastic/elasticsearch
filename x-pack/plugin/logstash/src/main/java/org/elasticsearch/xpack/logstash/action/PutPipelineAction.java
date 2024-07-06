@@ -15,6 +15,6 @@ public class PutPipelineAction extends ActionType<PutPipelineResponse> {
     public static final PutPipelineAction INSTANCE = new PutPipelineAction();
 
     private PutPipelineAction() {
-        super(NAME, PutPipelineResponse::new);
+        super(NAME);
     }
 }

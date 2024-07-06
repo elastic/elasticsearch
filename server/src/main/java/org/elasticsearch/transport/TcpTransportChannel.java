@@ -12,12 +12,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Releasable;
 
-import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 public final class TcpTransportChannel implements TransportChannel {
 
-    private final AtomicBoolean released = new AtomicBoolean();
     private final OutboundHandler outboundHandler;
     private final TcpChannel channel;
     private final String action;
@@ -56,7 +52,7 @@ public final class TcpTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(TransportResponse response) throws IOException {
+    public void sendResponse(TransportResponse response) {
         try {
             outboundHandler.sendResponse(
                 version,
@@ -69,29 +65,16 @@ public final class TcpTransportChannel implements TransportChannel {
                 responseStatsConsumer
             );
         } finally {
-            release(false);
+            breakerRelease.close();
         }
     }
 
     @Override
-    public void sendResponse(Exception exception) throws IOException {
+    public void sendResponse(Exception exception) {
         try {
             outboundHandler.sendErrorResponse(version, channel, requestId, action, responseStatsConsumer, exception);
         } finally {
-            release(true);
-        }
-    }
-
-    private Exception releaseBy;
-
-    private void release(boolean isExceptionResponse) {
-        if (released.compareAndSet(false, true)) {
-            assert (releaseBy = new Exception()) != null; // easier to debug if it's already closed
             breakerRelease.close();
-        } else if (isExceptionResponse == false) {
-            // only fail if we are not sending an error - we might send the error triggered by the previous
-            // sendResponse call
-            throw new IllegalStateException("reserved bytes are already released", releaseBy);
         }
     }
 

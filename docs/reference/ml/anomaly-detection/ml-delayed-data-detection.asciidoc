@@ -52,6 +52,20 @@ for the periods where these delays occur:
 [role="screenshot"]
 image::images/ml-annotations.png["Delayed data annotations in the Single Metric Viewer"]
 
+[IMPORTANT]
+====
+The delayed data check will not work correctly in the following cases:
+
+* if the {dfeed} uses aggregations that filter data,
+* if the {dfeed} uses aggregations and the job's `analysis_config` does not have
+its `summary_count_field_name` set to `doc_count`,
+* if the {dfeed} is _not_ using aggregations and `summary_count_field_name` is
+set to any value.
+
+If the datafeed is using aggregations, set the job's `summary_count_field_name`
+to `doc_count`. If `summary_count_field_name` is set to any value other than
+`doc_count`, the delayed data check for the datafeed must be disabled.
+====
 There is another tool for visualizing the delayed data on the *Annotations* tab
 in the {anomaly-detect} job management page:
 

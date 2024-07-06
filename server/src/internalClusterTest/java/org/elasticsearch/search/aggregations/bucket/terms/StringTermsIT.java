@@ -18,16 +18,24 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -49,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
@@ -62,6 +71,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -1265,12 +1275,15 @@ public class StringTermsIT extends AbstractTermsTestCase {
         String source = builder.toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            assertNoFailuresAndResponse(prepareSearch("idx").setSource(new SearchSourceBuilder().parseXContent(parser, true)), response -> {
-                LongTerms terms = response.getAggregations().get("terms");
-                assertThat(terms, notNullValue());
-                assertThat(terms.getName(), equalTo("terms"));
-                assertThat(terms.getBuckets().size(), equalTo(1));
-            });
+            assertNoFailuresAndResponse(
+                prepareSearch("idx").setSource(new SearchSourceBuilder().parseXContent(parser, true, nf -> false)),
+                response -> {
+                    LongTerms terms = response.getAggregations().get("terms");
+                    assertThat(terms, notNullValue());
+                    assertThat(terms.getName(), equalTo("terms"));
+                    assertThat(terms.getBuckets().size(), equalTo(1));
+                }
+            );
         }
 
         String invalidValueType = source.replaceAll("\"value_type\":\"n.*\"", "\"value_type\":\"foobar\"");
@@ -1278,10 +1291,140 @@ public class StringTermsIT extends AbstractTermsTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidValueType)) {
             XContentParseException ex = expectThrows(
                 XContentParseException.class,
-                () -> prepareSearch("idx").setSource(new SearchSourceBuilder().parseXContent(parser, true)).get()
+                () -> prepareSearch("idx").setSource(new SearchSourceBuilder().parseXContent(parser, true, nf -> false)).get()
             );
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(ex.getCause().getMessage(), containsString("Unknown value type [foobar]"));
         }
+    }
+
+    public void testOrderByKey() throws Exception {
+        Map<String, long[]> data = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            assertAcked(
+                indicesAdmin().prepareCreate("idx" + i).setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword", "filter", "type=boolean")
+            );
+            List<IndexRequestBuilder> builders = new ArrayList<>();
+            for (int j = 0; j < 100; j++) {
+                String val = "val" + random().nextInt(1000);
+                boolean filter = randomBoolean();
+                long[] counter = data.computeIfAbsent(val, s -> new long[] { 0 });
+                if (filter == false) {
+                    counter[0]++;
+                }
+                builders.add(
+                    prepareIndex("idx" + i).setSource(
+                        jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, val).field("filter", filter).endObject()
+                    )
+                );
+            }
+            indexRandom(true, builders);
+        }
+        List<String> allKeys = new ArrayList<>(data.keySet());
+        List<String> keysMinDocCount1 = allKeys.stream().filter(key -> data.get(key)[0] > 0).collect(Collectors.toList());
+        List<String> keysMinDocCount2 = allKeys.stream().filter(key -> data.get(key)[0] > 1).collect(Collectors.toList());
+        // test for different batch sizes to exercise partial reduces
+        for (int batchReduceSize = 2; batchReduceSize < 6; batchReduceSize++) {
+            // with min_doc_count = 0
+            allKeys.sort(String::compareTo);
+            assertOrderByKeyResponse(allKeys, data, true, 0, batchReduceSize);
+            Collections.reverse(allKeys);
+            assertOrderByKeyResponse(allKeys, data, false, 0, batchReduceSize);
+            // with min_doc_count = 1
+            keysMinDocCount1.sort(String::compareTo);
+            assertOrderByKeyResponse(keysMinDocCount1, data, true, 1, batchReduceSize);
+            Collections.reverse(keysMinDocCount1);
+            assertOrderByKeyResponse(keysMinDocCount1, data, false, 1, batchReduceSize);
+            // with min_doc_count = 2
+            keysMinDocCount2.sort(String::compareTo);
+            assertOrderByKeyResponse(keysMinDocCount2, data, true, 2, batchReduceSize);
+            Collections.reverse(keysMinDocCount2);
+            assertOrderByKeyResponse(keysMinDocCount2, data, false, 2, batchReduceSize);
+        }
+        for (int i = 0; i < 5; i++) {
+            assertAcked(indicesAdmin().prepareDelete("idx" + i));
+        }
+    }
+
+    private void assertOrderByKeyResponse(
+        List<String> keys,
+        Map<String, long[]> counts,
+        boolean asc,
+        int minDocCount,
+        int batchReduceSize
+    ) {
+        int size = randomIntBetween(1, keys.size());
+        long sumOtherCount = 0;
+        for (int i = size; i < keys.size(); i++) {
+            sumOtherCount += counts.get(keys.get(i))[0];
+        }
+        final long finalSumOtherCount = sumOtherCount;
+        assertNoFailuresAndResponse(
+            prepareSearch("idx0", "idx1", "idx2", "idx3", "idx4").setBatchedReduceSize(batchReduceSize)
+                .setQuery(QueryBuilders.termQuery("filter", false))
+                .addAggregation(
+                    new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                        .size(size)
+                        .shardSize(500)
+                        .minDocCount(minDocCount)
+                        .order(BucketOrder.key(asc))
+                ),
+            response -> {
+                StringTerms terms = response.getAggregations().get("terms");
+                assertThat(terms, notNullValue());
+                assertThat(terms.getName(), equalTo("terms"));
+                assertThat(terms.getBuckets().size(), equalTo(size));
+                assertThat(terms.getSumOfOtherDocCounts(), equalTo(finalSumOtherCount));
+
+                for (int i = 0; i < size; i++) {
+                    StringTerms.Bucket bucket = terms.getBuckets().get(i);
+                    assertThat(bucket, notNullValue());
+                    assertThat(bucket.getKeyAsString(), equalTo(keys.get(i)));
+                    assertThat(bucket.getDocCount(), equalTo(counts.get(keys.get(i))[0]));
+                }
+            }
+        );
+    }
+
+    public void testGlobalAggregationWithScore() throws Exception {
+        assertAcked(prepareCreate("global").setMapping("keyword", "type=keyword"));
+        indexRandom(
+            true,
+            prepareIndex("global").setSource("keyword", "a"),
+            prepareIndex("global").setSource("keyword", "c"),
+            prepareIndex("global").setSource("keyword", "e")
+        );
+        String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+        Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
+        GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global").subAggregation(
+            new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
+                .executionHint(executionHint)
+                .collectMode(collectionMode)
+                .field("keyword")
+                .order(BucketOrder.key(true))
+                .subAggregation(
+                    new TermsAggregationBuilder("sub_terms").userValueTypeHint(ValueType.STRING)
+                        .executionHint(executionHint)
+                        .collectMode(collectionMode)
+                        .field("keyword")
+                        .order(BucketOrder.key(true))
+                        .subAggregation(new TopHitsAggregationBuilder("top_hits").storedField("_none_"))
+                )
+        );
+        assertNoFailuresAndResponse(prepareSearch("global").addAggregation(globalBuilder), response -> {
+            InternalGlobal result = response.getAggregations().get("global");
+            InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
+            assertThat(terms.getBuckets().size(), equalTo(3));
+            for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
+                InternalMultiBucketAggregation<?, ?> subTerms = bucket.getAggregations().get("sub_terms");
+                assertThat(subTerms.getBuckets().size(), equalTo(1));
+                MultiBucketsAggregation.Bucket subBucket = subTerms.getBuckets().get(0);
+                InternalTopHits topHits = subBucket.getAggregations().get("top_hits");
+                assertThat(topHits.getHits().getHits().length, equalTo(1));
+                for (SearchHit hit : topHits.getHits()) {
+                    assertThat(hit.getScore(), greaterThan(0f));
+                }
+            }
+        });
     }
 }

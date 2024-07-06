@@ -8,15 +8,22 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
 public class Clusters {
+
     public static ElasticsearchCluster testCluster() {
+        return testCluster(config -> {});
+    }
+
+    public static ElasticsearchCluster testCluster(LocalClusterConfigProvider configProvider) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .shared(true)
+            .apply(() -> configProvider)
             .build();
     }
 }

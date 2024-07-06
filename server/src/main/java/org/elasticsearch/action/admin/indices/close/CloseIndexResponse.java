@@ -216,7 +216,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         public static class Failure extends DefaultShardOperationFailedException {
 
-            private @Nullable String nodeId;
+            private final @Nullable String nodeId;
 
             private Failure(StreamInput in) throws IOException {
                 super(in);

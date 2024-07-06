@@ -55,7 +55,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         String modelId = randomAlphaOfLength(10);
         Request request = new Request(modelId, deploymemtIdSameAsModelId ? modelId : randomAlphaOfLength(10));
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), Request.TIMEOUT.getPreferredName()));
+            request.setTimeout(randomPositiveTimeValue());
         }
         if (randomBoolean()) {
             request.setWaitForState(randomFrom(AllocationStatus.State.values()));

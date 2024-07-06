@@ -72,7 +72,7 @@ public class OptionalMatchers {
         }
     }
 
-    public static <T> Matcher<Optional<? extends T>> isPresent() {
+    public static Matcher<Optional<?>> isPresent() {
         return new IsPresentMatcher<>(anything());
     }
 

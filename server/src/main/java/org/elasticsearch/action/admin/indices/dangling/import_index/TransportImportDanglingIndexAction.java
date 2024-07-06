@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  * to perform the actual allocation.
  */
 public class TransportImportDanglingIndexAction extends HandledTransportAction<ImportDanglingIndexRequest, AcknowledgedResponse> {
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("cluster:admin/indices/dangling/import");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/import");
     private static final Logger logger = LogManager.getLogger(TransportImportDanglingIndexAction.class);
 
     private final LocalAllocateDangledIndices danglingIndexAllocator;

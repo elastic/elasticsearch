@@ -1404,6 +1404,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         for (QueryBuilder query : queries) {
             assertScrollResponsesAndHitCount(
+                client(),
                 TimeValue.timeValueSeconds(60),
                 prepareSearch("test").setScroll(TimeValue.timeValueSeconds(30)).setSize(1).addStoredField("_id").setQuery(query),
                 10,

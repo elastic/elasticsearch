@@ -11,7 +11,6 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,32 +34,12 @@ public class SimulateBulkRequestTests extends ESTestCase {
         assertThat(copy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
     }
 
-    private Map<String, Map<String, Object>> getTestPipelineSubstitutions() {
-        return new HashMap<>() {
-            {
-                put("pipeline1", new HashMap<>() {
-                    {
-                        put("processors", List.of(new HashMap<>() {
-                            {
-                                put("processor2", new HashMap<>());
-                            }
-                        }, new HashMap<>() {
-                            {
-                                put("processor3", new HashMap<>());
-                            }
-                        }));
-                    }
-                });
-                put("pipeline2", new HashMap<>() {
-                    {
-                        put("processors", List.of(new HashMap<>() {
-                            {
-                                put("processor3", new HashMap<>());
-                            }
-                        }));
-                    }
-                });
-            }
-        };
+    private static Map<String, Map<String, Object>> getTestPipelineSubstitutions() {
+        return Map.of(
+            "pipeline1",
+            Map.of("processors", List.of(Map.of("processor2", Map.of()), Map.of("processor3", Map.of()))),
+            "pipeline2",
+            Map.of("processors", List.of(Map.of("processor3", Map.of())))
+        );
     }
 }

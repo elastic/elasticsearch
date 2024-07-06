@@ -187,7 +187,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      */
     enum OpType {
         /**
-         * Index the source. If there an existing document with the id, it will
+         * Index the source. If there is an existing document with the id, it will
          * be replaced.
          */
         INDEX(0),

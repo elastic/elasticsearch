@@ -57,7 +57,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             this.maxConcurrentShardRequests = in.readVInt();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PIT_WITH_INDEX_FILTER)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
     }
@@ -73,7 +73,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeVInt(maxConcurrentShardRequests);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PIT_WITH_INDEX_FILTER)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(indexFilter);
         }
     }

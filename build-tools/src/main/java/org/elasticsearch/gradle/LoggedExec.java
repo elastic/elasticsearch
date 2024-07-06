@@ -65,6 +65,9 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     @Optional
     abstract public MapProperty<String, String> getEnvironment();
 
+    @Internal
+    abstract public MapProperty<String, String> getNonTrackedEnvironment();
+
     @Input
     abstract public Property<String> getExecutable();
 
@@ -118,7 +121,9 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                 try {
                     // the file may not exist if the command never output anything
                     if (Files.exists(spoolFile.toPath())) {
-                        Files.lines(spoolFile.toPath()).forEach(logger::error);
+                        try (var lines = Files.lines(spoolFile.toPath())) {
+                            lines.forEach(logger::error);
+                        }
                     }
                 } catch (IOException e) {
                     throw new RuntimeException("could not log", e);
@@ -137,7 +142,8 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
             execSpec.setStandardOutput(finalOutputStream);
             execSpec.setErrorOutput(finalOutputStream);
             execSpec.setExecutable(getExecutable().get());
-            execSpec.setEnvironment(getEnvironment().get());
+            execSpec.environment(getEnvironment().get());
+            execSpec.environment(getNonTrackedEnvironment().get());
             if (getArgs().isPresent()) {
                 execSpec.setArgs(getArgs().get());
             }

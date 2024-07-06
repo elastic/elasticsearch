@@ -289,7 +289,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
                 if (mlConfigVersion.after(maxMlConfigVersion)) {
                     maxMlConfigVersion = mlConfigVersion;
                 }
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalStateException e) {
                 // This means we encountered a node that is after 8.10.0 but has the ML plugin disabled - ignore it
             }
         }

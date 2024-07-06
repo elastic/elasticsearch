@@ -8,8 +8,14 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
-import java.util.Arrays;
+import java.io.IOException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Vector implementation that stores an array of boolean values.
@@ -19,13 +25,42 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
-        + RamUsageEstimator.shallowSizeOfInstance(BooleanVectorBlock.class);
+        + RamUsageEstimator.shallowSizeOfInstance(BooleanVectorBlock.class)
+        // TODO: remove this if/when we account for memory used by Pages
+        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
 
     private final boolean[] values;
 
     BooleanArrayVector(boolean[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+    }
+
+    static BooleanArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        final long preAdjustedBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) positions * Byte.BYTES;
+        blockFactory.adjustBreaker(preAdjustedBytes);
+        boolean success = false;
+        try {
+            boolean[] values = new boolean[positions];
+            for (int i = 0; i < positions; i++) {
+                values[i] = in.readBoolean();
+            }
+            final var block = new BooleanArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - preAdjustedBytes);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                blockFactory.adjustBreaker(-preAdjustedBytes);
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        // TODO: One bit for each boolean
+        for (int i = 0; i < positions; i++) {
+            out.writeBoolean(values[i]);
+        }
     }
 
     @Override
@@ -58,6 +93,11 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
         }
     }
 
+    @Override
+    public ReleasableIterator<BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BooleanLookup(asBlock(), positions, targetBlockSize);
+    }
+
     public static long ramBytesEstimated(boolean[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
@@ -82,7 +122,11 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        String valuesString = IntStream.range(0, getPositionCount())
+            .limit(10)
+            .mapToObj(n -> String.valueOf(values[n]))
+            .collect(Collectors.joining(", ", "[", getPositionCount() > 10 ? ", ...]" : "]"));
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';
     }
 
 }

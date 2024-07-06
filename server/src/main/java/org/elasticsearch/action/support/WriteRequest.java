@@ -92,8 +92,10 @@ public interface WriteRequest<R extends WriteRequest<R>> extends Writeable {
             throw new IllegalArgumentException("Unknown value for refresh: [" + value + "].");
         }
 
+        private static final RefreshPolicy[] values = values();
+
         public static RefreshPolicy readFrom(StreamInput in) throws IOException {
-            return RefreshPolicy.values()[in.readByte()];
+            return values[in.readByte()];
         }
 
         @Override

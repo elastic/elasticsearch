@@ -13,6 +13,7 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
 import java.util.Map;
+import java.util.Set;
 
 public class MetadataFeatures implements FeatureSpecification {
     @Override
@@ -23,5 +24,10 @@ public class MetadataFeatures implements FeatureSpecification {
             DesiredNode.DOUBLE_PROCESSORS_SUPPORTED,
             Version.V_8_5_0
         );
+    }
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED);
     }
 }

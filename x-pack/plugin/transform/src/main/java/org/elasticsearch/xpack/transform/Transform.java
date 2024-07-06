@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformNodeStatsAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
@@ -73,6 +75,7 @@ import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
+import org.elasticsearch.xpack.transform.action.TransportGetTransformNodeStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportPreviewTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportPutTransformAction;
@@ -92,6 +95,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.rest.action.RestCatTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestDeleteTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformAction;
+import org.elasticsearch.xpack.transform.rest.action.RestGetTransformNodeStatsAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.rest.action.RestPreviewTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestPutTransformAction;
@@ -111,6 +115,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -173,7 +178,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         final IndexScopedSettings indexScopedSettings,
         final SettingsFilter settingsFilter,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final Supplier<DiscoveryNodes> nodesInCluster
+        final Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
 
         return Arrays.asList(
@@ -188,7 +194,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestCatTransformAction(),
             new RestUpgradeTransformsAction(),
             new RestResetTransformAction(),
-            new RestScheduleNowTransformAction()
+            new RestScheduleNowTransformAction(),
+            new RestGetTransformNodeStatsAction()
         );
     }
 
@@ -208,6 +215,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
             new ActionHandler<>(ResetTransformAction.INSTANCE, TransportResetTransformAction.class),
             new ActionHandler<>(ScheduleNowTransformAction.INSTANCE, TransportScheduleNowTransformAction.class),
+            new ActionHandler<>(GetTransformNodeStatsAction.INSTANCE, TransportGetTransformNodeStatsAction.class),
 
             // internal, no rest endpoint
             new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
@@ -252,14 +260,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             getTransformExtension().getMinFrequency()
         );
         scheduler.start();
+        var clusterStateListener = new TransformClusterStateListener(clusterService, client);
+        var transformNode = new TransformNode(clusterStateListener);
 
-        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
+        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode));
 
-        return List.of(
-            transformServices.get(),
-            new TransformClusterStateListener(clusterService, client),
-            new TransformExtensionHolder(getTransformExtension())
-        );
+        return List.of(transformServices.get(), clusterStateListener, new TransformExtensionHolder(getTransformExtension()));
     }
 
     @Override
@@ -280,7 +286,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 threadPool,
                 clusterService,
                 settingsModule.getSettings(),
-                getTransformExtension().getTransformInternalIndexAdditionalSettings(),
+                getTransformExtension(),
                 expressionResolver
             )
         );
@@ -320,7 +326,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public void close() {
         if (transformServices.get() != null) {
-            transformServices.get().getScheduler().stop();
+            transformServices.get().scheduler().stop();
         }
     }
 
@@ -404,7 +410,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
         }, unsetResetModeListener::onFailure);
 
-        ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
+        ActionListener<StopTransformAction.Response> afterForceStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
             if (stopTransformsResponse.isAcknowledged()
                 && stopTransformsResponse.getTaskFailures().isEmpty()
                 && stopTransformsResponse.getNodeFailures().isEmpty()) {
@@ -439,12 +445,31 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             }
         }, unsetResetModeListener::onFailure);
 
+        ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(
+            afterForceStoppingTransforms::onResponse,
+            e -> {
+                logger.info("Error while trying to stop the transforms, will try again with force=true", e);
+                StopTransformAction.Request forceStopTransformsRequest = new StopTransformAction.Request(
+                    Metadata.ALL,
+                    true,
+                    // Set force=true to make sure all the transforms persistent tasks are stopped.
+                    true,
+                    null,
+                    true,
+                    false
+                );
+                client.execute(StopTransformAction.INSTANCE, forceStopTransformsRequest, afterForceStoppingTransforms);
+            }
+        );
+
         ActionListener<AcknowledgedResponse> afterResetModeSet = ActionListener.wrap(response -> {
             StopTransformAction.Request stopTransformsRequest = new StopTransformAction.Request(
                 Metadata.ALL,
                 true,
-                true,
-                null,
+                // Set force=false in order to let transforms finish gracefully.
+                false,
+                // Do not give it too much time. If there is a problem, there will be another try with force=true.
+                TimeValue.timeValueSeconds(10),
                 true,
                 false
             );

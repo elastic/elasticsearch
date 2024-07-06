@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.is;
  *     <li>Run against the current version cluster from the second step: {@link TestStep#STEP4_NEW_CLUSTER}</li>
  * </ul>
  */
-@SuppressWarnings("removal")
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {
@@ -263,7 +262,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         Request repoReq = new Request("PUT", "/_snapshot/" + repoName);
         repoReq.setJsonEntity(
             Strings.toString(
-                new PutRepositoryRequest().type("fs")
+                new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).type("fs")
                     .verify(verify)
                     .settings(Settings.builder().put("location", repoName).put("readonly", readOnly).build())
             )

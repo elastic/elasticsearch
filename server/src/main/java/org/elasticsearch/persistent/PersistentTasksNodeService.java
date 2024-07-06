@@ -265,6 +265,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             taskInProgress.getAllocationId(),
             originalException,
             null,
+            null,
             new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTask<?> persistentTask) {
@@ -300,7 +301,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         if (task.markAsCancelled()) {
             // Cancel the local task using the task manager
             String reason = "task has been removed, cancelling locally";
-            persistentTasksService.sendCancelRequest(task.getId(), reason, new ActionListener<>() {
+            persistentTasksService.sendCancelRequest(task.getId(), reason, null, new ActionListener<>() {
                 @Override
                 public void onResponse(ListTasksResponse cancelTasksResponse) {
                     logger.trace(

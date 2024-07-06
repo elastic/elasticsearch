@@ -22,6 +22,9 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
@@ -287,4 +290,40 @@ public class Tile2DVisitorTests extends ESTestCase {
         reader.visit(tile2DVisitor);
         assertThat(tile2DVisitor.relation(), in(expectedRelation));
     }
+
+    private static class TestCoordinateEncoder extends CoordinateEncoder {
+
+        private static final TestCoordinateEncoder INSTANCE = new TestCoordinateEncoder();
+
+        @Override
+        public int encodeX(double x) {
+            return (int) x;
+        }
+
+        @Override
+        public int encodeY(double y) {
+            return (int) y;
+        }
+
+        @Override
+        public double decodeX(int x) {
+            return x;
+        }
+
+        @Override
+        public double decodeY(int y) {
+            return y;
+        }
+
+        @Override
+        public double normalizeX(double x) {
+            return x;
+        }
+
+        @Override
+        public double normalizeY(double y) {
+            return y;
+        }
+    }
+
 }

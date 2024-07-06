@@ -28,7 +28,7 @@ public class StartRollupJobAction extends ActionType<StartRollupJobAction.Respon
     public static final String NAME = "cluster:admin/xpack/rollup/start";
 
     private StartRollupJobAction() {
-        super(NAME, StartRollupJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {

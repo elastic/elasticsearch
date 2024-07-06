@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.delete;
 
+import org.elasticsearch.action.bulk.BulkItemResponseTests;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,6 +27,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.action.index.IndexResponseTests.assertDocWriteResponse;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class DeleteResponseTests extends ESTestCase {
@@ -48,7 +50,7 @@ public class DeleteResponseTests extends ESTestCase {
         {
             DeleteResponse response = new DeleteResponse(new ShardId("index", "index_uuid", 0), "id", -1, 0, 7, true);
             response.setForcedRefresh(true);
-            response.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
+            response.setShardInfo(ReplicationResponse.ShardInfo.of(10, 5));
             String output = Strings.toString(response);
             assertEquals(XContentHelper.stripWhitespace("""
                 {
@@ -102,7 +104,7 @@ public class DeleteResponseTests extends ESTestCase {
         }
         DeleteResponse parsedDeleteResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedDeleteResponse = DeleteResponse.fromXContent(parser);
+            parsedDeleteResponse = parseInstance(parser);
             assertNull(parser.nextToken());
         }
 
@@ -110,6 +112,16 @@ public class DeleteResponseTests extends ESTestCase {
         // because the random delete response can contain shard failures with exceptions,
         // and those exceptions are not parsed back with the same types.
         assertDocWriteResponse(expectedDeleteResponse, parsedDeleteResponse);
+    }
+
+    private static DeleteResponse parseInstance(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+
+        DeleteResponse.Builder context = new DeleteResponse.Builder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            BulkItemResponseTests.parseInnerToXContent(parser, context);
+        }
+        return context.build();
     }
 
     /**

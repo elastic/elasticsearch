@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequest, MultiGetResponse> {
 
     public static final String NAME = "indices:data/read/mget";
-    public static final ActionType<MultiGetResponse> TYPE = new ActionType<>(NAME, MultiGetResponse::new);
+    public static final ActionType<MultiGetResponse> TYPE = new ActionType<>(NAME);
     private final ClusterService clusterService;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;

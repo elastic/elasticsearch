@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -34,10 +33,6 @@ public final class QueryUserResponse extends ActionResponse implements ToXConten
         this.total = total;
         Objects.requireNonNull(items, "items must be provided");
         this.items = items.toArray(new Item[0]);
-    }
-
-    public static QueryUserResponse emptyResponse() {
-        return new QueryUserResponse(0, Collections.emptyList());
     }
 
     public long getTotal() {
@@ -68,7 +63,7 @@ public final class QueryUserResponse extends ActionResponse implements ToXConten
         TransportAction.localOnly();
     }
 
-    public record Item(User user, @Nullable Object[] sortValues) implements ToXContentObject {
+    public record Item(User user, @Nullable Object[] sortValues, @Nullable String profileUid) implements ToXContentObject {
 
         @Override
         public Object[] sortValues() {
@@ -81,6 +76,9 @@ public final class QueryUserResponse extends ActionResponse implements ToXConten
             user.innerToXContent(builder);
             if (sortValues != null && sortValues.length > 0) {
                 builder.array("_sort", sortValues);
+            }
+            if (profileUid != null) {
+                builder.field("profile_uid", profileUid);
             }
             builder.endObject();
             return builder;

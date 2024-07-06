@@ -47,7 +47,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -107,7 +106,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField PLATFORM_ARCHITECTURE = new ParseField("platform_architecture");
 
     public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersions.V_8_0_0;
-    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_500_064;
+    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_11_X;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -236,7 +235,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.description = description;
         this.tags = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(tags, TAGS));
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
-        this.input = ExceptionsHelper.requireNonNull(handleDefaultInput(input, modelType), INPUT);
+        this.input = ExceptionsHelper.requireNonNull(handleDefaultInput(input, inferenceConfig, modelType), INPUT);
         if (ExceptionsHelper.requireNonNull(modelSize, MODEL_SIZE_BYTES) < 0) {
             throw new IllegalArgumentException("[" + MODEL_SIZE_BYTES.getPreferredName() + "] must be greater than or equal to 0");
         }
@@ -256,11 +255,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.prefixStrings = prefixStrings;
     }
 
-    private static TrainedModelInput handleDefaultInput(TrainedModelInput input, TrainedModelType modelType) {
-        if (modelType == null) {
-            return input;
-        }
-        return input == null ? modelType.getDefaultInput() : input;
+    private static TrainedModelInput handleDefaultInput(
+        TrainedModelInput input,
+        InferenceConfig inferenceConfig,
+        TrainedModelType modelType
+    ) {
+        return input == null && inferenceConfig != null ? inferenceConfig.getDefaultInput(modelType) : input;
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {
@@ -293,12 +293,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             modelPackageConfig = null;
             fullDefinition = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             platformArchitecture = in.readOptionalString();
         } else {
             platformArchitecture = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
         }
     }
@@ -482,11 +482,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeOptionalBoolean(fullDefinition);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeOptionalString(platformArchitecture);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(prefixStrings);
         }
     }
@@ -636,8 +636,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private InferenceConfig inferenceConfig;
         private TrainedModelLocation location;
         private ModelPackageConfig modelPackageConfig;
-        private Long perDeploymentMemoryBytes;
-        private Long perAllocationMemoryBytes;
         private String platformArchitecture;
         private TrainedModelPrefixStrings prefixStrings;
 
@@ -965,20 +963,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     break;
                 }
             }
-            if (input != null && input.getFieldNames().isEmpty()) {
-                validationException = addValidationError("[input.field_names] must not be empty", validationException);
+
+            // Delegate input validation to the inference config.
+            if (inferenceConfig != null) {
+                validationException = inferenceConfig.validateTrainedModelInput(input, forCreation, validationException);
             }
-            if (input != null
-                && input.getFieldNames()
-                    .stream()
-                    .filter(s -> s.contains("."))
-                    .flatMap(s -> Arrays.stream(Strings.delimitedListToStringArray(s, ".")))
-                    .anyMatch(String::isEmpty)) {
-                validationException = addValidationError(
-                    "[input.field_names] must only contain valid dot delimited field names",
-                    validationException
-                );
-            }
+
             if (forCreation) {
                 validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);
                 validationException = checkIllegalSetting(createdBy, CREATED_BY.getPreferredName(), validationException);

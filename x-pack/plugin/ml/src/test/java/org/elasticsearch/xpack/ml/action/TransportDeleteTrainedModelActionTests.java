@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -58,7 +58,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
         var client = mockClientWithTasksResponse(Collections.emptyList(), threadPool);
         var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         assertThat(listener.actionGet(TIMEOUT), nullValue());
     }
@@ -73,15 +73,15 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
             listener.onFailure(new Exception("cancel error"));
 
             return Void.TYPE;
-        }).when(client).execute(same(CancelTasksAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportCancelTasksAction.TYPE), any(), any());
 
         var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(exception.getMessage(), is("Unable to cancel task for model id [modelId]"));
+        assertThat(exception.getMessage(), is("Unable to cancel task for model id [inferenceEntityId]"));
     }
 
     public void testCancelDownloadTaskCallsOnResponseNullWhenTheTaskNoLongerExistsWhenCancelling() {
@@ -94,11 +94,11 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
             listener.onFailure(new ResourceNotFoundException("task no longer there"));
 
             return Void.TYPE;
-        }).when(client).execute(same(CancelTasksAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportCancelTasksAction.TYPE), any(), any());
 
         var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         assertThat(listener.actionGet(TIMEOUT), nullValue());
     }
@@ -116,11 +116,11 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
         var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(exception.getMessage(), is("Unable to retrieve existing task information for model id [modelId]"));
+        assertThat(exception.getMessage(), is("Unable to retrieve existing task information for model id [inferenceEntityId]"));
     }
 
     public void testCancelDownloadTaskCallsOnResponseWithTheCancelResponseWhenATaskExists() {
@@ -131,7 +131,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
         var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         assertThat(listener.actionGet(TIMEOUT), is(cancelResponse));
     }
@@ -150,6 +150,6 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
             listener.onResponse(response);
 
             return Void.TYPE;
-        }).when(client).execute(same(CancelTasksAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportCancelTasksAction.TYPE), any(), any());
     }
 }

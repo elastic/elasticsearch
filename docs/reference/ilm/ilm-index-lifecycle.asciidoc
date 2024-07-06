@@ -43,6 +43,12 @@ a "cold" phase with a minimum age either unset, or >= 10 days.
 The minimum age defaults to zero, which causes {ilm-init} to move indices to the next phase
 as soon as all actions in the current phase complete.
 
+[NOTE]
+====
+If an index has been <<ilm-rollover,rolled over>>, then the `min_age` value is relative to the time 
+the index was rolled over, not the index creation time. <<min-age-calculation,Learn more>>.
+====
+
 If an index has unallocated shards and the <<cluster-health,cluster health status>> is yellow,
 the index can still transition to the next phase according to its {ilm} policy.
 However, because {es} can only perform certain clean up tasks on a green

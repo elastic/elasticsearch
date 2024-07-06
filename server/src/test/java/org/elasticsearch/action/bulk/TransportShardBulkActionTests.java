@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -119,8 +120,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             null,
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
-            listener -> {},
-            ASSERTING_DONE_LISTENER
+            (listener, mappingVersion) -> {},
+            ASSERTING_DONE_LISTENER,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -150,8 +152,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             null,
             threadPool::absoluteTimeInMillis,
             new ThrowingMappingUpdatePerformer(new RuntimeException("fail")),
-            listener -> {},
-            ASSERTING_DONE_LISTENER
+            (listener, mappingVersion) -> {},
+            ASSERTING_DONE_LISTENER,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -206,7 +209,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             null,
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
-            listener -> {},
+            (listener, mappingVersion) -> {},
             ActionListener.runAfter(ActionTestUtils.assertNoFailureListener(result -> {
                 // since at least 1 item passed, the tran log location should exist,
                 assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, notNullValue());
@@ -238,8 +241,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     throw new AssertionError(e);
                 }
             }), latch::countDown),
-            threadPool,
-            Names.WRITE
+            threadPool.executor(Names.WRITE)
         );
 
         latch.await();
@@ -266,6 +268,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
         MapperService mapperService = mock(MapperService.class);
         when(shard.mapperService()).thenReturn(mapperService);
+        addMockCloseImplementation(shard);
 
         // merged mapping source needs to be different from previous one for the master node to be invoked
         DocumentMapper mergedDoc = mock(DocumentMapper.class);
@@ -282,7 +285,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             assertNotNull(update);
             updateCalled.incrementAndGet();
             listener.onResponse(null);
-        }, listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
+        }, (listener, mappingVersion) -> listener.onResponse(null), ASSERTING_DONE_LISTENER, DocumentParsingProvider.EMPTY_INSTANCE);
         assertTrue(context.isInitial());
         assertTrue(context.hasMoreOperationsToExecute());
         assertThat(context.getUpdateRetryCounter(), equalTo(0));
@@ -301,8 +304,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             null,
             threadPool::absoluteTimeInMillis,
             (update, shardId, listener) -> fail("should not have had to update the mappings"),
-            listener -> {},
-            ASSERTING_DONE_LISTENER
+            (listener, mappingVersion) -> {},
+            ASSERTING_DONE_LISTENER,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
 
         // Verify that the shard "executed" the operation only once (1 for previous invocations plus
@@ -341,7 +345,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             null,
             threadPool::absoluteTimeInMillis,
             errorOnWait == false ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
-            errorOnWait ? listener -> listener.onFailure(err) : listener -> listener.onResponse(null),
+            errorOnWait ? (listener, mappingVersion) -> listener.onFailure(err) : (listener, mappingVersion) -> listener.onResponse(null),
             new LatchedActionListener<>(new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void aVoid) {}
@@ -350,7 +354,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 public void onFailure(final Exception e) {
                     assertEquals(err, e);
                 }
-            }, latch)
+            }, latch),
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         latch.await();
         assertFalse(context.hasMoreOperationsToExecute());
@@ -393,8 +398,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             null,
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
-            listener -> {},
-            ASSERTING_DONE_LISTENER
+            (listener, mappingVersion) -> {},
+            ASSERTING_DONE_LISTENER,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -440,8 +446,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             null,
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
-            listener -> {},
-            ASSERTING_DONE_LISTENER
+            (listener, mappingVersion) -> {},
+            ASSERTING_DONE_LISTENER,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -503,8 +510,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             updateHelper,
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
-            listener -> {},
-            ASSERTING_DONE_LISTENER
+            (listener, mappingVersion) -> {},
+            ASSERTING_DONE_LISTENER,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
 
         assertFalse(context.hasMoreOperationsToExecute());
@@ -558,8 +566,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             updateHelper,
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
-            listener -> {},
-            ASSERTING_DONE_LISTENER
+            (listener, mappingVersion) -> {},
+            ASSERTING_DONE_LISTENER,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -586,7 +595,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             .retryOnConflict(retries);
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        IndexRequest updateResponse = new IndexRequest("index").id("id")
+            .source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+            .noParsedBytesToReport();// let's pretend this was modified by a script
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
 
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
         Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0, "id");
@@ -619,8 +631,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 updateHelper,
                 threadPool::absoluteTimeInMillis,
                 new NoopMappingUpdatePerformer(),
-                listener -> listener.onResponse(null),
-                ASSERTING_DONE_LISTENER
+                (listener, mappingVersion) -> listener.onResponse(null),
+                ASSERTING_DONE_LISTENER,
+                documentParsingProvider
             );
         }
         assertFalse(context.hasMoreOperationsToExecute());
@@ -637,6 +650,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getId(), equalTo("id"));
         assertThat(failure.getCause(), equalTo(err));
         assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
+
+        // we have set noParsedBytesToReport on the IndexRequest, like it happens with updates by script.
+        verify(documentParsingProvider, times(0)).newDocumentSizeObserver();
+        verify(documentParsingProvider, times(0)).newFixedSizeDocumentObserver(any(Integer.class));
     }
 
     public void testUpdateRequestWithSuccess() throws Exception {
@@ -644,7 +661,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        IndexRequest updateResponse = new IndexRequest("index").id("id")
+            .source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+            .setNormalisedBytesParsed(100L);
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
 
         boolean created = randomBoolean();
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
@@ -677,8 +697,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             updateHelper,
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
-            listener -> {},
-            ASSERTING_DONE_LISTENER
+            (listener, mappingVersion) -> {},
+            ASSERTING_DONE_LISTENER,
+            documentParsingProvider
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -694,6 +715,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteResponse response = primaryResponse.getResponse();
         assertThat(response.status(), equalTo(created ? RestStatus.CREATED : RestStatus.OK));
         assertThat(response.getSeqNo(), equalTo(13L));
+        verify(documentParsingProvider, times(0)).newDocumentSizeObserver();
+        verify(documentParsingProvider, times(1)).newFixedSizeDocumentObserver(eq(100L));
     }
 
     public void testUpdateWithDelete() throws Exception {
@@ -733,8 +756,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             updateHelper,
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
-            listener -> listener.onResponse(null),
-            ASSERTING_DONE_LISTENER
+            (listener, mappingVersion) -> listener.onResponse(null),
+            ASSERTING_DONE_LISTENER,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -770,8 +794,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             updateHelper,
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
-            listener -> {},
-            ASSERTING_DONE_LISTENER
+            (listener, mappingVersion) -> {},
+            ASSERTING_DONE_LISTENER,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -809,8 +834,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     null,
                     threadPool::absoluteTimeInMillis,
                     new NoopMappingUpdatePerformer(),
-                    listener -> {},
-                    ASSERTING_DONE_LISTENER
+                    (listener, mappingVersion) -> {},
+                    ASSERTING_DONE_LISTENER,
+                    DocumentParsingProvider.EMPTY_INSTANCE
                 );
             }
 
@@ -911,7 +937,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             updateHelper,
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
-            listener -> listener.onResponse(null),
+            (listener, mappingVersion) -> listener.onResponse(null),
             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
                 assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation));
                 BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
@@ -922,8 +948,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 assertThat(response.status(), equalTo(RestStatus.CREATED));
                 assertThat(response.getSeqNo(), equalTo(13L));
             }), latch),
-            threadPool,
-            Names.WRITE
+            threadPool.executor(Names.WRITE)
         );
         latch.await();
     }
@@ -979,6 +1004,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             when(shard.getFailedIndexResult(any(EsRejectedExecutionException.class), anyLong(), anyString())).thenCallRealMethod();
             MapperService mapperService = mock(MapperService.class);
             when(shard.mapperService()).thenReturn(mapperService);
+            addMockCloseImplementation(shard);
 
             // merged mapping source needs to be different from previous one for the master node to be invoked
             DocumentMapper mergedDoc = mock(DocumentMapper.class);
@@ -1008,12 +1034,11 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                         throw new IllegalStateException(e);
                     }
                 },
-                listener -> listener.onResponse(null),
+                (listener, mappingVersion) -> listener.onResponse(null),
                 new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result ->
                 // Assert that we still need to fsync the location that was successfully written
                 assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation1))), latch),
-                rejectingThreadPool,
-                Names.WRITE
+                rejectingThreadPool.executor(Names.WRITE)
             );
             latch.await();
 
@@ -1071,7 +1096,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     listener.onResponse(null);
                 }
             },
-            listener -> listener.onFailure(new IllegalStateException("no failure expected")),
+            (listener, mappingVersion) -> listener.onFailure(new IllegalStateException("no failure expected")),
             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
                 try {
                     BulkStats bulkStats = shard.bulkStats();
@@ -1084,8 +1109,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     closeShards(shard);
                 }
             }), latch),
-            threadPool,
-            Names.WRITE
+            threadPool.executor(Names.WRITE)
         );
 
         latch.await();
@@ -1132,10 +1156,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 updateHelper,
                 threadPool::absoluteTimeInMillis,
                 (update, shardId, listener) -> fail("the master should not be contacted as the operation yielded a noop mapping update"),
-                listener -> listener.onResponse(null),
+                (listener, mappingVersion) -> listener.onResponse(null),
                 ActionTestUtils.assertNoFailureListener(result -> {}),
-                threadPool,
-                Names.WRITE
+                threadPool.executor(Names.WRITE)
             )
         );
         assertThat(
@@ -1177,7 +1200,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(mapperService.merge(any(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
         // on the second invocation, the mapping version is incremented
         // so that the second mapping update attempt doesn't trigger the infinite loop prevention
-        when(mapperService.mappingVersion()).thenReturn(0L, 1L);
+        when(mapperService.mappingVersion()).thenReturn(0L, 0L, 1L);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
@@ -1200,13 +1223,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             updateHelper,
             threadPool::absoluteTimeInMillis,
             (update, shardId, listener) -> fail("the master should not be contacted as the operation yielded a noop mapping update"),
-            listener -> listener.onFailure(new IllegalStateException("no failure expected")),
+            (listener, mappingVersion) -> listener.onFailure(new IllegalStateException("no failure expected")),
             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
                 BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
                 assertFalse(primaryResponse.isFailed());
             }), latch),
-            threadPool,
-            Names.WRITE
+            threadPool.executor(Names.WRITE)
         );
 
         latch.await();

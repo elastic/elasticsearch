@@ -1,0 +1,8 @@
+maxOfLong
+FROM employees
+| INLINESTATS max_lang = MAX(languages)
+| WHERE max_lang == languages;
+
+l:long
+5
+;

@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -112,6 +114,9 @@ public class EsqlSession {
         return sessionId;
     }
 
+    /**
+     * Execute an ESQL request. See {@link Phased} for the sequence of operations.
+     */
     public void execute(
         EsqlQueryRequest request,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
@@ -130,35 +135,39 @@ public class EsqlSession {
         LogicalPlan analyzedPlan,
         ActionListener<Result> listener
     ) {
-        LogicalPlan nextPhase = Phased.extractNextPhase(analyzedPlan);
-        if (nextPhase == null) {
+        LogicalPlan firstPhase = Phased.extractFirstPhase(analyzedPlan);
+        if (firstPhase == null) {
             runPhase.accept(logicalPlanToPhysicalPlan(analyzedPlan, request), listener);
         } else {
-            executePhased(new ArrayList<>(), analyzedPlan, request, nextPhase, runPhase, listener);
+            executePhased(new ArrayList<>(), analyzedPlan, request, firstPhase, runPhase, listener);
         }
     }
 
     void executePhased(
         List<DriverProfile> profileAccumulator,
-        LogicalPlan entirePlan,
+        LogicalPlan originalPlan,
         EsqlQueryRequest request,
-        LogicalPlan nextPhase,
+        LogicalPlan firstPhase,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
     ) {
-        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(nextPhase, request);
+        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(firstPhase, request);
         runPhase.accept(physicalPlan, listener.delegateFailureAndWrap((next, result) -> {
-            profileAccumulator.addAll(result.profiles());
-            LogicalPlan withPrevPhaseResults = Phased.applyResultsFromNextPhase(entirePlan, physicalPlan.output(), result.pages());
-            LogicalPlan newNextPhase = Phased.extractNextPhase(withPrevPhaseResults);
-            if (newNextPhase == null) {
-                PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(withPrevPhaseResults, request);
-                runPhase.accept(finalPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
-                    profileAccumulator.addAll(finalResult.profiles());
-                    finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator));
-                }));
-            } else {
-                executePhased(profileAccumulator, withPrevPhaseResults, request, newNextPhase, runPhase, next);
+            try {
+                profileAccumulator.addAll(result.profiles());
+                LogicalPlan withPrevPhaseResults = Phased.applyResultsFromFirstPhase(originalPlan, physicalPlan.output(), result.pages());
+                LogicalPlan newNextPhase = Phased.extractFirstPhase(withPrevPhaseResults);
+                if (newNextPhase == null) {
+                    PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(withPrevPhaseResults, request);
+                    runPhase.accept(finalPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
+                        profileAccumulator.addAll(finalResult.profiles());
+                        finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator));
+                    }));
+                } else {
+                    executePhased(profileAccumulator, withPrevPhaseResults, request, newNextPhase, runPhase, next);
+                }
+            } finally {
+                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
             }
         }));
     }

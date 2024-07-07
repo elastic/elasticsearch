@@ -240,6 +240,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         boolean isADMF = t.getDataType() == AGGREGATE_DOUBLE_METRIC;
                         FieldAttribute attribute = new FieldAttribute(source, null, name, t);
                         if (isADMF) {
+                            // TODO: maybe a dedicated FieldAttribute for aggregate double metric field?
                             var field = new FieldAttribute(source, attribute, name + ".min", new EsField("min", DOUBLE, Map.of(), true));
                             attribute.addAggregateDoubleMetricSubField("min", field);
                             list.add(field);

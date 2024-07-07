@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -39,7 +41,6 @@ public class FieldAttribute extends TypedAttribute {
     private final FieldAttribute parent;
     private final String path;
     private final EsField field;
-    private final String aggregateHint;
 
     public FieldAttribute(Source source, String name, EsField field) {
         this(source, null, name, field);
@@ -77,7 +78,7 @@ public class FieldAttribute extends TypedAttribute {
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
-        this.aggregateHint = null;
+        this.aggregateDoubleMetricSubFields = new HashMap<>();
     }
 
     public FieldAttribute(
@@ -90,13 +91,13 @@ public class FieldAttribute extends TypedAttribute {
         Nullability nullability,
         NameId id,
         boolean synthetic,
-        String aggregateHint
+        Map<String, FieldAttribute> aggregateDoubleMetricSubFields
     ) {
         super(source, name, type, qualifier, nullability, id, synthetic);
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
-        this.aggregateHint = aggregateHint;
+        this.aggregateDoubleMetricSubFields = aggregateDoubleMetricSubFields;
     }
 
     @SuppressWarnings("unchecked")
@@ -119,7 +120,9 @@ public class FieldAttribute extends TypedAttribute {
             in.readEnum(Nullability.class),
             NameId.readFrom((StreamInput & PlanStreamInput) in),
             in.readBoolean(),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_DOUBLE_METRIC_FIELD) ? in.readOptionalString() : null
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)
+                ? in.readMap(FieldAttribute::new)
+                : null
         );
     }
 
@@ -135,7 +138,7 @@ public class FieldAttribute extends TypedAttribute {
         id().writeTo(out);
         out.writeBoolean(synthetic());
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)) {
-            out.writeOptionalString(aggregateHint);
+            out.writeMap(aggregateDoubleMetricSubFields, (out1, value) -> value.writeTo(out1));
         }
     }
 
@@ -189,20 +192,30 @@ public class FieldAttribute extends TypedAttribute {
         boolean synthetic
     ) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullability, id, synthetic);
+        return new FieldAttribute(
+            source,
+            qualifiedParent,
+            name,
+            field.getDataType(),
+            field,
+            qualifier,
+            nullability,
+            id,
+            synthetic,
+            aggregateDoubleMetricSubFields
+        );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, field, aggregateHint);
+        return Objects.hash(super.hashCode(), path, field);
     }
 
     @Override
     public boolean equals(Object obj) {
         return super.equals(obj)
             && Objects.equals(path, ((FieldAttribute) obj).path)
-            && Objects.equals(field, ((FieldAttribute) obj).field)
-            && Objects.equals(aggregateHint, ((FieldAttribute) obj).aggregateHint);
+            && Objects.equals(field, ((FieldAttribute) obj).field);
     }
 
     @Override
@@ -214,22 +227,13 @@ public class FieldAttribute extends TypedAttribute {
         return field;
     }
 
-    public String getAggregateHint() {
-        return aggregateHint;
+    private final Map<String, FieldAttribute> aggregateDoubleMetricSubFields;
+
+    public void addAggregateDoubleMetricSubField(String k, FieldAttribute attribute) {
+        aggregateDoubleMetricSubFields.put(k, attribute);
     }
 
-    public FieldAttribute withAggregateHint(FieldAttribute original, String aggregateHint) {
-        return new FieldAttribute(
-            original.source(),
-            original.parent(),
-            original.name(),
-            original.dataType(),
-            original.field(),
-            original.qualifier(),
-            original.nullable(),
-            original.id(),
-            original.synthetic(),
-            aggregateHint
-        );
+    public Map<String, FieldAttribute> getAggregateDoubleMetricSubFields() {
+        return aggregateDoubleMetricSubFields;
     }
 }

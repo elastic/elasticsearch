@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -78,8 +79,8 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
     @Override
     public Count replaceChildren(List<Expression> newChildren) {
         Expression newChild = newChildren.get(0);
-        if (newChild instanceof FieldAttribute fieldAttribute) {
-            newChild = fieldAttribute.withAggregateHint(fieldAttribute, "count");
+        if (newChild instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
+            newChild = fieldAttribute.getAggregateDoubleMetricSubFields().get("value_count");
         }
         return new Count(source(), newChild);
     }
@@ -96,6 +97,11 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
 
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+        if (field() instanceof FieldAttribute fieldAttribute && fieldAttribute.parent() != null) {
+            if (fieldAttribute.parent().dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
+                return new SumIntAggregatorFunctionSupplier(inputChannels);
+            }
+        }
         return CountAggregatorFunction.supplier(inputChannels);
     }
 

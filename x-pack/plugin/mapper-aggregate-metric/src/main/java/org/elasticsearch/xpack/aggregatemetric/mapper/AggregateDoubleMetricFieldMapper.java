@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateDoubleMetr
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -516,21 +517,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (blContext.aggregationHint() == null) {
-                // based on configured default metric:
-                return delegateFieldType().blockLoader(blContext);
-            }
-
-            return switch (blContext.aggregationHint()) {
-                case "max" -> delegateFieldType(Metric.max).blockLoader(blContext);
-                case "min" -> delegateFieldType(Metric.min).blockLoader(blContext);
-                case "sum" -> delegateFieldType(Metric.sum).blockLoader(blContext);
-                case "count" -> {
-                    var fieldType = delegateFieldType(Metric.value_count);
-                    yield new BlockDocValuesReader.DoublesBlockLoader(fieldType.name(), v -> v);
-                }
-                default -> throw new UnsupportedOperationException("unsupported aggregation hint [" + blContext.aggregationHint() + "]");
-            };
+            // based on configured default metric:
+            return delegateFieldType().blockLoader(blContext);
         }
 
         /**
@@ -599,7 +587,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
-        return Collections.emptyIterator();
+        return List.<Mapper>copyOf(metricFieldMappers.values()).iterator();
     }
 
     @Override

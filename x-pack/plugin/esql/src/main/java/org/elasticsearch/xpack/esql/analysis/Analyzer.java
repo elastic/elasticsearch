@@ -101,6 +101,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_DOUBLE_METRIC;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -211,12 +212,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
         var list = new ArrayList<Attribute>();
-        mappingAsAttributes(list, source, null, mapping);
+        mappingAsAttributes(list, null, source, null, mapping);
         list.sort(Comparator.comparing(Attribute::qualifiedName));
         return list;
     }
 
-    private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
+    private static void mappingAsAttributes(
+        List<Attribute> list,
+        FieldAttribute parent,
+        Source source,
+        String parentName,
+        Map<String, EsField> mapping
+    ) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
             EsField t = entry.getValue();
@@ -232,18 +239,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 // primitive branch
+                FieldAttribute newParent = null;
                 if (EsqlDataTypes.isPrimitive(type)) {
-                    Attribute attribute;
                     if (t instanceof UnsupportedEsField uef) {
-                        attribute = new UnsupportedAttribute(source, name, uef);
+                        list.add(new UnsupportedAttribute(source, name, uef));
                     } else {
-                        attribute = new FieldAttribute(source, null, name, t);
+                        boolean parentIsAggregateDoubleMetricField = parent != null && parent.dataType() == AGGREGATE_DOUBLE_METRIC;
+                        FieldAttribute attribute = newParent = new FieldAttribute(
+                            source,
+                            parentIsAggregateDoubleMetricField ? parent : null,
+                            name,
+                            t
+                        );
+                        if (parentIsAggregateDoubleMetricField) {
+                            parent.addAggregateDoubleMetricSubField(entry.getKey(), attribute);
+                        }
+                        list.add(attribute);
                     }
-                    list.add(attribute);
                 }
                 // allow compound object even if they are unknown (but not NESTED)
                 if (type != NESTED && fieldProperties.isEmpty() == false) {
-                    mappingAsAttributes(list, source, name, fieldProperties);
+                    mappingAsAttributes(list, newParent, source, name, fieldProperties);
                 }
             }
         }

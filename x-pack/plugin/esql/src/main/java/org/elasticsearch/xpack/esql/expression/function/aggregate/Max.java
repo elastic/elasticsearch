@@ -55,8 +55,8 @@ public class Max extends NumericAggregate implements SurrogateExpression {
     @Override
     public Max replaceChildren(List<Expression> newChildren) {
         Expression newChild = newChildren.get(0);
-        if (newChild instanceof FieldAttribute fieldAttribute) {
-            newChild = fieldAttribute.withAggregateHint(fieldAttribute, "max");
+        if (newChild instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
+            newChild = fieldAttribute.getAggregateDoubleMetricSubFields().get("max");
         }
         return new Max(source(), newChild);
     }

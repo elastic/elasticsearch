@@ -55,8 +55,8 @@ public class Min extends NumericAggregate implements SurrogateExpression {
     @Override
     public Min replaceChildren(List<Expression> newChildren) {
         Expression newChild = newChildren.get(0);
-        if (newChild instanceof FieldAttribute fieldAttribute) {
-            newChild = fieldAttribute.withAggregateHint(fieldAttribute, "min");
+        if (newChild instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
+            newChild = fieldAttribute.getAggregateDoubleMetricSubFields().get("min");
         }
         return new Min(source(), newChild);
     }

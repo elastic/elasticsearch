@@ -76,9 +76,11 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
 
         final Sum sum;
         final Count count;
-        if (field instanceof FieldAttribute fieldAttribute) {
-            sum = new Sum(s, fieldAttribute.withAggregateHint(fieldAttribute, "sum"));
-            count = new Count(s, fieldAttribute.withAggregateHint(fieldAttribute, "count"));
+        if (field instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
+            FieldAttribute sumField = fieldAttribute.getAggregateDoubleMetricSubFields().get("sum");
+            sum = new Sum(s, sumField);
+            FieldAttribute countField = fieldAttribute.getAggregateDoubleMetricSubFields().get("value_count");
+            count = new Count(s, countField);
         } else {
             sum = new Sum(s, field);
             count = new Count(s, field);

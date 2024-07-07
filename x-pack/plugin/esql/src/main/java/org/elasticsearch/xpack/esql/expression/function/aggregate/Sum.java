@@ -60,8 +60,8 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     @Override
     public Sum replaceChildren(List<Expression> newChildren) {
         Expression newChild = newChildren.get(0);
-        if (newChild instanceof FieldAttribute fieldAttribute) {
-            newChild = fieldAttribute.withAggregateHint(fieldAttribute, "sum");
+        if (newChild instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
+            newChild = fieldAttribute.getAggregateDoubleMetricSubFields().get("sum");
         }
         return new Sum(source(), newChild);
     }

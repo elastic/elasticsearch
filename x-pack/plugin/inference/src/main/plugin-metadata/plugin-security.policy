@@ -8,12 +8,18 @@
 
 grant {
   // required by: com.google.api.client.json.JsonParser#parseValue
+  // also required by AWS SDK for client configuration
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "getClassLoader";
+
   // required by: com.google.api.client.json.GenericJson#<init>
+  // also by AWS SDK for Jackson's ObjectMapper
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
   // required to add google certs to the gcs client trustore
   permission java.lang.RuntimePermission "setFactory";
 
   // gcs client opens socket connections for to access repository
-  permission java.net.SocketPermission "*", "connect";
+  // also, AWS Bedrock client opens socket connections and needs resolve for to access to resources
+  permission java.net.SocketPermission "*", "connect,resolve";
 };

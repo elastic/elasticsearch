@@ -112,8 +112,10 @@ setup:
   - match: { columns.3.type: "keyword" }
   - match: { columns.4.name: "k8s.pod.network.rx" }
   - match: { columns.4.type: "aggregate_metric_double" }
+  # TODO: reconsider hiding aggregate_metric_double subfields
   - match: { columns.9.name: "k8s.pod.network.tx" }
   - match: { columns.9.type: "aggregate_metric_double" }
+  # TODO: reconsider hiding aggregate_metric_double subfields
   - match: { columns.14.name: "k8s.pod.number_of_containers" }
   - match: { columns.14.type: "integer" }
   - match: { columns.15.name: "k8s.pod.running" }

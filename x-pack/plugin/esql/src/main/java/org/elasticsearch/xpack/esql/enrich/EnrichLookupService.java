@@ -370,6 +370,7 @@ public class EnrichLookupService {
         for (NamedExpression extractField : extractFields) {
             BlockLoader loader = shardContext.blockLoader(
                 extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
+                null,
                 extractField.dataType() == DataType.UNSUPPORTED,
                 MappedFieldType.FieldExtractPreference.NONE
             );

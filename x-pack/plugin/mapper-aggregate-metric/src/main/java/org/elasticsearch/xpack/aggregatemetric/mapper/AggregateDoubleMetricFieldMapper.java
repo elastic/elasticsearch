@@ -27,7 +27,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -64,7 +63,6 @@ import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateDoubleMetr
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -517,8 +515,19 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // based on configured default metric:
-            return delegateFieldType().blockLoader(blContext);
+            if (blContext.aggregationHint() == null) {
+                // based on configured default metric:
+                return delegateFieldType().blockLoader(blContext);
+            }
+
+            // TODO: move Metric enum to mapping code in server to avoid using string hints...
+            return switch (blContext.aggregationHint()) {
+                case "max" -> delegateFieldType(Metric.max).blockLoader(blContext);
+                case "min" -> delegateFieldType(Metric.min).blockLoader(blContext);
+                case "sum" -> delegateFieldType(Metric.sum).blockLoader(blContext);
+                case "value_count" -> delegateFieldType(Metric.value_count).blockLoader(blContext);
+                default -> throw new UnsupportedOperationException("unsupported aggregation hint [" + blContext.aggregationHint() + "]");
+            };
         }
 
         /**
@@ -587,7 +596,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
-        return List.<Mapper>copyOf(metricFieldMappers.values()).iterator();
+        return Collections.emptyIterator();
     }
 
     @Override

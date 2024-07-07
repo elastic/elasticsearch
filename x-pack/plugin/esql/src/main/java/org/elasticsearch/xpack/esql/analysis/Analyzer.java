@@ -212,18 +212,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
         var list = new ArrayList<Attribute>();
-        mappingAsAttributes(list, null, source, null, mapping);
+        mappingAsAttributes(list, source, null, mapping);
         list.sort(Comparator.comparing(Attribute::qualifiedName));
         return list;
     }
 
-    private static void mappingAsAttributes(
-        List<Attribute> list,
-        FieldAttribute parent,
-        Source source,
-        String parentName,
-        Map<String, EsField> mapping
-    ) {
+    private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
             EsField t = entry.getValue();
@@ -239,27 +233,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 // primitive branch
-                FieldAttribute newParent = null;
                 if (EsqlDataTypes.isPrimitive(type)) {
                     if (t instanceof UnsupportedEsField uef) {
                         list.add(new UnsupportedAttribute(source, name, uef));
                     } else {
-                        boolean parentIsAggregateDoubleMetricField = parent != null && parent.dataType() == AGGREGATE_DOUBLE_METRIC;
-                        FieldAttribute attribute = newParent = new FieldAttribute(
-                            source,
-                            parentIsAggregateDoubleMetricField ? parent : null,
-                            name,
-                            t
-                        );
-                        if (parentIsAggregateDoubleMetricField) {
-                            parent.addAggregateDoubleMetricSubField(entry.getKey(), attribute);
+                        boolean isADMF = t.getDataType() == AGGREGATE_DOUBLE_METRIC;
+                        FieldAttribute attribute = new FieldAttribute(source, null, name, t);
+                        if (isADMF) {
+                            var field = new FieldAttribute(source, attribute, name + ".min", new EsField("min", DOUBLE, Map.of(), true));
+                            attribute.addAggregateDoubleMetricSubField("min", field);
+                            list.add(field);
+                            field = new FieldAttribute(source, attribute, name + ".max", new EsField("max", DOUBLE, Map.of(), true));
+                            attribute.addAggregateDoubleMetricSubField("max", field);
+                            list.add(field);
+                            field = new FieldAttribute(source, attribute, name + ".sum", new EsField("sum", DOUBLE, Map.of(), true));
+                            attribute.addAggregateDoubleMetricSubField("sum", field);
+                            list.add(field);
+                            field = new FieldAttribute(
+                                source,
+                                attribute,
+                                name + ".value_count",
+                                new EsField("value_count", INTEGER, Map.of(), true)
+                            );
+                            attribute.addAggregateDoubleMetricSubField("value_count", field);
+                            list.add(field);
                         }
                         list.add(attribute);
                     }
                 }
                 // allow compound object even if they are unknown (but not NESTED)
                 if (type != NESTED && fieldProperties.isEmpty() == false) {
-                    mappingAsAttributes(list, newParent, source, name, fieldProperties);
+                    mappingAsAttributes(list, source, name, fieldProperties);
                 }
             }
         }

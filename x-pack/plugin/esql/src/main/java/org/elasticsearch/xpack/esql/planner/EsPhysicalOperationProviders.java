@@ -91,7 +91,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         /**
          * Returns something to load values from this field into a {@link Block}.
          */
-        BlockLoader blockLoader(String name, boolean asUnsupportedSource, MappedFieldType.FieldExtractPreference fieldExtractPreference);
+        BlockLoader blockLoader(
+            String name,
+            String hint,
+            boolean asUnsupportedSource,
+            MappedFieldType.FieldExtractPreference fieldExtractPreference
+        );
     }
 
     private final List<ShardContext> shardContexts;
@@ -116,9 +121,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             DataType dataType = attr.dataType();
             MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-            String fieldName = attr.name();
             boolean isUnsupported = dataType == DataType.UNSUPPORTED;
-            IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, isUnsupported, fieldExtractPreference, unionTypes);
+
+            final String hint;
+            final String fieldName;
+            if (attr instanceof FieldAttribute fieldAttribute
+                && fieldAttribute.parent() != null
+                && fieldAttribute.parent().dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
+                fieldName = fieldAttribute.parent().name();
+                hint = fieldAttribute.field().getName();
+            } else {
+                fieldName = attr.name();
+                hint = null;
+            }
+            IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, hint, isUnsupported, fieldExtractPreference, unionTypes);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
@@ -127,12 +143,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private BlockLoader getBlockLoaderFor(
         int shardId,
         String fieldName,
+        String hint,
         boolean isUnsupported,
         MappedFieldType.FieldExtractPreference fieldExtractPreference,
         MultiTypeEsField unionTypes
     ) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
-        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference);
+        BlockLoader blockLoader = shardContext.blockLoader(fieldName, hint, isUnsupported, fieldExtractPreference);
         if (unionTypes != null) {
             String indexName = shardContext.ctx.index().getName();
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
@@ -234,7 +251,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // Costin: why are they ready and not already exposed in the layout?
         boolean isUnsupported = attrSource.dataType() == DataType.UNSUPPORTED;
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported, NONE),
+            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), null, isUnsupported, NONE),
             vsShardContexts,
             groupElementType,
             docChannel,
@@ -305,6 +322,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public BlockLoader blockLoader(
             String name,
+            String hint,
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference
         ) {
@@ -347,6 +365,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     return (FieldNamesFieldMapper.FieldNamesFieldType) ctx.lookup().fieldType(FieldNamesFieldMapper.NAME);
                 }
 
+                @Override
+                public String aggregationHint() {
+                    return hint;
+                }
             });
             if (loader == null) {
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", name);

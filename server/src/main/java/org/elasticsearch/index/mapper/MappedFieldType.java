@@ -720,6 +720,9 @@ public abstract class MappedFieldType {
          */
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
 
+        default String aggregationHint() {
+            return null;
+        }
     }
 
 }

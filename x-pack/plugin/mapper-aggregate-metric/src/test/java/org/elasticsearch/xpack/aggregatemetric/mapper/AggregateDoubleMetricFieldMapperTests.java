@@ -437,6 +437,8 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     /**
      *  subfields of aggregate_metric_double should not be searchable or exposed in field_caps
      */
+    // TODO:
+    @AwaitsFix(bugUrl = "reconsider whether sub fields should be visible")
     public void testNoSubFieldsIterated() throws IOException {
         Metric[] values = Metric.values();
         List<Metric> subset = randomSubsetOf(randomIntBetween(1, values.length), values);

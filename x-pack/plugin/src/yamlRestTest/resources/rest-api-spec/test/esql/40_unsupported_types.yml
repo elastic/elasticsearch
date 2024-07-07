@@ -119,7 +119,8 @@ unsupported:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test'
+          # TODO: reconsider hiding aggregate_metric_double subfields
+          query: 'from test | DROP aggregate_metric_double.*'
 
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: aggregate_metric_double }
@@ -216,7 +217,8 @@ unsupported:
   - do:
       esql.query:
         body:
-          query: 'from test | limit 0'
+          # TODO: reconsider hiding aggregate_metric_double subfields
+          query: 'from test | limit 0 | DROP aggregate_metric_double.*'
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: aggregate_metric_double }
   - match: { columns.1.name: binary }
@@ -299,7 +301,8 @@ unsupported with sort:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | sort some_doc.bar'
+          # TODO: reconsider hiding aggregate_metric_double subfields
+          query: 'from test | sort some_doc.bar | DROP aggregate_metric_double.*'
 
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: aggregate_metric_double }

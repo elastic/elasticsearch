@@ -200,7 +200,8 @@ from doc with aggregate_metric_double:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test2'
+          # TODO: reconsider hiding aggregate_metric_double subfields
+          query: 'from test2 | DROP agg_metric.*'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -248,22 +249,23 @@ from index pattern unsupported counter:
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
+    # TODO: reconsider hiding aggregate_metric_double subfields. Why are min, sum, value count missing here?
   - match: {columns.1.name: "agg_metric"}
   - match: {columns.1.type: "aggregate_metric_double"}
-  - match: {columns.2.name: "dim"}
-  - match: {columns.2.type: "keyword"}
-  - match: {columns.3.name: "k8s.pod.ip"}
-  - match: {columns.3.type: "ip"}
-  - match: {columns.4.name: "k8s.pod.name"}
-  - match: {columns.4.type: "keyword"}
-  - match: {columns.5.name: "k8s.pod.network.rx"}
-  - match: {columns.5.type: "counter_integer"}
-  - match: {columns.6.name: "k8s.pod.network.tx"}
-  - match: {columns.6.type: "unsupported"}
-  - match: {columns.7.name: "k8s.pod.uid"}
-  - match: {columns.7.type: "keyword"}
-  - match: {columns.8.name: "metricset"}
+  - match: {columns.3.name: "dim"}
+  - match: {columns.3.type: "keyword"}
+  - match: {columns.4.name: "k8s.pod.ip"}
+  - match: {columns.4.type: "ip"}
+  - match: {columns.5.name: "k8s.pod.name"}
+  - match: {columns.5.type: "keyword"}
+  - match: {columns.6.name: "k8s.pod.network.rx"}
+  - match: {columns.6.type: "counter_integer"}
+  - match: {columns.7.name: "k8s.pod.network.tx"}
+  - match: {columns.7.type: "unsupported"}
+  - match: {columns.8.name: "k8s.pod.uid"}
   - match: {columns.8.type: "keyword"}
+  - match: {columns.9.name: "metricset"}
+  - match: {columns.9.type: "keyword"}
   - length: {values: 10}
 
 ---

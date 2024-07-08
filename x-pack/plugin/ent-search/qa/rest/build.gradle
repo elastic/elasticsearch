@@ -33,3 +33,7 @@ testClusters.configureEach {
   user username: 'entsearch-user', password: 'entsearch-user-password', role: 'user'
   user username: 'entsearch-unprivileged', password: 'entsearch-unprivileged-password', role: 'unprivileged'
 }
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

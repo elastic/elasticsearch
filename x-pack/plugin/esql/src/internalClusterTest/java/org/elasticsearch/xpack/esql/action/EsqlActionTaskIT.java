@@ -59,6 +59,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -325,7 +326,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
          */
         assertThat(
             cancelException.getMessage(),
-            either(equalTo("test cancel")).or(equalTo("task cancelled")).or(equalTo("request cancelled test cancel"))
+            in(List.of("test cancel", "task cancelled", "request cancelled test cancel", "parent task was cancelled [test cancel]"))
         );
         assertBusy(
             () -> assertThat(

@@ -44,6 +44,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseSingleUpdateApiKeyRequest;
@@ -72,6 +73,8 @@ import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAct
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
@@ -291,6 +294,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         PutUserAction.NAME,
         PutRoleAction.NAME,
         PutRoleMappingAction.NAME,
+        ActionTypes.BULK_PUT_ROLES.name(),
+        ActionTypes.BULK_DELETE_ROLES.name(),
         TransportSetEnabledAction.TYPE.name(),
         TransportChangePasswordAction.TYPE.name(),
         CreateApiKeyAction.NAME,
@@ -731,6 +736,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof PutRoleRequest) {
                     assert PutRoleAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleRequest) msg).build();
+                } else if (msg instanceof BulkPutRolesRequest bulkPutRolesRequest) {
+                    assert ActionTypes.BULK_PUT_ROLES.name().equals(action);
+                    for (RoleDescriptor roleDescriptor : bulkPutRolesRequest.getRoles()) {
+                        securityChangeLogEntryBuilder(requestId).withRequestBody(roleDescriptor.getName(), roleDescriptor).build();
+                    }
                 } else if (msg instanceof PutRoleMappingRequest) {
                     assert PutRoleMappingAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleMappingRequest) msg).build();
@@ -755,6 +765,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof DeleteRoleRequest) {
                     assert DeleteRoleAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteRoleRequest) msg).build();
+                } else if (msg instanceof BulkDeleteRolesRequest bulkDeleteRolesRequest) {
+                    assert ActionTypes.BULK_DELETE_ROLES.name().equals(action);
+                    for (String roleName : bulkDeleteRolesRequest.getRoleNames()) {
+                        securityChangeLogEntryBuilder(requestId).withDeleteRole(roleName).build();
+                    }
                 } else if (msg instanceof DeleteRoleMappingRequest) {
                     assert DeleteRoleMappingAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteRoleMappingRequest) msg).build();
@@ -1160,15 +1175,19 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRequestBody(PutRoleRequest putRoleRequest) throws IOException {
+            return withRequestBody(putRoleRequest.name(), putRoleRequest.roleDescriptor());
+        }
+
+        LogEntryBuilder withRequestBody(String roleName, RoleDescriptor roleDescriptor) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "put_role");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
                 .startObject("role")
-                .field("name", putRoleRequest.name())
+                .field("name", roleName)
                 // the "role_descriptor" nested structure, where the "name" is left out, is closer to the event structure
                 // for creating API Keys
                 .field("role_descriptor");
-            withRoleDescriptor(builder, putRoleRequest.roleDescriptor());
+            withRoleDescriptor(builder, roleDescriptor);
             builder.endObject() // role
                 .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
@@ -1350,7 +1369,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 withIndicesPrivileges(builder, indicesPrivileges);
             }
             builder.endArray();
-            // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
+            // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges} does a good job
             builder.xContentList(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), roleDescriptor.getApplicationPrivileges());
             builder.array(RoleDescriptor.Fields.RUN_AS.getPreferredName(), roleDescriptor.getRunAs());
             if (roleDescriptor.getMetadata() != null && false == roleDescriptor.getMetadata().isEmpty()) {
@@ -1401,15 +1420,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRequestBody(DeleteRoleRequest deleteRoleRequest) throws IOException {
-            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_role");
-            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject()
-                .startObject("role")
-                .field("name", deleteRoleRequest.name())
-                .endObject() // role
-                .endObject();
-            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
-            return this;
+            return withDeleteRole(deleteRoleRequest.name());
         }
 
         LogEntryBuilder withRequestBody(DeleteRoleMappingRequest deleteRoleMappingRequest) throws IOException {
@@ -1529,6 +1540,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 logEntry.with(EVENT_ACTION_FIELD_NAME, "change_disable_user_profile");
             }
             logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withDeleteRole(String roleName) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_role");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("role")
+                .field("name", roleName)
+                .endObject() // role
+                .endObject();
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 

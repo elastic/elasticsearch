@@ -1707,7 +1707,10 @@ public class IndexNameExpressionResolver {
          */
         @Nullable
         private static boolean ensureAliasOrIndexExists(Context context, String name) {
+            boolean aliasOrIndexExists = true;
+
             boolean ignoreUnavailable = context.getOptions().ignoreUnavailable();
+            boolean expandAliases = context.getOptions().autoExpandAliases();
             IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(name);
             if (indexAbstraction == null) {
                 if (ignoreUnavailable) {
@@ -1718,8 +1721,15 @@ public class IndexNameExpressionResolver {
             }
             // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
             if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
-                if (ignoreUnavailable) {
-                    return false;
+
+                if (expandAliases) {
+                    // expand aliases to their backing indices
+                    List<Index> indices = indexAbstraction.getIndices();
+                    for (Index index : indices) {
+                        aliasOrIndexExists &= ensureAliasOrIndexExists(context, index.getName());
+                    }
+                } else if (ignoreUnavailable) {
+                    aliasOrIndexExists = false;
                 } else {
                     throw aliasesNotSupportedException(name);
                 }
@@ -1734,7 +1744,7 @@ public class IndexNameExpressionResolver {
                     throw infe;
                 }
             }
-            return true;
+            return aliasOrIndexExists;
         }
 
         private static void validateAliasOrIndex(ExpressionList.Expression expression) {

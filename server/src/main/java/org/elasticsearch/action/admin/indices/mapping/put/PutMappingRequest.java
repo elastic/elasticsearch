@@ -80,6 +80,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             IndicesOptions.GatekeeperOptions.builder()
                 .allowClosedIndices(true)
                 .allowAliasToMultipleIndices(true)
+                .autoExpandAliases(false)
                 .ignoreThrottled(false)
                 .allowFailureIndices(false)
         )

@@ -320,11 +320,13 @@ public record IndicesOptions(
         boolean allowAliasToMultipleIndices,
         boolean allowClosedIndices,
         boolean allowFailureIndices,
+        boolean autoExpandAliases,
         @Deprecated boolean ignoreThrottled
     ) implements ToXContentFragment {
 
+        public static final String AUTO_EXPAND_ALIASES = "auto_expand_aliases";
         public static final String IGNORE_THROTTLED = "ignore_throttled";
-        public static final GatekeeperOptions DEFAULT = new GatekeeperOptions(true, true, true, false);
+        public static final GatekeeperOptions DEFAULT = new GatekeeperOptions(true, true, true, false, false);
 
         public static GatekeeperOptions parseParameter(Object ignoreThrottled, GatekeeperOptions defaultOptions) {
             if (ignoreThrottled == null && defaultOptions != null) {
@@ -337,13 +339,14 @@ public record IndicesOptions(
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(IGNORE_THROTTLED, ignoreThrottled());
+            return builder.field(IGNORE_THROTTLED, ignoreThrottled()).field(AUTO_EXPAND_ALIASES, autoExpandAliases());
         }
 
         public static class Builder {
             private boolean allowAliasToMultipleIndices;
             private boolean allowClosedIndices;
             private boolean allowFailureIndices;
+            private boolean autoExpandAliases;
             private boolean ignoreThrottled;
 
             public Builder() {
@@ -354,6 +357,7 @@ public record IndicesOptions(
                 allowAliasToMultipleIndices = options.allowAliasToMultipleIndices;
                 allowClosedIndices = options.allowClosedIndices;
                 allowFailureIndices = options.allowFailureIndices;
+                autoExpandAliases = options.autoExpandAliases;
                 ignoreThrottled = options.ignoreThrottled;
             }
 
@@ -384,6 +388,11 @@ public record IndicesOptions(
                 return this;
             }
 
+            public Builder autoExpandAliases(boolean autoExpandAliases) {
+                this.autoExpandAliases = autoExpandAliases;
+                return this;
+            }
+
             /**
              * Throttled indices will not be included in the result. Defaults to false.
              */
@@ -393,7 +402,13 @@ public record IndicesOptions(
             }
 
             public GatekeeperOptions build() {
-                return new GatekeeperOptions(allowAliasToMultipleIndices, allowClosedIndices, allowFailureIndices, ignoreThrottled);
+                return new GatekeeperOptions(
+                    allowAliasToMultipleIndices,
+                    allowClosedIndices,
+                    allowFailureIndices,
+                    autoExpandAliases,
+                    ignoreThrottled
+                );
             }
         }
 
@@ -917,6 +932,10 @@ public record IndicesOptions(
         return wildcardOptions.resolveAliases() == false;
     }
 
+    public boolean autoExpandAliases() {
+        return gatekeeperOptions().autoExpandAliases();
+    }
+
     /**
      * @return whether indices that are marked as throttled should be ignored
      */
@@ -1158,6 +1177,32 @@ public record IndicesOptions(
         boolean ignoreAliases,
         boolean ignoreThrottled
     ) {
+        return fromOptions(
+            ignoreUnavailable,
+            allowNoIndices,
+            expandToOpenIndices,
+            expandToClosedIndices,
+            expandToHiddenIndices,
+            allowAliasesToMultipleIndices,
+            forbidClosedIndices,
+            ignoreAliases,
+            false,
+            ignoreThrottled
+        );
+    }
+
+    public static IndicesOptions fromOptions(
+        boolean ignoreUnavailable,
+        boolean allowNoIndices,
+        boolean expandToOpenIndices,
+        boolean expandToClosedIndices,
+        boolean expandToHiddenIndices,
+        boolean allowAliasesToMultipleIndices,
+        boolean forbidClosedIndices,
+        boolean ignoreAliases,
+        boolean autoExpandAliases,
+        boolean ignoreThrottled
+    ) {
         final WildcardOptions wildcards = WildcardOptions.builder()
             .matchOpen(expandToOpenIndices)
             .matchClosed(expandToClosedIndices)
@@ -1168,6 +1213,7 @@ public record IndicesOptions(
         final GatekeeperOptions gatekeeperOptions = GatekeeperOptions.builder()
             .allowAliasToMultipleIndices(allowAliasesToMultipleIndices)
             .allowClosedIndices(forbidClosedIndices == false)
+            .autoExpandAliases(autoExpandAliases)
             .ignoreThrottled(ignoreThrottled)
             .build();
         return new IndicesOptions(
@@ -1292,6 +1338,7 @@ public record IndicesOptions(
 
     private static final ParseField EXPAND_WILDCARDS_FIELD = new ParseField(WildcardOptions.EXPAND_WILDCARDS);
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField(ConcreteTargetOptions.IGNORE_UNAVAILABLE);
+    private static final ParseField AUTO_EXPAND_ALIASES_FIELD = new ParseField(GatekeeperOptions.AUTO_EXPAND_ALIASES);
     private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GatekeeperOptions.IGNORE_THROTTLED).withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField(WildcardOptions.ALLOW_NO_INDICES);
     private static final ParseField FAILURE_STORE_FIELD = new ParseField(FailureStoreOptions.FAILURE_STORE);
@@ -1353,6 +1400,8 @@ public record IndicesOptions(
                     ignoreUnavailable = parser.booleanValue();
                 } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     allowNoIndices = parser.booleanValue();
+                } else if (AUTO_EXPAND_ALIASES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    generalOptions.autoExpandAliases(parser.booleanValue());
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     generalOptions.ignoreThrottled(parser.booleanValue());
                 } else if (DataStream.isFailureStoreFeatureFlagEnabled()

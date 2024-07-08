@@ -80,6 +80,7 @@ public class IndicesOptionsTests extends ESTestCase {
         final boolean allowAliasesToMultipleIndices = randomBoolean();
         final boolean forbidClosedIndices = randomBoolean();
         final boolean ignoreAliases = randomBoolean();
+        final boolean autoExpandAliases = randomBoolean();
         final boolean ignoreThrottled = randomBoolean();
 
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(
@@ -91,6 +92,7 @@ public class IndicesOptionsTests extends ESTestCase {
             allowAliasesToMultipleIndices,
             forbidClosedIndices,
             ignoreAliases,
+            autoExpandAliases,
             ignoreThrottled
         );
 
@@ -103,6 +105,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
         assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
         assertEquals(ignoreAliases, indicesOptions.ignoreAliases());
+        assertEquals(autoExpandAliases, indicesOptions.autoExpandAliases());
         assertEquals(ignoreThrottled, indicesOptions.ignoreThrottled());
     }
 
@@ -229,6 +232,7 @@ public class IndicesOptionsTests extends ESTestCase {
                 opts.allowAliasesToMultipleIndices(),
                 opts.forbidClosedIndices(),
                 opts.ignoreAliases(),
+                opts.autoExpandAliases(),
                 opts.ignoreThrottled()
             ),
             opts -> {
@@ -241,6 +245,7 @@ public class IndicesOptionsTests extends ESTestCase {
                 boolean allowAliasesToMulti = opts.allowAliasesToMultipleIndices();
                 boolean forbidClosed = opts.forbidClosedIndices();
                 boolean ignoreAliases = opts.ignoreAliases();
+                boolean autoExpandAliases = opts.autoExpandAliases();
                 boolean ignoreThrottled = opts.ignoreThrottled();
                 while (mutated == false) {
                     if (randomBoolean()) {
@@ -276,6 +281,10 @@ public class IndicesOptionsTests extends ESTestCase {
                         mutated = true;
                     }
                     if (randomBoolean()) {
+                        autoExpandAliases = autoExpandAliases == false;
+                        mutated = true;
+                    }
+                    if (randomBoolean()) {
                         ignoreThrottled = ignoreThrottled == false;
                         mutated = true;
                     }
@@ -289,6 +298,7 @@ public class IndicesOptionsTests extends ESTestCase {
                     allowAliasesToMulti,
                     forbidClosed,
                     ignoreAliases,
+                    autoExpandAliases,
                     ignoreThrottled
                 );
             }
@@ -300,6 +310,7 @@ public class IndicesOptionsTests extends ESTestCase {
         Collection<String> wildcardStates = randomBoolean() ? null : randomSubsetOf(Arrays.asList("open", "closed", "hidden"));
         Boolean ignoreUnavailable = randomBoolean() ? null : randomBoolean();
         Boolean allowNoIndices = randomBoolean() ? null : randomBoolean();
+        Boolean autoExpandAliases = randomBoolean() ? null : randomBoolean();
         Boolean ignoreThrottled = randomBoolean() ? null : randomBoolean();
 
         Map<String, Object> settings = new HashMap<>();
@@ -314,6 +325,10 @@ public class IndicesOptionsTests extends ESTestCase {
 
         if (allowNoIndices != null) {
             settings.put("allow_no_indices", allowNoIndices);
+        }
+
+        if (autoExpandAliases != null) {
+            settings.put("auto_expand_aliases", autoExpandAliases);
         }
 
         if (ignoreThrottled != null) {
@@ -331,6 +346,7 @@ public class IndicesOptionsTests extends ESTestCase {
 
         assertEquals(ignoreUnavailable == null ? defaults.ignoreUnavailable() : ignoreUnavailable, fromMap.ignoreUnavailable());
         assertEquals(allowNoIndices == null ? defaults.allowNoIndices() : allowNoIndices, fromMap.allowNoIndices());
+        assertEquals(autoExpandAliases == null ? defaults.autoExpandAliases() : autoExpandAliases, fromMap.autoExpandAliases());
         assertEquals(ignoreThrottled == null ? defaults.ignoreThrottled() : ignoreThrottled, fromMap.ignoreThrottled());
     }
 
@@ -343,7 +359,13 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean()
         );
-        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
         FailureStoreOptions failureStoreOptions = new IndicesOptions.FailureStoreOptions(randomBoolean(), randomBoolean());
 
         IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, failureStoreOptions);
@@ -360,6 +382,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), equalTo(wildcardOptions.includeHidden()));
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
+        assertThat(map.get("auto_expand_aliases"), equalTo(gatekeeperOptions.autoExpandAliases()));
         assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
         assertThat(map.get("failure_store"), equalTo(failureStoreOptions.displayValue()));
     }
@@ -394,6 +417,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(indicesOptions.expandWildcardsOpen(), fromXContentOptions.expandWildcardsOpen());
         assertEquals(indicesOptions.ignoreUnavailable(), fromXContentOptions.ignoreUnavailable());
         assertEquals(indicesOptions.allowNoIndices(), fromXContentOptions.allowNoIndices());
+        assertEquals(indicesOptions.autoExpandAliases(), fromXContentOptions.autoExpandAliases());
         assertEquals(indicesOptions.ignoreThrottled(), fromXContentOptions.ignoreThrottled());
     }
 

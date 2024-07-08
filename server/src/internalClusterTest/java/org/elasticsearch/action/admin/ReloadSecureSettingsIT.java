@@ -23,8 +23,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
-import org.elasticsearch.plugins.loading.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.BeforeClass;
 

@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     LogicalPlan statement(String e) {
-        return statement(e, QueryParams.EMPTY);
+        return statement(e, new QueryParams());
     }
 
     LogicalPlan statement(String e, QueryParams params) {

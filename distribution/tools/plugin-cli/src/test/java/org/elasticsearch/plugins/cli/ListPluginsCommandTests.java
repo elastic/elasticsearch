@@ -18,7 +18,7 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.plugins.loading.PluginTestUtil;
+import org.elasticsearch.plugins.PluginTestUtil;
 import org.junit.Before;
 
 import java.io.IOException;

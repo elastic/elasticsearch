@@ -65,15 +65,23 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
 
     private static final String inferenceId = "inference-id";
     private static final String inferenceText = "inference-text";
+    private static final float minScore = 0.0f;
 
     @Override
     protected RankBuilder getRankBuilder(int rankWindowSize, String rankFeatureField) {
-        return new MockRequestActionBasedRankBuilder(rankWindowSize, rankFeatureField, inferenceId, inferenceText);
+        return new MockRequestActionBasedRankBuilder(rankWindowSize, rankFeatureField, inferenceId, inferenceText, minScore);
     }
 
     @Override
     protected RankBuilder getThrowingRankBuilder(int rankWindowSize, String rankFeatureField, ThrowingRankBuilderType type) {
-        return new ThrowingMockRequestActionBasedRankBuilder(rankWindowSize, rankFeatureField, inferenceId, inferenceText, type.name());
+        return new ThrowingMockRequestActionBasedRankBuilder(
+            rankWindowSize,
+            rankFeatureField,
+            inferenceId,
+            inferenceText,
+            minScore,
+            type.name()
+        );
     }
 
     @Override
@@ -237,7 +245,8 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             int windowSize,
             Client client,
             String inferenceId,
-            String inferenceText
+            String inferenceText,
+            float minScore
         ) {
             super(size, from, windowSize);
             this.client = client;
@@ -288,6 +297,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         public static final ParseField FIELD_FIELD = new ParseField("field");
         public static final ParseField INFERENCE_ID = new ParseField("inference_id");
         public static final ParseField INFERENCE_TEXT = new ParseField("inference_text");
+        public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
         static final ConstructingObjectParser<MockRequestActionBasedRankBuilder, Void> PARSER = new ConstructingObjectParser<>(
             "request_action_based_rank",
             args -> {
@@ -298,7 +308,8 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
                 }
                 final String inferenceId = (String) args[2];
                 final String inferenceText = (String) args[3];
-                return new MockRequestActionBasedRankBuilder(rankWindowSize, field, inferenceId, inferenceText);
+                final float minScore = (float) args[4];
+                return new MockRequestActionBasedRankBuilder(rankWindowSize, field, inferenceId, inferenceText, minScore);
             }
         );
 
@@ -312,6 +323,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         protected final String field;
         protected final String inferenceId;
         protected final String inferenceText;
+        protected final float minScore;
 
         public static MockRequestActionBasedRankBuilder fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
@@ -321,12 +333,14 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             final int rankWindowSize,
             final String field,
             final String inferenceId,
-            final String inferenceText
+            final String inferenceText,
+            final float minScore
         ) {
             super(rankWindowSize);
             this.field = field;
             this.inferenceId = inferenceId;
             this.inferenceText = inferenceText;
+            this.minScore = minScore;
         }
 
         public MockRequestActionBasedRankBuilder(StreamInput in) throws IOException {
@@ -334,6 +348,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             this.field = in.readString();
             this.inferenceId = in.readString();
             this.inferenceText = in.readString();
+            this.minScore = in.readFloat();
         }
 
         @Override
@@ -341,6 +356,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             out.writeString(field);
             out.writeString(inferenceId);
             out.writeString(inferenceText);
+            out.writeFloat(minScore);
         }
 
         @Override
@@ -348,6 +364,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             builder.field(FIELD_FIELD.getPreferredName(), field);
             builder.field(INFERENCE_ID.getPreferredName(), inferenceId);
             builder.field(INFERENCE_TEXT.getPreferredName(), inferenceText);
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
         }
 
         @Override
@@ -383,7 +400,8 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
                 rankWindowSize(),
                 client,
                 inferenceId,
-                inferenceText
+                inferenceText,
+                minScore
             );
         }
 
@@ -425,8 +443,16 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
                 }
                 final String inferenceId = (String) args[2];
                 final String inferenceText = (String) args[3];
-                String throwingType = (String) args[4];
-                return new ThrowingMockRequestActionBasedRankBuilder(rankWindowSize, field, inferenceId, inferenceText, throwingType);
+                final float minScore = (float) args[4];
+                String throwingType = (String) args[5];
+                return new ThrowingMockRequestActionBasedRankBuilder(
+                    rankWindowSize,
+                    field,
+                    inferenceId,
+                    inferenceText,
+                    minScore,
+                    throwingType
+                );
             }
         );
 
@@ -449,9 +475,10 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             final String field,
             final String inferenceId,
             final String inferenceText,
+            final float minScore,
             final String throwingType
         ) {
-            super(rankWindowSize, field, inferenceId, inferenceText);
+            super(rankWindowSize, field, inferenceId, inferenceText, minScore);
             this.throwingRankBuilderType = ThrowingRankBuilderType.valueOf(throwingType);
         }
 
@@ -526,7 +553,8 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
                     rankWindowSize(),
                     client,
                     inferenceId,
-                    inferenceText
+                    inferenceText,
+                    minScore
                 ) {
                     @Override
                     protected TestRerankingActionRequest generateRequest(List<String> docFeatures) {

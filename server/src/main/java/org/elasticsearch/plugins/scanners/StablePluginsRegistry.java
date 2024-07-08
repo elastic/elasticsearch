@@ -8,7 +8,7 @@
 
 package org.elasticsearch.plugins.scanners;
 
-import org.elasticsearch.plugins.loading.PluginBundle;
+import org.elasticsearch.plugins.PluginBundle;
 
 import java.util.Collection;
 import java.util.Collections;

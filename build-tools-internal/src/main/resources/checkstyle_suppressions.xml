@@ -20,7 +20,7 @@
   <suppress files="libs[/\\]native[/\\]jna[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]nativeaccess[/\\]jna[/\\]JnaKernel32Library.java" checks="RedundantModifier" />
 
   <!-- the constructors on some local classes in these tests must be public-->
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]loading[/\\]PluginsServiceTests.java" checks="RedundantModifier" />
+  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]PluginsServiceTests.java" checks="RedundantModifier" />
 
   <!-- Intentionally doesn't have a package declaration to test logging
     configuration of classes that aren't in packages. -->

@@ -19,7 +19,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.plugins.loading.PluginsUtils;
+import org.elasticsearch.plugins.PluginsUtils;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 

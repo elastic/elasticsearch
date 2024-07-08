@@ -17,7 +17,7 @@ dependencies {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.addAll(["-s", "${projectDir}/src/main/generated"])
+  options.compilerArgs.addAll(["-s", "src/main/generated"])
 }
 
 tasks.named('checkstyleMain').configure {
@@ -411,6 +411,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/LongState.java"
   }
   template {
+    it.properties = floatProperties
+    it.inputFile =  stateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/FloatState.java"
+  }
+  template {
     it.properties = doubleProperties
     it.inputFile =  stateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleState.java"
@@ -463,6 +468,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  arrayStateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleArrayState.java"
   }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  arrayStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/FloatArrayState.java"
+  }
   File valuesAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ValuesAggregator.java.st")
   template {
     it.properties = intProperties
@@ -473,6 +483,11 @@ tasks.named('stringTemplates').configure {
     it.properties = longProperties
     it.inputFile =  valuesAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/ValuesLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  valuesAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ValuesFloatAggregator.java"
   }
   template {
     it.properties = doubleProperties
@@ -497,27 +512,37 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/RateLongAggregator.java"
   }
   template {
+    it.properties = floatProperties
+    it.inputFile =  rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateFloatAggregator.java"
+  }
+  template {
     it.properties = doubleProperties
     it.inputFile =  rateAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleAggregator.java"
   }
 
 
-  File topListAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopListAggregator.java.st")
+  File topAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopAggregator.java.st")
   template {
     it.properties = intProperties
-    it.inputFile =  topListAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/TopListIntAggregator.java"
+    it.inputFile =  topAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopIntAggregator.java"
   }
   template {
     it.properties = longProperties
-    it.inputFile =  topListAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/TopListLongAggregator.java"
+    it.inputFile =  topAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  topAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopFloatAggregator.java"
   }
   template {
     it.properties = doubleProperties
-    it.inputFile =  topListAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/TopListDoubleAggregator.java"
+    it.inputFile =  topAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopDoubleAggregator.java"
   }
 
   File multivalueDedupeInputFile = file("src/main/java/org/elasticsearch/compute/operator/mvdedupe/X-MultivalueDedupe.java.st")
@@ -666,6 +691,11 @@ tasks.named('stringTemplates').configure {
     it.properties = longProperties
     it.inputFile =  bucketedSortInputFile
     it.outputFile = "org/elasticsearch/compute/data/sort/LongBucketedSort.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/FloatBucketedSort.java"
   }
   template {
     it.properties = doubleProperties

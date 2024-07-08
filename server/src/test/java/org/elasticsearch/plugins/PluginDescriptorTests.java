@@ -12,8 +12,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.plugins.loading.PluginTestUtil;
-import org.elasticsearch.plugins.loading.PluginsUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

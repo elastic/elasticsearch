@@ -1,17 +1,10 @@
 tests:
-- class: "org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/108649"
-  method: "testManyRandomDocs"
-- class: "org.elasticsearch.cluster.coordination.CoordinatorVotingConfigurationTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/108729"
-  method: "testClusterUUIDLogging"
 - class: "org.elasticsearch.xpack.textstructure.structurefinder.TimestampFormatFinderTests"
   issue: "https://github.com/elastic/elasticsearch/issues/108855"
   method: "testGuessIsDayFirstFromLocale"
 - class: "org.elasticsearch.test.rest.ClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108857"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.upgrades.SearchStatesIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108991"
   method: "testCanMatch"
@@ -20,8 +13,7 @@ tests:
   method: "testTrainedModelInference"
 - class: "org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109188"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109189"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
@@ -36,8 +28,7 @@ tests:
   method: "testTimestampFieldTypeExposedByAllIndicesServices"
 - class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109318"
-  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling\
-    \ (too complex pattern)}"
+  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}"
 - class: "org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT"
   issue: "https://github.com/elastic/elasticsearch/issues/101598"
   method: "testFeatureImportanceValues"
@@ -50,35 +41,65 @@ tests:
 - class: "org.elasticsearch.xpack.inference.InferenceCrudIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109391"
   method: "testDeleteEndpointWhileReferencedByPipeline"
-- class: "org.elasticsearch.xpack.rollup.job.RollupIndexerStateTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109627"
-  method: "testMultipleJobTriggering"
-- class: "org.elasticsearch.index.store.FsDirectoryFactoryTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109681"
 - class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109687"
   method: "test {p0=sql/translate/Translate SQL}"
-- class: "org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109806"
-  method: "testInsufficientPrivilege"
 - class: org.elasticsearch.action.search.SearchProgressActionListenerIT
   method: testSearchProgressWithHits
   issue: https://github.com/elastic/elasticsearch/issues/109830
-- class: "org.elasticsearch.xpack.shutdown.NodeShutdownReadinessIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109838"
-  method: "testShutdownReadinessService"
-- class: "org.elasticsearch.packaging.test.RpmPreservationTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109898"
-  method: "test30PreserveConfig"
 - class: "org.elasticsearch.xpack.security.ScrollHelperIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/109905"
   method: "testFetchAllEntities"
-- class: "org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109904"
 - class: "org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109944"
   method: "testBasicAsyncExecution"
-
+- class: "org.elasticsearch.action.admin.indices.rollover.RolloverIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/110034"
+  method: "testRolloverWithClosedWriteIndex"
+- class: org.elasticsearch.xpack.transform.transforms.TransformIndexerTests
+  method: testMaxPageSearchSizeIsResetToConfiguredValue
+  issue: https://github.com/elastic/elasticsearch/issues/109844
+- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+  method: testStoreDirectory
+  issue: https://github.com/elastic/elasticsearch/issues/110210
+- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+  method: testPreload
+  issue: https://github.com/elastic/elasticsearch/issues/110211
+- class: "org.elasticsearch.rest.RestControllerIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/110225"
+- class: "org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/110227"
+  method: "testGetPrivilegesUsesCache"
+- class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
+  method: testMetadataMigratedAfterUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/110232
+- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
+  method: testLoadAll
+  issue: https://github.com/elastic/elasticsearch/issues/110244
+- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
+  method: testSearchProgressWithQuery
+  issue: https://github.com/elastic/elasticsearch/issues/109867
+- class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
+  method: testMinVersionAsNewVersion
+  issue: https://github.com/elastic/elasticsearch/issues/95384
+- class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
+  method: testCcsMinimizeRoundtripsIsFalse
+  issue: https://github.com/elastic/elasticsearch/issues/101974
+- class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
+  method: testMinVersionAsOldVersion
+  issue: https://github.com/elastic/elasticsearch/issues/109454
+- class: org.elasticsearch.search.vectors.ExactKnnQueryBuilderTests
+  method: testToQuery
+  issue: https://github.com/elastic/elasticsearch/issues/110357
+- class: org.elasticsearch.search.aggregations.bucket.terms.RareTermsIT
+  method: testSingleValuedString
+  issue: https://github.com/elastic/elasticsearch/issues/110388
+- class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/110408"
+  method: "testCreateAndRestorePartialSearchableSnapshot"
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_half_byte_quantized/Test create, merge, and search cosine}
+  issue: https://github.com/elastic/elasticsearch/issues/109978
 
 # Examples:
 #

@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class MvAvgSerializationTests extends AbstractMvSerializationTests<MvAvg> {
+public class MvAvgSerializationTests extends AbstractExpressionSerializationTests<MvAvg> {
     @Override
     protected MvAvg createTestInstance() {
         return new MvAvg(randomSource(), randomChild());

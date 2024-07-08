@@ -11,8 +11,8 @@ package org.elasticsearch.plugins.internal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
-import org.elasticsearch.plugins.loading.PluginsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 

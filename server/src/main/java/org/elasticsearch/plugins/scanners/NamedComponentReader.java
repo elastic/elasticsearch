@@ -11,7 +11,7 @@ package org.elasticsearch.plugins.scanners;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.plugins.loading.PluginBundle;
+import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;

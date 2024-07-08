@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.loading.PluginsService;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -244,7 +244,12 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {
-        assertAcked(clusterAdmin().preparePutRepository(name).setType(S3Repository.TYPE).setVerify(false).setSettings(repositorySettings));
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name)
+                .setType(S3Repository.TYPE)
+                .setVerify(false)
+                .setSettings(repositorySettings)
+        );
     }
 
     /**

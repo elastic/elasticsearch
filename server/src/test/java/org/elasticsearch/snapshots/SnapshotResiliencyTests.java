@@ -162,8 +162,8 @@ import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.loading.PluginsService;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -212,6 +212,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -258,7 +259,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     @After
-    public void verifyReposThenStopServices() {
+    public void verifyReposThenStopServices() throws ExecutionException {
         try {
             clearDisruptionsAndAwaitSync();
 
@@ -268,7 +269,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             // failures seen during the previous test.
             client().admin()
                 .cluster()
-                .prepareCreateSnapshot("repo", "last-snapshot")
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "last-snapshot")
                 .setWaitForCompletion(true)
                 .setPartial(true)
                 .execute(createSnapshotResponse);
@@ -278,7 +279,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 assertThat(snapshotInfo.state(), either(is(SnapshotState.SUCCESS)).or(is(SnapshotState.PARTIAL)));
                 assertThat(snapshotInfo.shardFailures(), iterableWithSize(snapshotInfo.failedShards()));
                 assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards() - snapshotInfo.failedShards()));
-                client().admin().cluster().cleanupRepository(new CleanupRepositoryRequest("repo"), cleanupResponse);
+                client().admin()
+                    .cluster()
+                    .cleanupRepository(new CleanupRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repo"), cleanupResponse);
             });
             final AtomicBoolean cleanedUp = new AtomicBoolean(false);
             continueOrDie(cleanupResponse, r -> cleanedUp.set(true));
@@ -317,7 +320,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse -> {
             final Runnable afterIndexing = () -> client().admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, snapshotName)
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setWaitForCompletion(true)
                 .execute(createSnapshotResponseListener);
             if (documents == 0) {
@@ -350,7 +353,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             ignored -> client().admin()
                 .cluster()
                 .restoreSnapshot(
-                    new RestoreSnapshotRequest(repoName, snapshotName).waitForCompletion(true),
+                    new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).waitForCompletion(true),
                     restoreSnapshotResponseListener
                 )
         );
@@ -415,7 +418,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
             testClusterNodes.randomMasterNodeSafe().client.admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, snapshotName)
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setPartial(partial)
                 .execute(createSnapshotResponseStepListener);
         });
@@ -492,7 +495,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createRepoAndIndex(repoName, index, shards),
             createIndexResponse -> testClusterNodes.randomMasterNodeSafe().client.admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, snapshotName)
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setWaitForCompletion(waitForSnapshot)
                 .execute(createSnapshotResponseStepListener)
         );
@@ -502,7 +505,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             scheduleNow(this::disconnectOrRestartMasterNode);
             testClusterNodes.randomDataNodeSafe().client.admin()
                 .cluster()
-                .prepareDeleteSnapshot(repoName, snapshotName)
+                .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .execute(ActionListener.running(() -> snapshotDeleteResponded.set(true)));
         });
 
@@ -544,7 +547,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createRepoAndIndex(repoName, index, shards),
             createIndexResponse -> client().admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, snapshotName)
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .execute(createSnapshotResponseStepListener)
         );
 
@@ -554,7 +557,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 if (SnapshotsInProgress.get(event.state()).isEmpty() == false) {
-                    client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener);
+                    client().admin()
+                        .cluster()
+                        .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                        .execute(deleteSnapshotStepListener);
                     masterNode.clusterService.removeListener(this);
                 }
             }
@@ -566,7 +572,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             deleteSnapshotStepListener,
             acknowledgedResponse -> client().admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, snapshotName)
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setWaitForCompletion(true)
                 .execute(createAnotherSnapshotResponseStepListener)
         );
@@ -609,7 +615,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createRepoAndIndex(repoName, index, shards),
             createIndexResponse -> client().admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, snapshotName)
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setWaitForCompletion(true)
                 .execute(createSnapshotResponseStepListener)
         );
@@ -620,7 +626,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createSnapshotResponseStepListener,
             createSnapshotResponse -> client().admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, "snapshot-2")
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-2")
                 .execute(createOtherSnapshotResponseStepListener)
         );
 
@@ -630,7 +636,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createOtherSnapshotResponseStepListener,
             createSnapshotResponse -> client().admin()
                 .cluster()
-                .prepareDeleteSnapshot(repoName, snapshotName)
+                .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .execute(deleteSnapshotStepListener)
         );
 
@@ -639,7 +645,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         continueOrDie(deleteSnapshotStepListener, deleted -> {
             client().admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, snapshotName)
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setWaitForCompletion(true)
                 .execute(createAnotherSnapshotResponseStepListener);
             continueOrDie(
@@ -683,7 +689,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createRepoAndIndex(repoName, index, shards),
             createIndexResponse -> client().admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, snapshotName)
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setWaitForCompletion(true)
                 .execute(createSnapshotResponseStepListener)
         );
@@ -697,7 +703,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
             for (int i = 0; i < inProgressSnapshots; i++) {
-                client().admin().cluster().prepareCreateSnapshot(repoName, "other-" + i).execute(createSnapshotListener);
+                client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "other-" + i)
+                    .execute(createSnapshotListener);
             }
         });
 
@@ -707,7 +716,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createOtherSnapshotResponseStepListener,
             createSnapshotResponse -> client().admin()
                 .cluster()
-                .deleteSnapshot(new DeleteSnapshotRequest(repoName, "*"), deleteSnapshotStepListener)
+                .deleteSnapshot(new DeleteSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, "*"), deleteSnapshotStepListener)
         );
 
         deterministicTaskQueue.runAllRunnableTasks();
@@ -742,7 +751,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 index,
                 () -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, snapshotName)
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                     .setWaitForCompletion(true)
                     .execute(createSnapshotResponseStepListener)
             )
@@ -760,7 +769,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 index,
                 () -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, secondSnapshotName)
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, secondSnapshotName)
                     .setWaitForCompletion(true)
                     .execute(createOtherSnapshotResponseStepListener)
             )
@@ -770,12 +779,17 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final SubscribableListener<RestoreSnapshotResponse> restoreSnapshotResponseListener = new SubscribableListener<>();
 
         continueOrDie(createOtherSnapshotResponseStepListener, createSnapshotResponse -> {
-            scheduleNow(() -> client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener));
+            scheduleNow(
+                () -> client().admin()
+                    .cluster()
+                    .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                    .execute(deleteSnapshotStepListener)
+            );
             scheduleNow(
                 () -> client().admin()
                     .cluster()
                     .restoreSnapshot(
-                        new RestoreSnapshotRequest(repoName, secondSnapshotName).waitForCompletion(true)
+                        new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, secondSnapshotName).waitForCompletion(true)
                             .renamePattern("(.+)")
                             .renameReplacement("restored_$1"),
                         restoreSnapshotResponseListener
@@ -871,7 +885,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createIndicesListener,
             createIndexResponses -> client().admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, snapshotName)
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setWaitForCompletion(false)
                 .setPartial(partialSnapshot)
                 .setIncludeGlobalState(randomBoolean())
@@ -946,7 +960,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createRepoAndIndex(repoName, index, shards),
             createIndexResponse -> client().admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, snapshotName)
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setWaitForCompletion(true)
                 .execute(createSnapshotResponseStepListener)
         );
@@ -962,7 +976,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             for (SubscribableListener<Boolean> deleteListener : deleteSnapshotStepListeners) {
                 client().admin()
                     .cluster()
-                    .prepareDeleteSnapshot(repoName, snapshotName)
+                    .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                     .execute(ActionListener.wrap(resp -> deleteListener.onResponse(true), e -> {
                         final Throwable unwrapped = ExceptionsHelper.unwrap(
                             e,
@@ -1044,12 +1058,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             }
                             testClusterNodes.randomDataNodeSafe().client.admin()
                                 .cluster()
-                                .prepareCreateSnapshot(repoName, snapshotName)
+                                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                                 .execute(ActionListener.running(() -> {
                                     createdSnapshot.set(true);
                                     testClusterNodes.randomDataNodeSafe().client.admin()
                                         .cluster()
-                                        .deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.noop());
+                                        .deleteSnapshot(
+                                            new DeleteSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName),
+                                            ActionListener.noop()
+                                        );
                                 }));
                             scheduleNow(
                                 () -> testClusterNodes.randomMasterNodeSafe().client.execute(
@@ -1116,7 +1133,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         if (initiatedSnapshot.compareAndSet(false, true)) {
                             client().admin()
                                 .cluster()
-                                .prepareCreateSnapshot(repoName, snapshotName)
+                                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                                 .setWaitForCompletion(true)
                                 .execute(createSnapshotResponseStepListener);
                         }
@@ -1134,7 +1151,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createSnapshotResponse -> client().admin()
                 .cluster()
                 .restoreSnapshot(
-                    new RestoreSnapshotRequest(repoName, snapshotName).renamePattern(index)
+                    new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).renamePattern(index)
                         .renameReplacement(restoredIndex)
                         .waitForCompletion(true),
                     restoreSnapshotResponseStepListener
@@ -1210,7 +1227,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 scheduleNow(
                     () -> client().admin()
                         .cluster()
-                        .prepareCreateSnapshot(repoName, snapshotName)
+                        .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                         .setWaitForCompletion(true)
                         .execute(snapshotListener)
                 );
@@ -1305,7 +1322,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 try (var listeners = new RefCountingListener(stepListener)) {
                     client().admin()
                         .cluster()
-                        .preparePutRepository(repoName)
+                        .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
                         .setType(FsRepository.TYPE)
                         .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
                         .execute(listeners.acquire(createRepoResponse -> {}));
@@ -1325,7 +1342,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<Void>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, originalSnapshotName)
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, originalSnapshotName)
                     .setWaitForCompletion(true)
                     .execute(l.map(v -> null))
             );
@@ -1341,7 +1358,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             stepListener,
                             l -> client.admin()
                                 .cluster()
-                                .prepareCreateSnapshot(repoName, snapshotName)
+                                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                                 .setIndices(randomNonEmptySubsetOf(indices).toArray(String[]::new))
                                 .setPartial(true)
                                 .execute(l.map(v1 -> null))
@@ -1366,7 +1383,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     ).addListener(l);
                     client.admin()
                         .cluster()
-                        .prepareCloneSnapshot(repoName, originalSnapshotName, cloneName)
+                        .prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, originalSnapshotName, cloneName)
                         .setIndices(randomNonEmptySubsetOf(indices).toArray(String[]::new))
                         .execute(ActionTestUtils.assertNoFailureListener(r -> {}));
                 })));
@@ -1402,7 +1419,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 try (var listeners = new RefCountingListener(stepListener)) {
                     client().admin()
                         .cluster()
-                        .preparePutRepository(repoName)
+                        .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
                         .setType(FsRepository.TYPE)
                         .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
                         .execute(listeners.acquire(createRepoResponse -> {}));
@@ -1429,7 +1446,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<Void>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, randomIdentifier())
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier())
                     .setWaitForCompletion(randomBoolean())
                     .execute(new ActionListener<>() {
                         @Override
@@ -1480,7 +1497,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<CreateSnapshotResponse>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, snapshotName)
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                     .setWaitForCompletion(true)
                     .execute(l)
             )
@@ -1488,7 +1505,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<CreateSnapshotResponse>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, snapshotName)
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                     .setWaitForCompletion(randomBoolean())
                     .execute(new ActionListener<>() {
                         @Override
@@ -1507,7 +1524,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<AcknowledgedResponse>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()
-                    .prepareCloneSnapshot(repoName, snapshotName, snapshotName)
+                    .prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName, snapshotName)
                     .setIndices("*")
                     .execute(new ActionListener<>() {
                         @Override
@@ -1557,7 +1574,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<AcknowledgedResponse>newForked(
                 l -> client().admin()
                     .cluster()
-                    .preparePutRepository(repoName)
+                    .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
                     .setType(FsRepository.TYPE)
                     .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
                     .execute(l)
@@ -1566,7 +1583,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<CreateSnapshotResponse>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, randomIdentifier())
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier())
                     .setIndices(indexName)
                     .setWaitForCompletion(randomBoolean())
                     .execute(new ActionListener<>() {
@@ -1609,7 +1626,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<AcknowledgedResponse>newForked(
                 l -> client().admin()
                     .cluster()
-                    .preparePutRepository(repoName)
+                    .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
                     .setType(FsRepository.TYPE)
                     .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
                     .execute(l)
@@ -1618,7 +1635,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<CreateSnapshotResponse>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, randomIdentifier())
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier())
                     .setFeatureStates("none", "none")
                     .setWaitForCompletion(randomBoolean())
                     .execute(new ActionListener<>() {
@@ -1663,7 +1680,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         client().admin()
             .cluster()
-            .preparePutRepository(repoName)
+            .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
             .setType(FsRepository.TYPE)
             .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
             .execute(createRepositoryListener);

@@ -48,7 +48,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.loading.PluginsService;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -327,12 +327,18 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             // restoring the index from a snapshot may change the number of indexing replicas because the routing table is created afresh
             var repoPath = randomRepoPath();
             assertAcked(
-                clusterAdmin().preparePutRepository("repo").setType("fs").setSettings(Settings.builder().put("location", repoPath))
+                clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repo")
+                    .setType("fs")
+                    .setSettings(Settings.builder().put("location", repoPath))
             );
 
             assertEquals(
                 SnapshotState.SUCCESS,
-                clusterAdmin().prepareCreateSnapshot("repo", "snap").setWaitForCompletion(true).get().getSnapshotInfo().state()
+                clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
+                    .setWaitForCompletion(true)
+                    .get()
+                    .getSnapshotInfo()
+                    .state()
             );
 
             if (randomBoolean()) {
@@ -348,7 +354,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             assertEquals(
                 0,
-                clusterAdmin().prepareRestoreSnapshot("repo", "snap")
+                clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
                     .setIndices(INDEX_NAME)
                     .setIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
                     .setWaitForCompletion(true)

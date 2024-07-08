@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.loading.PluginsService;
+import org.elasticsearch.plugins.PluginsService;
 
 /**
  * Holds the factory retention configuration. Factory retention is the global retention configuration meant to be

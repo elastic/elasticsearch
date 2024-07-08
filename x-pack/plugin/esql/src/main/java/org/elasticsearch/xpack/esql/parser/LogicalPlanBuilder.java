@@ -29,18 +29,15 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -48,11 +45,15 @@ import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
@@ -92,15 +93,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
         var errors = this.params.parsingErrors();
-        if (errors.isEmpty()) {
+        if (errors.hasNext() == false) {
             return p;
         } else {
             StringBuilder message = new StringBuilder();
-            for (int i = 0; i < errors.size(); i++) {
+            int i = 0;
+
+            while (errors.hasNext()) {
                 if (i > 0) {
                     message.append("; ");
                 }
-                message.append(errors.get(i).getMessage());
+                message.append(errors.next().getMessage());
+                i++;
             }
             throw new ParsingException(message.toString());
         }
@@ -220,7 +224,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
+        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             var deprecatedContext = ctx.metadata().deprecated_metadata();
@@ -237,8 +241,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 metadataOptionContext = ctx.metadata().metadataOption();
 
             }
-            for (var c : metadataOptionContext.indexIdentifier()) {
-                String id = visitIndexIdentifier(c);
+            for (var c : metadataOptionContext.UNQUOTED_SOURCE()) {
+                String id = c.getText();
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false) {
                     throw new ParsingException(src, "unsupported metadata field [" + id + "]");
@@ -255,7 +259,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
-        return input -> new EsqlAggregate(source(ctx), input, stats.groupings, stats.aggregates);
+        return input -> new EsqlAggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, stats.groupings, stats.aggregates);
     }
 
     private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {
@@ -434,13 +438,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
         }
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
-        var unresolvedRelation = new EsqlUnresolvedRelation(source, table, List.of(), IndexMode.TIME_SERIES);
+        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
+
         if (ctx.aggregates == null && ctx.grouping == null) {
-            return unresolvedRelation;
+            return new EsqlUnresolvedRelation(source, table, List.of(), IndexMode.STANDARD);
         }
         final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
-        return new EsqlAggregate(source, unresolvedRelation, stats.groupings, stats.aggregates);
+        var relation = new EsqlUnresolvedRelation(
+            source,
+            table,
+            List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
+            IndexMode.TIME_SERIES
+        );
+        return new EsqlAggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
     }
 
     @Override
@@ -450,14 +460,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         var source = source(ctx);
 
-        List<NamedExpression> matchFields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+        @SuppressWarnings("unchecked")
+        List<Attribute> matchFields = (List<Attribute>) (List) visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
             if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
                 var src = ne.source();
                 throw new ParsingException(src, "Using wildcards [*] in LOOKUP ON is not allowed yet [{}]", src.text());
             }
+            if ((ne instanceof UnresolvedAttribute) == false) {
+                throw new IllegalStateException(
+                    "visitQualifiedNamePatterns can only return UnresolvedNamePattern, UnresolvedStar or UnresolvedAttribute"
+                );
+            }
         });
 
-        Literal tableName = new Literal(source, ctx.tableName.getText(), DataType.KEYWORD);
+        Literal tableName = new Literal(source, visitIndexPattern(List.of(ctx.indexPattern())), DataType.KEYWORD);
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }

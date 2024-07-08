@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
@@ -28,6 +27,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
@@ -331,15 +331,15 @@ public final class CsvTestUtils {
             columnTypes = new ArrayList<>(header.length);
 
             for (String c : header) {
-                String[] nameWithType = Strings.split(c, ":");
-                if (nameWithType == null || nameWithType.length != 2) {
+                String[] nameWithType = escapeTypecast(c).split(":");
+                if (nameWithType.length != 2) {
                     throw new IllegalArgumentException("Invalid CSV header " + c);
                 }
-                String typeName = nameWithType[1].trim();
-                if (typeName.length() == 0) {
-                    throw new IllegalArgumentException("A type is always expected in the csv file; found " + nameWithType);
+                String typeName = unescapeTypecast(nameWithType[1]).trim();
+                if (typeName.isEmpty()) {
+                    throw new IllegalArgumentException("A type is always expected in the csv file; found " + Arrays.toString(nameWithType));
                 }
-                String name = nameWithType[0].trim();
+                String name = unescapeTypecast(nameWithType[0]).trim();
                 columnNames.add(name);
                 Type type = Type.asType(typeName);
                 if (type == null) {
@@ -395,6 +395,16 @@ public final class CsvTestUtils {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static final String TYPECAST_SPACER = "__TYPECAST__";
+
+    private static String escapeTypecast(String typecast) {
+        return typecast.replace("::", TYPECAST_SPACER);
+    }
+
+    private static String unescapeTypecast(String typecast) {
+        return typecast.replace(TYPECAST_SPACER, "::");
     }
 
     public enum Type {
@@ -537,7 +547,7 @@ public final class CsvTestUtils {
     record ActualResults(
         List<String> columnNames,
         List<Type> columnTypes,
-        List<String> dataTypes,
+        List<DataType> dataTypes,
         List<Page> pages,
         Map<String, List<String>> responseHeaders
     ) {

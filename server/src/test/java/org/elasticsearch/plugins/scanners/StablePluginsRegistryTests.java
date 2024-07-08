@@ -8,7 +8,7 @@
 
 package org.elasticsearch.plugins.scanners;
 
-import org.elasticsearch.plugins.loading.PluginBundle;
+import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 

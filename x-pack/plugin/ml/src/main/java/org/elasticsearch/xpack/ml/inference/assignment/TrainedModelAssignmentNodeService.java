@@ -184,6 +184,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     void loadQueuedModels(ActionListener<Boolean> rescheduleImmediately) {
         if (stopped) {
+            rescheduleImmediately.onResponse(false);
             return;
         }
         if (latestState != null) {

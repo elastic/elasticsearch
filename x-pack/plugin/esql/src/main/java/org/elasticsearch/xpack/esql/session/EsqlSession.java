@@ -115,7 +115,7 @@ public class EsqlSession {
     }
 
     /**
-     * Execute an ESQL request. See {@link Phased} for the sequence of operations.
+     * Execute an ESQL request.
      */
     public void execute(
         EsqlQueryRequest request,
@@ -129,7 +129,11 @@ public class EsqlSession {
         );
     }
 
-    private void executeAnalyzedPlan(
+    /**
+     * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
+     * this is public for testing. See {@link Phased} for the sequence of operations.
+     */
+    public void executeAnalyzedPlan(
         EsqlQueryRequest request,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         LogicalPlan analyzedPlan,
@@ -143,9 +147,9 @@ public class EsqlSession {
         }
     }
 
-    void executePhased(
+    private void executePhased(
         List<DriverProfile> profileAccumulator,
-        LogicalPlan originalPlan,
+        LogicalPlan mainPlan,
         EsqlQueryRequest request,
         LogicalPlan firstPhase,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
@@ -155,7 +159,7 @@ public class EsqlSession {
         runPhase.accept(physicalPlan, listener.delegateFailureAndWrap((next, result) -> {
             try {
                 profileAccumulator.addAll(result.profiles());
-                LogicalPlan withPrevPhaseResults = Phased.applyResultsFromFirstPhase(originalPlan, physicalPlan.output(), result.pages());
+                LogicalPlan withPrevPhaseResults = Phased.applyResultsFromFirstPhase(mainPlan, physicalPlan.output(), result.pages());
                 LogicalPlan newNextPhase = Phased.extractFirstPhase(withPrevPhaseResults);
                 if (newNextPhase == null) {
                     PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(withPrevPhaseResults, request);

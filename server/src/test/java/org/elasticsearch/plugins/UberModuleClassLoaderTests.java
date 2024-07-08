@@ -427,12 +427,12 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             package p;
 
             import java.util.ServiceLoader;
-            import java.util.random.RandomGenerator;
+            import java.nio.file.spi.FileSystemProvider;
 
             public class ServiceCaller {
                 public static String demo() {
                     // check no error if we load a service from the jdk
-                    ServiceLoader<RandomGenerator> randomLoader = ServiceLoader.load(RandomGenerator.class);
+                    ServiceLoader<FileSystemProvider> fileSystemLoader = ServiceLoader.load(FileSystemProvider.class);
 
                     ServiceLoader<MyService> loader = ServiceLoader.load(MyService.class, ServiceCaller.class.getClassLoader());
                     return loader.findFirst().get().getTestString();

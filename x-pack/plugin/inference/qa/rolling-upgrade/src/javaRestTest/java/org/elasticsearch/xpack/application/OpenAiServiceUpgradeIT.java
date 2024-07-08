@@ -55,7 +55,8 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
     @SuppressWarnings("unchecked")
     public void testOpenAiEmbeddings() throws IOException {
         var openAiEmbeddingsSupported = getOldClusterTestVersion().onOrAfter(OPEN_AI_EMBEDDINGS_ADDED);
-        String old_cluster_endpoint_identifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
+        // `gte_v` indicates that the cluster version is Greater Than or Equal to MODELS_RENAMED_TO_ENDPOINTS
+        String oldClusterEndpointIdentifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
         assumeTrue("OpenAI embedding service added in " + OPEN_AI_EMBEDDINGS_ADDED, openAiEmbeddingsSupported);
 
         final String oldClusterId = "old-cluster-embeddings";
@@ -69,7 +70,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
             put(oldClusterId, inferenceConfig, testTaskType);
 
-            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(old_cluster_endpoint_identifier);
+            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(oldClusterEndpointIdentifier);
             assertThat(configs, hasSize(1));
 
             assertEmbeddingInference(oldClusterId);

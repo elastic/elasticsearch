@@ -54,7 +54,8 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
     @SuppressWarnings("unchecked")
     public void testHFEmbeddings() throws IOException {
         var embeddingsSupported = getOldClusterTestVersion().onOrAfter(HF_EMBEDDINGS_ADDED);
-        String old_cluster_endpoint_identifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
+        // `gte_v` indicates that the cluster version is Greater Than or Equal to MODELS_RENAMED_TO_ENDPOINTS
+        String oldClusterEndpointIdentifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
         assumeTrue("Hugging Face embedding service added in " + HF_EMBEDDINGS_ADDED, embeddingsSupported);
 
         final String oldClusterId = "old-cluster-embeddings";
@@ -67,7 +68,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             embeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
             put(oldClusterId, embeddingConfig(getUrl(embeddingsServer)), testTaskType);
 
-            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(old_cluster_endpoint_identifier);
+            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(oldClusterEndpointIdentifier);
             assertThat(configs, hasSize(1));
 
             assertEmbeddingInference(oldClusterId);

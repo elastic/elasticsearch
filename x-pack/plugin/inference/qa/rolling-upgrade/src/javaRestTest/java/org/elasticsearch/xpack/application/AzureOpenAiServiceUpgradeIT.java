@@ -49,7 +49,8 @@ public class AzureOpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
     @AwaitsFix(bugUrl = "Cannot set the URL in the tests")
     public void testOpenAiEmbeddings() throws IOException {
         var openAiEmbeddingsSupported = getOldClusterTestVersion().onOrAfter(OPEN_AI_AZURE_EMBEDDINGS_ADDED);
-        String old_cluster_endpoint_identifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
+        // `gte_v` indicates that the cluster version is Greater Than or Equal to MODELS_RENAMED_TO_ENDPOINTS
+        String oldClusterEndpointIdentifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
         assumeTrue("Azure OpenAI embedding service added in " + OPEN_AI_AZURE_EMBEDDINGS_ADDED, openAiEmbeddingsSupported);
 
         final String oldClusterId = "old-cluster-embeddings";
@@ -62,7 +63,7 @@ public class AzureOpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(OpenAiServiceUpgradeIT.embeddingResponse()));
             put(oldClusterId, embeddingConfig(getUrl(openAiEmbeddingsServer)), testTaskType);
 
-            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(old_cluster_endpoint_identifier);
+            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(oldClusterEndpointIdentifier);
             assertThat(configs, hasSize(1));
         } else if (isMixedCluster()) {
             var configs = getConfigsWithBreakingChangeHandling(testTaskType, oldClusterId);

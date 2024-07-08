@@ -59,7 +59,8 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
     @SuppressWarnings("unchecked")
     public void testCohereEmbeddings() throws IOException {
         var embeddingsSupported = getOldClusterTestVersion().onOrAfter(COHERE_EMBEDDINGS_ADDED);
-        String old_cluster_endpoint_identifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
+        // `gte_v` indicates that the cluster version is Greater Than or Equal to MODELS_RENAMED_TO_ENDPOINTS
+        String oldClusterEndpointIdentifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
         assumeTrue("Cohere embedding service added in " + COHERE_EMBEDDINGS_ADDED, embeddingsSupported);
 
         final String oldClusterIdInt8 = "old-cluster-embeddings-int8";
@@ -76,7 +77,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
             put(oldClusterIdFloat, embeddingConfigFloat(getUrl(cohereEmbeddingsServer)), testTaskType);
 
             {
-                var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterIdInt8).get(old_cluster_endpoint_identifier);
+                var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterIdInt8).get(oldClusterEndpointIdentifier);
                 assertThat(configs, hasSize(1));
                 assertEquals("cohere", configs.get(0).get("service"));
                 var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
@@ -87,7 +88,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
                 assertEmbeddingInference(oldClusterIdInt8, CohereEmbeddingType.BYTE);
             }
             {
-                var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterIdFloat).get(old_cluster_endpoint_identifier);
+                var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterIdFloat).get(oldClusterEndpointIdentifier);
                 assertThat(configs, hasSize(1));
                 assertEquals("cohere", configs.get(0).get("service"));
                 var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");

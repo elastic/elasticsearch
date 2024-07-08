@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -153,23 +154,14 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
             super.addCustomFields(builder, params);
             builder.field(PIPELINE_IDS, pipelineIds);
             builder.field(REFERENCED_INDEXES, indexes);
-            builder.field(DRY_RUN_MESSAGE, dryRunMessage);
+            if (dryRunMessage != null) {
+                builder.field(DRY_RUN_MESSAGE, dryRunMessage);
+            }
         }
 
         @Override
         public String toString() {
-            StringBuilder returnable = new StringBuilder();
-            returnable.append("acknowledged: ").append(this.acknowledged);
-            returnable.append(", pipelineIdsByEndpoint: ");
-            for (String entry : pipelineIds) {
-                returnable.append(entry).append(", ");
-            }
-            returnable.append(", semanticTextFieldsByIndex: ");
-            for (String entry : indexes) {
-                returnable.append(entry).append(", ");
-            }
-            returnable.append(", dryRunMessage: ").append(dryRunMessage);
-            return returnable.toString();
+            return Strings.toString(this);
         }
     }
 }

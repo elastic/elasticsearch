@@ -67,7 +67,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage, NameId id) {
         super(source, null, name, field, null, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;
-        this.message = customMessage == null ? errorMessage(qualifiedName(), field) : customMessage;
+        this.message = customMessage == null ? errorMessage(name(), field) : customMessage;
     }
 
     public UnsupportedAttribute(StreamInput in) throws IOException {
@@ -110,15 +110,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    protected Attribute clone(
-        Source source,
-        String name,
-        DataType type,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic
-    ) {
+    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
         return new UnsupportedAttribute(source, name, field(), hasCustomMessage ? message : null, id);
     }
 
@@ -128,7 +120,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     public String toString() {
-        return "!" + qualifiedName();
+        return "!" + name();
     }
 
     @Override

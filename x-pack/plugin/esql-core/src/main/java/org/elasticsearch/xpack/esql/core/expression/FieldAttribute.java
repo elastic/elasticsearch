@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -107,7 +106,8 @@ public class FieldAttribute extends TypedAttribute {
         out.writeString(name());
         dataType().writeTo(out);
         out.writeNamedWriteable(field);
-        out.writeOptionalString(qualifier());
+        // We used to write the qualifier here. We can still do if needed in the future.
+        out.writeOptionalString(null);
         out.writeEnum(nullable());
         id().writeTo(out);
         out.writeBoolean(synthetic());
@@ -120,7 +120,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, FieldAttribute::new, parent, name(), dataType(), field, qualifier(), nullable(), id(), synthetic());
+        return NodeInfo.create(this, FieldAttribute::new, parent, name(), dataType(), field, (String) null, nullable(), id(), synthetic());
     }
 
     public FieldAttribute parent() {
@@ -129,11 +129,6 @@ public class FieldAttribute extends TypedAttribute {
 
     public String path() {
         return path;
-    }
-
-    public String qualifiedPath() {
-        // return only the qualifier is there's no path
-        return qualifier() != null ? qualifier() + (Strings.hasText(path) ? "." + path : StringUtils.EMPTY) : path;
     }
 
     public EsField.Exact getExactInfo() {
@@ -149,21 +144,12 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private FieldAttribute innerField(EsField type) {
-        return new FieldAttribute(source(), this, name() + "." + type.getName(), type, qualifier(), nullable(), id(), synthetic());
+        return new FieldAttribute(source(), this, name() + "." + type.getName(), type, (String) null, nullable(), id(), synthetic());
     }
 
     @Override
-    protected Attribute clone(
-        Source source,
-        String name,
-        DataType type,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic
-    ) {
-        FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullability, id, synthetic);
+    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+        return new FieldAttribute(source, parent, name, field, (String) null, nullability, id, synthetic);
     }
 
     @Override

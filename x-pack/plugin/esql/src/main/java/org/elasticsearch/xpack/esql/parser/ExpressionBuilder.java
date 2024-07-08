@@ -642,7 +642,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
         var source = source(ctx);
-        String name = id == null ? source.text() : id.qualifiedName();
+        String name = id == null ? source.text() : id.name();
         return new Alias(source, name, value);
     }
 
@@ -673,7 +673,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         name = source(field).text();
                     }
                 } else {
-                    name = id.qualifiedName();
+                    name = id.name();
                 }
                 // wrap when necessary - no alias and no underlying attribute
                 if (ne == null) {

@@ -212,7 +212,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
         var list = new ArrayList<Attribute>();
         mappingAsAttributes(list, source, null, mapping);
-        list.sort(Comparator.comparing(Attribute::qualifiedName));
+        list.sort(Comparator.comparing(Attribute::name));
         return list;
     }
 
@@ -552,7 +552,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 matchFieldChildReference = new UnresolvedAttribute(
                                     attr.source(),
                                     attr.name(),
-                                    attr.qualifier(),
+                                    null,
                                     attr.id(),
                                     "column type mismatch, table column was ["
                                         + joinedAttribute.dataType().typeName()
@@ -824,7 +824,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
         UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern(), null);
-        Predicate<Attribute> matcher = a -> up.match(a.name()) || up.match(a.qualifiedName());
+        Predicate<Attribute> matcher = a -> up.match(a.name()) || up.match(a.name());
         var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
     }
@@ -1204,7 +1204,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var field = fa.field();
             if (field instanceof InvalidMappedField imf) {
                 String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
-                return new UnresolvedAttribute(fa.source(), fa.name(), fa.qualifier(), fa.id(), unresolvedMessage, null);
+                return new UnresolvedAttribute(fa.source(), fa.name(), null, fa.id(), unresolvedMessage, null);
             }
             return fa;
         }

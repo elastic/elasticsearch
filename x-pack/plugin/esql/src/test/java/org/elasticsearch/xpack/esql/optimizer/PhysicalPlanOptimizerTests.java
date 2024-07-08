@@ -4549,7 +4549,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private void assertFieldExtractionWithDocValues(FieldExtractExec extract, DataType dataType, String... fieldNames) {
         extract.attributesToExtract().forEach(attr -> {
-            String name = attr.qualifiedName();
+            String name = attr.name();
             if (asList(fieldNames).contains(name)) {
                 assertThat("Expected field '" + name + "' to use doc-values", extract.hasDocValuesAttribute(attr), equalTo(true));
                 assertThat("Expected field '" + name + "' to have data type " + dataType, attr.dataType(), equalTo(dataType));

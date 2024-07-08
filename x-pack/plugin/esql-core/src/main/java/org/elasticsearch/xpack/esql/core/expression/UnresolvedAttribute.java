@@ -47,7 +47,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     ) {
         super(source, name, qualifier, id);
         this.customMessage = unresolvedMessage != null;
-        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
+        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
     }
 
@@ -63,7 +63,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, name(), qualifier(), id(), unresolvedMsg, resolutionMetadata);
+        return NodeInfo.create(this, UnresolvedAttribute::new, name(), (String) null, id(), unresolvedMsg, resolutionMetadata);
     }
 
     public Object resolutionMetadata() {
@@ -80,20 +80,12 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(
-        Source source,
-        String name,
-        DataType dataType,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic
-    ) {
+    protected Attribute clone(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
         return this;
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
-        return new UnresolvedAttribute(source(), name(), qualifier(), id(), unresolvedMessage, resolutionMetadata());
+        return new UnresolvedAttribute(source(), name(), null, id(), unresolvedMessage, resolutionMetadata());
     }
 
     @Override
@@ -103,7 +95,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + qualifiedName();
+        return UNRESOLVED_PREFIX + name();
     }
 
     @Override

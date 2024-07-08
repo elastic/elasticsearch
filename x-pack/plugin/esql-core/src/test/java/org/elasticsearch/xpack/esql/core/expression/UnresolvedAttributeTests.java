@@ -53,7 +53,7 @@ public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAtt
                 () -> new UnresolvedAttribute(
                     a.source(),
                     randomValueOtherThan(a.name(), () -> randomAlphaOfLength(5)),
-                    a.qualifier(),
+                    null,
                     a.id(),
                     a.unresolvedMessage(),
                     a.resolutionMetadata()
@@ -61,20 +61,12 @@ public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAtt
                 () -> new UnresolvedAttribute(
                     a.source(),
                     a.name(),
-                    randomValueOtherThan(a.qualifier(), UnresolvedAttributeTests::randomQualifier),
-                    a.id(),
-                    a.unresolvedMessage(),
-                    a.resolutionMetadata()
-                ),
-                () -> new UnresolvedAttribute(
-                    a.source(),
-                    a.name(),
-                    a.qualifier(),
+                    null,
                     a.id(),
                     randomValueOtherThan(a.unresolvedMessage(), () -> randomUnresolvedMessage()),
                     a.resolutionMetadata()
                 ),
-                () -> new UnresolvedAttribute(a.source(), a.name(), a.qualifier(), a.id(), a.unresolvedMessage(), new Object())
+                () -> new UnresolvedAttribute(a.source(), a.name(), null, a.id(), a.unresolvedMessage(), new Object())
             )
         );
         return option.get();
@@ -82,7 +74,7 @@ public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAtt
 
     @Override
     protected UnresolvedAttribute copy(UnresolvedAttribute a) {
-        return new UnresolvedAttribute(a.source(), a.name(), a.qualifier(), a.id(), a.unresolvedMessage(), a.resolutionMetadata());
+        return new UnresolvedAttribute(a.source(), a.name(), null, a.id(), a.unresolvedMessage(), a.resolutionMetadata());
     }
 
     @Override
@@ -91,31 +83,25 @@ public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAtt
 
         String newName = randomValueOtherThan(a.name(), () -> randomAlphaOfLength(5));
         assertEquals(
-            new UnresolvedAttribute(a.source(), newName, a.qualifier(), a.id(), a.unresolvedMessage(), a.resolutionMetadata()),
+            new UnresolvedAttribute(a.source(), newName, null, a.id(), a.unresolvedMessage(), a.resolutionMetadata()),
             a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.name()) ? newName : v)
-        );
-
-        String newQualifier = randomValueOtherThan(a.qualifier(), UnresolvedAttributeTests::randomQualifier);
-        assertEquals(
-            new UnresolvedAttribute(a.source(), a.name(), newQualifier, a.id(), a.unresolvedMessage(), a.resolutionMetadata()),
-            a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.qualifier()) ? newQualifier : v)
         );
 
         NameId newId = new NameId();
         assertEquals(
-            new UnresolvedAttribute(a.source(), a.name(), a.qualifier(), newId, a.unresolvedMessage(), a.resolutionMetadata()),
+            new UnresolvedAttribute(a.source(), a.name(), null, newId, a.unresolvedMessage(), a.resolutionMetadata()),
             a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.id()) ? newId : v)
         );
 
         String newMessage = randomValueOtherThan(a.unresolvedMessage(), UnresolvedAttributeTests::randomUnresolvedMessage);
         assertEquals(
-            new UnresolvedAttribute(a.source(), a.name(), a.qualifier(), a.id(), newMessage, a.resolutionMetadata()),
+            new UnresolvedAttribute(a.source(), a.name(), null, a.id(), newMessage, a.resolutionMetadata()),
             a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.unresolvedMessage()) ? newMessage : v)
         );
 
         Object newMeta = new Object();
         assertEquals(
-            new UnresolvedAttribute(a.source(), a.name(), a.qualifier(), a.id(), a.unresolvedMessage(), newMeta),
+            new UnresolvedAttribute(a.source(), a.name(), null, a.id(), a.unresolvedMessage(), newMeta),
             a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.resolutionMetadata()) ? newMeta : v)
         );
     }

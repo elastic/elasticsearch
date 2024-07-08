@@ -179,10 +179,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, EsqlConfiguration configuration, Result result) {
-        List<ColumnInfoImpl> columns = result.schema()
-            .stream()
-            .map(c -> new ColumnInfoImpl(c.qualifiedName(), c.dataType().outputType()))
-            .toList();
+        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> new ColumnInfoImpl(c.name(), c.dataType().outputType())).toList();
         EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String id = asyncTask.getExecutionId().getEncoded();

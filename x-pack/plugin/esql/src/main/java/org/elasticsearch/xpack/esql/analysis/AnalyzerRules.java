@@ -76,18 +76,12 @@ public final class AnalyzerRules {
         Collection<Attribute> attrList,
         java.util.function.Function<Attribute, Attribute> fieldInspector
     ) {
-        // first take into account the qualified version
-        final String qualifier = u.qualifier();
         final String name = u.name();
-        final boolean qualified = u.qualifier() != null;
 
         Predicate<Attribute> predicate = a -> {
-            return qualified ? Objects.equals(qualifier, a.qualifiedName()) :
-            // if the field is unqualified
-            // first check the names directly
-                (Objects.equals(name, a.name()))
-                    // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
-                    || Objects.equals(name, a.qualifiedName());
+            return (Objects.equals(name, a.name()))
+                // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
+                || Objects.equals(name, a.name());
 
         };
         return maybeResolveAgainstList(predicate, () -> u, attrList, false, fieldInspector);
@@ -127,24 +121,12 @@ public final class AnalyzerRules {
         List<String> refs = matches.stream().sorted((a, b) -> {
             int lineDiff = a.sourceLocation().getLineNumber() - b.sourceLocation().getLineNumber();
             int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
-            return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.qualifiedName().compareTo(b.qualifiedName()));
-        })
-            .map(
-                a -> "line "
-                    + a.sourceLocation().toString().substring(1)
-                    + " ["
-                    + (a.qualifier() != null ? "\"" + a.qualifier() + "\".\"" + a.name() + "\"" : a.name())
-                    + "]"
-            )
-            .toList();
+            return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.name().compareTo(b.name()));
+        }).map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" + a.name() + "]").toList();
 
         return singletonList(
             ua.withUnresolvedMessage(
-                "Reference ["
-                    + ua.qualifiedName()
-                    + "] is ambiguous (to disambiguate use quotes or qualifiers); "
-                    + "matches any of "
-                    + refs
+                "Reference [" + ua.name() + "] is ambiguous (to disambiguate use quotes or qualifiers); " + "matches any of " + refs
             )
         );
     }

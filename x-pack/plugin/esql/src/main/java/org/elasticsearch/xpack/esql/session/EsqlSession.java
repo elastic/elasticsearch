@@ -247,7 +247,7 @@ public class EsqlSession {
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
-                    references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
+                    references.removeIf(attr -> matchByName(attr, extracted.name(), false));
                 }
                 // but keep the inputs needed by Grok/Dissect
                 references.addAll(re.input().references());
@@ -288,7 +288,7 @@ public class EsqlSession {
 
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
-        references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.qualifiedName()));
+        references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
         Set<String> fieldNames = references.names();
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
@@ -303,11 +303,11 @@ public class EsqlSession {
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {
-        boolean isPattern = Regex.isSimpleMatchPattern(attr.qualifiedName());
+        boolean isPattern = Regex.isSimpleMatchPattern(attr.name());
         if (skipIfPattern && isPattern) {
             return false;
         }
-        var name = attr.qualifiedName();
+        var name = attr.name();
         return isPattern ? Regex.simpleMatch(name, other) : name.equals(other);
     }
 

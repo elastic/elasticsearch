@@ -34,16 +34,14 @@ public class ReferenceAttributeTests extends AbstractAttributeTestCase<Reference
         Source source = instance.source();
         String name = instance.name();
         DataType type = instance.dataType();
-        String qualifier = instance.qualifier();
         Nullability nullability = instance.nullable();
         boolean synthetic = instance.synthetic();
-        switch (between(0, 4)) {
+        switch (between(0, 3)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
-            case 2 -> qualifier = randomValueOtherThan(qualifier, () -> randomBoolean() ? null : randomAlphaOfLength(3));
-            case 3 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
-            case 4 -> synthetic = false == synthetic;
+            case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
+            case 3 -> synthetic = false == synthetic;
         }
-        return new ReferenceAttribute(source, name, type, qualifier, nullability, new NameId(), synthetic);
+        return new ReferenceAttribute(source, name, type, null, nullability, new NameId(), synthetic);
     }
 }

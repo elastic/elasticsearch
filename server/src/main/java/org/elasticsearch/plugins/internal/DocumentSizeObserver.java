@@ -46,6 +46,10 @@ public interface DocumentSizeObserver {
      */
     long normalisedBytesParsed();
 
+    /**
+     * Enriches the index request with the number of bytes observed when parsing a document
+     * @param indexRequest
+     */
     default void setNormalisedBytesParsedOn(IndexRequest indexRequest) {}
 
     default boolean isUpdateByScript() {

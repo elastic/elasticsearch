@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
@@ -117,6 +119,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
+    private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
@@ -170,6 +173,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var httpRequestSenderFactory = new HttpRequestSender.Factory(serviceComponents.get(), httpClientManager, services.clusterService());
         httpFactory.set(httpRequestSenderFactory);
 
+        var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
+        amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
+
         ModelRegistry modelRegistry = new ModelRegistry(services.client());
 
         if (inferenceServiceExtensions == null) {
@@ -209,6 +215,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get()),
             context -> new MistralService(httpFactory.get(), serviceComponents.get()),
             context -> new AnthropicService(httpFactory.get(), serviceComponents.get()),
+            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }
@@ -294,25 +301,16 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        if (SemanticTextFeature.isEnabled()) {
-            return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
-        }
-        return Map.of();
+        return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
     }
 
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
-        if (SemanticTextFeature.isEnabled()) {
-            return singletonList(shardBulkInferenceActionFilter.get());
-        }
-        return List.of();
+        return singletonList(shardBulkInferenceActionFilter.get());
     }
 
     public List<QuerySpec<?>> getQueries() {
-        if (SemanticTextFeature.isEnabled()) {
-            return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
-        }
-        return List.of();
+        return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
     }
 
     @Override

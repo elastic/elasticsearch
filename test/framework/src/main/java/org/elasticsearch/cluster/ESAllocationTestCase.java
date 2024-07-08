@@ -331,7 +331,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     public static ClusterState reroute(AllocationService allocationService, ClusterState clusterState) {
         final var listener = new PlainActionFuture<Void>();
         final var result = allocationService.reroute(clusterState, "test reroute", listener);
-        listener.result(); // ensures it completed successfully
+        safeGet(listener::result); // ensures it completed successfully
         return result;
     }
 

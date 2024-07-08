@@ -38,7 +38,10 @@ API cannot retrieve roles that are defined in roles files.
 ==== {api-response-body-title}
 
 A successful call returns an array of roles with the JSON representation of the
-role.
+role. The returned role format is a simple extension of the <<defining-roles,role definition>> format,
+only adding an extra field `transient_metadata.enabled`.
+This field is `false` in case the role is automatically disabled, for example when the license
+level does not allow some permissions that the role grants.
 
 [[security-api-get-role-response-codes]]
 ==== {api-response-codes-title}

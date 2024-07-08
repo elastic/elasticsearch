@@ -43,7 +43,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
@@ -3468,12 +3467,15 @@ public class TranslogTests extends ESTestCase {
                 translog.add(new Translog.NoOp(seqNo++, primaryTerm.get(), "test"));
                 totalOperations++;
             }
-            try (ReleasableLock ignored = translog.writeLock.acquire()) {
+            translog.writeLock.lock();
+            try {
                 if (randomBoolean()) {
                     primaryTerm.incrementAndGet();
                 }
                 translog.rollGeneration();
                 primaryTerms.add(primaryTerm.get());
+            } finally {
+                translog.writeLock.unlock();
             }
             assertThat(translog.currentFileGeneration(), equalTo(generation + i + 1));
             assertThat(translog.getCurrent().getPrimaryTerm(), equalTo(primaryTerm.get()));

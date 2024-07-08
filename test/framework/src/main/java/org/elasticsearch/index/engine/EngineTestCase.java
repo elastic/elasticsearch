@@ -125,7 +125,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1179,33 +1178,24 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
-        Thread[] thread = new Thread[randomIntBetween(3, 5)];
-        CountDownLatch startGun = new CountDownLatch(thread.length);
+        final int threadCount = randomIntBetween(3, 5);
         AtomicInteger offset = new AtomicInteger(-1);
-        for (int i = 0; i < thread.length; i++) {
-            thread[i] = new Thread(() -> {
-                startGun.countDown();
-                safeAwait(startGun);
-                int docOffset;
-                while ((docOffset = offset.incrementAndGet()) < ops.size()) {
-                    try {
-                        applyOperation(engine, ops.get(docOffset));
-                        if ((docOffset + 1) % 4 == 0) {
-                            engine.refresh("test");
-                        }
-                        if (rarely()) {
-                            engine.flush();
-                        }
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
+        startInParallel(threadCount, i -> {
+            int docOffset;
+            while ((docOffset = offset.incrementAndGet()) < ops.size()) {
+                try {
+                    applyOperation(engine, ops.get(docOffset));
+                    if ((docOffset + 1) % 4 == 0) {
+                        engine.refresh("test");
                     }
+                    if (rarely()) {
+                        engine.flush();
+                    }
+                } catch (IOException e) {
+                    throw new AssertionError(e);
                 }
-            });
-            thread[i].start();
-        }
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
-        }
+            }
+        });
     }
 
     public static void applyOperations(Engine engine, List<Engine.Operation> operations) throws IOException {

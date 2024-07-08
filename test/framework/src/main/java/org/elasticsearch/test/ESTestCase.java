@@ -173,6 +173,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -2432,6 +2433,22 @@ public abstract class ESTestCase extends LuceneTestCase {
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
             () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
         );
+    }
+
+    /**
+     * Same as {@link #runInParallel(int, IntConsumer)} but also attempts to start all tasks at the same time by blocking execution on a
+     * barrier until all threads are started and ready to execute their task.
+     */
+    public static void startInParallel(int numberOfTasks, IntConsumer taskFactory) throws InterruptedException {
+        final CyclicBarrier barrier = new CyclicBarrier(numberOfTasks);
+        runInParallel(numberOfTasks, i -> {
+            try {
+                barrier.await();
+            } catch (InterruptedException | BrokenBarrierException e) {
+                throw new AssertionError(e);
+            }
+            taskFactory.accept(i);
+        });
     }
 
     /**

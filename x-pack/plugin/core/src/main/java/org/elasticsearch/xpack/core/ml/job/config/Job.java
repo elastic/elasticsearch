@@ -77,6 +77,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
     public static final ParseField ANALYSIS_LIMITS = new ParseField("analysis_limits");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField CUSTOM_SETTINGS = new ParseField("custom_settings");
+    public static final ParseField KEEP_JOB_DATA = new ParseField("keep_job_data");
     public static final ParseField DATA_DESCRIPTION = new ParseField("data_description");
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField FINISHED_TIME = new ParseField("finished_time");
@@ -476,6 +477,18 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
 
     public Map<String, Object> getCustomSettings() {
         return customSettings;
+    }
+
+    public Boolean keepJobData() {
+        if (customSettings != null && customSettings.containsKey(KEEP_JOB_DATA.getPreferredName())) {
+            Object value = customSettings.get(KEEP_JOB_DATA.getPreferredName());
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            } else if (value instanceof String) {
+                return "true".equalsIgnoreCase((String) value);
+            }
+        }
+        return false;
     }
 
     public String getModelSnapshotId() {

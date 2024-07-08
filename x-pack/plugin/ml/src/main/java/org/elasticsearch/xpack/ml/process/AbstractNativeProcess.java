@@ -61,6 +61,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private volatile boolean processCloseInitiated;
     private volatile boolean processKilled;
     private volatile boolean isReady;
+    private volatile Path controlMessageFilePath;
 
     protected AbstractNativeProcess(
         String jobId,
@@ -107,7 +108,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         processPipes.connectOtherStreams();
         if (processPipes.getProcessInStream().isPresent()) {
             processInStream.set(new BufferedOutputStream(processPipes.getProcessInStream().get()));
-            this.recordWriter.set(new LengthEncodedWriter(processInStream.get()));
+            this.recordWriter.set(new LengthEncodedWriter(processInStream.get(), getControlMessageFilePath()));
         }
         processOutStream.set(processPipes.getProcessOutStream().orElse(null));
         processRestoreStream.set(processPipes.getRestoreStream().orElse(null));
@@ -348,4 +349,14 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             // Given we are closing down the process there is no point propagating IO exceptions here
         }
     }
+
+    @Nullable
+    public Path getControlMessageFilePath() {
+        return controlMessageFilePath;
+    }
+
+    public void setControlMessageFilePath(Path controlMessageFilePath) {
+        this.controlMessageFilePath = controlMessageFilePath;
+    }
+
 }

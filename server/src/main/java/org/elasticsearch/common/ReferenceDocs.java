@@ -73,6 +73,7 @@ public enum ReferenceDocs {
     UNASSIGNED_SHARDS,
     EXECUTABLE_JNA_TMPDIR,
     NETWORK_THREADING_MODEL,
+    ALLOCATION_EXPLAIN_API,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -154,10 +155,15 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                             // publish address.
                                             logger.warn(
                                                 () -> format(
-                                                    "completed handshake with [%s] at [%s] but followup connection to [%s] failed",
+                                                    """
+                                                        Successfully discovered master-eligible node [%s] at address [%s] but could not \
+                                                        connect to it at its publish address of [%s]. Each node in a cluster must be \
+                                                        accessible at its publish address to all other nodes in the cluster. See %s for \
+                                                        more information.""",
                                                     remoteNode.descriptionWithoutAttributes(),
                                                     transportAddress,
-                                                    remoteNode.getAddress()
+                                                    remoteNode.getAddress(),
+                                                    ReferenceDocs.NETWORK_BINDING_AND_PUBLISHING
                                                 ),
                                                 e
                                             );

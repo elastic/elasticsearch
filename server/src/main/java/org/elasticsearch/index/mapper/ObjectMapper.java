@@ -168,8 +168,7 @@ public class ObjectMapper extends Mapper {
         public final void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
             // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
             // we just add it as it is for sure a leaf mapper
-            if (name.contains(".") == false
-                || (subobjects.isPresent() && (subobjects.get() == Subobjects.DISABLED || subobjects.get() == Subobjects.AUTO))) {
+            if (name.contains(".") == false || (subobjects.isPresent() && (subobjects.get() != Subobjects.ENABLED))) {
                 add(name, mapper);
             } else {
                 // otherwise we strip off the first object path of the mapper name, load or create

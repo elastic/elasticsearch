@@ -146,7 +146,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
                 final int read = SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference);
                 stats.addCachedBytesRead(read);
                 return read;
-            }, (channel, channelPos, relativePos, len, progressUpdater, completionListener) -> {
+            }, (channel, channelPos, relativePos, len, progressUpdater) -> {
                 final long startTimeNanos = stats.currentTimeNanos();
                 try (InputStream input = openInputStreamFromBlobStore(rangeToWrite.start() + relativePos, len)) {
                     assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
@@ -169,7 +169,6 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
                     );
                     final long endTimeNanos = stats.currentTimeNanos();
                     stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
-                    completionListener.onResponse(null);
                 }
             });
             assert bytesRead == length : bytesRead + " vs " + length;

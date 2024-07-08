@@ -288,8 +288,8 @@ setup:
       cluster_features: "gte_v8.4.0"
       reason: 'kNN added to search endpoint in 8.4'
   - skip:
-      cluster_features: "gte_v8.15.0"
-      reason: 'non-existent field handling improved in 8.15'
+      cluster_features: "gte_v8.16.0"
+      reason: 'non-existent field handling improved in 8.16'
   - do:
       catch: bad_request
       search:
@@ -308,8 +308,8 @@ setup:
 ---
 "Test nonexistent field is match none":
   - requires:
-      cluster_features: "gte_v8.15.0"
-      reason: 'non-existent field handling improved in 8.15'
+      cluster_features: "gte_v8.16.0"
+      reason: 'non-existent field handling improved in 8.16'
   - do:
       search:
         index: test

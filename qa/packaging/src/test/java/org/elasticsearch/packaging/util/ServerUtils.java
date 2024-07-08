@@ -110,6 +110,13 @@ public class ServerUtils {
      */
     private static HttpResponse execute(Request request, String username, String password, Path caCert) throws Exception {
         final Executor executor;
+        logger.info(
+            "Executing request [{}] with username/password [{}/{}] and caCert [{}]",
+            request.toString(),
+            username,
+            password,
+            caCert
+        );
         if (caCert != null) {
             try (InputStream inStream = Files.newInputStream(caCert)) {
                 CertificateFactory cf = CertificateFactory.getInstance("X.509");

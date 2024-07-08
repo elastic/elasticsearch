@@ -12,8 +12,12 @@ import com.maxmind.db.Network;
 import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.model.ConnectionTypeResponse;
+import com.maxmind.geoip2.model.ConnectionTypeResponse.ConnectionType;
 import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.model.DomainResponse;
 import com.maxmind.geoip2.model.EnterpriseResponse;
+import com.maxmind.geoip2.model.IspResponse;
 import com.maxmind.geoip2.record.City;
 import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Country;
@@ -175,7 +179,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
             case Country -> retrieveCountryGeoData(geoIpDatabase, ipAddress);
             case Asn -> retrieveAsnGeoData(geoIpDatabase, ipAddress);
             case AnonymousIp -> retrieveAnonymousIpGeoData(geoIpDatabase, ipAddress);
+            case ConnectionType -> retrieveConnectionTypeGeoData(geoIpDatabase, ipAddress);
+            case Domain -> retrieveDomainGeoData(geoIpDatabase, ipAddress);
             case Enterprise -> retrieveEnterpriseGeoData(geoIpDatabase, ipAddress);
+            case Isp -> retrieveIspGeoData(geoIpDatabase, ipAddress);
         };
     }
 
@@ -225,6 +232,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     String countryName = country.getName();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
+                    }
+                }
+                case CONTINENT_CODE -> {
+                    String continentCode = continent.getCode();
+                    if (continentCode != null) {
+                        geoData.put("continent_code", continentCode);
                     }
                 }
                 case CONTINENT_NAME -> {
@@ -300,6 +313,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         geoData.put("country_name", countryName);
                     }
                 }
+                case CONTINENT_CODE -> {
+                    String continentCode = continent.getCode();
+                    if (continentCode != null) {
+                        geoData.put("continent_code", continentCode);
+                    }
+                }
                 case CONTINENT_NAME -> {
                     String continentName = continent.getName();
                     if (continentName != null) {
@@ -317,7 +336,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             return Map.of();
         }
         Long asn = response.getAutonomousSystemNumber();
-        String organization_name = response.getAutonomousSystemOrganization();
+        String organizationName = response.getAutonomousSystemOrganization();
         Network network = response.getNetwork();
 
         Map<String, Object> geoData = new HashMap<>();
@@ -330,8 +349,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     }
                 }
                 case ORGANIZATION_NAME -> {
-                    if (organization_name != null) {
-                        geoData.put("organization_name", organization_name);
+                    if (organizationName != null) {
+                        geoData.put("organization_name", organizationName);
                     }
                 }
                 case NETWORK -> {
@@ -384,6 +403,50 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
+    private Map<String, Object> retrieveConnectionTypeGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
+        ConnectionTypeResponse response = geoIpDatabase.getConnectionType(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        ConnectionType connectionType = response.getConnectionType();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case CONNECTION_TYPE -> {
+                    if (connectionType != null) {
+                        geoData.put("connection_type", connectionType.toString());
+                    }
+                }
+            }
+        }
+        return geoData;
+    }
+
+    private Map<String, Object> retrieveDomainGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
+        DomainResponse response = geoIpDatabase.getDomain(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        String domain = response.getDomain();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case DOMAIN -> {
+                    if (domain != null) {
+                        geoData.put("domain", domain);
+                    }
+                }
+            }
+        }
+        return geoData;
+    }
+
     private Map<String, Object> retrieveEnterpriseGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
         EnterpriseResponse response = geoIpDatabase.getEnterprise(ipAddress);
         if (response == null) {
@@ -397,8 +460,13 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Subdivision subdivision = response.getMostSpecificSubdivision();
 
         Long asn = response.getTraits().getAutonomousSystemNumber();
-        String organization_name = response.getTraits().getAutonomousSystemOrganization();
+        String organizationName = response.getTraits().getAutonomousSystemOrganization();
         Network network = response.getTraits().getNetwork();
+
+        String isp = response.getTraits().getIsp();
+        String ispOrganization = response.getTraits().getOrganization();
+        String mobileCountryCode = response.getTraits().getMobileCountryCode();
+        String mobileNetworkCode = response.getTraits().getMobileNetworkCode();
 
         boolean isHostingProvider = response.getTraits().isHostingProvider();
         boolean isTorExitNode = response.getTraits().isTorExitNode();
@@ -406,6 +474,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
         boolean isAnonymous = response.getTraits().isAnonymous();
         boolean isPublicProxy = response.getTraits().isPublicProxy();
         boolean isResidentialProxy = response.getTraits().isResidentialProxy();
+
+        String userType = response.getTraits().getUserType();
+
+        String domain = response.getTraits().getDomain();
+
+        ConnectionType connectionType = response.getTraits().getConnectionType();
 
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
@@ -421,6 +495,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     String countryName = country.getName();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
+                    }
+                }
+                case CONTINENT_CODE -> {
+                    String continentCode = continent.getCode();
+                    if (continentCode != null) {
+                        geoData.put("continent_code", continentCode);
                     }
                 }
                 case CONTINENT_NAME -> {
@@ -473,8 +553,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     }
                 }
                 case ORGANIZATION_NAME -> {
-                    if (organization_name != null) {
-                        geoData.put("organization_name", organization_name);
+                    if (organizationName != null) {
+                        geoData.put("organization_name", organizationName);
                     }
                 }
                 case NETWORK -> {
@@ -483,22 +563,115 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     }
                 }
                 case HOSTING_PROVIDER -> {
-                    geoData.put("is_hosting_provider", isHostingProvider);
+                    geoData.put("hosting_provider", isHostingProvider);
                 }
                 case TOR_EXIT_NODE -> {
-                    geoData.put("is_tor_exit_node", isTorExitNode);
+                    geoData.put("tor_exit_node", isTorExitNode);
                 }
                 case ANONYMOUS_VPN -> {
-                    geoData.put("is_anonymous_vpn", isAnonymousVpn);
+                    geoData.put("anonymous_vpn", isAnonymousVpn);
                 }
                 case ANONYMOUS -> {
-                    geoData.put("is_anonymous", isAnonymous);
+                    geoData.put("anonymous", isAnonymous);
                 }
                 case PUBLIC_PROXY -> {
-                    geoData.put("is_public_proxy", isPublicProxy);
+                    geoData.put("public_proxy", isPublicProxy);
                 }
                 case RESIDENTIAL_PROXY -> {
-                    geoData.put("is_residential_proxy", isResidentialProxy);
+                    geoData.put("residential_proxy", isResidentialProxy);
+                }
+                case DOMAIN -> {
+                    if (domain != null) {
+                        geoData.put("domain", domain);
+                    }
+                }
+                case ISP -> {
+                    if (isp != null) {
+                        geoData.put("isp", isp);
+                    }
+                }
+                case ISP_ORGANIZATION_NAME -> {
+                    if (ispOrganization != null) {
+                        geoData.put("isp_organization", ispOrganization);
+                    }
+                }
+                case MOBILE_COUNTRY_CODE -> {
+                    if (mobileCountryCode != null) {
+                        geoData.put("mobile_country_code", mobileCountryCode);
+                    }
+                }
+                case MOBILE_NETWORK_CODE -> {
+                    if (mobileNetworkCode != null) {
+                        geoData.put("mobile_network_code", mobileNetworkCode);
+                    }
+                }
+                case USER_TYPE -> {
+                    if (userType != null) {
+                        geoData.put("user_type", userType);
+                    }
+                }
+                case CONNECTION_TYPE -> {
+                    if (connectionType != null) {
+                        geoData.put("connection_type", connectionType.toString());
+                    }
+                }
+            }
+        }
+        return geoData;
+    }
+
+    private Map<String, Object> retrieveIspGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
+        IspResponse response = geoIpDatabase.getIsp(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        String isp = response.getIsp();
+        String ispOrganization = response.getOrganization();
+        String mobileNetworkCode = response.getMobileNetworkCode();
+        String mobileCountryCode = response.getMobileCountryCode();
+        Long asn = response.getAutonomousSystemNumber();
+        String organizationName = response.getAutonomousSystemOrganization();
+        Network network = response.getNetwork();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case ASN -> {
+                    if (asn != null) {
+                        geoData.put("asn", asn);
+                    }
+                }
+                case ORGANIZATION_NAME -> {
+                    if (organizationName != null) {
+                        geoData.put("organization_name", organizationName);
+                    }
+                }
+                case NETWORK -> {
+                    if (network != null) {
+                        geoData.put("network", network.toString());
+                    }
+                }
+                case ISP -> {
+                    if (isp != null) {
+                        geoData.put("isp", isp);
+                    }
+                }
+                case ISP_ORGANIZATION_NAME -> {
+                    if (ispOrganization != null) {
+                        geoData.put("isp_organization", ispOrganization);
+                    }
+                }
+                case MOBILE_COUNTRY_CODE -> {
+                    if (mobileCountryCode != null) {
+                        geoData.put("mobile_country_code", mobileCountryCode);
+                    }
+                }
+                case MOBILE_NETWORK_CODE -> {
+                    if (mobileNetworkCode != null) {
+                        geoData.put("mobile_network_code", mobileNetworkCode);
+                    }
                 }
             }
         }

@@ -15,8 +15,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RTrim}.
@@ -31,9 +31,9 @@ public final class RTrimEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public RTrimEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

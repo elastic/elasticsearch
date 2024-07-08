@@ -105,11 +105,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     boolean isNull(int position);
 
     /**
-     * @return the number of null values in this block.
-     */
-    int nullValuesCount();
-
-    /**
      * @return true if some values might be null. False, if all values are guaranteed to be not null.
      */
     boolean mayHaveNulls();
@@ -121,9 +116,20 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
 
     /**
      * Can this block have multivalued fields? Blocks that return {@code false}
-     * will never return more than one from {@link #getValueCount}.
+     * will never return more than one from {@link #getValueCount}. This may
+     * return {@code true} for Blocks that do not have multivalued fields, but
+     * it will always answer quickly.
      */
     boolean mayHaveMultivaluedFields();
+
+    /**
+     * Does this block have multivalued fields? Unlike {@link #mayHaveMultivaluedFields}
+     * this will never return a false positive. In other words, if this returns
+     * {@code true} then there <strong>are</strong> positions for which {@link #getValueCount}
+     * will return more than 1. This will answer quickly if it can but may have
+     * to check all positions.
+     */
+    boolean doesHaveMultivaluedFields();
 
     /**
      * Creates a new block that only exposes the positions provided.
@@ -281,10 +287,12 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
         return List.of(
             IntBlock.ENTRY,
             LongBlock.ENTRY,
+            FloatBlock.ENTRY,
             DoubleBlock.ENTRY,
             BytesRefBlock.ENTRY,
             BooleanBlock.ENTRY,
-            ConstantNullBlock.ENTRY
+            ConstantNullBlock.ENTRY,
+            CompositeBlock.ENTRY
         );
     }
 

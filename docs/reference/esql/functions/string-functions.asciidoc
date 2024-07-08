@@ -15,6 +15,7 @@
 * <<esql-length>>
 * <<esql-locate>>
 * <<esql-ltrim>>
+* <<esql-repeat>>
 * <<esql-replace>>
 * <<esql-right>>
 * <<esql-rtrim>>
@@ -34,6 +35,7 @@ include::layout/left.asciidoc[]
 include::layout/length.asciidoc[]
 include::layout/locate.asciidoc[]
 include::layout/ltrim.asciidoc[]
+include::layout/repeat.asciidoc[]
 include::layout/replace.asciidoc[]
 include::layout/right.asciidoc[]
 include::layout/rtrim.asciidoc[]

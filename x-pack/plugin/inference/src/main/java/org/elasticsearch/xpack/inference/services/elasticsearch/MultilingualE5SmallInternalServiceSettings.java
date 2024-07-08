@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 
 public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
@@ -59,10 +59,13 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     }
 
     private static RequestFields extractRequestFields(Map<String, Object> map, ValidationException validationException) {
-        Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
-        Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
-
-        validateParameters(numAllocations, validationException, numThreads);
+        Integer numAllocations = extractRequiredPositiveInteger(
+            map,
+            NUM_ALLOCATIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         String modelId = ServiceUtils.removeAsType(map, MODEL_ID, String.class);
         if (modelId != null) {
@@ -102,11 +105,6 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     @Override
     public String getWriteableName() {
         return MultilingualE5SmallInternalServiceSettings.NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
     }
 
     @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.watcher.actions.webhook;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -99,7 +100,7 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
             ksw.save(configPath, "".toCharArray(), false);
         }
         // Reload the keystore to load the new settings
-        NodesReloadSecureSettingsRequest reloadReq = new NodesReloadSecureSettingsRequest();
+        NodesReloadSecureSettingsRequest reloadReq = new NodesReloadSecureSettingsRequest(Strings.EMPTY_ARRAY);
         try {
             reloadReq.setSecureStorePassword(new SecureString("".toCharArray()));
             client().execute(TransportNodesReloadSecureSettingsAction.TYPE, reloadReq).get();

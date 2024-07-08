@@ -8,6 +8,8 @@ beta::[]
 
 Updates the `index_name` field of a connector, specifying the index where the data ingested by the connector is stored.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [[update-connector-index-name-api-request]]
 ==== {api-request-title}
 

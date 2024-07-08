@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
@@ -51,7 +52,7 @@ public class RestDeleteJobAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteJobAction.Request deleteJobRequest = new DeleteJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
         deleteJobRequest.setForce(restRequest.paramAsBoolean(CloseJobAction.Request.FORCE.getPreferredName(), deleteJobRequest.isForce()));
-        deleteJobRequest.ackTimeout(restRequest.paramAsTime("timeout", deleteJobRequest.ackTimeout()));
+        deleteJobRequest.ackTimeout(getAckTimeout(restRequest));
         deleteJobRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         deleteJobRequest.setDeleteUserAnnotations(restRequest.paramAsBoolean("delete_user_annotations", false));
 

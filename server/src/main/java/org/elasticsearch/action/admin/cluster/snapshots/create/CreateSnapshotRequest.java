@@ -15,12 +15,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -65,7 +67,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private String[] indices = EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
+    private IndicesOptions indicesOptions = DataStream.isFailureStoreFeatureFlagEnabled()
+        ? IndicesOptions.strictExpandHiddenIncludeFailureStore()
+        : IndicesOptions.strictExpandHidden();
 
     private String[] featureStates = EMPTY_ARRAY;
 
@@ -78,7 +82,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     @Nullable
     private Map<String, Object> userMetadata;
 
-    public CreateSnapshotRequest() {}
+    public CreateSnapshotRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+    }
 
     /**
      * Constructs a new put repository request with the provided snapshot and repository names
@@ -86,7 +92,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @param repository repository name
      * @param snapshot   snapshot name
      */
-    public CreateSnapshotRequest(String repository, String snapshot) {
+    public CreateSnapshotRequest(TimeValue masterNodeTimeout, String repository, String snapshot) {
+        this(masterNodeTimeout);
         this.snapshot = snapshot;
         this.repository = repository;
     }

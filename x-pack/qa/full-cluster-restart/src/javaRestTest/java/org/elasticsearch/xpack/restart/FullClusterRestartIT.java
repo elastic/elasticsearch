@@ -433,6 +433,23 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
      */
     public void testRollupAfterRestart() throws Exception {
         if (isRunningAgainstOldCluster()) {
+            // create dummy rollup index to circumvent the check that prohibits rollup usage in empty clusters:
+            {
+                Request req = new Request("PUT", "dummy-rollup-index");
+                req.setJsonEntity("""
+                    {
+                        "mappings":{
+                            "_meta": {
+                                "_rollup":{
+                                    "my-id": {}
+                                }
+                            }
+                        }
+                    }
+                    """);
+                client().performRequest(req);
+            }
+
             final int numDocs = 59;
             final int year = randomIntBetween(1970, 2018);
 
@@ -1041,7 +1058,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             Request esql = new Request("POST", "_query");
             esql.setJsonEntity("""
                 {
-                  "version": "2024.04.01",
                   "query": "FROM nofnf | LIMIT 1"
                 }""");
             // {"columns":[{"name":"dv","type":"keyword"},{"name":"no_dv","type":"keyword"}],"values":[["test",null]]}

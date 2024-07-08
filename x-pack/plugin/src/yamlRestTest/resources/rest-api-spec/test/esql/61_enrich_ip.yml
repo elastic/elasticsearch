@@ -115,7 +115,6 @@ teardown:
       esql.query:
         body:
           query: 'FROM events | eval ip_str = to_string(ip) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'
-          version: 2024.04.01
 
   - match: { columns.0.name: "ip" }
   - match: { columns.0.type: "ip" }
@@ -144,7 +143,6 @@ teardown:
       esql.query:
         body:
           query: 'FROM events_text | ENRICH networks-policy ON ip_text | sort @timestamp | KEEP ip_text, name, department, message'
-          version: 2024.04.01
 
   - match: { columns.0.name: "ip_text" }
   - match: { columns.0.type: "text" }
@@ -172,7 +170,6 @@ teardown:
       esql.query:
         body:
           query: 'FROM events | eval ip_str = concat("invalid_", to_string(ip)) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'
-          version: 2024.04.01
 
 ---
 "IP":
@@ -186,7 +183,6 @@ teardown:
       esql.query:
         body:
           query: 'FROM events | ENRICH networks-policy ON ip | sort @timestamp | KEEP ip, name, department, message'
-          version: 2024.04.01
 
   - match: { columns.0.name: "ip" }
   - match: { columns.0.type: "ip" }

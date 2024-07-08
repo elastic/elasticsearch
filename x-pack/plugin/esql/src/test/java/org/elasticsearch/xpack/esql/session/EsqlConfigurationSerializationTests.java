@@ -24,10 +24,10 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.action.ParseTables;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.time.ZoneId;
 import java.util.HashMap;

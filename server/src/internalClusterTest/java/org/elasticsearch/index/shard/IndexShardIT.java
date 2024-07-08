@@ -49,6 +49,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -633,7 +634,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             cbs,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             System::nanoTime,
-            null
+            null,
+            MapperMetrics.NOOP
         );
     }
 

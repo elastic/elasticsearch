@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -351,15 +352,9 @@ public class DynamicTemplate implements ToXContentObject {
             .toArray(XContentFieldType[]::new);
 
         final MatchType matchType = MatchType.fromString(matchPattern);
-        List<String> allPatterns = Stream.of(match.stream(), unmatch.stream(), pathMatch.stream(), pathUnmatch.stream())
-            .flatMap(s -> s)
-            .toList();
-        for (String pattern : allPatterns) {
-            // no need to check return value - the method impls either have side effects (set header warnings)
-            // or throw an exception that should be sent back to the user
-            matchType.validate(pattern, name);
-        }
-
+        // no need to check return value - the method impls either have side effects (set header warnings)
+        // or throw an exception that should be sent back to the user
+        Stream.of(match, unmatch, pathMatch, pathUnmatch).flatMap(Collection::stream).forEach(pattern -> matchType.validate(pattern, name));
         return new DynamicTemplate(
             name,
             pathMatch,
@@ -427,13 +422,13 @@ public class DynamicTemplate implements ToXContentObject {
         boolean runtimeMapping
     ) {
         this.name = name;
-        this.pathMatch = pathMatch;
-        this.pathUnmatch = pathUnmatch;
-        this.match = match;
-        this.unmatch = unmatch;
+        this.pathMatch = List.copyOf(pathMatch);
+        this.pathUnmatch = List.copyOf(pathUnmatch);
+        this.match = List.copyOf(match);
+        this.unmatch = List.copyOf(unmatch);
         this.matchType = matchType;
-        this.matchMappingType = matchMappingType;
-        this.unmatchMappingType = unmatchMappingType;
+        this.matchMappingType = List.copyOf(matchMappingType);
+        this.unmatchMappingType = List.copyOf(unmatchMappingType);
         this.xContentFieldTypes = xContentFieldTypes;
         this.mapping = mapping;
         this.runtimeMapping = runtimeMapping;

@@ -80,6 +80,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         client().execute(
             PutEnrichPolicyAction.INSTANCE,
             new PutEnrichPolicyAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 enrichPolicyName,
                 new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"))
             )
@@ -87,7 +88,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
 
         client().execute(
             ExecuteEnrichPolicyAction.INSTANCE,
-            new ExecuteEnrichPolicyAction.Request(enrichPolicyName).setWaitForCompletion(true)
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, enrichPolicyName).setWaitForCompletion(true)
         ).actionGet();
 
         XContentBuilder pipe1 = JsonXContent.contentBuilder();
@@ -179,6 +180,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         client().execute(
             PutEnrichPolicyAction.INSTANCE,
             new PutEnrichPolicyAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 enrichPolicyName,
                 new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"))
             )
@@ -186,7 +188,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
 
         client().execute(
             ExecuteEnrichPolicyAction.INSTANCE,
-            new ExecuteEnrichPolicyAction.Request(enrichPolicyName).setWaitForCompletion(true)
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, enrichPolicyName).setWaitForCompletion(true)
         ).actionGet();
 
         XContentBuilder pipe1 = JsonXContent.contentBuilder();

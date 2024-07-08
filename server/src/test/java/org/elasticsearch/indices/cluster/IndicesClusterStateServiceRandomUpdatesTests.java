@@ -441,7 +441,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // randomly reroute
         if (rarely()) {
-            state = cluster.reroute(state, new ClusterRerouteRequest());
+            state = cluster.reroute(state, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT));
         }
 
         // randomly start and fail allocated shards
@@ -528,16 +528,16 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             Collections.emptySet()
         );
         final ClusterService clusterService = mock(ClusterService.class);
+        final NodeClient client = mock(NodeClient.class);
         final RepositoriesService repositoriesService = new RepositoriesService(
             settings,
             clusterService,
-            transportService,
             Collections.emptyMap(),
             Collections.emptyMap(),
             threadPool,
+            client,
             List.of()
         );
-        final NodeClient client = mock(NodeClient.class);
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
             client,
             threadPool,

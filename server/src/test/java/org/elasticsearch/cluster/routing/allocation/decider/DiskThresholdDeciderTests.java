@@ -1190,13 +1190,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(
             shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).stream()
                 .map(ShardRouting::unassignedInfo)
-                .allMatch(unassignedInfo -> Reason.NEW_INDEX_RESTORED.equals(unassignedInfo.getReason())),
+                .allMatch(unassignedInfo -> Reason.NEW_INDEX_RESTORED.equals(unassignedInfo.reason())),
             is(true)
         );
         assertThat(
             shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).stream()
                 .map(ShardRouting::unassignedInfo)
-                .allMatch(unassignedInfo -> AllocationStatus.NO_ATTEMPT.equals(unassignedInfo.getLastAllocationStatus())),
+                .allMatch(unassignedInfo -> AllocationStatus.NO_ATTEMPT.equals(unassignedInfo.lastAllocationStatus())),
             is(true)
         );
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
@@ -1218,7 +1218,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(
             shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).stream()
                 .map(ShardRouting::unassignedInfo)
-                .allMatch(unassignedInfo -> AllocationStatus.FETCHING_SHARD_DATA.equals(unassignedInfo.getLastAllocationStatus())),
+                .allMatch(unassignedInfo -> AllocationStatus.FETCHING_SHARD_DATA.equals(unassignedInfo.lastAllocationStatus())),
             is(true)
         );
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));

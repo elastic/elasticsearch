@@ -22,11 +22,11 @@ public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScrip
     protected String id;
 
     GetStoredScriptRequest() {
-        super();
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
     }
 
     public GetStoredScriptRequest(String id) {
-        super();
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
 
         this.id = id;
     }

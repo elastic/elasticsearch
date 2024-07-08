@@ -49,6 +49,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
          * @param name A template name or pattern, or {@code null} to retrieve all templates.
          */
         public Request(@Nullable String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             if (name != null && name.contains(",")) {
                 throw new IllegalArgumentException("template name may not contain ','");
             }

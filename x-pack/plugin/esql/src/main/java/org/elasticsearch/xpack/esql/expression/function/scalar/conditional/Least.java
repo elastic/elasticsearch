@@ -8,45 +8,82 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
  * Returns the minimum value of multiple columns.
  */
 public class Least extends EsqlScalarFunction implements OptionalArgument {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Least", Least::new);
+
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" },
-        description = "Returns the minimum value from many columns."
+        returnType = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        description = "Returns the minimum value from multiple columns. "
+            + "This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.",
+        examples = @Example(file = "math", tag = "least")
     )
     public Least(
         Source source,
-        @Param(name = "first", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) Expression first,
-        @Param(name = "rest", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }, optional = true) List<
-            Expression> rest
+        @Param(
+            name = "first",
+            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            description = "First of the columns to evaluate."
+        ) Expression first,
+        @Param(
+            name = "rest",
+            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            description = "The rest of the columns to evaluate.",
+            optional = true
+        ) List<Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
+    }
+
+    private Least(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(children().get(0));
+        out.writeNamedWriteableCollection(children().subList(1, children().size()));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -106,23 +143,23 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
         ExpressionEvaluator.Factory[] factories = children().stream()
             .map(e -> toEvaluator.apply(new MvMin(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);
-        if (dataType == DataTypes.BOOLEAN) {
+        if (dataType == DataType.BOOLEAN) {
             return new LeastBooleanEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataTypes.DOUBLE) {
+        if (dataType == DataType.DOUBLE) {
             return new LeastDoubleEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataTypes.INTEGER) {
+        if (dataType == DataType.INTEGER) {
             return new LeastIntEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataTypes.LONG) {
+        if (dataType == DataType.LONG) {
             return new LeastLongEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataTypes.KEYWORD
-            || dataType == DataTypes.TEXT
-            || dataType == DataTypes.IP
-            || dataType == DataTypes.VERSION
-            || dataType == DataTypes.UNSUPPORTED) {
+        if (dataType == DataType.KEYWORD
+            || dataType == DataType.TEXT
+            || dataType == DataType.IP
+            || dataType == DataType.VERSION
+            || dataType == DataType.UNSUPPORTED) {
 
             return new LeastBytesRefEvaluator.Factory(source(), factories);
         }

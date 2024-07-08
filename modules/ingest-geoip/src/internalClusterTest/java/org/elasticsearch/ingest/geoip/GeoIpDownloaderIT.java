@@ -242,7 +242,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                         Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
                         state.getDatabases().keySet()
                     );
-                    GeoIpTaskState.Metadata metadata = state.get(id);
+                    GeoIpTaskState.Metadata metadata = state.getDatabases().get(id);
                     int size = metadata.lastChunk() - metadata.firstChunk() + 1;
                     assertResponse(
                         prepareSearch(GeoIpDownloader.DATABASES_INDEX).setSize(size)

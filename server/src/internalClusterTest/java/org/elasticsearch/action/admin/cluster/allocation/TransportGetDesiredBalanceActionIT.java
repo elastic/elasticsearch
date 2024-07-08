@@ -40,8 +40,9 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest().waitForStatus(ClusterHealthStatus.GREEN)).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest())
-            .get();
+        final var desiredBalanceResponse = safeGet(
+            client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT))
+        );
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
         Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);
@@ -75,8 +76,9 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest(index).waitForStatus(ClusterHealthStatus.YELLOW)).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest())
-            .get();
+        final var desiredBalanceResponse = safeGet(
+            client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT))
+        );
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
         Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);

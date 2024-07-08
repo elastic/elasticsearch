@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
@@ -44,7 +45,7 @@ public class RestDeleteFilterAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request = new Request(restRequest.param(Request.FILTER_ID.getPreferredName()));
-        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
+        request.ackTimeout(getAckTimeout(restRequest));
         request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(DeleteFilterAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

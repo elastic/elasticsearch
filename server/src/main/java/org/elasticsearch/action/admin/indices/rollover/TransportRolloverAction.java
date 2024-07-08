@@ -169,12 +169,13 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         assert task instanceof CancellableTask;
         Metadata metadata = clusterState.metadata();
         // We evaluate the names of the index for which we should evaluate conditions, as well as what our newly created index *would* be.
+        boolean targetFailureStore = rolloverRequest.targetsFailureStore();
         final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
             clusterState,
             rolloverRequest.getRolloverTarget(),
             rolloverRequest.getNewIndexName(),
             rolloverRequest.getCreateIndexRequest(),
-            rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
+            targetFailureStore
         );
         final String trialSourceIndexName = trialRolloverNames.sourceName();
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
@@ -200,6 +201,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 metadataDataStreamsService.setRolloverOnWrite(
                     rolloverRequest.getRolloverTarget(),
                     true,
+                    targetFailureStore,
                     rolloverRequest.ackTimeout(),
                     rolloverRequest.masterNodeTimeout(),
                     listener.map(
@@ -226,6 +228,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             listener.onFailure(
                 new IllegalStateException("Aliases to data streams cannot be rolled over. Please rollover the data stream itself.")
             );
+            return;
+        }
+        if (targetFailureStore && rolloverTargetAbstraction.isDataStreamRelated() == false) {
+            listener.onFailure(new IllegalStateException("Rolling over failure stores is only possible on data streams."));
+            return;
+        }
+
+        // When we're initializing a failure store, we skip the stats request because there is no source index to retrieve stats for.
+        if (targetFailureStore && ((DataStream) rolloverTargetAbstraction).getFailureIndices().getIndices().isEmpty()) {
+            initializeFailureStore(rolloverRequest, listener, trialSourceIndexName, trialRolloverIndexName);
             return;
         }
 
@@ -315,7 +327,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                 // Pre-check the conditions to see whether we should submit a new cluster state task
                 if (rolloverRequest.areConditionsMet(trialConditionResults)) {
-                    String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
+                    String source = "rollover_index source [" + trialSourceIndexName + "] to target [" + trialRolloverIndexName + "]";
                     RolloverTask rolloverTask = new RolloverTask(
                         rolloverRequest,
                         statsResponse,
@@ -323,7 +335,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         rolloverAutoSharding,
                         delegate
                     );
-                    submitRolloverTask(rolloverRequest, source, rolloverTask);
+                    rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
                 } else {
                     // conditions not met
                     delegate.onResponse(trialRolloverResponse);
@@ -332,7 +344,37 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         );
     }
 
-    void submitRolloverTask(RolloverRequest rolloverRequest, String source, RolloverTask rolloverTask) {
+    private void initializeFailureStore(
+        RolloverRequest rolloverRequest,
+        ActionListener<RolloverResponse> listener,
+        String trialSourceIndexName,
+        String trialRolloverIndexName
+    ) {
+        if (rolloverRequest.getConditionValues().isEmpty() == false) {
+            listener.onFailure(
+                new IllegalStateException("Rolling over/initializing an empty failure store is only supported without conditions.")
+            );
+            return;
+        }
+        final RolloverResponse trialRolloverResponse = new RolloverResponse(
+            trialSourceIndexName,
+            trialRolloverIndexName,
+            Map.of(),
+            rolloverRequest.isDryRun(),
+            false,
+            false,
+            false,
+            rolloverRequest.isLazy()
+        );
+
+        // If this is a dry run, return with the results without invoking a cluster state update.
+        if (rolloverRequest.isDryRun()) {
+            listener.onResponse(trialRolloverResponse);
+            return;
+        }
+
+        String source = "initialize_failure_store with index [" + trialRolloverIndexName + "]";
+        RolloverTask rolloverTask = new RolloverTask(rolloverRequest, null, trialRolloverResponse, null, listener);
         rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
     }
 
@@ -364,7 +406,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .flatMap(Arrays::stream)
                 .filter(shard -> shard.getShardRouting().primary())
                 .map(ShardStats::getStats)
-                .mapToLong(shard -> shard.docs.getTotalSizeInBytes())
+                .mapToLong(shard -> shard.docs == null ? 0L : shard.docs.getTotalSizeInBytes())
                 .max()
                 .orElse(0);
 
@@ -374,7 +416,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .flatMap(Arrays::stream)
                 .filter(shard -> shard.getShardRouting().primary())
                 .map(ShardStats::getStats)
-                .mapToLong(shard -> shard.docs.getCount())
+                .mapToLong(shard -> shard.docs == null ? 0L : shard.docs.getCount())
                 .max()
                 .orElse(0);
 
@@ -455,7 +497,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
-                rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
+                rolloverRequest.targetsFailureStore()
             );
 
             // Re-evaluate the conditions, now with our final source index name
@@ -506,7 +548,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     sourceIndexStats,
                     rolloverTask.autoShardingResult(),
-                    rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
+                    rolloverRequest.targetsFailureStore()
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);

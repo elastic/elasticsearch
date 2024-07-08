@@ -26,7 +26,53 @@ import java.util.regex.Pattern;
 
 public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
-    record JdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash) {}
+    interface JdkBuild {
+        JavaLanguageVersion languageVersion();
+
+        String url(String os, String arch, String extension);
+    }
+
+    record ReleasedJdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash) implements JdkBuild {
+
+        @Override
+        public String url(String os, String arch, String extension) {
+            return "https://download.oracle.com/java/GA/jdk"
+                + version
+                + "/"
+                + hash
+                + "/"
+                + buildNumber
+                + "/GPL/openjdk-"
+                + version
+                + "_"
+                + os
+                + "-"
+                + arch
+                + "_bin."
+                + extension;
+        }
+    }
+
+    record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber) implements JdkBuild {
+
+        @Override
+        public String url(String os, String arch, String extension) {
+            return "https://download.java.net/java/early_access/jdk"
+                + version
+                + "/"
+                + version
+                + "/GPL/openjdk-"
+                + version
+                + "-ea+"
+                + buildNumber
+                + "_"
+                + os
+                + "-"
+                + arch
+                + "_bin."
+                + extension;
+        }
+    }
 
     private static final Pattern VERSION_PATTERN = Pattern.compile(
         "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
@@ -41,8 +87,8 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
         getBundledJdkBuild(),
-        // 22 release candidate
-        new JdkBuild(JavaLanguageVersion.of(22), "22", "36", "830ec9fcccef480bb3e73fb7ecafe059")
+        // 23 early access
+        new EarlyAccessJdkBuild(JavaLanguageVersion.of(23), "23", "24")
     );
 
     private JdkBuild getBundledJdkBuild() {
@@ -55,7 +101,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String baseVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
         String build = jdkVersionMatcher.group(3);
         String hash = jdkVersionMatcher.group(5);
-        return new JdkBuild(bundledJdkMajorVersion, baseVersion, build, hash);
+        return new ReleasedJdkBuild(bundledJdkMajorVersion, baseVersion, build, hash);
     }
 
     /**
@@ -72,24 +118,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String extension = operatingSystem.equals(OperatingSystem.WINDOWS) ? "zip" : "tar.gz";
         String arch = toArchString(request.getBuildPlatform().getArchitecture());
         String os = toOsString(operatingSystem);
-        return Optional.of(
-            () -> URI.create(
-                "https://download.oracle.com/java/GA/jdk"
-                    + build.version
-                    + "/"
-                    + build.hash
-                    + "/"
-                    + build.buildNumber
-                    + "/GPL/openjdk-"
-                    + build.version
-                    + "_"
-                    + os
-                    + "-"
-                    + arch
-                    + "_bin."
-                    + extension
-            )
-        );
+        return Optional.of(() -> URI.create(build.url(os, arch, extension)));
     }
 
     /**
@@ -117,7 +146,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
 
         JavaLanguageVersion languageVersion = javaToolchainSpec.getLanguageVersion().get();
         for (JdkBuild build : builds) {
-            if (build.languageVersion.equals(languageVersion)) {
+            if (build.languageVersion().equals(languageVersion)) {
                 return build;
             }
         }

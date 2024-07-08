@@ -30,6 +30,7 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
     private boolean includeDefaults = false;
 
     public SimulateIndexTemplateRequest(String indexName) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         if (Strings.isNullOrEmpty(indexName)) {
             throw new IllegalArgumentException("index name cannot be null or empty");
         }

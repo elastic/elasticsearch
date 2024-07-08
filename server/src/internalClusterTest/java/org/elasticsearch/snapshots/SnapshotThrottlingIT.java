@@ -16,7 +16,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Collections;
@@ -48,12 +48,11 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 .put("max_restore_bytes_per_sec", maxRestoreBytesPerSec)
         );
         createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
-            .setRenamePattern("test-")
-            .setRenameReplacement("test2-")
-            .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            "test-snap"
+        ).setRenamePattern("test-").setRenameReplacement("test2-").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertDocCount("test-idx", 50L);
         long snapshotPause = 0L;
@@ -136,10 +135,8 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
         }
         final String primaryNode = internalCluster().startNode(primaryNodeSettings);
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(BlobStoreRepository.class)) {
-
-            MockLogAppender.EventuallySeenEventExpectation snapshotExpectation = new MockLogAppender.EventuallySeenEventExpectation(
+        try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
+            MockLog.EventuallySeenEventExpectation snapshotExpectation = new MockLog.EventuallySeenEventExpectation(
                 "snapshot speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
@@ -148,9 +145,9 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                     + "rate limit will be superseded by the recovery rate limit"
             );
             if (nodeBandwidthSettingsSet) snapshotExpectation.setExpectSeen();
-            mockLogAppender.addExpectation(snapshotExpectation);
+            mockLog.addExpectation(snapshotExpectation);
 
-            MockLogAppender.SeenEventExpectation restoreExpectation = new MockLogAppender.SeenEventExpectation(
+            MockLog.SeenEventExpectation restoreExpectation = new MockLog.SeenEventExpectation(
                 "snapshot restore speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
@@ -158,7 +155,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                     + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=100mb] per second, thus the repository "
                     + "rate limit will be superseded by the recovery rate limit"
             );
-            mockLogAppender.addExpectation(restoreExpectation);
+            mockLog.addExpectation(restoreExpectation);
 
             createRepository(
                 "test-repo",
@@ -170,7 +167,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
             );
 
             deleteRepository("test-repo");
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

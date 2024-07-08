@@ -20,6 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.ACCEPTED;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestDeleteDanglingIndexAction extends BaseRestHandler {
@@ -41,7 +42,7 @@ public class RestDeleteDanglingIndexAction extends BaseRestHandler {
             request.paramAsBoolean("accept_data_loss", false)
         );
 
-        deleteRequest.ackTimeout(request.paramAsTime("timeout", deleteRequest.ackTimeout()));
+        deleteRequest.ackTimeout(getAckTimeout(request));
         deleteRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.execute(

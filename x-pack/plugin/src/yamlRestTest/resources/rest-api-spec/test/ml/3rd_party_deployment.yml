@@ -395,6 +395,21 @@ setup:
           }
   - match: { assignment.task_parameters.model_id: test_model }
   - match: { assignment.task_parameters.number_of_allocations: 1 }
+
+  # Update with a query parameter
+  - do:
+      # We update to the same value of 1 as if the test runs on a node with just 1 processor it would fail otherwise
+      ml.update_trained_model_deployment:
+        model_id: test_model_deployment
+        number_of_allocations: 1
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.number_of_allocations: 1 }
+
+  - do:
+      catch: /\[number_of_allocations\] must be a positive integer/
+      ml.update_trained_model_deployment:
+        model_id: test_model_deployment
+        number_of_allocations: -1
 ---
 "Test clear deployment cache":
   - skip:

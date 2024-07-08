@@ -81,11 +81,11 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
         this.settings = settings;
         this.client = client;
-        this.transformConfigManager = transformServices.getConfigManager();
+        this.transformConfigManager = transformServices.configManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
     }
 
     @Override

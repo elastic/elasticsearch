@@ -5550,7 +5550,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | limit 1
             """);
 
-        ReferencePlan expected = ReferencePlan.topN().withChild(ReferencePlan.relation());
+        ReferencePlan expected = ReferencePlan.topN();
+        assertTrue(expected.matches(plan));
+
+        expected = ReferencePlan.topN().withChild(ReferencePlan.relation());
+        assertTrue(expected.matches(plan));
+
+        expected = ReferencePlan.topN().withExpression(new Literal(EMPTY, 1, INTEGER));
         assertTrue(expected.matches(plan));
 
         expected = ReferencePlan.topN().withChild(ReferencePlan.relation()).withExpression(new Literal(EMPTY, 1, INTEGER));

@@ -141,6 +141,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         transportService.registerRequestHandler(
             START_RELOCATION_ACTION_NAME,
             recoveryExecutor,
+            false, // forceExecution
+            false, // canTripCircuitBreaker
             StatelessPrimaryRelocationAction.Request::new,
             (request, channel, task) -> handleStartRelocation(
                 task,
@@ -152,6 +154,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         transportService.registerRequestHandler(
             PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
             recoveryExecutor,
+            false, // forceExecution
+            false, // canTripCircuitBreaker
             PrimaryContextHandoffRequest::new,
             (request, channel, task) -> handlePrimaryContextHandoff(
                 request,

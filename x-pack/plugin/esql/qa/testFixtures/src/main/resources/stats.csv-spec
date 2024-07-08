@@ -39,6 +39,28 @@ s:boolean
 true
 ;
 
+maxOfBooleanExpression
+required_capability: agg_max_min_boolean_support
+from employees
+| eval x = salary is not null
+| where emp_no > 10050
+| stats a = max(salary is not null), b = max(x);
+
+a:boolean | b:boolean
+true      | true
+;
+
+minOfBooleanExpression
+required_capability: agg_max_min_boolean_support
+from employees
+| eval x = salary is not null
+| where emp_no > 10050
+| stats a = min(salary is not null), b = min(x);
+
+a:boolean | b:boolean
+true      | true
+;
+
 minOfBoolean
 required_capability: agg_max_min_boolean_support
 from employees | stats s = min(still_hired);

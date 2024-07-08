@@ -35,9 +35,9 @@ import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.
  * This rule does NOT check for type compatibility as that phase has been
  * already be verified in the analyzer.
  */
-public final class CombineDisjunctionsToIn extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<Or> {
+public final class CombineDisjunctionsToIn extends OptimizerRules.OptimizerExpressionRule<Or> {
     public CombineDisjunctionsToIn() {
-        super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP);
+        super(OptimizerRules.TransformDirection.UP);
     }
 
     protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {

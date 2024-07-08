@@ -155,27 +155,20 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         final AtomicInteger completedRequests = new AtomicInteger();
         final AtomicInteger numSuccess = new AtomicInteger();
         final AtomicInteger numFailure = new AtomicInteger();
-        Thread[] indexers = new Thread[numThreads];
-        Phaser phaser = new Phaser(indexers.length);
-        for (int i = 0; i < indexers.length; i++) {
-            indexers[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                while (completedRequests.incrementAndGet() <= numRequests) {
-                    try {
-                        final DocWriteResponse resp = prepareIndex("test").setSource("{}", XContentType.JSON).get();
-                        numSuccess.incrementAndGet();
-                        assertThat(resp.status(), equalTo(RestStatus.CREATED));
-                    } catch (IllegalArgumentException e) {
-                        numFailure.incrementAndGet();
-                        assertThat(e.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
-                    }
+        Phaser phaser = new Phaser(numThreads);
+        runInParallel(numThreads, i -> {
+            phaser.arriveAndAwaitAdvance();
+            while (completedRequests.incrementAndGet() <= numRequests) {
+                try {
+                    final DocWriteResponse resp = prepareIndex("test").setSource("{}", XContentType.JSON).get();
+                    numSuccess.incrementAndGet();
+                    assertThat(resp.status(), equalTo(RestStatus.CREATED));
+                } catch (IllegalArgumentException e) {
+                    numFailure.incrementAndGet();
+                    assertThat(e.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
                 }
-            });
-            indexers[i].start();
-        }
-        for (Thread indexer : indexers) {
-            indexer.join();
-        }
+            }
+        });
         internalCluster().assertNoInFlightDocsInEngine();
         return new IndexingResult(numSuccess.get(), numFailure.get());
     }

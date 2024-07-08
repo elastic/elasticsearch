@@ -164,7 +164,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                     Strings.format(
                         """
                             Successfully discovered master-eligible node [%s] at address [%s] but could not connect to it at its publish \
-                            address of [%s]. Each node in a cluster must be accessible at its publish address to all other nodes in the \
+                            address of [%s]. Each node in a cluster must be accessible at its publish address by all other nodes in the \
                             cluster. See %s for more information.""",
                         remoteNode.descriptionWithoutAttributes(),
                         discoveryAddress,

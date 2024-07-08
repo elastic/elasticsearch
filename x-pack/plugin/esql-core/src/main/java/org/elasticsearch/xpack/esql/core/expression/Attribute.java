@@ -36,16 +36,15 @@ public abstract class Attribute extends NamedExpression {
     // can the attr be null - typically used in JOINs
     private final Nullability nullability;
 
-    // TODO: remove qualifier entirely.
-    public Attribute(Source source, String name, String qualifier, NameId id) {
-        this(source, name, qualifier, Nullability.TRUE, id);
+    public Attribute(Source source, String name, NameId id) {
+        this(source, name, Nullability.TRUE, id);
     }
 
-    public Attribute(Source source, String name, String qualifier, Nullability nullability, NameId id) {
-        this(source, name, qualifier, nullability, id, false);
+    public Attribute(Source source, String name, Nullability nullability, NameId id) {
+        this(source, name, nullability, id, false);
     }
 
-    public Attribute(Source source, String name, String qualifier, Nullability nullability, NameId id, boolean synthetic) {
+    public Attribute(Source source, String name, Nullability nullability, NameId id, boolean synthetic) {
         super(source, name, emptyList(), id, synthetic);
         this.nullability = nullability;
     }

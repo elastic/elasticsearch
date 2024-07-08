@@ -293,7 +293,7 @@ public class PlanNamedTypesTests extends ESTestCase {
             randomAlphaOfLength(randomIntBetween(1, 25)), // name
             randomDataType(),
             randomEsField(),
-            randomStringOrNull(), // qualifier
+            // qualifier
             randomNullability(),
             nameIdOrNull(),
             randomBoolean() // synthetic

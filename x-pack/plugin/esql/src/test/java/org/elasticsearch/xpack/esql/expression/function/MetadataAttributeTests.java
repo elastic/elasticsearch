@@ -23,7 +23,7 @@ public class MetadataAttributeTests extends AbstractAttributeTestCase<MetadataAt
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
         boolean searchable = randomBoolean();
-        return new MetadataAttribute(source, name, type, qualifier, nullability, new NameId(), synthetic, searchable);
+        return new MetadataAttribute(source, name, type, nullability, new NameId(), synthetic, searchable);
     }
 
     @Override
@@ -41,6 +41,6 @@ public class MetadataAttributeTests extends AbstractAttributeTestCase<MetadataAt
             case 3 -> synthetic = false == synthetic;
             case 4 -> searchable = false == searchable;
         }
-        return new MetadataAttribute(source, name, type, null, nullability, new NameId(), synthetic, searchable);
+        return new MetadataAttribute(source, name, type, nullability, new NameId(), synthetic, searchable);
     }
 }

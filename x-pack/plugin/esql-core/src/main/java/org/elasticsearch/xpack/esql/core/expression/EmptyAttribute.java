@@ -21,7 +21,7 @@ import java.io.IOException;
  */
 public class EmptyAttribute extends Attribute {
     public EmptyAttribute(Source source) {
-        super(source, StringUtils.EMPTY, null, null);
+        super(source, StringUtils.EMPTY, null);
     }
 
     @Override

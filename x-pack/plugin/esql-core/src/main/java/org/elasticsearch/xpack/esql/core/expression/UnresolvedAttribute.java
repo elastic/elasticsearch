@@ -28,24 +28,13 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         this(source, name, null);
     }
 
-    public UnresolvedAttribute(Source source, String name, String qualifier) {
-        this(source, name, qualifier, null);
-    }
-
-    public UnresolvedAttribute(Source source, String name, String qualifier, String unresolvedMessage) {
-        this(source, name, qualifier, null, unresolvedMessage, null);
+    public UnresolvedAttribute(Source source, String name, String unresolvedMessage) {
+        this(source, name, null, unresolvedMessage, null);
     }
 
     @SuppressWarnings("this-escape")
-    public UnresolvedAttribute(
-        Source source,
-        String name,
-        String qualifier,
-        NameId id,
-        String unresolvedMessage,
-        Object resolutionMetadata
-    ) {
-        super(source, name, qualifier, id);
+    public UnresolvedAttribute(Source source, String name, NameId id, String unresolvedMessage, Object resolutionMetadata) {
+        super(source, name, id);
         this.customMessage = unresolvedMessage != null;
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
@@ -63,7 +52,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, name(), (String) null, id(), unresolvedMsg, resolutionMetadata);
+        return NodeInfo.create(this, UnresolvedAttribute::new, name(), id(), unresolvedMsg, resolutionMetadata);
     }
 
     public Object resolutionMetadata() {
@@ -85,7 +74,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
-        return new UnresolvedAttribute(source(), name(), null, id(), unresolvedMessage, resolutionMetadata());
+        return new UnresolvedAttribute(source(), name(), id(), unresolvedMessage, resolutionMetadata());
     }
 
     @Override

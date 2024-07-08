@@ -283,7 +283,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             } else {
                 String error = context.enrichResolution().getError(policyName, plan.mode());
-                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, null, error);
+                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, error);
                 return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }
         }
@@ -328,7 +328,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (CollectionUtils.isEmpty(similar) == false) {
                     msg += ", did you mean " + (similar.size() == 1 ? "[" + similar.get(0) + "]" : "any of " + similar) + "?";
                 }
-                return new UnresolvedAttribute(source, enrichFieldName, null, msg);
+                return new UnresolvedAttribute(source, enrichFieldName, msg);
             } else {
                 return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType(), null, Nullability.TRUE, null, false);
             }
@@ -353,7 +353,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (CollectionUtils.isEmpty(potentialMatches) == false) {
                     message = UnresolvedAttribute.errorMessage(tableName, potentialMatches).replace("column", "table");
                 }
-                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), tableName, null, message);
+                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), tableName, message);
             }
             // wrap the table in a local relationship for idiomatic field resolution
             else {
@@ -552,7 +552,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 matchFieldChildReference = new UnresolvedAttribute(
                                     attr.source(),
                                     attr.name(),
-                                    null,
                                     attr.id(),
                                     "column type mismatch, table column was ["
                                         + joinedAttribute.dataType().typeName()
@@ -823,7 +822,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
-        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern(), null);
+        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern());
         Predicate<Attribute> matcher = a -> up.match(a.name()) || up.match(a.name());
         var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
@@ -1175,7 +1174,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
             NameId id = ((FieldAttribute) convert.field()).id();
-            FieldAttribute resolvedAttr = new FieldAttribute(source, null, field.getName(), field, null, Nullability.TRUE, id, false);
+            FieldAttribute resolvedAttr = new FieldAttribute(source, null, field.getName(), field, Nullability.TRUE, id, false);
             return convert.replaceChildren(Collections.singletonList(resolvedAttr));
         }
     }
@@ -1204,7 +1203,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var field = fa.field();
             if (field instanceof InvalidMappedField imf) {
                 String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
-                return new UnresolvedAttribute(fa.source(), fa.name(), null, fa.id(), unresolvedMessage, null);
+                return new UnresolvedAttribute(fa.source(), fa.name(), fa.id(), unresolvedMessage, null);
             }
             return fa;
         }

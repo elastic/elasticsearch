@@ -27,9 +27,17 @@ public class ReferenceAttribute extends TypedAttribute {
     );
 
     public ReferenceAttribute(Source source, String name, DataType dataType) {
-        this(source, name, dataType, null, Nullability.FALSE, null, false);
+        this(source, name, dataType, Nullability.FALSE, null, false);
     }
 
+    public ReferenceAttribute(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
+        super(source, name, dataType, nullability, id, synthetic);
+    }
+
+    @Deprecated
+    /**
+     * Old constructor from when this had a qualifier string. Still needed to not break serialization.
+     */
     public ReferenceAttribute(
         Source source,
         String name,
@@ -39,7 +47,7 @@ public class ReferenceAttribute extends TypedAttribute {
         NameId id,
         boolean synthetic
     ) {
-        super(source, name, dataType, qualifier, nullability, id, synthetic);
+        super(source, name, dataType, nullability, id, synthetic);
     }
 
     @SuppressWarnings("unchecked")
@@ -87,7 +95,24 @@ public class ReferenceAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<ReferenceAttribute> info() {
-        return NodeInfo.create(this, ReferenceAttribute::new, name(), dataType(), (String) null, nullable(), id(), synthetic());
+        return NodeInfo.create(
+            this,
+            (source, name, dataType, qualifier, nullability, id, synthetic) -> new ReferenceAttribute(
+                source,
+                name,
+                dataType,
+                qualifier,
+                nullability,
+                id,
+                synthetic
+            ),
+            name(),
+            dataType(),
+            (String) null,
+            nullable(),
+            id(),
+            synthetic()
+        );
     }
 
     @Override

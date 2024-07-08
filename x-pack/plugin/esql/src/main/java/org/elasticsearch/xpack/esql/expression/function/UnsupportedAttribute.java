@@ -65,7 +65,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage, NameId id) {
-        super(source, null, name, field, null, Nullability.TRUE, id, false);
+        super(source, null, name, field, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;
         this.message = customMessage == null ? errorMessage(name(), field) : customMessage;
     }

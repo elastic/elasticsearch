@@ -54,18 +54,35 @@ public class MetadataAttribute extends TypedAttribute {
         Source source,
         String name,
         DataType dataType,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic,
+        boolean searchable
+    ) {
+        super(source, name, dataType, nullability, id, synthetic);
+        this.searchable = searchable;
+    }
+
+    public MetadataAttribute(Source source, String name, DataType dataType, boolean searchable) {
+        this(source, name, dataType, Nullability.TRUE, null, false, searchable);
+    }
+
+    @Deprecated
+    /**
+     * Old constructor from when this had a qualifier string. Still needed to not break serialization.
+     */
+    public MetadataAttribute(
+        Source source,
+        String name,
+        DataType dataType,
         String qualifier,
         Nullability nullability,
         NameId id,
         boolean synthetic,
         boolean searchable
     ) {
-        super(source, name, dataType, qualifier, nullability, id, synthetic);
+        super(source, name, dataType, nullability, id, synthetic);
         this.searchable = searchable;
-    }
-
-    public MetadataAttribute(Source source, String name, DataType dataType, boolean searchable) {
-        this(source, name, dataType, null, Nullability.TRUE, null, false, searchable);
     }
 
     @SuppressWarnings("unchecked")
@@ -120,7 +137,26 @@ public class MetadataAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MetadataAttribute::new, name(), dataType(), (String) null, nullable(), id(), synthetic(), searchable);
+        return NodeInfo.create(
+            this,
+            (source, name, dataType, qualifier, nullability, id, synthetic, searchable1) -> new MetadataAttribute(
+                source,
+                name,
+                dataType,
+                qualifier,
+                nullability,
+                id,
+                synthetic,
+                searchable1
+            ),
+            name(),
+            dataType(),
+            (String) null,
+            nullable(),
+            id(),
+            synthetic(),
+            searchable
+        );
     }
 
     public boolean searchable() {

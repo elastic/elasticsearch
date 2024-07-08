@@ -742,8 +742,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     private MapperService mapperService() throws IOException {
         IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
-        var mapperService = new TestMapperServiceBuilder().withTsdbDefaults().settings(indexSettings(version)).build();
-        return withMapping(mapperService, mapping(b -> {
+        return createMapperService(indexSettings(version), mapping(b -> {
             b.startObject("r1").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("r2").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("k1").field("type", "keyword").field("time_series_dimension", true).endObject();

@@ -257,13 +257,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             return this;
         }
 
-        // Configures mapper service to apply default TSDB mappings.
-        // This emulates how such indices is creates in reality by MetadataCreateIndexService.
-        public TestMapperServiceBuilder withTsdbDefaults() {
-            this.useTsdbDefaults = true;
-            return this;
-        }
-
         public MapperService build() {
             IndexSettings indexSettings = createIndexSettings(indexVersion, settings);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
@@ -295,8 +288,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 mapperMetrics
             );
 
-            if (useTsdbDefaults) {
-                mapperService.merge(null, IndexMode.TIME_SERIES.getDefaultMapping(), MapperService.MergeReason.MAPPING_UPDATE);
+            if (indexSettings.getMode().getDefaultMapping() != null) {
+                mapperService.merge(null, indexSettings.getMode().getDefaultMapping(), MapperService.MergeReason.MAPPING_UPDATE);
             }
 
             return mapperService;

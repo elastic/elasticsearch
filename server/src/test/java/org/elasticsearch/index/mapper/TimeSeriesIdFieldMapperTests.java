@@ -62,18 +62,15 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private DocumentMapper createDocumentMapper(String routingPath, XContentBuilder mappings) throws IOException {
-        var mapperService = new TestMapperServiceBuilder().withTsdbDefaults()
-            .settings(
-                getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                    .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), 200) // Allow tests that use many dimensions
-                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
-                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
-                    .build()
-            )
-            .build();
-
-        return withMapping(mapperService, mappings).documentMapper();
+        return createMapperService(
+            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), 200) // Allow tests that use many dimensions
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
+                .build(),
+            mappings
+        ).documentMapper();
     }
 
     private static ParsedDocument parseDocument(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
@@ -669,9 +666,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             .put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .build();
-        MapperService mapper = new TestMapperServiceBuilder().indexVersion(IndexVersion.current()).settings(indexSettings).build();
-        mapper.merge(null, IndexMode.TIME_SERIES.getDefaultMapping(), MapperService.MergeReason.MAPPING_UPDATE);
-
+        MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
         SourceToParse source = new SourceToParse(null, new BytesArray("""
             {
                 "@timestamp": 1609459200000,
@@ -700,9 +695,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             .put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .build();
-        MapperService mapper = new TestMapperServiceBuilder().indexVersion(IndexVersion.current()).settings(indexSettings).build();
-        mapper.merge(null, IndexMode.TIME_SERIES.getDefaultMapping(), MapperService.MergeReason.MAPPING_UPDATE);
-
+        MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
         SourceToParse source = new SourceToParse(null, new BytesArray("""
             {
                 "@timestamp": 1609459200000,

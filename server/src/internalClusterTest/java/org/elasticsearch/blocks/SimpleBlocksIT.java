@@ -32,6 +32,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
@@ -310,7 +312,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         }
     }
 
-    public void testConcurrentAddBlock() throws InterruptedException {
+    public void testConcurrentAddBlock() throws InterruptedException, ExecutionException {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
@@ -322,31 +324,21 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
         );
         ensureYellowAndNoInitializingShards(indexName);
-
-        final CountDownLatch startClosing = new CountDownLatch(1);
-        final Thread[] threads = new Thread[randomIntBetween(2, 5)];
-
         final APIBlock block = randomAddableBlock();
 
+        final int threadCount = randomIntBetween(2, 5);
+        final CyclicBarrier barrier = new CyclicBarrier(threadCount);
         try {
-            for (int i = 0; i < threads.length; i++) {
-                threads[i] = new Thread(() -> {
-                    safeAwait(startClosing);
-                    try {
-                        indicesAdmin().prepareAddBlock(block, indexName).get();
-                        assertIndexHasBlock(block, indexName);
-                    } catch (final ClusterBlockException e) {
-                        assertThat(e.blocks(), hasSize(1));
-                        assertTrue(e.blocks().stream().allMatch(b -> b.id() == block.getBlock().id()));
-                    }
-                });
-                threads[i].start();
-            }
-
-            startClosing.countDown();
-            for (Thread thread : threads) {
-                thread.join();
-            }
+            runInParallel(threadCount, i -> {
+                safeAwait(barrier);
+                try {
+                    indicesAdmin().prepareAddBlock(block, indexName).get();
+                    assertIndexHasBlock(block, indexName);
+                } catch (final ClusterBlockException e) {
+                    assertThat(e.blocks(), hasSize(1));
+                    assertTrue(e.blocks().stream().allMatch(b -> b.id() == block.getBlock().id()));
+                }
+            });
             assertIndexHasBlock(block, indexName);
         } finally {
             disableIndexBlock(indexName, block);

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -43,6 +45,7 @@ import java.util.concurrent.Executor;
  * shards are not actually modified).
  */
 public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
+    private static final Logger logger = LogManager.getLogger(TransportSimulateBulkAction.class);
     private final IndicesService indicesService;
 
     @Inject
@@ -84,43 +87,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
             IndexRequest request = (IndexRequest) docRequest;
-            final SourceToParse sourceToParse = new SourceToParse(
-                request.id(),
-                request.source(),
-                request.getContentType(),
-                request.routing(),
-                request.getDynamicTemplates(),
-                DocumentSizeObserver.EMPTY_INSTANCE
-            );
-
-            ClusterState state = clusterService.state();
-            Exception mappingValidationException = null;
-            IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
-            if (indexAbstraction != null) {
-                IndexMetadata imd = state.metadata().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
-
-                try {
-                    indicesService.withTempIndexService(imd, indexService -> {
-                        indexService.mapperService().updateMapping(null, imd);
-                        return IndexShard.prepareIndex(
-                            indexService.mapperService(),
-                            sourceToParse,
-                            SequenceNumbers.UNASSIGNED_SEQ_NO,
-                            -1,
-                            -1,
-                            VersionType.INTERNAL,
-                            Engine.Operation.Origin.PRIMARY,
-                            Long.MIN_VALUE,
-                            false,
-                            request.ifSeqNo(),
-                            request.ifPrimaryTerm(),
-                            relativeStartTime
-                        );
-                    });
-                } catch (Exception e) {
-                    mappingValidationException = e;
-                }
-            }
+            Exception mappingValidationException = validateMappings(request);
             responses.set(
                 i,
                 BulkItemResponse.success(
@@ -141,6 +108,52 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         listener.onResponse(
             new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(relativeStartTime))
         );
+    }
+
+    /**
+     * This creates a temporary with the mappings of the index in the request, and then attempts to index the source from the request
+     * into it. If there is a mapping exception, that exception is returned. On success the returned exception is null.
+     * @param request The IndexReqeust whose source will be validated against the mapping (if it exists) of its index
+     * @return a mapping exception if the source does not match the mappings, otherwise null
+     */
+    private Exception validateMappings(IndexRequest request) {
+        final SourceToParse sourceToParse = new SourceToParse(
+            request.id(),
+            request.source(),
+            request.getContentType(),
+            request.routing(),
+            request.getDynamicTemplates(),
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
+
+        ClusterState state = clusterService.state();
+        Exception mappingValidationException = null;
+        IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
+        if (indexAbstraction != null) {
+            IndexMetadata imd = state.metadata().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
+            try {
+                indicesService.withTempIndexService(imd, indexService -> {
+                    indexService.mapperService().updateMapping(null, imd);
+                    return IndexShard.prepareIndex(
+                        indexService.mapperService(),
+                        sourceToParse,
+                        SequenceNumbers.UNASSIGNED_SEQ_NO,
+                        -1,
+                        -1,
+                        VersionType.INTERNAL,
+                        Engine.Operation.Origin.PRIMARY,
+                        Long.MIN_VALUE,
+                        false,
+                        request.ifSeqNo(),
+                        request.ifPrimaryTerm(),
+                        0
+                    );
+                });
+            } catch (Exception e) {
+                mappingValidationException = e;
+            }
+        }
+        return mappingValidationException;
     }
 
     /*

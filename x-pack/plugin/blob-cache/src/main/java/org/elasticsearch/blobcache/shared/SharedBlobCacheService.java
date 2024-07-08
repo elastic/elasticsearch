@@ -643,12 +643,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // no need to allocate a new capturing lambda if the offset isn't adjusted
             return writer;
         }
-        return (channel, channelPos, relativePos, len, progressUpdater) -> writer.fillCacheRange(
+        return (channel, channelPos, relativePos, len, progressUpdater, completionListener) -> writer.fillCacheRange(
             channel,
             channelPos,
             relativePos - writeOffset,
             len,
-            progressUpdater
+            progressUpdater,
+            completionListener
         );
     }
 
@@ -710,7 +711,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         sharedBytes.decRef();
     }
 
-    private record RegionKey<KeyType>(KeyType file, int region) {
+    private record RegionKey<KeyType> (KeyType file, int region) {
         @Override
         public String toString() {
             return "Chunk{" + "file=" + file + ", region=" + region + '}';
@@ -914,9 +915,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                         rangeToWrite,
                         rangeToWrite,
-                        Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                            assert regionOwners.get(io) == this;
-                        }), refs.acquire()) : refs.acquireListener()
+                        Assertions.ENABLED
+                            ? ActionListener.releaseAfter(
+                                ActionListener.running(() -> { assert regionOwners.get(io) == this; }),
+                                refs.acquire()
+                            )
+                            : refs.acquireListener()
                     );
                     if (gaps.isEmpty()) {
                         listener.onResponse(false);
@@ -989,10 +993,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     start,
                     start,
                     Math.toIntExact(gap.end() - start),
-                    progress -> gap.onProgress(start + progress)
+                    progress -> gap.onProgress(start + progress),
+                    ActionListener.running(() -> {
+                        writeCount.increment();
+                        gap.onCompletion();
+                    })
                 );
-                writeCount.increment();
-                gap.onCompletion();
             });
         }
 
@@ -1077,11 +1083,20 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 int channelPos,
                 int relativePos,
                 int length,
-                IntConsumer progressUpdater) -> {
-                writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
-                var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
-                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
-                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissCounter().increment();
+                IntConsumer progressUpdater,
+                ActionListener<Void> completionListener) -> {
+                writer.fillCacheRange(
+                    channel,
+                    channelPos,
+                    relativePos,
+                    length,
+                    progressUpdater,
+                    ActionListener.runAfter(completionListener, () -> {
+                        var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
+                        SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
+                        SharedBlobCacheService.this.blobCacheMetrics.getCacheMissCounter().increment();
+                    })
+                );
             };
             if (rangeToRead.isEmpty()) {
                 // nothing to read, skip
@@ -1165,20 +1180,29 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 // no need to allocate a new capturing lambda if the offset isn't adjusted
                 adjustedWriter = writer;
             } else {
-                adjustedWriter = (channel, channelPos, relativePos, len, progressUpdater) -> writer.fillCacheRange(
+                adjustedWriter = (channel, channelPos, relativePos, len, progressUpdater, completionListener) -> writer.fillCacheRange(
                     channel,
                     channelPos,
                     relativePos - writeOffset,
                     len,
-                    progressUpdater
+                    progressUpdater,
+                    completionListener
                 );
             }
             if (Assertions.ENABLED) {
-                return (channel, channelPos, relativePos, len, progressUpdater) -> {
+                return (channel, channelPos, relativePos, len, progressUpdater, completionListener) -> {
                     assert assertValidRegionAndLength(fileRegion, channelPos, len);
-                    adjustedWriter.fillCacheRange(channel, channelPos, relativePos, len, progressUpdater);
-                    assert regionOwners.get(fileRegion.io) == fileRegion
-                        : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                    adjustedWriter.fillCacheRange(
+                        channel,
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        ActionListener.runAfter(completionListener, () -> {
+                            assert regionOwners.get(fileRegion.io) == fileRegion
+                                : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                        })
+                    );
                 };
             }
             return adjustedWriter;
@@ -1250,8 +1274,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          * @param progressUpdater consumer to invoke with the number of copied bytes as they are written in cache.
          *                        This is used to notify waiting readers that data become available in cache.
          */
-        void fillCacheRange(SharedBytes.IO channel, int channelPos, int relativePos, int length, IntConsumer progressUpdater)
-            throws IOException;
+        void fillCacheRange(
+            SharedBytes.IO channel,
+            int channelPos,
+            int relativePos,
+            int length,
+            IntConsumer progressUpdater,
+            ActionListener<Void> completionListener
+        ) throws IOException;
     }
 
     public record Stats(

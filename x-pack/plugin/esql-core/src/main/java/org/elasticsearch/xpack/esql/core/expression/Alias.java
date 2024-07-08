@@ -32,6 +32,7 @@ public final class Alias extends NamedExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(NamedExpression.class, "Alias", Alias::new);
 
     private final Expression child;
+    // TODO: unused, remove
     private final String qualifier;
 
     /**

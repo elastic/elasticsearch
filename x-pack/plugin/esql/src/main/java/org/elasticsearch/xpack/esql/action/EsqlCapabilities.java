@@ -112,7 +112,12 @@ public class EsqlCapabilities {
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
-        FIX_PARSING_LARGE_NEGATIVE_NUMBERS;
+        FIX_PARSING_LARGE_NEGATIVE_NUMBERS,
+
+        /**
+         * Fix for union-types when aggregating over an inline conversion with casting operator. Done in #110476.
+         */
+        UNION_TYPES_AGG_CAST;
 
         private final boolean snapshotOnly;
 

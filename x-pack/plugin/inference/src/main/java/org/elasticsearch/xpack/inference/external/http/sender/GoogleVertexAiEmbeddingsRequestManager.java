@@ -45,11 +45,11 @@ public class GoogleVertexAiEmbeddingsRequestManager extends GoogleVertexAiReques
         this.truncator = Objects.requireNonNull(truncator);
     }
 
-    record RateLimitGrouping(int modelIdHash) {
+    record RateLimitGrouping(int projectIdHash) {
         public static RateLimitGrouping of(GoogleVertexAiEmbeddingsModel model) {
             Objects.requireNonNull(model);
 
-            return new RateLimitGrouping(model.rateLimitServiceSettings().modelId().hashCode());
+            return new RateLimitGrouping(model.rateLimitServiceSettings().projectId().hashCode());
         }
     }
 

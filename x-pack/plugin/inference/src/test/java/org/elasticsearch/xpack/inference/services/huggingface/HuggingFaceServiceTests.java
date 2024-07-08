@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -22,7 +21,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -56,7 +54,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResultsTests.asMapWithListsInsteadOfArrays;
-import static org.elasticsearch.xpack.inference.Utils.PersistedConfig;
+import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -198,7 +196,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModel() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret"));
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), new HashMap<>(), getSecretSettingsMap("secret"));
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -217,7 +215,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     public void testParsePersistedConfigWithSecrets_CreatesAnElserModel() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret"));
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), new HashMap<>(), getSecretSettingsMap("secret"));
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -236,7 +234,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret"));
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), new HashMap<>(), getSecretSettingsMap("secret"));
             persistedConfig.config().put("extra_key", "value");
 
             var model = service.parsePersistedConfigWithSecrets(
@@ -259,7 +257,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             var secretSettingsMap = getSecretSettingsMap("secret");
             secretSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), secretSettingsMap);
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), new HashMap<>(), secretSettingsMap);
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -278,7 +276,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret"));
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), new HashMap<>(), getSecretSettingsMap("secret"));
             persistedConfig.secrets().put("extra_key", "value");
 
             var model = service.parsePersistedConfigWithSecrets(
@@ -301,7 +299,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             var serviceSettingsMap = getServiceSettingsMap("url");
             serviceSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getSecretSettingsMap("secret"));
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, new HashMap<>(), getSecretSettingsMap("secret"));
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -356,7 +354,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_CreatesAnElserModel() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"));
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), new HashMap<>());
 
             var model = service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config());
 
@@ -717,25 +715,4 @@ public class HuggingFaceServiceTests extends ESTestCase {
         return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings));
     }
 
-    private PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings) {
-        return getPersistedConfigMap(serviceSettings, Map.of(), null);
-    }
-
-    private PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, @Nullable Map<String, Object> secretSettings) {
-        return getPersistedConfigMap(serviceSettings, Map.of(), secretSettings);
-    }
-
-    private PersistedConfig getPersistedConfigMap(
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings
-    ) {
-
-        var secrets = secretSettings == null ? null : new HashMap<String, Object>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings));
-
-        return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            secrets
-        );
-    }
 }

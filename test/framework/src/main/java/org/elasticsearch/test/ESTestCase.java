@@ -173,7 +173,6 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -2442,11 +2441,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static void startInParallel(int numberOfTasks, IntConsumer taskFactory) throws InterruptedException {
         final CyclicBarrier barrier = new CyclicBarrier(numberOfTasks);
         runInParallel(numberOfTasks, i -> {
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(barrier);
             taskFactory.accept(i);
         });
     }

@@ -220,22 +220,6 @@ public class FakeStatelessNode implements Closeable {
             sharedCacheService = createCacheService(nodeEnvironment, nodeSettings, threadPool);
             localCloseables.add(sharedCacheService);
             cacheBlobReaderService = createCacheBlobReaderService(sharedCacheService);
-            indexingDirectory = localCloseables.add(
-                new IndexDirectory(
-                    new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),
-                    createSearchDirectory(
-                        sharedCacheService,
-                        shardId,
-                        cacheBlobReaderService,
-                        MutableObjectStoreUploadTracker.ALWAYS_UPLOADED
-                    )
-                )
-            );
-            indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
-            searchDirectory = localCloseables.add(
-                createSearchDirectory(sharedCacheService, shardId, cacheBlobReaderService, new AtomicMutableObjectStoreUploadTracker())
-            );
-            searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
 
             transportService = transport.createTransportService(
                 nodeSettings,
@@ -294,7 +278,24 @@ public class FakeStatelessNode implements Closeable {
             commitService.start();
             commitService.register(shardId, getPrimaryTerm(), () -> false);
             localCloseables.add(commitService);
+            indexingDirectory = localCloseables.add(
+                new IndexDirectory(
+                    new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),
+                    createSearchDirectory(
+                        sharedCacheService,
+                        shardId,
+                        cacheBlobReaderService,
+                        MutableObjectStoreUploadTracker.ALWAYS_UPLOADED
+                    ),
+                    commitService.isGenerationalFilesTrackingEnabled() ? commitService::onGenerationalFileDeletion : null
+                )
+            );
+            indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
             indexingDirectory.getSearchDirectory().setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
+            searchDirectory = localCloseables.add(
+                createSearchDirectory(sharedCacheService, shardId, cacheBlobReaderService, new AtomicMutableObjectStoreUploadTracker())
+            );
+            searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
 
             closeables = localCloseables.transfer();
         }

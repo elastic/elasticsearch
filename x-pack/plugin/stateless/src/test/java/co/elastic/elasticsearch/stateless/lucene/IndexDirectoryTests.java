@@ -38,6 +38,7 @@ import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -56,6 +58,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileSystem;
@@ -63,7 +66,9 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -71,6 +76,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
@@ -95,7 +102,8 @@ public class IndexDirectoryTests extends ESTestCase {
         try (
             Directory directory = new IndexDirectory(
                 FSDirectory.open(path),
-                new SearchDirectory(null, null, MutableObjectStoreUploadTracker.ALWAYS_UPLOADED, null)
+                new SearchDirectory(null, null, MutableObjectStoreUploadTracker.ALWAYS_UPLOADED, null),
+                null
             );
             IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())
         ) {
@@ -128,7 +136,8 @@ public class IndexDirectoryTests extends ESTestCase {
                     new CacheBlobReaderService(settings, sharedBlobCacheService, mock(Client.class)),
                     MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                     shardId
-                )
+                ),
+                null
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
@@ -261,7 +270,8 @@ public class IndexDirectoryTests extends ESTestCase {
                     new CacheBlobReaderService(settings, sharedBlobCacheService, mock(Client.class)),
                     MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                     shardId
-                )
+                ),
+                null
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
@@ -342,7 +352,8 @@ public class IndexDirectoryTests extends ESTestCase {
                     new CacheBlobReaderService(settings, sharedBlobCacheService, mock(Client.class)),
                     MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                     shardId
-                )
+                ),
+                null
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
@@ -371,6 +382,60 @@ public class IndexDirectoryTests extends ESTestCase {
             assertEquals(newFiles, Set.of(directory.getSearchDirectory().listAll()));
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testOnGenerationalFileDeletion() throws IOException {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final ShardId shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 10));
+        final List<Tuple<ShardId, String>> capturedOnDeletions = new ArrayList<>();
+        final SearchDirectory searchDirectory = new SearchDirectory(null, null, MutableObjectStoreUploadTracker.ALWAYS_UPLOADED, shardId);
+        searchDirectory.setBlobContainer(ignore -> mock(BlobContainer.class));
+        try (
+            IndexDirectory directory = new IndexDirectory(
+                FSDirectory.open(path),
+                searchDirectory,
+                (shardId1, filename) -> capturedOnDeletions.add(new Tuple<>(shardId1, filename))
+            )
+        ) {
+            final int fileLength = between(50, 100);
+            final String generationalFilename = randomFrom("_0_1.fnm", "_0_1_Lucene90_0.dvd", "_0_1_Lucene90_0.dvm");
+            try (IndexOutput output = directory.createOutput(generationalFilename, IOContext.DEFAULT)) {
+                final byte[] bytes = randomByteArrayOfLength(fileLength);
+                output.writeBytes(bytes, bytes.length);
+            }
+            // randomly mark the generational file as uploaded
+            if (randomBoolean()) {
+                directory.updateCommit(
+                    new StatelessCompoundCommit(
+                        shardId,
+                        1,
+                        1,
+                        "node",
+                        Map.of(generationalFilename, new BlobLocation(1, "stateless_commit_4", 0, fileLength)),
+                        fileLength,
+                        Set.of(generationalFilename)
+                    ),
+                    Set.of(generationalFilename)
+                );
+            }
+            assertThat(capturedOnDeletions, empty());
+            directory.deleteFile(generationalFilename);
+            assertThat(capturedOnDeletions, contains(new Tuple<>(shardId, generationalFilename)));
+            capturedOnDeletions.clear();
+
+            // only the first deletion works
+            expectThrows(FileNotFoundException.class, () -> directory.deleteFile(generationalFilename));
+            assertThat(capturedOnDeletions, empty());
+
+            // no callback for non-generational file
+            final String otherFilename = randomFrom("segments_6", "_0.cfe", "_0.cfs", "_2.si");
+            try (IndexOutput output = directory.createOutput(otherFilename, IOContext.DEFAULT)) {
+                final byte[] bytes = randomByteArrayOfLength(between(50, 100));
+                output.writeBytes(bytes, bytes.length);
+            }
+            directory.deleteFile(otherFilename);
+            assertThat(capturedOnDeletions, empty());
         }
     }
 

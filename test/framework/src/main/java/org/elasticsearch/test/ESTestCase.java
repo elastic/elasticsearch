@@ -38,6 +38,7 @@ import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.RequestBuilder;
@@ -2456,8 +2457,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
+        Exception e = null;
         for (Future<?> future : futures) {
-            future.get();
+            try {
+                future.get();
+            } catch (Exception ex) {
+                e = ExceptionsHelper.useOrSuppress(e, ex);
+            }
+        }
+        if (e != null) {
+            throw new AssertionError(e);
         }
     }
 }

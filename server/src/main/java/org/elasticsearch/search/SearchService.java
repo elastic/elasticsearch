@@ -1840,7 +1840,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, aggs);
+                return new AggregationReduceContext.ForPartial(
+                    bigArrays,
+                    scriptService,
+                    isCanceled,
+                    aggs,
+                    multiBucketConsumerService.createForPartial()
+                );
             }
 
             @Override
@@ -1850,7 +1856,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     scriptService,
                     isCanceled,
                     aggs,
-                    multiBucketConsumerService.create()
+                    multiBucketConsumerService.createForFinal()
                 );
             }
         };

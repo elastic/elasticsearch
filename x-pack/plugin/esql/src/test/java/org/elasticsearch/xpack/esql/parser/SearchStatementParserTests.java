@@ -167,6 +167,43 @@ public class SearchStatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testSearchMultipleRank() {
+        assumeTrue("search command requires snapshot build", Build.current().isSnapshot());
+
+        assertStatement(
+            """
+                SEARCH index [
+                  | RANK MATCH(item, "iphone red")
+                  | RANK MATCH(description, "iphone red")
+                  ]
+                """,
+            rank(
+                rank(esqlUnresolvedRelation("index", List.of(), IndexMode.STANDARD), matchQueryPredicate("item", "iphone red")),
+                matchQueryPredicate("description", "iphone red")
+            )
+        );
+
+        assertStatement(
+            """
+                SEARCH index [
+                  | RANK MATCH(item, "iphone red")
+                  | LIMIT 100
+                  | RANK MATCH(description, "iphone red")
+                  | LIMIT 10 ]
+                """,
+            limit(
+                integer(10),
+                rank(
+                    limit(
+                        integer(100),
+                        rank(esqlUnresolvedRelation("index", List.of(), IndexMode.STANDARD), matchQueryPredicate("item", "iphone red"))
+                    ),
+                    matchQueryPredicate("description", "iphone red")
+                )
+            )
+        );
+    }
+
     public void testSearchExamples() {
         assumeTrue("search command requires snapshot build", Build.current().isSnapshot());
 
@@ -228,7 +265,45 @@ public class SearchStatementParserTests extends AbstractStatementParserTests {
             | LIMIT -1
             """, "extraneous input '-' expecting INTEGER_LITERAL");
 
-        // TODO: additional negative / expected error tests go here
+        expectError("""
+            SEARCH index [
+              EVAL x = a + 1
+              WHERE x > 10
+            ]
+            """, "token recognition error at: 'E'");
+
+        expectError("""
+            SEARCH index[
+              | WHERE a > 10
+              | RENAME a AS b
+            ]
+            """, "token recognition error at: 'RE'");
+
+        expectError("""
+            SEARCH index[
+              | WHERE a > 10
+              | KEEP a, _score
+            ]
+            """, "token recognition error at: 'K'");
+
+        expectError("""
+            SEARCH index[
+              | WHERE a > 10
+            ]
+            | RANK MATCH(b, "foo")
+            """, "mismatched input 'RANK' expecting");
+
+        expectError("""
+            SEARCH index[
+              | RANK MATCH(a, b)
+            ]
+            """, "mismatched input 'b' expecting {',', '.'}");
+
+        expectError("""
+            SEARCH index[
+              | RANK MATCH(a, 123)
+            ]
+            """, "mismatched input '123' expecting {',', '.'}");
     }
 
     static Literal literalDatePeriod(Period period) {

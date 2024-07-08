@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.Before;
 
@@ -29,6 +30,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(scope = TEST, minNumDataNodes = 0, maxNumDataNodes = 0)
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -233,25 +235,28 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testJustExperimentingWithRestFilter() {
-
-        // var qb = QueryBuilders.matchAllQuery();
-        // var qb = QueryBuilders.termQuery("color", "blue");
-        // var qb = QueryBuilders.rangeQuery("cost").gt("2.5");
-        var filter = QueryBuilders.boolQuery()
-            .should(QueryBuilders.termQuery("color", "red"))
-            .must(QueryBuilders.rangeQuery("cost").gt("2.5"));
+    public void testWithRestFilter() {
+        var filter = QueryBuilders.boolQuery().should(QueryBuilders.matchQuery("content", "fox"));
         var query = """
             SEARCH test [
-              | RANK id > 1 AND id < 4
+              | RANK MATCH(content, "brown")
               ]
-            | KEEP id, content
-            | SORT id
+            | KEEP id, _score, content
+            | SORT id DESC
             """;
 
         try (var resp = run(query, null, filter)) {
-            logger.info("response=" + resp);
-
+            logger.info("response=" + prettyResponse(resp));
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), contains("id", "_score", "content"));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                contains("INTEGER", "FLOAT", "TEXT")
+            );
+            // values
+            List<List<Object>> values = getValuesList(resp);
+            assertEquals(values.size(), 2);
+            assertThat(values.get(0), contains(6, 0.21347222F, "The quick brown fox jumps over the lazy dog"));
+            assertThat(values.get(1), contains(1, 0.27089438F, "This is a brown fox"));
         }
     }
 
@@ -275,10 +280,23 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
             );
             // values
             List<List<Object>> values = getValuesList(resp);
+            assertEquals(values.size(), 3);
             assertThat(values.get(0), contains(3, 0.76719964F, "This dog is really brown"));
             assertThat(values.get(1), contains(6, 0.60457444F, "The quick brown fox jumps over the lazy dog"));
             assertThat(values.get(2), contains(4, 0.54663825F, "The dog is brown but this document is very very long"));
         }
+    }
+
+    public void testMatchOutsideSearchContext() {
+        var query = """
+                SEARCH test [
+                  | WHERE id > 2
+                ]
+                | WHERE MATCH(content, "quick brown dog")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("Unknown function [MATCH]"));
     }
 
     private void createAndPopulateIndex(String indexName) {

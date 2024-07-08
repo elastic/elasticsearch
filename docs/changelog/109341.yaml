@@ -1,5 +1,0 @@
-pr: 109341
-summary: Re-define `index.mapper.dynamic` setting in 8.x for a better 7.x to 8.x upgrade if this setting is used.
-area: Mapping
-type: bug
-issues: []

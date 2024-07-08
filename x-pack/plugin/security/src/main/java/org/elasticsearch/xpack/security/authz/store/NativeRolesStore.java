@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.security.action.role.QueryRoleResponse.Query
 import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
@@ -607,16 +608,41 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         return client.prepareDelete(SECURITY_MAIN_ALIAS, getIdForRole(roleName)).request();
     }
 
-    private XContentBuilder createRoleXContentBuilder(RoleDescriptor role) throws IOException {
+    // Package private for testing
+    XContentBuilder createRoleXContentBuilder(RoleDescriptor role) throws IOException {
         assert NativeRealmValidationUtil.validateRoleName(role.getName(), false) == null
             : "Role name was invalid or reserved: " + role.getName();
         assert false == role.hasRestriction() : "restriction is not supported for native roles";
-        return role.toXContent(
-            jsonBuilder(),
-            ToXContent.EMPTY_PARAMS,
-            true,
-            featureService.clusterHasFeature(clusterService.state(), SECURITY_ROLES_METADATA_FLATTENED)
-        );
+
+        XContentBuilder builder = jsonBuilder().startObject();
+        role.innerToXContent(builder, ToXContent.EMPTY_PARAMS, true);
+
+        if (featureService.clusterHasFeature(clusterService.state(), SECURITY_ROLES_METADATA_FLATTENED)) {
+            builder.field(RoleDescriptor.Fields.METADATA_FLATTENED.getPreferredName(), role.getMetadata());
+        }
+
+        // When role descriptor XContent is generated for the security index all empty fields need to have default values to make sure
+        // existing values are overwritten if not present since the request to update could be an UpdateRequest
+        // (update provided fields in existing document or create document) or IndexRequest (replace and reindex document)
+        if (role.hasConfigurableClusterPrivileges() == false) {
+            builder.startObject(RoleDescriptor.Fields.GLOBAL.getPreferredName()).endObject();
+        }
+
+        if (role.hasRemoteIndicesPrivileges() == false) {
+            builder.field(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName(), RoleDescriptor.RemoteIndicesPrivileges.NONE);
+        }
+
+        if (role.hasRemoteClusterPermissions() == false
+            && clusterService.state().getMinTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+            builder.array(RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName(), RemoteClusterPermissions.NONE);
+        }
+        if (role.hasDescription() == false
+            && clusterService.state().getMinTransportVersion().onOrAfter(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
+            builder.field(RoleDescriptor.Fields.DESCRIPTION.getPreferredName(), "");
+        }
+
+        builder.endObject();
+        return builder;
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {

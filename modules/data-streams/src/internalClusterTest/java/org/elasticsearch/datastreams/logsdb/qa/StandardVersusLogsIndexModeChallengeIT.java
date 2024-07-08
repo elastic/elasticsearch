@@ -108,35 +108,51 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments);
-        final SearchResponse oracleResponse = queryOracle(searchSourceBuilder);
-        final SearchResponse challengeResponse = queryChallenge(searchSourceBuilder);
 
-        new ResponseMatcher.Builder<>(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings()).with(
-            oracleResponse.getHits().getHits()
-        ).equalTo(challengeResponse.getHits().getHits(), new ResponseMatcher<>() {
-            @Override
-            public void match(Object a, Object b) throws MatcherException {
-                final SearchHit[] aHits = (SearchHit[]) a;
-                final SearchHit[] bHits = (SearchHit[]) b;
-                if (aHits.length != bHits.length) {
-                    throw new ArrayLengthNotEqualToMatcherException("Length mismatch.");
+        SearchResponse oracleResponse = null;
+        SearchResponse challengeResponse = null;
+        try {
+            oracleResponse = queryOracle(searchSourceBuilder);
+            challengeResponse = queryChallenge(searchSourceBuilder);
+
+            new ResponseMatcher.Builder<>(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings()).with(
+                oracleResponse.getHits().getHits()
+            ).equalTo(challengeResponse.getHits().getHits(), new ResponseMatcher<>() {
+                @Override
+                public void match(Object a, Object b) throws MatcherException {
+                    final SearchHit[] aHits = (SearchHit[]) a;
+                    final SearchHit[] bHits = (SearchHit[]) b;
+                    if (aHits.length != bHits.length) {
+                        throw new ArrayLengthNotEqualToMatcherException("Length mismatch.");
+                    }
+
+                    // TODO: abstract logic to check fields
+                    Arrays.stream(aHits)
+                        .map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()).get("@timestamp"))
+                        .toList()
+                        .containsAll(
+                            Arrays.stream(bHits)
+                                .map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()).get("@timestamp"))
+                                .toList()
+                        );
+                    Arrays.stream(bHits)
+                        .map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()).get("@timestamp"))
+                        .toList()
+                        .containsAll(
+                            Arrays.stream(aHits)
+                                .map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()).get("@timestamp"))
+                                .toList()
+                        );
                 }
-
-                // TODO: abstract logic to check fields
-                Arrays.stream(aHits)
-                    .map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()).get("@timestamp"))
-                    .toList()
-                    .containsAll(
-                        Arrays.stream(bHits).map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()).get("@timestamp")).toList()
-                    );
-                Arrays.stream(bHits)
-                    .map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()).get("@timestamp"))
-                    .toList()
-                    .containsAll(
-                        Arrays.stream(aHits).map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()).get("@timestamp")).toList()
-                    );
+            });
+        } finally {
+            if (oracleResponse != null) {
+                oracleResponse.decRef();
             }
-        });
+            if (challengeResponse != null) {
+                challengeResponse.decRef();
+            }
+        }
     }
 
     public void testTermsQuery() throws IOException, MatcherException {
@@ -168,31 +184,42 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
             .size(numberOfDocuments)
             .size(numberOfDocuments);
-        final SearchResponse oracleResponse = queryOracle(searchSourceBuilder);
-        final SearchResponse challengeResponse = queryChallenge(searchSourceBuilder);
+        SearchResponse oracleResponse = null;
+        SearchResponse challengeResponse = null;
+        try {
+            oracleResponse = queryOracle(searchSourceBuilder);
+            challengeResponse = queryChallenge(searchSourceBuilder);
 
-        new ResponseMatcher.Builder<>(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings()).with(
-            oracleResponse.getHits().getHits()
-        ).equalTo(challengeResponse.getHits().getHits(), new ResponseMatcher<>() {
-            @Override
-            public void match(Object a, Object b) throws MatcherException {
-                final SearchHit[] aHits = (SearchHit[]) a;
-                final SearchHit[] bHits = (SearchHit[]) b;
-                if (aHits.length != bHits.length) {
-                    throw new ArrayLengthNotEqualToMatcherException("Length mismatch.");
+            new ResponseMatcher.Builder<>(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings()).with(
+                oracleResponse.getHits().getHits()
+            ).equalTo(challengeResponse.getHits().getHits(), new ResponseMatcher<>() {
+                @Override
+                public void match(Object a, Object b) throws MatcherException {
+                    final SearchHit[] aHits = (SearchHit[]) a;
+                    final SearchHit[] bHits = (SearchHit[]) b;
+                    if (aHits.length != bHits.length) {
+                        throw new ArrayLengthNotEqualToMatcherException("Length mismatch.");
+                    }
+
+                    // TODO: abstract logic to check fields
+                    Arrays.stream(aHits)
+                        .map(v -> Objects.requireNonNull(v.getSourceAsMap()).get("@timestamp"))
+                        .toList()
+                        .containsAll(Arrays.stream(bHits).map(v -> Objects.requireNonNull(v.getSourceAsMap()).get("@timestamp")).toList());
+                    Arrays.stream(bHits)
+                        .map(v -> Objects.requireNonNull(v.getSourceAsMap()).get("@timestamp"))
+                        .toList()
+                        .containsAll(Arrays.stream(aHits).map(v -> Objects.requireNonNull(v.getSourceAsMap()).get("@timestamp")).toList());
                 }
-
-                // TODO: abstract logic to check fields
-                Arrays.stream(aHits)
-                    .map(v -> Objects.requireNonNull(v.getSourceAsMap()).get("@timestamp"))
-                    .toList()
-                    .containsAll(Arrays.stream(bHits).map(v -> Objects.requireNonNull(v.getSourceAsMap()).get("@timestamp")).toList());
-                Arrays.stream(bHits)
-                    .map(v -> Objects.requireNonNull(v.getSourceAsMap()).get("@timestamp"))
-                    .toList()
-                    .containsAll(Arrays.stream(aHits).map(v -> Objects.requireNonNull(v.getSourceAsMap()).get("@timestamp")).toList());
+            });
+        } finally {
+            if (oracleResponse != null) {
+                oracleResponse.decRef();
             }
-        });
+            if (challengeResponse != null) {
+                challengeResponse.decRef();
+            }
+        }
     }
 
     public void testHistogramAggregation() throws IOException, MatcherException {
@@ -228,23 +255,34 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             .size(numberOfDocuments)
             .size(0)
             .aggregation(histogramAggregation);
-        final SearchResponse oracleResponse = queryOracle(searchSourceBuilder);
-        final SearchResponse challengeResponse = queryChallenge(searchSourceBuilder);
-        assertThat(oracleResponse.getHits().getHits().length, Matchers.equalTo(challengeResponse.getHits().getHits().length));
+        SearchResponse oracleResponse = null;
+        SearchResponse challengeResponse = null;
+        try {
+            oracleResponse = queryOracle(searchSourceBuilder);
+            challengeResponse = queryChallenge(searchSourceBuilder);
+            assertThat(oracleResponse.getHits().getHits().length, Matchers.equalTo(challengeResponse.getHits().getHits().length));
 
-        new ResponseMatcher.Builder<>(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings()).with(
-            oracleResponse.getAggregations().get("memory-usage-histo")
-        ).equalTo(challengeResponse.getAggregations().get("memory-usage-histo"), new ResponseMatcher<>() {
-            @Override
-            public void match(Object a, Object b) throws MatcherException {
-                final InternalHistogram aHistogram = (InternalHistogram) a;
-                final InternalHistogram bHistogram = (InternalHistogram) b;
+            new ResponseMatcher.Builder<>(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings()).with(
+                oracleResponse.getAggregations().get("memory-usage-histo")
+            ).equalTo(challengeResponse.getAggregations().get("memory-usage-histo"), new ResponseMatcher<>() {
+                @Override
+                public void match(Object a, Object b) throws MatcherException {
+                    final InternalHistogram aHistogram = (InternalHistogram) a;
+                    final InternalHistogram bHistogram = (InternalHistogram) b;
 
-                if (aHistogram.equals(bHistogram) == false) {
-                    throw new NotEqualToMatcherException("Histogram not matching");
+                    if (aHistogram.equals(bHistogram) == false) {
+                        throw new NotEqualToMatcherException("Histogram not matching");
+                    }
                 }
+            });
+        } finally {
+            if (oracleResponse != null) {
+                oracleResponse.decRef();
             }
-        });
+            if (challengeResponse != null) {
+                challengeResponse.decRef();
+            }
+        }
     }
 
     public void testTermsAggregation() throws IOException, MatcherException {
@@ -277,23 +315,34 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             .size(numberOfDocuments)
             .size(0)
             .aggregation(termsAggregation);
-        final SearchResponse oracleResponse = queryOracle(searchSourceBuilder);
-        final SearchResponse challengeResponse = queryChallenge(searchSourceBuilder);
-        assertThat(oracleResponse.getHits().getHits().length, Matchers.equalTo(challengeResponse.getHits().getHits().length));
+        SearchResponse oracleResponse = null;
+        SearchResponse challengeResponse = null;
+        try {
+            oracleResponse = queryOracle(searchSourceBuilder);
+            challengeResponse = queryChallenge(searchSourceBuilder);
+            assertThat(oracleResponse.getHits().getHits().length, Matchers.equalTo(challengeResponse.getHits().getHits().length));
 
-        new ResponseMatcher.Builder<>(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings()).with(
-            oracleResponse.getAggregations().get("host-name-agg")
-        ).equalTo(challengeResponse.getAggregations().get("host-name-agg"), new ResponseMatcher<>() {
-            @Override
-            public void match(Object a, Object b) throws MatcherException {
-                final StringTerms aTerms = (StringTerms) a;
-                final StringTerms bTerms = (StringTerms) b;
+            new ResponseMatcher.Builder<>(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings()).with(
+                oracleResponse.getAggregations().get("host-name-agg")
+            ).equalTo(challengeResponse.getAggregations().get("host-name-agg"), new ResponseMatcher<>() {
+                @Override
+                public void match(Object a, Object b) throws MatcherException {
+                    final StringTerms aTerms = (StringTerms) a;
+                    final StringTerms bTerms = (StringTerms) b;
 
-                if (aTerms.equals(bTerms) == false) {
-                    throw new NotEqualToMatcherException("Terms not matching");
+                    if (aTerms.equals(bTerms) == false) {
+                        throw new NotEqualToMatcherException("Terms not matching");
+                    }
                 }
+            });
+        } finally {
+            if (oracleResponse != null) {
+                oracleResponse.decRef();
             }
-        });
+            if (challengeResponse != null) {
+                challengeResponse.decRef();
+            }
+        }
     }
 
     public void testDateHistogramAggregation() throws IOException, MatcherException {
@@ -326,22 +375,33 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             .calendarInterval(DateHistogramInterval.SECOND);
 
         final SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).aggregation(dateHisto);
-        final SearchResponse oracleResponse = queryOracle(sourceBuilder);
-        final SearchResponse challengeResponse = queryChallenge(sourceBuilder);
+        SearchResponse oracleResponse = null;
+        SearchResponse challengeResponse = null;
+        try {
+            oracleResponse = queryOracle(sourceBuilder);
+            challengeResponse = queryChallenge(sourceBuilder);
 
-        new ResponseMatcher.Builder<>(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings()).with(
-            oracleResponse.getAggregations().get("date-histogram")
-        ).equalTo(challengeResponse.getAggregations().get("date-histogram"), new ResponseMatcher<>() {
-            @Override
-            public void match(Object a, Object b) throws MatcherException {
-                final InternalDateHistogram aHistogram = (InternalDateHistogram) a;
-                final InternalDateHistogram bHistogram = (InternalDateHistogram) b;
+            new ResponseMatcher.Builder<>(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings()).with(
+                oracleResponse.getAggregations().get("date-histogram")
+            ).equalTo(challengeResponse.getAggregations().get("date-histogram"), new ResponseMatcher<>() {
+                @Override
+                public void match(Object a, Object b) throws MatcherException {
+                    final InternalDateHistogram aHistogram = (InternalDateHistogram) a;
+                    final InternalDateHistogram bHistogram = (InternalDateHistogram) b;
 
-                if (aHistogram.equals(bHistogram) == false) {
-                    throw new NotEqualToMatcherException("Histogram not matching");
+                    if (aHistogram.equals(bHistogram) == false) {
+                        throw new NotEqualToMatcherException("Histogram not matching");
+                    }
                 }
+            });
+        } finally {
+            if (oracleResponse != null) {
+                oracleResponse.decRef();
             }
-        });
+            if (challengeResponse != null) {
+                challengeResponse.decRef();
+            }
+        }
     }
 
 }

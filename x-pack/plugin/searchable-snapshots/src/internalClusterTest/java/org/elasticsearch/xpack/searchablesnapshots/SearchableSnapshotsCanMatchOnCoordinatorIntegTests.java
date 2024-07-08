@@ -630,6 +630,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
         Map<String, DateFieldMapper.DateFieldType> timestampFieldMap = indicesService.getTimestampFieldTypeMap(indexMetadata.getIndex());
         assertThat(timestampFieldMap, nullValue());
@@ -694,15 +695,28 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         ensureGreen(searchableSnapshotIndexOutsideSearchRange);
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
         Map<String, DateFieldMapper.DateFieldType> fieldTypeMap = indicesService.getTimestampFieldTypeMap(updatedIndexMetadata.getIndex());
         assertThat(fieldTypeMap, notNullValue());
-        DateFieldMapper.DateFieldType dateFieldType = fieldTypeMap.get(timestampField);
-        DateFieldMapper.Resolution resolution = dateFieldType.resolution();
-        assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
-        assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-        assertThat(updatedTimestampMillisRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
-        assertThat(updatedTimestampMillisRange.getMax(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+
+        final IndexLongFieldRange updatedTimestampRange = updatedIndexMetadata.getTimestampRange();
+        DateFieldMapper.Resolution tsResolution = fieldTypeMap.get(DataStream.TIMESTAMP_FIELD_NAME).resolution();
+        assertThat(updatedTimestampRange.isComplete(), equalTo(true));
+        assertThat(updatedTimestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+        assertThat(updatedTimestampRange.getMin(), greaterThanOrEqualTo(tsResolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+        assertThat(updatedTimestampRange.getMax(), lessThanOrEqualTo(tsResolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+
+        final IndexLongFieldRange updatedEventIngestedRange = updatedIndexMetadata.getEventIngestedRange();
+        DateFieldMapper.Resolution eventIngestedResolution = fieldTypeMap.get(IndexMetadata.EVENT_INGESTED_FIELD_NAME).resolution();
+        assertThat(updatedEventIngestedRange.isComplete(), equalTo(true));
+        assertThat(updatedEventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+        assertThat(
+            updatedEventIngestedRange.getMin(),
+            greaterThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
+        );
+        assertThat(
+            updatedEventIngestedRange.getMax(),
+            lessThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-27T00:00:00Z")))
+        );
 
         // Stop the node holding the searchable snapshots, and since we defined
         // the index allocation criteria to require the searchable snapshot

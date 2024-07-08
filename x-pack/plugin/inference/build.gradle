@@ -27,6 +27,10 @@ base {
   archivesName = 'x-pack-inference'
 }
 
+versions << [
+  'awsbedrockruntime': '1.12.740'
+]
+
 dependencies {
   implementation project(path: ':libs:elasticsearch-logging')
   compileOnly project(":server")
@@ -53,10 +57,19 @@ dependencies {
   implementation 'com.google.http-client:google-http-client-appengine:1.42.3'
   implementation 'com.google.http-client:google-http-client-jackson2:1.42.3'
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  implementation "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
   implementation 'com.google.api:gax-httpjson:0.105.1'
   implementation 'io.grpc:grpc-context:1.49.2'
   implementation 'io.opencensus:opencensus-api:0.31.1'
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  implementation "com.amazonaws:aws-java-sdk-bedrockruntime:${versions.awsbedrockruntime}"
+  implementation "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  implementation "com.amazonaws:jmespath-java:${versions.aws}"
+  implementation "joda-time:joda-time:2.10.10"
+  implementation 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -66,6 +79,9 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /protobuf.*/, to: 'protobuf'
   mapping from: /proto-google.*/, to: 'proto-google'
   mapping from: /jackson.*/, to: 'jackson'
+  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
+  mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -199,10 +215,21 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.appengine.api.urlfetch.HTTPRequest',
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
-    'com.google.appengine.api.urlfetch.URLFetchServiceFactory'
+    'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    'software.amazon.ion.IonReader',
+    'software.amazon.ion.IonSystem',
+    'software.amazon.ion.IonType',
+    'software.amazon.ion.IonWriter',
+    'software.amazon.ion.Timestamp',
+    'software.amazon.ion.system.IonBinaryWriterBuilder',
+    'software.amazon.ion.system.IonSystemBuilder',
+    'software.amazon.ion.system.IonTextWriterBuilder',
+    'software.amazon.ion.system.IonWriterBuilder',
+    'javax.activation.DataHandler'
   )
 }
 
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
+

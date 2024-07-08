@@ -644,7 +644,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         bigArraysForReduction,
                         getMockScriptService(),
                         () -> false,
-                        builder
+                        builder,
+                        b -> {}
                     );
                     AggregatorCollectorManager aggregatorCollectorManager = new AggregatorCollectorManager(
                         aggregatorSupplier,
@@ -669,7 +670,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     bigArraysForReduction,
                     getMockScriptService(),
                     () -> false,
-                    builder
+                    builder,
+                    b -> {}
                 );
                 internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
                 internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));

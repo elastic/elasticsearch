@@ -47,6 +47,7 @@ import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CSVUtil;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -56,9 +57,14 @@ import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.io.BufferedReader;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -242,7 +248,21 @@ public class Analysis {
             }
         }
 
-        final Path path = env.configFile().resolve(wordListPath);
+        final URL pathAsUrl = tryToParsePathAsURL(wordListPath);
+        final Path path;
+        final boolean deletePath;
+        if (pathAsUrl != null) {
+            try {
+                path = downloadFile(pathAsUrl);
+                deletePath = true;
+            } catch (IOException e) {
+                String message = Strings.format("IOException while downloading file %s", settingPath);
+                throw new IllegalArgumentException(message, e);
+            }
+        } else {
+            path = env.configFile().resolve(wordListPath);
+            deletePath = false;
+        }
 
         try {
             return loadWordList(path, removeComments);
@@ -258,6 +278,15 @@ public class Analysis {
             throw new IllegalArgumentException(message, ioe);
         } catch (AccessControlException ace) {
             throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
+        } finally {
+            if (deletePath) {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException e) {
+                    // TODO: Log this instead?
+                    throw new RuntimeException("Unable to delete temp file " + path, e);
+                }
+            }
         }
     }
 
@@ -362,4 +391,33 @@ public class Analysis {
         return new StringReader(sb.toString());
     }
 
+    // TODO: How to handle file:// URLs?
+    private static URL tryToParsePathAsURL(String path) {
+        URL url = null;
+        try {
+            url = new URL(path);
+        } catch (MalformedURLException e) {
+            // OK to swallow this exception, it means the path is not a valid URL
+        }
+
+        return url;
+    }
+
+    private static Path downloadFile(URL url) throws IOException {
+        String protocol = url.getProtocol();
+        if (protocol.equals("http") == false && protocol.equals("https") == false) {
+            throw new IllegalArgumentException("Cannot handle protocol [" + protocol + "]");
+        }
+
+        Path path = Files.createTempFile(UUIDs.randomBase64UUID(), null);
+        try (FileOutputStream fileOutputStream = new FileOutputStream(path.toFile())) {
+            ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
+            fileOutputStream.getChannel().transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+        } catch (Exception e) {
+            Files.deleteIfExists(path);
+            throw e;
+        }
+
+        return path;
+    }
 }

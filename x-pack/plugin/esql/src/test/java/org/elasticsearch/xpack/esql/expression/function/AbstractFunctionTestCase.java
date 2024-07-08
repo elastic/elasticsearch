@@ -100,7 +100,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "unsigned_long", "long", "counter_long" -> randomLong();
             case "date_period" -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case "datetime" -> randomMillisUpToYear9999();
-            case "double", "scaled_float", "counter_double" -> randomDouble();
+            case "double", "scaled_float", "counter_double", "aggregate_metric_double" -> randomDouble();
             case "float" -> randomFloat();
             case "half_float" -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
             case "keyword" -> new BytesRef(randomAlphaOfLength(5));

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -44,10 +45,12 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -190,7 +193,10 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
             assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
-            assertEquals(Set.of(snapshotName), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+
+            List<SnapshotId> preRegistered = new ArrayList<>(snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+            assertEquals(1, preRegistered.size());
+            assertEquals(snapshotName, preRegistered.get(0).getName());
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
@@ -275,7 +281,10 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
             assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
-            assertEquals(Set.of(snapshotName), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+
+            List<SnapshotId> preRegistered = new ArrayList<>(snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+            assertEquals(1, preRegistered.size());
+            assertEquals(snapshotName, preRegistered.get(0).getName());
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();

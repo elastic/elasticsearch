@@ -256,7 +256,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
      * Generate a new create snapshot request from this policy. The name of the snapshot is
      * generated at this time based on any date math expressions in the "name" field.
      */
-    public CreateSnapshotRequest toRequest(TimeValue masterNodeTimeout) {
+    public CreateSnapshotRequest toRequest(TimeValue masterNodeTimeout, @Nullable String uuid) {
         CreateSnapshotRequest req = new CreateSnapshotRequest(masterNodeTimeout, repository, generateSnapshotName(this.name));
         Map<String, Object> mergedConfiguration = configuration == null ? new HashMap<>() : new HashMap<>(configuration);
         @SuppressWarnings("unchecked")
@@ -265,6 +265,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         mergedConfiguration.put("metadata", metadataWithAddedPolicyName);
         req.source(mergedConfiguration);
         req.waitForCompletion(true);
+        req.uuid(uuid);
         return req;
     }
 

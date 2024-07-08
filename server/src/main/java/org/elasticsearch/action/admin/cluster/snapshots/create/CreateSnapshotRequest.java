@@ -81,6 +81,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     @Nullable
     private Map<String, Object> userMetadata;
+    private String uuid = null;
 
     public CreateSnapshotRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
@@ -112,6 +113,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
         userMetadata = in.readGenericMap();
+        uuid = in.getTransportVersion().onOrAfter(TransportVersions.PRE_REGISTER_SLM_STATS) ? in.readOptionalString() : null;
     }
 
     @Override
@@ -129,6 +131,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
         out.writeGenericMap(userMetadata);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.PRE_REGISTER_SLM_STATS)) {
+            out.writeOptionalString(uuid);
+        }
     }
 
     @Override
@@ -365,6 +370,18 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     /**
+     * Set a uuid to identify snapshot.
+     * If no uuid is specified, one will be created within SnapshotService
+     */
+    public void uuid(String uuid) {
+        this.uuid = uuid;
+    }
+
+    public String uuid() {
+        return this.uuid;
+    }
+
+    /**
      * @return Which plugin states should be included in the snapshot
      */
     public String[] featureStates() {
@@ -446,6 +463,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             indicesOptions.toXContent(builder, params);
         }
         builder.field("metadata", userMetadata);
+        if (uuid != null) {
+            builder.field("uuid", uuid);
+        }
         builder.endObject();
         return builder;
     }
@@ -469,12 +489,13 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Arrays.equals(featureStates, that.featureStates)
             && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout())
-            && Objects.equals(userMetadata, that.userMetadata);
+            && Objects.equals(userMetadata, that.userMetadata)
+            && Objects.equals(uuid, that.uuid);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState, waitForCompletion, userMetadata);
+        int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState, waitForCompletion, userMetadata, uuid);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(featureStates);
         return result;
@@ -505,6 +526,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             + masterNodeTimeout()
             + ", metadata="
             + userMetadata
+            + ", uuid="
+            + uuid
             + '}';
     }
 }

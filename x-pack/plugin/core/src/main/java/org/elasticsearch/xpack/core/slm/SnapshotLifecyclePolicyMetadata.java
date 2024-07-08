@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -58,7 +59,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
     @Nullable
     private final SnapshotInvocationRecord lastFailure;
     private final long invocationsSinceLastSuccess;
-    private final Set<String> preRegisteredSnapshots;
+    private final Set<SnapshotId> preRegisteredSnapshots;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<SnapshotLifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>(
@@ -75,7 +76,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
                 .setLastSuccess(lastSuccess)
                 .setLastFailure(lastFailure)
                 .setInvocationsSinceLastSuccess(a[6] == null ? 0L : ((long) a[6]))
-                .setPreRegisteredSnapshots(a[7] == null ? Set.of() : (new HashSet<String>((List<String>) a[7])))
+                .setPreRegisteredSnapshots(a[7] == null ? Set.of() : (new HashSet<>((List<SnapshotId>) a[7])))
                 .build();
         }
     );
@@ -88,7 +89,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotInvocationRecord::parse, LAST_SUCCESS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotInvocationRecord::parse, LAST_FAILURE);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), INVOCATIONS_SINCE_LAST_SUCCESS);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), PRE_REGISTERED_SNAPSHOTS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), SnapshotId::parse, PRE_REGISTERED_SNAPSHOTS);
     }
 
     public static SnapshotLifecyclePolicyMetadata parse(XContentParser parser, String name) {
@@ -103,7 +104,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         SnapshotInvocationRecord lastSuccess,
         SnapshotInvocationRecord lastFailure,
         long invocationsSinceLastSuccess,
-        Set<String> preRegisteredSnapshots
+        Set<SnapshotId> preRegisteredSnapshots
     ) {
         this.policy = policy;
         this.headers = headers;
@@ -127,7 +128,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         this.lastFailure = in.readOptionalWriteable(SnapshotInvocationRecord::new);
         this.invocationsSinceLastSuccess = in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0) ? in.readVLong() : 0L;
         this.preRegisteredSnapshots = in.getTransportVersion().onOrAfter(TransportVersions.PRE_REGISTER_SLM_STATS)
-            ? new HashSet<>(in.readStringCollectionAsList())
+            ? in.readCollectionAsSet(SnapshotId::new)
             : Set.of();
     }
 
@@ -143,7 +144,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
             out.writeVLong(this.invocationsSinceLastSuccess);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.PRE_REGISTER_SLM_STATS)) {
-            out.writeStringCollection(this.preRegisteredSnapshots);
+            out.writeCollection(this.preRegisteredSnapshots);
         }
     }
 
@@ -196,7 +197,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         return invocationsSinceLastSuccess;
     }
 
-    public Set<String> getPreRegisteredSnapshots() {
+    public Set<SnapshotId> getPreRegisteredSnapshots() {
         return preRegisteredSnapshots;
     }
 
@@ -272,7 +273,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         private SnapshotInvocationRecord lastSuccessDate;
         private SnapshotInvocationRecord lastFailureDate;
         private long invocationsSinceLastSuccess = 0L;
-        private Set<String> preRegisteredSnapshots = Set.of();
+        private Set<SnapshotId> preRegisteredSnapshots = Set.of();
 
         public Builder setPolicy(SnapshotLifecyclePolicy policy) {
             this.policy = policy;
@@ -309,7 +310,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
             return this;
         }
 
-        public Builder setPreRegisteredSnapshots(Set<String> preRegisteredSnapshots) {
+        public Builder setPreRegisteredSnapshots(Set<SnapshotId> preRegisteredSnapshots) {
             this.preRegisteredSnapshots = preRegisteredSnapshots;
             return this;
         }

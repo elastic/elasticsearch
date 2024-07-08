@@ -279,7 +279,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         validate(repositoryName, snapshotName);
         // TODO: create snapshot UUID in CreateSnapshotRequest and make this operation idempotent to cleanly deal with transport layer
         // retries
-        final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
+        final String uuid = request.uuid() == null ? UUIDs.randomBase64UUID() : request.uuid();
+        final SnapshotId snapshotId = new SnapshotId(snapshotName, uuid); // new UUID for the snapshot
         Repository repository = repositoriesService.repository(request.repository());
         if (repository.isReadOnly()) {
             listener.onFailure(new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository"));

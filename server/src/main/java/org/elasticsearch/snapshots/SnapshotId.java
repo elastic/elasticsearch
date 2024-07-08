@@ -11,8 +11,11 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,8 +25,19 @@ import java.util.Objects;
  */
 public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXContentObject {
 
-    private static final String NAME = "name";
-    private static final String UUID = "uuid";
+    private static final ParseField NAME = new ParseField("name");
+    private static final ParseField UUID = new ParseField("uuid");
+
+    public static final ConstructingObjectParser<SnapshotId, String> PARSER = new ConstructingObjectParser<>(
+        "snapshot_id",
+        true,
+        a -> new SnapshotId((String) a[0], (String) a[1])
+    );
+
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), UUID);
+    }
 
     private final String name;
     private final String uuid;
@@ -52,6 +66,10 @@ public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXC
         name = in.readString();
         uuid = in.readString();
         hashCode = computeHashCode();
+    }
+
+    public static SnapshotId parse(XContentParser parser, String text) {
+        return PARSER.apply(parser, text);
     }
 
     /**
@@ -112,8 +130,8 @@ public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXC
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(NAME, name);
-        builder.field(UUID, uuid);
+        builder.field(NAME.getPreferredName(), name);
+        builder.field(UUID.getPreferredName(), uuid);
         builder.endObject();
         return builder;
     }

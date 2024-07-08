@@ -64,7 +64,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     @Override
     public DataType dataType() {
         DataType dt = field().dataType();
-        return dt.isInteger() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
+        return dt.isWholeNumber() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
     }
 
     @Override

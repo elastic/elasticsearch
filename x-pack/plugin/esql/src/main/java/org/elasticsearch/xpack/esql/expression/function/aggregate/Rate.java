@@ -125,7 +125,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         );
         if (unit != null) {
             resolution = resolution.and(
-                isType(unit, dt -> dt.isInteger() || EsqlDataTypes.isTemporalAmount(dt), sourceText(), SECOND, "time_duration")
+                isType(unit, dt -> dt.isWholeNumber() || EsqlDataTypes.isTemporalAmount(dt), sourceText(), SECOND, "time_duration")
             );
         }
         return resolution;

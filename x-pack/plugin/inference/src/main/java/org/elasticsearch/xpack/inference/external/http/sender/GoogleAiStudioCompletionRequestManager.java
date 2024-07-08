@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleA
 import org.elasticsearch.xpack.inference.external.response.googleaistudio.GoogleAiStudioCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -46,8 +47,8 @@ public class GoogleAiStudioCompletionRequestManager extends GoogleAiStudioReques
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsInput = DocumentsOnlyInput.of(inferenceInputs);
-        GoogleAiStudioCompletionRequest request = new GoogleAiStudioCompletionRequest(docsInput.getInputs(), model);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        GoogleAiStudioCompletionRequest request = new GoogleAiStudioCompletionRequest(docsInput, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceInferenceRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -59,8 +60,8 @@ public class HuggingFaceRequestManager extends BaseRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsInput = DocumentsOnlyInput.of(inferenceInputs);
-        var truncatedInput = truncate(docsInput.getInputs(), model.getTokenLimit());
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        var truncatedInput = truncate(docsInput, model.getTokenLimit());
         var request = new HuggingFaceInferenceRequest(truncator, truncatedInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, responseHandler, hasRequestCompletedFunction, listener));

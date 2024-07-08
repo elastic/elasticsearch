@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.request.openai.OpenAiChatCompl
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -46,8 +47,8 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsInput = DocumentsOnlyInput.of(inferenceInputs);
-        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(docsInput.getInputs(), model);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(docsInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

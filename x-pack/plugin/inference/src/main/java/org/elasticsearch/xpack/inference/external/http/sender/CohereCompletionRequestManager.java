@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.request.cohere.completion.Cohe
 import org.elasticsearch.xpack.inference.external.response.cohere.CohereCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -50,8 +51,8 @@ public class CohereCompletionRequestManager extends CohereRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsInput = DocumentsOnlyInput.of(inferenceInputs);
-        CohereCompletionRequest request = new CohereCompletionRequest(docsInput.getInputs(), model);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        CohereCompletionRequest request = new CohereCompletionRequest(docsInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

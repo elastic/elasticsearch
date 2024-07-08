@@ -98,7 +98,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-3f;
 
-    static boolean isNotUnitVector(float magnitude) {
+    public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
     }
 

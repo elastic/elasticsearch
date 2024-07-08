@@ -39,7 +39,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         description = "The minimum value of a field.",
         isAggregation = true
     )
-    public Min(Source source, @Param(name = "value", type = { "boolean", "double", "integer", "long", "date" }) Expression field) {
+    public Min(Source source, @Param(name = "field", type = { "boolean", "double", "integer", "long", "date" }) Expression field) {
         super(source, field);
     }
 

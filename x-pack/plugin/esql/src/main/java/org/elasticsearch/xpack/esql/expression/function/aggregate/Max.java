@@ -39,7 +39,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         description = "The maximum value of a field.",
         isAggregation = true
     )
-    public Max(Source source, @Param(name = "value", type = { "boolean", "double", "integer", "long", "date" }) Expression field) {
+    public Max(Source source, @Param(name = "field", type = { "boolean", "double", "integer", "long", "date" }) Expression field) {
         super(source, field);
     }
 

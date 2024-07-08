@@ -133,7 +133,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
             Page inputPage = rows(testCase.getMultiRowFields());
             try {
-                aggregator.processPage(inputPage);
+                if (inputPage.getPositionCount() > 0) {
+                    aggregator.processPage(inputPage);
+                }
             } finally {
                 inputPage.releaseBlocks();
             }
@@ -166,7 +168,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
             Page inputPage = rows(testCase.getMultiRowFields());
             try {
-                aggregator.processPage(inputPage);
+                if (inputPage.getPositionCount() > 0) {
+                    aggregator.processPage(inputPage);
+                }
             } finally {
                 inputPage.releaseBlocks();
             }
@@ -195,7 +199,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         ) {
             Page inputPage = new Page(intermediateBlocks);
             try {
-                aggregator.processPage(inputPage);
+                if (inputPage.getPositionCount() > 0) {
+                    aggregator.processPage(inputPage);
+                }
             } finally {
                 inputPage.releaseBlocks();
             }

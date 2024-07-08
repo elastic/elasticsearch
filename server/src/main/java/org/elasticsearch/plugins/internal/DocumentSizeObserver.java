@@ -15,19 +15,24 @@ import org.elasticsearch.xcontent.XContentParser;
  * An interface to allow wrapping an XContentParser and observe the events emitted while parsing
  * A default implementation returns a noop DocumentSizeObserver
  */
-public interface DocumentSizeObserver {
+public interface DocumentSizeObserver extends NormalisedBytesWrapper {
     /**
      * a default noop implementation
      */
     DocumentSizeObserver EMPTY_INSTANCE = new DocumentSizeObserver() {
         @Override
-        public XContentParser wrapParser(XContentParser xContentParser) {
-            return xContentParser;
+        public long raiNormalisedBytes() {
+            return 0;
         }
 
         @Override
-        public long normalisedBytesParsed() {
+        public long rasNormalisedBytes() {
             return 0;
+        }
+
+        @Override
+        public XContentParser wrapParser(XContentParser xContentParser) {
+            return xContentParser;
         }
 
         @Override
@@ -43,19 +48,9 @@ public interface DocumentSizeObserver {
     XContentParser wrapParser(XContentParser xContentParser);
 
     /**
-     * Returns the state gathered during parsing
-     *
-     * @return a number representing a state parsed
-     */
-    long normalisedBytesParsed();
-
-    /**
      * Enriches the index request with the number of bytes observed when parsing a document
      * @param indexRequest
      */
     void setNormalisedBytesParsedOn(IndexRequest indexRequest);
 
-    default boolean isUpdateByScript() {
-        return false;
-    }
 }

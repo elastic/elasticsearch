@@ -21,10 +21,10 @@ public interface DocumentSizeReporter {
     /**
      * An action to be performed upon finished indexing.
      */
-    default void onParsingCompleted(DocumentSizeObserver documentSizeObserver) {}
+    default void onParsingCompleted(NormalisedBytesWrapper documentSizeObserver) {}
 
     /**
      * An action to be performed upon finished indexing.
      */
-    default void onIndexingCompleted(DocumentSizeObserver documentSizeObserver) {}
+    default void onIndexingCompleted(NormalisedBytesWrapper documentSizeObserver) {}
 }

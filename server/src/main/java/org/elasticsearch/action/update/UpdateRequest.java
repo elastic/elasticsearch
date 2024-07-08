@@ -157,11 +157,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            requireAlias = in.readBoolean();
-        } else {
-            requireAlias = false;
-        }
+        requireAlias = in.readBoolean();
     }
 
     public UpdateRequest(String index, String id) {
@@ -728,20 +724,18 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         out.writeVInt(retryOnConflict);
         refreshPolicy.writeTo(out);
-        if (doc == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            // make sure the basics are set
-            doc.index(index);
-            doc.id(id);
-            if (thin) {
-                doc.writeThin(out);
-            } else {
-                doc.writeTo(out);
-            }
-        }
+        writeIndexRequest(out, thin, doc);
         out.writeOptionalWriteable(fetchSourceContext);
+        writeIndexRequest(out, thin, upsertRequest);
+        out.writeBoolean(docAsUpsert);
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
+        out.writeBoolean(detectNoop);
+        out.writeBoolean(scriptedUpsert);
+        out.writeBoolean(requireAlias);
+    }
+
+    private void writeIndexRequest(StreamOutput out, boolean thin, IndexRequest upsertRequest) throws IOException {
         if (upsertRequest == null) {
             out.writeBoolean(false);
         } else {
@@ -754,14 +748,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             } else {
                 upsertRequest.writeTo(out);
             }
-        }
-        out.writeBoolean(docAsUpsert);
-        out.writeZLong(ifSeqNo);
-        out.writeVLong(ifPrimaryTerm);
-        out.writeBoolean(detectNoop);
-        out.writeBoolean(scriptedUpsert);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeBoolean(requireAlias);
         }
     }
 

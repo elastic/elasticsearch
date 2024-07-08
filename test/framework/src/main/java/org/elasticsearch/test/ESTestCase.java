@@ -38,6 +38,7 @@ import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.RequestBuilder;
@@ -48,6 +49,7 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -178,12 +180,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -996,6 +1000,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static int randomNonNegativeInt() {
         return randomInt() & Integer.MAX_VALUE;
+    }
+
+    /**
+     * @return an <code>int</code> between <code>Integer.MIN_VALUE</code> and <code>-1</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNegativeInt() {
+        return randomInt() | Integer.MIN_VALUE;
     }
 
     public static float randomFloat() {
@@ -2299,6 +2310,20 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Call a {@link CheckedSupplier}, converting all exceptions into an {@link AssertionError}. Useful for avoiding
+     * try/catch boilerplate or cumbersome propagation of checked exceptions around something that <i>should</i> never throw.
+     *
+     * @return The value returned by the {@code supplier}.
+     */
+    public static <T> T safeGet(CheckedSupplier<T, ?> supplier) {
+        try {
+            return supplier.get();
+        } catch (Exception e) {
+            return fail(e);
+        }
+    }
+
+    /**
      * Wait for the exceptional completion of the given {@link SubscribableListener}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
      * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
      * AssertionError} to trigger a test failure.
@@ -2407,5 +2432,42 @@ public abstract class ESTestCase extends LuceneTestCase {
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
             () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
         );
+    }
+
+    /**
+     * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. On of the tasks will be run on the
+     * calling thread, the rest will be run on a new thread.
+     * @param numberOfTasks number of tasks to run in parallel
+     * @param taskFactory task factory
+     */
+    public static void runInParallel(int numberOfTasks, IntConsumer taskFactory) throws InterruptedException {
+        final ArrayList<Future<?>> futures = new ArrayList<>(numberOfTasks);
+        final Thread[] threads = new Thread[numberOfTasks - 1];
+        for (int i = 0; i < numberOfTasks; i++) {
+            final int index = i;
+            var future = new FutureTask<Void>(() -> taskFactory.accept(index), null);
+            futures.add(future);
+            if (i == numberOfTasks - 1) {
+                future.run();
+            } else {
+                threads[i] = new Thread(future);
+                threads[i].setName("runInParallel-T#" + i);
+                threads[i].start();
+            }
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        Exception e = null;
+        for (Future<?> future : futures) {
+            try {
+                future.get();
+            } catch (Exception ex) {
+                e = ExceptionsHelper.useOrSuppress(e, ex);
+            }
+        }
+        if (e != null) {
+            throw new AssertionError(e);
+        }
     }
 }

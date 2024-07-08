@@ -32,12 +32,11 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 /**
  * Simplifies arithmetic expressions with BinaryComparisons and fixed point fields, such as: (int + 2) / 3 > 4 => int > 10
  */
-public final class SimplifyComparisonsArithmetics extends
-    org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
+public final class SimplifyComparisonsArithmetics extends OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
     BiFunction<DataType, DataType, Boolean> typesCompatible;
 
     public SimplifyComparisonsArithmetics(BiFunction<DataType, DataType, Boolean> typesCompatible) {
-        super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP);
+        super(OptimizerRules.TransformDirection.UP);
         this.typesCompatible = typesCompatible;
     }
 

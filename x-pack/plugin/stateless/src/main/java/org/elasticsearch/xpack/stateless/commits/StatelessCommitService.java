@@ -766,6 +766,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         commitState.delete();
     }
 
+    public void onGenerationalFileDeletion(ShardId shardId, String filename) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        commitState.onGenerationalFileDeletion(filename);
+    }
+
     public void addListenerForUploadedGeneration(ShardId shardId, long generation, ActionListener<Void> listener) {
         requireNonNull(listener, "listener cannot be null");
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
@@ -2159,6 +2164,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
+        private void onGenerationalFileDeletion(String filename) {
+            assert isGenerationalFile(filename) : filename + " is not a generational file";
+            logger.trace(() -> format("%s deleted generational file [%s]", shardId, filename));
+            // TODO: The method will be implemented by ES-8897
+        }
+
         /**
          * A ref counted instance representing a (BCC) blob reference to the object store.
          */
@@ -2492,7 +2503,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     public static boolean isGenerationalFile(String file) {
-        return file.startsWith("_") && IndexFileNames.parseGeneration(file) > 0L;
+        return file.startsWith("_") && (file.endsWith(".tmp") == false) && IndexFileNames.parseGeneration(file) > 0L;
     }
 
     /**

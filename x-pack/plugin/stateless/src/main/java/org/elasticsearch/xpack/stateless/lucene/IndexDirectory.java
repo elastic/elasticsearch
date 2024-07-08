@@ -31,7 +31,9 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -53,8 +55,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.isGenerationalFile;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSeek;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSlice;
 import static org.elasticsearch.core.Strings.format;
@@ -69,6 +73,12 @@ public class IndexDirectory extends ByteSizeDirectory {
      * its files should be accessed using this cache directory.
      */
     private final SearchDirectory cacheDirectory;
+    /**
+     * A callback to invoke when a generational file is deleted (by Lucene). It is used for
+     * ref-counting their associated BCC blobs.
+     */
+    @Nullable
+    private final BiConsumer<ShardId, String> onGenerationalFileDeletion;
 
     /**
      * Map of files created on disk by the indexing shard. A reference {@link LocalFileRef} to this file is kept in the map until the file
@@ -91,9 +101,10 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     private long lastGeneration = -1;
 
-    public IndexDirectory(Directory in, SearchDirectory cacheDirectory) {
+    public IndexDirectory(Directory in, SearchDirectory cacheDirectory, @Nullable BiConsumer<ShardId, String> onGenerationalFileDeletion) {
         super(in);
         this.cacheDirectory = Objects.requireNonNull(cacheDirectory);
+        this.onGenerationalFileDeletion = onGenerationalFileDeletion;
     }
 
     @Override
@@ -226,6 +237,9 @@ public class IndexDirectory extends ByteSizeDirectory {
             return;
         }
         localFile.markAsDeleted();
+        if (onGenerationalFileDeletion != null && isGenerationalFile(name)) {
+            onGenerationalFileDeletion.accept(cacheDirectory.getShardId(), name);
+        }
     }
 
     public void sync(Collection<String> names) {

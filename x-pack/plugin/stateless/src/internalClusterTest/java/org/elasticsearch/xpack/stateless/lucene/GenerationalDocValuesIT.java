@@ -20,15 +20,18 @@ package co.elastic.elasticsearch.stateless.lucene;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -41,16 +44,20 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexingMemoryController;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.hamcrest.Matcher;
 
@@ -62,6 +69,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -72,6 +80,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -89,6 +98,18 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         }
 
         @Override
+        public Collection<Object> createComponents(PluginServices services) {
+            final Collection<Object> components = super.createComponents(services);
+            components.add(
+                new PluginComponentBinding<>(
+                    StatelessCommitService.class,
+                    components.stream().filter(c -> c instanceof GenerationalFilesTrackingStatelessCommitService).findFirst().orElseThrow()
+                )
+            );
+            return components;
+        }
+
+        @Override
         protected SearchDirectory createSearchDirectory(
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
@@ -96,6 +117,47 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             ShardId shardId
         ) {
             return new GenerationalFilesTrackingSearchDirectory(cacheService, cacheBlobReaderService, tracker, shardId);
+        }
+
+        @Override
+        protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            Client client,
+            StatelessCommitCleaner commitCleaner,
+            SharedBlobCacheWarmingService cacheWarmingService
+        ) {
+            return new GenerationalFilesTrackingStatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                client,
+                commitCleaner,
+                cacheWarmingService
+            );
+        }
+    }
+
+    public static class GenerationalFilesTrackingStatelessCommitService extends StatelessCommitService {
+
+        public final Set<String> deletedGenerationalFiles = ConcurrentCollections.newConcurrentSet();
+
+        public GenerationalFilesTrackingStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            Client client,
+            StatelessCommitCleaner commitCleaner,
+            SharedBlobCacheWarmingService cacheWarmingService
+        ) {
+            super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
+        }
+
+        @Override
+        public void onGenerationalFileDeletion(ShardId shardId, String filename) {
+            deletedGenerationalFiles.add(filename);
+            super.onGenerationalFileDeletion(shardId, filename);
         }
     }
 
@@ -509,6 +571,35 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         var cause = ExceptionsHelper.unwrap(e, NoSuchFileException.class);
         assertThat(cause, notNullValue());
         assertThat(cause.getMessage(), containsString(bccBlobName));
+    }
+
+    public void testOnGenerationalFileDeletion() throws Exception {
+        var indexNode = startMasterAndIndexNode(
+            Settings.builder().put(StatelessCommitService.STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), true).build()
+        );
+        final var indexName = createIndex(1, 0);
+
+        var indexingShard = findIndexShard(resolveIndex(indexName), 0);
+        var indexEngine = asInstanceOf(IndexEngine.class, indexingShard.getEngineOrNull());
+        final Set<String> deletedGenerationalFiles = ((GenerationalFilesTrackingStatelessCommitService) indexEngine
+            .getStatelessCommitService()).deletedGenerationalFiles;
+
+        executeBulk(
+            bulkRequest -> LongStream.range(0L, 100)
+                .mapToObj(n -> client(indexNode).prepareIndex(indexName).setId(String.valueOf(n)).setSource("segment", "_0"))
+                .forEach(bulkRequest::add)
+        );
+        flush(indexName);
+
+        // Create some generational files
+        executeBulk(bulkRequest -> bulkRequest.add(client(indexNode).prepareDelete(indexName, "42")));
+        flush(indexName);
+
+        assertThat(deletedGenerationalFiles, empty());
+
+        // merge away the generational files
+        forceMerge();
+        assertBusy(() -> assertThat(deletedGenerationalFiles, equalTo(Set.of("_0_1.fnm", "_0_1_Lucene90_0.dvd", "_0_1_Lucene90_0.dvm"))));
     }
 
     private static void executeBulk(Consumer<BulkRequestBuilder> consumer) {

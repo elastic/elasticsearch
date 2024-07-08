@@ -315,11 +315,4 @@ public class InTests extends AbstractFunctionTestCase {
     protected Expression build(Source source, List<Expression> args) {
         return new In(source, args.get(args.size() - 1), args.subList(0, args.size() - 1));
     }
-
-    /*
-    @Override
-    public void testSimpleWithNulls() {
-        assumeFalse("test case is invalid", false);
-    }
-     */
 }

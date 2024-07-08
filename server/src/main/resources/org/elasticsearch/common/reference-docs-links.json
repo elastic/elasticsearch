@@ -33,5 +33,7 @@
   "CONTACT_SUPPORT": "troubleshooting.html#troubleshooting-contact-support",
   "UNASSIGNED_SHARDS": "red-yellow-cluster-status.html",
   "EXECUTABLE_JNA_TMPDIR": "executable-jna-tmpdir.html",
-  "NETWORK_THREADING_MODEL": "modules-network.html#modules-network-threading-model"
+  "NETWORK_THREADING_MODEL": "modules-network.html#modules-network-threading-model",
+  "ALLOCATION_EXPLAIN_API": "cluster-allocation-explain.html",
+  "NETWORK_BINDING_AND_PUBLISHING": "modules-network.html#modules-network-binding-publishing"
 }

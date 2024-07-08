@@ -830,6 +830,7 @@ public class Stateless extends Plugin
             StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL,
             StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS,
             StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE,
+            StatelessCommitService.STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
@@ -918,7 +919,13 @@ public class Stateless extends Plugin
                         MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                         shardRouting.shardId()
                     );
-                    return new IndexDirectory(in, searchDirectory);
+                    return new IndexDirectory(
+                        in,
+                        searchDirectory,
+                        statelessCommitService.isGenerationalFilesTrackingEnabled()
+                            ? statelessCommitService::onGenerationalFileDeletion
+                            : null
+                    );
                 } else {
                     return in;
                 }

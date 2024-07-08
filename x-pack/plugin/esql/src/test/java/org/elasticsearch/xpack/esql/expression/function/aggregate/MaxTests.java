@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -34,14 +35,12 @@ public class MaxTests extends AbstractAggregationTestCase {
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
-        for (var fieldCaseSupplier : Stream.of(
+        Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.dateCases(1, 1000)
-        ).flatMap(List::stream).toList()) {
-            suppliers.add(makeSupplier(fieldCaseSupplier));
-        }
+        ).flatMap(List::stream).map(MaxTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.addAll(
             List.of(

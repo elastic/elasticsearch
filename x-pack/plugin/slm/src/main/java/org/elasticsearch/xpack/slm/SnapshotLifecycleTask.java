@@ -155,7 +155,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.error("failed to create snapshot for snapshot lifecycle policy [{}]: {}", policyMetadata.getPolicy().getId(), e);
+                                logger.error(
+                                    "failed to create snapshot for snapshot lifecycle policy [{}]: {}",
+                                    policyMetadata.getPolicy().getId(),
+                                    e
+                                );
                                 final long timestamp = Instant.now().toEpochMilli();
                                 submitUnbatchedTask(
                                     clusterService,
@@ -172,7 +176,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                                     );
                                     historyStore.putAsync(failureRecord);
                                 } catch (IOException ex) {
-                                    // This shouldn't happen unless there's an issue with serializing the original exception, which shouldn't happen
+                                    // This shouldn't happen unless there's an issue with serializing the original exception, which
+                                    // shouldn't happen
                                     logger.error(
                                         () -> format(
                                             "failed to record snapshot creation failure for snapshot lifecycle policy [%s]",
@@ -187,7 +192,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error("failed to start snapshot for snapshot lifecycle policy [{}]: {}", policyMetadata.getPolicy().getId(), e);
+                        logger.error(
+                            "failed to start snapshot for snapshot lifecycle policy [{}]: {}",
+                            policyMetadata.getPolicy().getId(),
+                            e
+                        );
                     }
                 })
             );
@@ -295,8 +304,14 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 } else {
                     stats.snapshotFailed(policyName);
                     unrecordedFailures++;
-                    newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotId.getName(), null, Instant.now().toEpochMilli(),
-                        "found pre-registered snapshot which is no longer running, assuming failure"));
+                    newPolicyMetadata.setLastFailure(
+                        new SnapshotInvocationRecord(
+                            snapshotId.getName(),
+                            null,
+                            Instant.now().toEpochMilli(),
+                            "found pre-registered snapshot which is no longer running, assuming failure"
+                        )
+                    );
                 }
             }
             newPreRegisteredSnapshots.add(snapshotId);
@@ -402,7 +417,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 newPolicyMetadata.setInvocationsSinceLastSuccess(policyMetadata.getInvocationsSinceLastSuccess() + 1L);
             } else {
                 stats.snapshotTaken(policyName);
-                newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotId.getName(), snapshotStartTime, snapshotFinishTime, null));
+                newPolicyMetadata.setLastSuccess(
+                    new SnapshotInvocationRecord(snapshotId.getName(), snapshotStartTime, snapshotFinishTime, null)
+                );
                 newPolicyMetadata.setInvocationsSinceLastSuccess(0L);
             }
 

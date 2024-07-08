@@ -42,11 +42,15 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -150,6 +154,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -595,7 +600,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             // execute fetch phase and perform any validations once we retrieve the response
             // the difference in how we do assertions here is needed because once the transport service sends back the response
             // it decrements the reference to the FetchSearchResult (through the ActionListener#respondAndRelease) and sets hits to null
-            service.executeFetchPhase(fetchRequest, searchTask, new ActionListener<>() {
+            PlainActionFuture<FetchSearchResult> fetchListener = new PlainActionFuture<>() {
                 @Override
                 public void onResponse(FetchSearchResult fetchSearchResult) {
                     assertNotNull(fetchSearchResult);
@@ -609,13 +614,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertNotNull(hit.getFields().get(fetchFieldName));
                         assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
                     }
+                    super.onResponse(fetchSearchResult);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    super.onFailure(e);
                     throw new AssertionError("No failure should have been raised", e);
                 }
-            });
+            };
+            service.executeFetchPhase(fetchRequest, searchTask, fetchListener);
+            fetchListener.get();
         } catch (Exception ex) {
             if (queryResult != null) {
                 if (queryResult.hasReferences()) {
@@ -675,7 +684,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 }
 
                                 @Override
-                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+                                    int size,
+                                    int from,
+                                    Client client
+                                ) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
@@ -815,7 +828,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                             }
 
                             @Override
-                            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+                                int size,
+                                int from,
+                                Client client
+                            ) {
                                 return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                     @Override
                                     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
@@ -927,7 +944,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 }
 
                                 @Override
-                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+                                    int size,
+                                    int from,
+                                    Client client
+                                ) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
@@ -1051,7 +1072,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 }
 
                                 @Override
-                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+                                    int size,
+                                    int from,
+                                    Client client
+                                ) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
@@ -1964,6 +1989,38 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testMultiBucketConsumerServiceCB() {
+        MultiBucketConsumerService service = new MultiBucketConsumerService(
+            getInstanceFromNode(ClusterService.class),
+            Settings.EMPTY,
+            new NoopCircuitBreaker("test") {
+
+                @Override
+                public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                    throw new CircuitBreakingException("tripped", getDurability());
+                }
+            }
+        );
+        // for partial
+        {
+            IntConsumer consumer = service.createForPartial();
+            for (int i = 0; i < 1023; i++) {
+                consumer.accept(0);
+            }
+            CircuitBreakingException ex = expectThrows(CircuitBreakingException.class, () -> consumer.accept(0));
+            assertThat(ex.getMessage(), equalTo("tripped"));
+        }
+        // for final
+        {
+            IntConsumer consumer = service.createForFinal();
+            for (int i = 0; i < 1023; i++) {
+                consumer.accept(0);
+            }
+            CircuitBreakingException ex = expectThrows(CircuitBreakingException.class, () -> consumer.accept(0));
+            assertThat(ex.getMessage(), equalTo("tripped"));
+        }
+    }
+
     public void testCreateSearchContext() throws IOException {
         String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
         IndexService indexService = createIndex(index);
@@ -2741,7 +2798,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     assertBusy(
                         () -> assertEquals(
                             "DFS supports parallel collection, so the number of slices should be > 1.",
-                            expectedSlices,
+                            expectedSlices - 1, // one slice executes on the calling thread
                             executor.getCompletedTaskCount() - priorExecutorTaskCount
                         )
                     );
@@ -2771,7 +2828,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     assertBusy(
                         () -> assertEquals(
                             "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
-                            expectedSlices,
+                            expectedSlices - 1, // one slice executes on the calling thread
                             executor.getCompletedTaskCount() - priorExecutorTaskCount
                         )
                     );
@@ -2785,8 +2842,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     searcher.search(termQuery, new TotalHitCountCollectorManager());
                     assertBusy(
                         () -> assertEquals(
-                            "The number of slices should be 1 as FETCH does not support parallel collection.",
-                            1,
+                            "The number of slices should be 1 as FETCH does not support parallel collection and thus runs on the calling"
+                                + " thread.",
+                            0,
                             executor.getCompletedTaskCount() - priorExecutorTaskCount
                         )
                     );
@@ -2801,7 +2859,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     assertBusy(
                         () -> assertEquals(
                             "The number of slices should be 1 as NONE does not support parallel collection.",
-                            1,
+                            0, // zero since one slice executes on the calling thread
                             executor.getCompletedTaskCount() - priorExecutorTaskCount
                         )
                     );
@@ -2824,7 +2882,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertBusy(
                             () -> assertEquals(
                                 "The number of slices should be 1 when QUERY parallel collection is disabled.",
-                                1,
+                                0, // zero since one slice executes on the calling thread
                                 executor.getCompletedTaskCount() - priorExecutorTaskCount
                             )
                         );
@@ -2861,7 +2919,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertBusy(
                             () -> assertEquals(
                                 "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
-                                expectedSlices,
+                                expectedSlices - 1, // one slice executes on the calling thread
                                 executor.getCompletedTaskCount() - priorExecutorTaskCount
                             )
                         );

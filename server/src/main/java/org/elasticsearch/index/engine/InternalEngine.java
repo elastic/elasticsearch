@@ -72,6 +72,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -2223,6 +2224,14 @@ public class InternalEngine extends Engine {
                     // we need to refresh in order to clear older version values
                     refresh("version_table_flush", SearcherScope.INTERNAL, true);
                     translog.trimUnreferencedReaders();
+                    // Update the translog location for flushListener if (1) the writeLocation has changed during the flush and
+                    // (2) indexWriter has committed all the changes (checks must be done in this order).
+                    // If the indexWriter has uncommitted changes, they will be flushed by the next flush as intended.
+                    final Translog.Location writeLocationAfterFlush = translog.getLastWriteLocation();
+                    if (writeLocationAfterFlush.equals(commitLocation) == false && hasUncommittedChanges() == false) {
+                        assert writeLocationAfterFlush.compareTo(commitLocation) > 0 : writeLocationAfterFlush + " <= " + commitLocation;
+                        commitLocation = writeLocationAfterFlush;
+                    }
                     // Use the timestamp from when the flush started, but only update it in case of success, so that any exception in
                     // the above lines would not lead the engine to think that it recently flushed, when it did not.
                     this.lastFlushTimestamp = lastFlushTimestamp;
@@ -2720,6 +2729,10 @@ public class InternalEngine extends Engine {
         }
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
+            if (config().getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                // Needed to support index sorting in the presence of nested objects.
+                iwc.setParentField(ROOT_DOC_FIELD_NAME);
+            }
         }
         // Provide a custom leaf sorter, so that index readers opened from this writer
         // will have its leaves sorted according the given leaf sorter.

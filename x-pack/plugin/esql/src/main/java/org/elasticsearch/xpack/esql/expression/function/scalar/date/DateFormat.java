@@ -8,23 +8,28 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
@@ -37,6 +42,11 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 
 public class DateFormat extends EsqlConfigurationFunction implements OptionalArgument {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "DateFormat",
+        DateFormat::new
+    );
 
     private final Expression field;
     private final Expression format;
@@ -57,6 +67,35 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         super(source, date != null ? List.of(format, date) : List.of(format), configuration);
         this.field = date != null ? date : format;
         this.format = date != null ? format : null;
+    }
+
+    private DateFormat(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(children().get(0));
+        out.writeOptionalNamedWriteable(children().size() == 2 ? children().get(1) : null);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    Expression field() {
+        return field;
+    }
+
+    Expression format() {
+        return format;
     }
 
     @Override

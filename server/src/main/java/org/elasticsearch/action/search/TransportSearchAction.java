@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -150,6 +151,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final int defaultPreFilterShardSize;
     private final boolean ccsCheckCompatibility;
     private final SearchResponseMetrics searchResponseMetrics;
+    private final Client client;
 
     @Inject
     public TransportSearchAction(
@@ -165,7 +167,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         NamedWriteableRegistry namedWriteableRegistry,
         ExecutorSelector executorSelector,
         SearchTransportAPMMetrics searchTransportMetrics,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        Client client
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -183,6 +186,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         this.searchResponseMetrics = searchResponseMetrics;
+        this.client = client;
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -288,24 +292,43 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingAndMetrics = listener.delegateFailureAndWrap((l, searchResponse) -> {
-            searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
-            if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-                // Deduplicate failures by exception message and index
-                ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
-                for (ShardOperationFailedException f : groupedFailures) {
-                    boolean causeHas500Status = false;
-                    if (f.getCause() != null) {
-                        causeHas500Status = ExceptionsHelper.status(f.getCause()).getStatus() >= 500;
+        ActionListener<SearchResponse> loggingAndMetrics = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                try {
+                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                    SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
+                        SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
+                    if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                        // Deduplicate failures by exception message and index
+                        ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                        for (ShardOperationFailedException f : groupedFailures) {
+                            boolean causeHas500Status = false;
+                            if (f.getCause() != null) {
+                                causeHas500Status = ExceptionsHelper.status(f.getCause()).getStatus() >= 500;
+                            }
+                            if ((f.status().getStatus() >= 500 || causeHas500Status)
+                                && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false) {
+                                logger.warn("TransportSearchAction shard failure (partial results response)", f);
+                                responseCountTotalStatus = SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE;
+                            }
+                        }
                     }
-                    if ((f.status().getStatus() >= 500 || causeHas500Status)
-                        && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false) {
-                        logger.warn("TransportSearchAction shard failure (partial results response)", f);
-                    }
+                    listener.onResponse(searchResponse);
+                    // increment after the delegated onResponse to ensure we don't
+                    // record both a success and a failure if there is an exception
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                } catch (Exception e) {
+                    onFailure(e);
                 }
             }
-            l.onResponse(searchResponse);
-        });
+
+            @Override
+            public void onFailure(Exception e) {
+                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+                listener.onFailure(e);
+            }
+        };
         executeRequest((SearchTask) task, searchRequest, loggingAndMetrics, AsyncSearchActionProvider::new);
     }
 
@@ -1357,7 +1380,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters
+                        clusters,
+                        client
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -1376,7 +1400,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters
+                        clusters,
+                        client
                     );
                 }
                 success = true;

@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -29,19 +28,15 @@ import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
-import org.elasticsearch.xpack.esql.core.index.IndexResolver;
 import org.elasticsearch.xpack.esql.core.index.MappingException;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -50,6 +45,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -59,17 +55,15 @@ import org.elasticsearch.xpack.esql.planner.Mapper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.xpack.esql.core.index.IndexResolver.UNMAPPED;
-import static org.elasticsearch.xpack.esql.core.util.ActionListeners.map;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class EsqlSession {
@@ -79,12 +73,11 @@ public class EsqlSession {
     private final String sessionId;
     private final EsqlConfiguration configuration;
     private final IndexResolver indexResolver;
-    private final EsqlIndexResolver esqlIndexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
 
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
-    private final FunctionRegistry functionRegistry;
+    private final EsqlFunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
 
     private final Mapper mapper;
@@ -94,10 +87,9 @@ public class EsqlSession {
         String sessionId,
         EsqlConfiguration configuration,
         IndexResolver indexResolver,
-        EsqlIndexResolver esqlIndexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
-        FunctionRegistry functionRegistry,
+        EsqlFunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
         Verifier verifier
@@ -105,7 +97,6 @@ public class EsqlSession {
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.indexResolver = indexResolver;
-        this.esqlIndexResolver = esqlIndexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
@@ -119,24 +110,29 @@ public class EsqlSession {
         return sessionId;
     }
 
-    public void execute(EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
+    /**
+     * Execute an ESQL request.
+     */
+    public void execute(
+        EsqlQueryRequest request,
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        ActionListener<Result> listener
+    ) {
         LOGGER.debug("ESQL query:\n{}", request.query());
-        optimizedPhysicalPlan(
+        analyzedPlan(
             parse(request.query(), request.params()),
-            listener.map(plan -> EstimatesRowSize.estimateRowSize(0, plan.transformUp(FragmentExec.class, f -> {
-                QueryBuilder filter = request.filter();
-                if (filter != null) {
-                    var fragmentFilter = f.esFilter();
-                    // TODO: have an ESFilter and push down to EsQueryExec / EsSource
-                    // This is an ugly hack to push the filter parameter to Lucene
-                    // TODO: filter integration testing
-                    filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
-                    LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                    f = f.withFilter(filter);
-                }
-                return f;
-            })))
+            listener.delegateFailureAndWrap((next, analyzedPlan) -> executeAnalyzedPlan(request, runPhase, analyzedPlan, next))
         );
+    }
+
+    public void executeAnalyzedPlan(
+        EsqlQueryRequest request,
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        LogicalPlan analyzedPlan,
+        ActionListener<Result> listener
+    ) {
+        // TODO phased execution lands here.
+        runPhase.accept(logicalPlanToPhysicalPlan(analyzedPlan, request), listener);
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
@@ -154,6 +150,7 @@ public class EsqlSession {
         preAnalyze(parsed, (indices, policies) -> {
             Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
             var plan = analyzer.analyze(parsed);
+            plan.setAnalyzed();
             LOGGER.debug("Analyzed plan:\n{}", plan);
             return plan;
         }, listener);
@@ -207,12 +204,7 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
-
-            if (Assertions.ENABLED) {
-                resolveMergedMappingAgainstBothResolvers(table.index(), fieldNames, listener);
-            } else {
-                esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
-            }
+            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
@@ -221,136 +213,6 @@ public class EsqlSession {
                 listener.onFailure(ex);
             }
         }
-    }
-
-    /**
-     * Resolves the mapping against both the new, fast {@link #esqlIndexResolver}
-     * and the older, known correct {@link #indexResolver}. We then assert that they
-     * produce the same output.
-     */
-    private void resolveMergedMappingAgainstBothResolvers(
-        String indexWildcard,
-        Set<String> fieldNames,
-        ActionListener<IndexResolution> listener
-    ) {
-        indexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, false, Map.of(), new ActionListener<>() {
-            @Override
-            public void onResponse(IndexResolution fromQl) {
-                esqlIndexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, new ActionListener<>() {
-                    @Override
-                    public void onResponse(IndexResolution fromEsql) {
-                        if (fromQl.isValid() == false) {
-                            if (fromEsql.isValid()) {
-                                throw new IllegalArgumentException(
-                                    "ql and esql didn't make the same resolution: validity differs " + fromQl + " != " + fromEsql
-                                );
-                            }
-                        } else {
-                            assertSameMappings("", fromQl.get().mapping(), fromEsql.get().mapping());
-                            if (fromQl.get().concreteIndices().equals(fromEsql.get().concreteIndices()) == false) {
-                                throw new IllegalArgumentException(
-                                    "ql and esql didn't make the same resolution: concrete indices differ "
-                                        + fromQl.get().concreteIndices()
-                                        + " != "
-                                        + fromEsql.get().concreteIndices()
-                                );
-                            }
-                        }
-                        listener.onResponse(fromEsql);
-                    }
-
-                    private void assertSameMappings(String prefix, Map<String, EsField> fromQl, Map<String, EsField> fromEsql) {
-                        List<String> qlFields = new ArrayList<>();
-                        qlFields.addAll(fromQl.keySet());
-                        Collections.sort(qlFields);
-
-                        List<String> esqlFields = new ArrayList<>();
-                        esqlFields.addAll(fromEsql.keySet());
-                        Collections.sort(esqlFields);
-                        if (qlFields.equals(esqlFields) == false) {
-                            throw new IllegalArgumentException(
-                                prefix + ": ql and esql didn't make the same resolution: fields differ \n" + qlFields + " !=\n" + esqlFields
-                            );
-                        }
-
-                        for (int f = 0; f < qlFields.size(); f++) {
-                            String name = qlFields.get(f);
-                            EsField qlField = fromQl.get(name);
-                            EsField esqlField = fromEsql.get(name);
-
-                            if (qlField.getProperties().isEmpty() == false || esqlField.getProperties().isEmpty() == false) {
-                                assertSameMappings(
-                                    prefix.equals("") ? name : prefix + "." + name,
-                                    qlField.getProperties(),
-                                    esqlField.getProperties()
-                                );
-                            }
-
-                            /*
-                             * Check that the field itself is the same, skipping isAlias because
-                             * we don't actually use it in ESQL and the EsqlIndexResolver doesn't
-                             * produce exactly the same result.
-                             */
-                            if (qlField.getDataType().equals(DataType.UNSUPPORTED) == false
-                                && qlField.getName().equals(esqlField.getName()) == false
-                            // QL uses full paths for unsupported fields. ESQL does not. This particular difference is fine.
-                            ) {
-                                throw new IllegalArgumentException(
-                                    prefix
-                                        + "."
-                                        + name
-                                        + ": ql and esql didn't make the same resolution: names differ ["
-                                        + qlField.getName()
-                                        + "] != ["
-                                        + esqlField.getName()
-                                        + "]"
-                                );
-                            }
-                            if (qlField.getDataType() != esqlField.getDataType()) {
-                                throw new IllegalArgumentException(
-                                    prefix
-                                        + "."
-                                        + name
-                                        + ": ql and esql didn't make the same resolution: types differ ["
-                                        + qlField.getDataType()
-                                        + "] != ["
-                                        + esqlField.getDataType()
-                                        + "]"
-                                );
-                            }
-                            if (qlField.isAggregatable() != esqlField.isAggregatable()) {
-                                throw new IllegalArgumentException(
-                                    prefix
-                                        + "."
-                                        + name
-                                        + ": ql and esql didn't make the same resolution: aggregability differ ["
-                                        + qlField.isAggregatable()
-                                        + "] != ["
-                                        + esqlField.isAggregatable()
-                                        + "]"
-                                );
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        },
-            EsqlSession::specificValidity,
-            IndexResolver.PRESERVE_PROPERTIES,
-            // TODO no matter what metadata fields are asked in a query, the "allowedMetadataFields" is always _index, does it make
-            // sense to reflect the actual list of metadata fields instead?
-            IndexResolver.INDEX_METADATA_FIELD
-        );
     }
 
     static Set<String> fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields) {
@@ -379,14 +241,12 @@ public class EsqlSession {
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
-                AttributeSet dissectRefs = p.references();
-                // don't add to the list of fields the extracted ones (they are not real fields in mappings)
-                dissectRefs.removeAll(re.extractedFields());
-                references.addAll(dissectRefs);
-                // also remove other down-the-tree references to the extracted fields
+                // remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
                     references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
                 }
+                // but keep the inputs needed by Grok/Dissect
+                references.addAll(re.input().references());
             } else if (p instanceof Enrich) {
                 AttributeSet enrichRefs = p.references();
                 // Enrich adds an EmptyAttribute if no match field is specified
@@ -451,39 +311,52 @@ public class EsqlSession {
         return names.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet());
     }
 
-    public void optimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
-        analyzedPlan(logicalPlan, map(listener, p -> {
-            var plan = logicalPlanOptimizer.optimize(p);
-            LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
-            return plan;
-        }));
+    private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan logicalPlan, EsqlQueryRequest request) {
+        PhysicalPlan physicalPlan = optimizedPhysicalPlan(logicalPlan);
+        physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
+            QueryBuilder filter = request.filter();
+            if (filter != null) {
+                var fragmentFilter = f.esFilter();
+                // TODO: have an ESFilter and push down to EsQueryExec / EsSource
+                // This is an ugly hack to push the filter parameter to Lucene
+                // TODO: filter integration testing
+                filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
+                LOGGER.debug("Fold filter {} to EsQueryExec", filter);
+                f = f.withFilter(filter);
+            }
+            return f;
+        });
+        return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 
-    public void physicalPlan(LogicalPlan optimized, ActionListener<PhysicalPlan> listener) {
-        optimizedPlan(optimized, map(listener, p -> {
-            var plan = mapper.map(p);
-            LOGGER.debug("Physical plan:\n{}", plan);
-            return plan;
-        }));
+    public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
+        assert logicalPlan.analyzed();
+        var plan = logicalPlanOptimizer.optimize(logicalPlan);
+        LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
+        return plan;
     }
 
-    public void optimizedPhysicalPlan(LogicalPlan logicalPlan, ActionListener<PhysicalPlan> listener) {
-        physicalPlan(logicalPlan, map(listener, p -> {
-            var plan = physicalPlanOptimizer.optimize(p);
-            LOGGER.debug("Optimized physical plan:\n{}", plan);
-            return plan;
-        }));
+    public PhysicalPlan physicalPlan(LogicalPlan logicalPlan) {
+        var plan = mapper.map(optimizedPlan(logicalPlan));
+        LOGGER.debug("Physical plan:\n{}", plan);
+        return plan;
+    }
+
+    public PhysicalPlan optimizedPhysicalPlan(LogicalPlan logicalPlan) {
+        var plan = physicalPlanOptimizer.optimize(physicalPlan(logicalPlan));
+        LOGGER.debug("Optimized physical plan:\n{}", plan);
+        return plan;
     }
 
     public static InvalidMappedField specificValidity(String fieldName, Map<String, FieldCapabilities> types) {
-        boolean hasUnmapped = types.containsKey(UNMAPPED);
+        boolean hasUnmapped = types.containsKey(IndexResolver.UNMAPPED);
         boolean hasTypeConflicts = types.size() > (hasUnmapped ? 2 : 1);
         String metricConflictsTypeName = null;
         boolean hasMetricConflicts = false;
 
         if (hasTypeConflicts == false) {
             for (Map.Entry<String, FieldCapabilities> type : types.entrySet()) {
-                if (UNMAPPED.equals(type.getKey())) {
+                if (IndexResolver.UNMAPPED.equals(type.getKey())) {
                     continue;
                 }
                 if (type.getValue().metricConflictsIndices() != null && type.getValue().metricConflictsIndices().length > 0) {

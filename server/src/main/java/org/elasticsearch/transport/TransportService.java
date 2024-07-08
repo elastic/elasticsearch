@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -518,7 +519,19 @@ public class TransportService extends AbstractLifecycleComponent
             handshake(newConnection, actualProfile.getHandshakeTimeout(), Predicates.always(), listener.map(resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
                 if (node.equals(remote) == false) {
-                    throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
+                    throw new ConnectTransportException(
+                        node,
+                        Strings.format(
+                            """
+                                Connecting to [%s] failed: expected to connect to [%s] but found [%s] instead. Ensure that each node has \
+                                its own distinct publish address, and that your network is configured so that every connection to a node's \
+                                publish address is routed to the correct node. See %s for more information.""",
+                            node.getAddress(),
+                            node.descriptionWithoutAttributes(),
+                            remote.descriptionWithoutAttributes(),
+                            ReferenceDocs.NETWORK_BINDING_AND_PUBLISHING
+                        )
+                    );
                 }
                 return null;
             }));

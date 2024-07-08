@@ -80,7 +80,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 "@timestamp" : {
                   "type": "date"
                 },
-                "hostname": {
+                "host.name": {
                   "type": "keyword"
                 },
                 "pid": {
@@ -116,7 +116,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                   "@timestamp" : {
                     "type": "date"
                 },
-                "hostname": {
+                "host.name": {
                   "type": "keyword",
                   "time_series_dimension": "true"
                 },
@@ -138,7 +138,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     private static final String DOC_TEMPLATE = """
         {
             "@timestamp": "%s",
-            "hostname": "%s",
+            "host.name": "%s",
             "pid": "%d",
             "method": "%s",
             "message": "%s",

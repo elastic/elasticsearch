@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -22,7 +25,9 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -35,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * Join strings.
  */
 public class Concat extends EsqlScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Concat", Concat::new);
 
     static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
 
@@ -49,6 +55,26 @@ public class Concat extends EsqlScalarFunction {
         @Param(name = "string2", type = { "keyword", "text" }, description = "Strings to concatenate.") List<? extends Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
+    }
+
+    private Concat(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(children().get(0));
+        out.writeNamedWriteableCollection(children().subList(1, children().size()));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

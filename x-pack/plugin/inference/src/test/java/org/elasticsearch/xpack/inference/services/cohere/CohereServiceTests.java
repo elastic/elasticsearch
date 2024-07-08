@@ -23,7 +23,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -32,6 +31,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -51,7 +51,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +58,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
+import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -421,7 +421,7 @@ public class CohereServiceTests extends ESTestCase {
                 getTaskSettingsMap(null, null),
                 getSecretSettingsMap("secret")
             );
-            persistedConfig.secrets.put("extra_key", "value");
+            persistedConfig.secrets().put("extra_key", "value");
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -1225,14 +1225,14 @@ public class CohereServiceTests extends ESTestCase {
                 var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("foo", floatResult.chunks().get(0).matchedText());
-                assertTrue(Arrays.equals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding()));
+                assertArrayEquals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding(), 0.0f);
             }
             {
                 assertThat(results.get(1), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
                 var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("bar", floatResult.chunks().get(0).matchedText());
-                assertTrue(Arrays.equals(new float[] { 0.223f, -0.223f }, floatResult.chunks().get(0).embedding()));
+                assertArrayEquals(new float[] { 0.223f, -0.223f }, floatResult.chunks().get(0).embedding(), 0.0f);
             }
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
@@ -1251,8 +1251,99 @@ public class CohereServiceTests extends ESTestCase {
         }
     }
 
-    public void testChunkedInfer_CallsInfer_ConvertsByteResponse() throws IOException {
-        // TODO byte response not implemented yet
+    public void testChunkedInfer_BatchesCalls_Bytes() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+
+            // Batching will call the service with 2 inputs
+            String responseJson = """
+                {
+                    "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
+                    "texts": [
+                        "hello"
+                    ],
+                    "embeddings": {
+                        "int8": [
+                            [
+                                23,
+                                -23
+                            ],
+                            [
+                                24,
+                                -24
+                            ]
+                        ]
+                    },
+                    "meta": {
+                        "api_version": {
+                            "version": "1"
+                        },
+                        "billed_units": {
+                            "input_tokens": 1
+                        }
+                    },
+                    "response_type": "embeddings_by_type"
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = CohereEmbeddingsModelTests.createModel(
+                getUrl(webServer),
+                "secret",
+                new CohereEmbeddingsTaskSettings(null, null),
+                1024,
+                1024,
+                "model",
+                CohereEmbeddingType.BYTE
+            );
+            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            // 2 inputs
+            service.chunkedInfer(
+                model,
+                List.of("foo", "bar"),
+                new HashMap<>(),
+                InputType.UNSPECIFIED,
+                new ChunkingOptions(null, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, hasSize(2));
+            {
+                assertThat(results.get(0), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingByteResults.class));
+                var floatResult = (InferenceChunkedTextEmbeddingByteResults) results.get(0);
+                assertThat(floatResult.chunks(), hasSize(1));
+                assertEquals("foo", floatResult.chunks().get(0).matchedText());
+                assertArrayEquals(new byte[] { 23, -23 }, floatResult.chunks().get(0).embedding());
+            }
+            {
+                assertThat(results.get(1), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingByteResults.class));
+                var byteResult = (InferenceChunkedTextEmbeddingByteResults) results.get(1);
+                assertThat(byteResult.chunks(), hasSize(1));
+                assertEquals("bar", byteResult.chunks().get(0).matchedText());
+                assertArrayEquals(new byte[] { 24, -24 }, byteResult.chunks().get(0).embedding());
+            }
+
+            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            MatcherAssert.assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaType())
+            );
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("texts", List.of("foo", "bar"), "model", "model", "embedding_types", List.of("int8")))
+            );
+        }
+    }
+
+    public void testDefaultSimilarity() {
+        assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity());
     }
 
     private Map<String, Object> getRequestConfigMap(
@@ -1281,25 +1372,4 @@ public class CohereServiceTests extends ESTestCase {
         return new CohereService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
     }
 
-    private PersistedConfig getPersistedConfigMap(
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings
-    ) {
-
-        return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
-        );
-    }
-
-    private PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
-
-        return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            null
-        );
-    }
-
-    private record PersistedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
 }

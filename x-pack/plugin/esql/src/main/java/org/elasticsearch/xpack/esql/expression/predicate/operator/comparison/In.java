@@ -7,17 +7,22 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.InProcessor;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -25,6 +30,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
 
 public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
+
     @FunctionInfo(
         returnType = "boolean",
         description = "The `IN` operator allows testing whether a field or expression equals an element in a list of literals, "
@@ -33,6 +40,26 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     )
     public In(Source source, Expression value, List<Expression> list) {
         super(source, value, list);
+    }
+
+    private In(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(value());
+        out.writeNamedWriteableCollection(list());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -60,7 +87,20 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
         // QL's `In` fold() doesn't handle BytesRef and can't know if this is Keyword/Text, Version or IP anyway.
         // `In` allows comparisons of same type only (safe for numerics), so it's safe to apply InProcessor directly with no implicit
         // (non-numerical) conversions.
-        return InProcessor.apply(value().fold(), list().stream().map(Expression::fold).toList());
+        return apply(value().fold(), list().stream().map(Expression::fold).toList());
+    }
+
+    private static Boolean apply(Object input, List<Object> values) {
+        Boolean result = Boolean.FALSE;
+        for (Object v : values) {
+            Boolean compResult = Comparisons.eq(input, v);
+            if (compResult == null) {
+                result = null;
+            } else if (compResult == Boolean.TRUE) {
+                return Boolean.TRUE;
+            }
+        }
+        return result;
     }
 
     @Override

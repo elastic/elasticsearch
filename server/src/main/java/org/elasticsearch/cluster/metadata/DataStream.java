@@ -581,23 +581,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
 
-        // TODO: When failure stores are lazily created, this wont necessarily be required anymore. We can remove the failure store write
-        // index as long as we mark the data stream to lazily rollover the failure store with no conditions on its next write
-        if (failureIndices.indices.size() == (failureIndexPosition + 1)) {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "cannot remove backing index [%s] of data stream [%s] because it is the write index of the failure store",
-                    index.getName(),
-                    name
-                )
-            );
-        }
-
+        // If this is the write index, we're marking the failure store for lazy rollover, to make sure a new write index gets created on the
+        // next write. We do this regardless of whether it's the last index in the failure store or not.
+        boolean rolloverOnWrite = failureIndices.indices.size() == (failureIndexPosition + 1);
         List<Index> updatedFailureIndices = new ArrayList<>(failureIndices.indices);
         updatedFailureIndices.remove(index);
         assert updatedFailureIndices.size() == failureIndices.indices.size() - 1;
-        return copy().setFailureIndices(failureIndices.copy().setIndices(updatedFailureIndices).build())
+        return copy().setFailureIndices(failureIndices.copy().setIndices(updatedFailureIndices).setRolloverOnWrite(rolloverOnWrite).build())
             .setGeneration(generation + 1)
             .build();
     }

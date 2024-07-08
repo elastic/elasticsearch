@@ -168,12 +168,14 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path);
+        return Objects.hash(super.hashCode(), path, field);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(path, ((FieldAttribute) obj).path);
+        return super.equals(obj)
+            && Objects.equals(path, ((FieldAttribute) obj).path)
+            && Objects.equals(field, ((FieldAttribute) obj).field);
     }
 
     @Override

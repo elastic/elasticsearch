@@ -15,9 +15,9 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -127,7 +127,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(3));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat((ZonedDateTime) bucket.getKey(), equalTo(key));
                 assertThat(bucket.getDocCount(), equalTo(1L));
@@ -171,7 +171,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(3));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKey(), equalTo(key));
                 assertThat(bucket.getDocCount(), equalTo(1L));
@@ -383,7 +383,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     private static void assertBucket(
-        Histogram.Bucket bucket,
+        Bucket bucket,
         ZonedDateTime expectedKey,
         long expectedDocCount,
         Matcher<Object> derivativeMatcher,
@@ -421,7 +421,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 Object[] propertiesCounts = (Object[]) ((InternalAggregation) histo).getProperty("sum.value");
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat((ZonedDateTime) bucket.getKey(), equalTo(key));
                 assertThat(bucket.getDocCount(), equalTo(1L));
@@ -500,7 +500,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(4));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat((ZonedDateTime) bucket.getKey(), equalTo(key));
                 assertThat(bucket.getDocCount(), equalTo(1L));
@@ -574,7 +574,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(3));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat((ZonedDateTime) bucket.getKey(), equalTo(key));
                 assertThat(bucket.getDocCount(), equalTo(1L));

@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -327,10 +326,8 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         final APIBlock block = randomAddableBlock();
 
         final int threadCount = randomIntBetween(2, 5);
-        final CyclicBarrier barrier = new CyclicBarrier(threadCount);
         try {
-            runInParallel(threadCount, i -> {
-                safeAwait(barrier);
+            startInParallel(threadCount, i -> {
                 try {
                     indicesAdmin().prepareAddBlock(block, indexName).get();
                     assertIndexHasBlock(block, indexName);
@@ -414,34 +411,17 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         };
 
         try {
-            for (final String indexToDelete : indices) {
-                threads.add(new Thread(() -> {
-                    safeAwait(latch);
-                    try {
-                        assertAcked(indicesAdmin().prepareDelete(indexToDelete));
-                    } catch (final Exception e) {
-                        exceptionConsumer.accept(e);
+            startInParallel(indices.length * 2, i -> {
+                try {
+                    if (i < indices.length) {
+                        assertAcked(indicesAdmin().prepareDelete(indices[i]));
+                    } else {
+                        indicesAdmin().prepareAddBlock(block, indices[i - indices.length]).get();
                     }
-                }));
-            }
-            for (final String indexToBlock : indices) {
-                threads.add(new Thread(() -> {
-                    safeAwait(latch);
-                    try {
-                        indicesAdmin().prepareAddBlock(block, indexToBlock).get();
-                    } catch (final Exception e) {
-                        exceptionConsumer.accept(e);
-                    }
-                }));
-            }
-
-            for (Thread thread : threads) {
-                thread.start();
-            }
-            latch.countDown();
-            for (Thread thread : threads) {
-                thread.join();
-            }
+                } catch (final Exception e) {
+                    exceptionConsumer.accept(e);
+                }
+            });
         } finally {
             for (final String indexToBlock : indices) {
                 try {

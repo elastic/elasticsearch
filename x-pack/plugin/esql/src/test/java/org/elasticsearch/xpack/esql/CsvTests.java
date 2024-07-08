@@ -475,6 +475,7 @@ public class CsvTests extends ESTestCase {
         PhysicalPlan physicalPlan,
         ActionListener<Result> listener
     ) {
+        // Keep in sync with ComputeService#execute
         opportunisticallyAssertPlanSerialization(physicalPlan);
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,

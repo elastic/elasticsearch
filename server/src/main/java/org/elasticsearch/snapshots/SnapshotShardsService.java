@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
-import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.cluster.SnapshotsInProgress.SnapshotInProgressState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -67,6 +67,7 @@ import static org.elasticsearch.core.Strings.format;
  * This service runs on data nodes and controls currently running shard snapshots on these nodes. It is responsible for
  * starting and stopping shard level snapshots.
  * See package level documentation of {@link org.elasticsearch.snapshots} for details.
+ * See {@link SnapshotsService} for the master node snapshotting steps.
  */
 public final class SnapshotShardsService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SnapshotShardsService.class);
@@ -152,7 +153,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 // Clear request deduplicator since we need to send all requests that were potentially not handled by the previous
                 // master again
                 remoteFailedRequestDeduplicator.clear();
-                for (List<SnapshotsInProgress.Entry> snapshots : currentSnapshots.entriesByRepo()) {
+                for (List<SnapshotsInProgress.SnapshotInProgressEntry> snapshots : currentSnapshots.entriesByRepo()) {
                     syncShardStatsOnNewMaster(snapshots);
                 }
             }
@@ -205,6 +206,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         }
     }
 
+    /**
+     * Cancels any snapshots that have been removed from the given list of SnapshotsInProgress.
+     */
     private void cancelRemoved(SnapshotsInProgress snapshotsInProgress) {
         // First, remove snapshots that are no longer there
         Iterator<Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>>> it = shardSnapshots.entrySet().iterator();
@@ -227,7 +231,11 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         }
     }
 
-    private void handleUpdatedSnapshotsInProgressEntry(String localNodeId, boolean removingLocalNode, SnapshotsInProgress.Entry entry) {
+    private void handleUpdatedSnapshotsInProgressEntry(
+        String localNodeId,
+        boolean removingLocalNode,
+        SnapshotsInProgress.SnapshotInProgressEntry entry
+    ) {
         if (entry.isClone()) {
             // This is a snapshot clone, it will be executed on the current master
             return;
@@ -250,7 +258,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 // Abort all running shards for this snapshot
                 final Snapshot snapshot = entry.snapshot();
                 Map<ShardId, IndexShardSnapshotStatus> snapshotShards = shardSnapshots.getOrDefault(snapshot, emptyMap());
-                for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardsByRepoShardId().entrySet()) {
+                for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
                     final ShardId sid = entry.shardId(shard.getKey());
                     final IndexShardSnapshotStatus snapshotStatus = snapshotShards.get(sid);
                     if (snapshotStatus == null) {
@@ -274,7 +282,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         }
     }
 
-    private void startNewShardSnapshots(String localNodeId, SnapshotsInProgress.Entry entry) {
+    private void startNewShardSnapshots(String localNodeId, SnapshotsInProgress.SnapshotInProgressEntry entry) {
         Map<ShardId, ShardGeneration> shardsToStart = null;
         final Snapshot snapshot = entry.snapshot();
         final var runningShardsForSnapshot = shardSnapshots.getOrDefault(snapshot, emptyMap());
@@ -318,7 +326,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> shardSnapshotTasks.forEach(Runnable::run));
     }
 
-    private void pauseShardSnapshots(String localNodeId, SnapshotsInProgress.Entry entry) {
+    private void pauseShardSnapshots(String localNodeId, SnapshotsInProgress.SnapshotInProgressEntry entry) {
         final var localShardSnapshots = shardSnapshots.getOrDefault(entry.snapshot(), Map.of());
 
         for (final Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
@@ -559,9 +567,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     /**
      * Checks if any shards were processed that the new master doesn't know about
      */
-    private void syncShardStatsOnNewMaster(List<SnapshotsInProgress.Entry> entries) {
-        for (SnapshotsInProgress.Entry snapshot : entries) {
-            if (snapshot.state() == State.STARTED || snapshot.state() == State.ABORTED) {
+    private void syncShardStatsOnNewMaster(List<SnapshotsInProgress.SnapshotInProgressEntry> entries) {
+        for (SnapshotsInProgress.SnapshotInProgressEntry snapshot : entries) {
+            if (snapshot.state() == SnapshotInProgressState.STARTED || snapshot.state() == SnapshotInProgressState.ABORTED) {
                 final Map<ShardId, IndexShardSnapshotStatus> localShards;
                 synchronized (shardSnapshots) {
                     final var currentLocalShards = shardSnapshots.get(snapshot.snapshot());

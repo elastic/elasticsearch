@@ -81,7 +81,7 @@ public record ClusterSnapshotStats(
             var activeDeletionsCount = 0;
             var firstStartTimeMillis = currentTimeMillis;
 
-            for (SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(repositoryName)) {
+            for (SnapshotsInProgress.SnapshotInProgressEntry entry : snapshotsInProgress.forRepo(repositoryName)) {
                 firstStartTimeMillis = Math.min(firstStartTimeMillis, entry.startTime());
 
                 if (entry.state().completed()) {
@@ -104,12 +104,12 @@ public record ClusterSnapshotStats(
                 }
             }
 
-            for (SnapshotDeletionsInProgress.Entry entry : snapshotDeletionsInProgress.getEntries()) {
+            for (SnapshotDeletionsInProgress.SnapshotDeletionEntry entry : snapshotDeletionsInProgress.getEntries()) {
                 if (entry.repository().equals(repositoryName)) {
                     firstStartTimeMillis = Math.min(firstStartTimeMillis, entry.startTime());
                     deletionsCount += 1;
                     snapshotDeletionsCount += entry.snapshots().size();
-                    if (entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
+                    if (entry.state() == SnapshotDeletionsInProgress.SnapshotDeletionState.STARTED) {
                         activeDeletionsCount += 1;
                     }
                 }

@@ -84,11 +84,11 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         String index = randomAlphaOfLength(5);
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
         SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
-            SnapshotsInProgress.Entry.snapshot(
+            SnapshotsInProgress.SnapshotInProgressEntry.snapshot(
                 snapshot,
                 true,
                 false,
-                SnapshotsInProgress.State.INIT,
+                SnapshotsInProgress.SnapshotInProgressState.INIT,
                 Map.of(index, new IndexId(index, "doesn't matter")),
                 Collections.emptyList(),
                 Collections.emptyList(),

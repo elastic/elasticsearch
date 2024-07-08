@@ -610,7 +610,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         // Prepare to compute the expected blobs
         final var shardGeneration = Objects.requireNonNull(getRepositoryData(repo).shardGenerations().getShardGen(indexId, 0));
         final var snapBlob = Strings.format(SNAPSHOT_NAME_FORMAT, snapshot2Info.snapshotId().getUUID());
-        final var indexBlob = Strings.format(SNAPSHOT_INDEX_NAME_FORMAT, shardGeneration.toBlobNamePart());
+        final var indexBlob = Strings.format(SNAPSHOT_INDEX_NAME_FORMAT, shardGeneration.getGenerationUUID());
 
         for (var fileInfos : List.of(
             // The expected blobs according to the BlobStoreIndexShardSnapshot (snap-UUID.dat) blob

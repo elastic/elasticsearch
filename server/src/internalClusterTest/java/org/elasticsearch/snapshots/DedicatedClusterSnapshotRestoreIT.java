@@ -1076,7 +1076,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             state -> SnapshotsInProgress.get(state)
                 .forRepo(repoName)
                 .stream()
-                .anyMatch(entry -> entry.state() == SnapshotsInProgress.State.ABORTED)
+                .anyMatch(entry -> entry.state() == SnapshotsInProgress.SnapshotInProgressState.ABORTED)
         );
 
         assertFalse("delete should not be able to finish until data node is unblocked", deleteResponse.isDone());

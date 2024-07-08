@@ -196,11 +196,16 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         private static final ParseField FAILURE = new ParseField("failure");
 
         private final SnapshotId snapshotId;
-        private final SnapshotsInProgress.State state;
+        private final SnapshotsInProgress.SnapshotInProgressState state;
         private final long startTime;
         private final String failure;
 
-        public SnapshotInProgress(SnapshotId snapshotId, SnapshotsInProgress.State state, long startTime, @Nullable String failure) {
+        public SnapshotInProgress(
+            SnapshotId snapshotId,
+            SnapshotsInProgress.SnapshotInProgressState state,
+            long startTime,
+            @Nullable String failure
+        ) {
             this.snapshotId = snapshotId;
             this.state = state;
             this.startTime = startTime;
@@ -209,12 +214,12 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
 
         SnapshotInProgress(StreamInput in) throws IOException {
             this.snapshotId = new SnapshotId(in);
-            this.state = in.readEnum(SnapshotsInProgress.State.class);
+            this.state = in.readEnum(SnapshotsInProgress.SnapshotInProgressState.class);
             this.startTime = in.readVLong();
             this.failure = in.readOptionalString();
         }
 
-        public static SnapshotInProgress fromEntry(SnapshotsInProgress.Entry entry) {
+        public static SnapshotInProgress fromEntry(SnapshotsInProgress.SnapshotInProgressEntry entry) {
             return new SnapshotInProgress(entry.snapshot().getSnapshotId(), entry.state(), entry.startTime(), entry.failure());
         }
 
@@ -222,7 +227,7 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
             return snapshotId;
         }
 
-        public SnapshotsInProgress.State getState() {
+        public SnapshotsInProgress.SnapshotInProgressState getState() {
             return state;
         }
 

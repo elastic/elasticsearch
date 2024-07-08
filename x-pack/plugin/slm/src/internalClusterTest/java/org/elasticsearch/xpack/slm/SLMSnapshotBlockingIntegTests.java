@@ -140,7 +140,10 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             assertThat(inProgress.getStartTime(), greaterThan(0L));
             assertThat(
                 inProgress.getState(),
-                anyOf(equalTo(SnapshotsInProgress.State.STARTED), equalTo(SnapshotsInProgress.State.SUCCESS))
+                anyOf(
+                    equalTo(SnapshotsInProgress.SnapshotInProgressState.STARTED),
+                    equalTo(SnapshotsInProgress.SnapshotInProgressState.SUCCESS)
+                )
             );
             assertNull(inProgress.getFailure());
         });
@@ -186,7 +189,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 assertThat("expected a snapshot but none were returned", s.getSnapshots().size(), equalTo(1));
                 SnapshotStatus status = s.getSnapshots().get(0);
                 logger.info("--> waiting for snapshot {} to be completed, got: {}", completedSnapshotName, status.getState());
-                assertThat(status.getState(), equalTo(SnapshotsInProgress.State.SUCCESS));
+                assertThat(status.getState(), equalTo(SnapshotsInProgress.SnapshotInProgressState.SUCCESS));
             } catch (SnapshotMissingException e) {
                 logger.error("expected a snapshot but it was missing", e);
                 fail("expected a snapshot with name " + completedSnapshotName + " but it does not exist");
@@ -228,7 +231,10 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 assertThat(inProgress.getStartTime(), greaterThan(0L));
                 assertThat(
                     inProgress.getState(),
-                    anyOf(equalTo(SnapshotsInProgress.State.INIT), equalTo(SnapshotsInProgress.State.STARTED))
+                    anyOf(
+                        equalTo(SnapshotsInProgress.SnapshotInProgressState.INIT),
+                        equalTo(SnapshotsInProgress.SnapshotInProgressState.STARTED)
+                    )
                 );
                 assertNull(inProgress.getFailure());
             }, 60, TimeUnit.SECONDS);

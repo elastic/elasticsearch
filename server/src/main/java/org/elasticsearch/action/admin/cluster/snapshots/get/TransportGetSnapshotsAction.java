@@ -333,12 +333,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final List<SnapshotInfo> snapshots = new ArrayList<>(snapshotIds.size());
             final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);
             // first, look at the snapshots in progress
-            final List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
+            final List<SnapshotsInProgress.SnapshotInProgressEntry> entries = SnapshotsService.currentSnapshots(
                 snapshotsInProgress,
                 repositoryName,
                 snapshotIdsToIterate.stream().map(SnapshotId::getName).toList()
             );
-            for (SnapshotsInProgress.Entry entry : entries) {
+            for (SnapshotsInProgress.SnapshotInProgressEntry entry : entries) {
                 if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
                     final SnapshotInfo snapshotInfo = SnapshotInfo.inProgress(entry);
                     if (matchesPredicates(snapshotInfo)) {

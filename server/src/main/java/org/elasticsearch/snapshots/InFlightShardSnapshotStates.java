@@ -39,16 +39,17 @@ public final class InFlightShardSnapshotStates {
      * @param snapshots snapshots in progress for a single repository
      * @return in flight shard states for all snapshot operations
      */
-    public static InFlightShardSnapshotStates forEntries(List<SnapshotsInProgress.Entry> snapshots) {
+    public static InFlightShardSnapshotStates forEntries(List<SnapshotsInProgress.SnapshotInProgressEntry> snapshots) {
         if (snapshots.isEmpty()) {
             return EMPTY;
         }
         final Map<String, Map<Integer, ShardGeneration>> generations = new HashMap<>();
         final Map<String, Set<Integer>> busyIds = new HashMap<>();
-        assert snapshots.stream().map(SnapshotsInProgress.Entry::repository).distinct().count() == 1
+        assert snapshots.stream().map(SnapshotsInProgress.SnapshotInProgressEntry::repository).distinct().count() == 1
             : "snapshots must either be an empty list or all belong to the same repository but saw " + snapshots;
-        for (SnapshotsInProgress.Entry runningSnapshot : snapshots) {
-            for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot.shardsByRepoShardId()
+        for (SnapshotsInProgress.SnapshotInProgressEntry runningSnapshot : snapshots) {
+            for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot
+                .shardSnapshotStatusByRepoShardId()
                 .entrySet()) {
                 final RepositoryShardId sid = shard.getKey();
                 addStateInformation(generations, busyIds, shard.getValue(), sid.shardId(), sid.indexName());

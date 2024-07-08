@@ -391,11 +391,11 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                     .putCustom(
                         SnapshotsInProgress.TYPE,
                         SnapshotsInProgress.EMPTY.withAddedEntry(
-                            SnapshotsInProgress.Entry.snapshot(
+                            SnapshotsInProgress.SnapshotInProgressEntry.snapshot(
                                 new Snapshot("test-repo", new SnapshotId("snapshot", "uuid")),
                                 randomBoolean(),
                                 randomBoolean(),
-                                SnapshotsInProgress.State.STARTED,
+                                SnapshotsInProgress.SnapshotInProgressState.STARTED,
                                 Map.of("index", new IndexId("index", "uuid")),
                                 List.of(),
                                 List.of(),
@@ -432,12 +432,12 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                         SnapshotDeletionsInProgress.TYPE,
                         SnapshotDeletionsInProgress.of(
                             List.of(
-                                new SnapshotDeletionsInProgress.Entry(
+                                new SnapshotDeletionsInProgress.SnapshotDeletionEntry(
                                     "test-repo",
                                     List.of(new SnapshotId("deleting", "uuid")),
                                     startTimes[2],
                                     randomNonNegativeLong(),
-                                    SnapshotDeletionsInProgress.State.WAITING
+                                    SnapshotDeletionsInProgress.SnapshotDeletionState.WAITING
                                 )
                             )
                         )

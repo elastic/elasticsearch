@@ -363,11 +363,11 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         }
 
         final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
-        final SnapshotsInProgress.Entry entry = SnapshotsInProgress.Entry.snapshot(
+        final SnapshotsInProgress.SnapshotInProgressEntry entry = SnapshotsInProgress.SnapshotInProgressEntry.snapshot(
             snapshot,
             randomBoolean(),
             false,
-            SnapshotsInProgress.State.STARTED,
+            SnapshotsInProgress.SnapshotInProgressState.STARTED,
             Collections.singletonMap(index, new IndexId(index, index)),
             Collections.emptyList(),
             Collections.emptyList(),

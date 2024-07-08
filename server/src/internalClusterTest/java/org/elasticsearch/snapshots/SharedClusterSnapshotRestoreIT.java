@@ -32,7 +32,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -1123,11 +1122,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         awaitClusterState(state -> {
             SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
-            Set<Snapshot> snapshots = snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
+            Set<Snapshot> snapshots = snapshotsInProgress.asStream()
+                .map(SnapshotsInProgress.SnapshotInProgressEntry::snapshot)
+                .collect(Collectors.toSet());
             if (snapshots.size() != 1) {
                 return false;
             }
-            SnapshotsInProgress.Entry entry = snapshotsInProgress.snapshot(snapshots.iterator().next());
+            SnapshotsInProgress.SnapshotInProgressEntry entry = snapshotsInProgress.snapshot(snapshots.iterator().next());
             for (Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
                 if (shard.getValue().nodeId().equals(blockedNodeId) == false
                     && shard.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS == false) {
@@ -1141,7 +1142,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         SnapshotsStatusResponse response = client.admin().cluster().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, "test-repo").get();
         assertThat(response.getSnapshots().size(), equalTo(1));
         SnapshotStatus snapshotStatus = response.getSnapshots().get(0);
-        assertThat(snapshotStatus.getState(), equalTo(State.STARTED));
+        assertThat(snapshotStatus.getState(), equalTo(SnapshotsInProgress.SnapshotInProgressState.STARTED));
         assertThat(snapshotStatus.includeGlobalState(), equalTo(false));
 
         // We blocked the node during data write operation, so at least one shard snapshot should be in STARTED stage
@@ -1156,7 +1157,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         response = client.admin().cluster().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.getSnapshots().size(), equalTo(1));
         snapshotStatus = response.getSnapshots().get(0);
-        assertThat(snapshotStatus.getState(), equalTo(State.STARTED));
+        assertThat(snapshotStatus.getState(), equalTo(SnapshotsInProgress.SnapshotInProgressState.STARTED));
         assertThat(snapshotStatus.includeGlobalState(), equalTo(false));
 
         // We blocked the node during data write operation, so at least one shard snapshot should be in STARTED stage

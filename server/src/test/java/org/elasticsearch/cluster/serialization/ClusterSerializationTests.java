@@ -228,12 +228,12 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 SnapshotDeletionsInProgress.TYPE,
                 SnapshotDeletionsInProgress.of(
                     List.of(
-                        new SnapshotDeletionsInProgress.Entry(
+                        new SnapshotDeletionsInProgress.SnapshotDeletionEntry(
                             "repo1",
                             Collections.singletonList(new SnapshotId("snap1", UUIDs.randomBase64UUID())),
                             randomNonNegativeLong(),
                             randomNonNegativeLong(),
-                            SnapshotDeletionsInProgress.State.STARTED
+                            SnapshotDeletionsInProgress.SnapshotDeletionState.STARTED
                         )
                     )
                 )

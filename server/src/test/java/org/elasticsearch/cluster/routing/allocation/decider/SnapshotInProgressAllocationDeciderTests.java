@@ -230,11 +230,11 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
             .withUpdatedEntriesForRepo(
                 repositoryName,
                 List.of(
-                    SnapshotsInProgress.Entry.snapshot(
+                    SnapshotsInProgress.SnapshotInProgressEntry.snapshot(
                         snapshot,
                         randomBoolean(),
                         randomBoolean(),
-                        SnapshotsInProgress.State.STARTED,
+                        SnapshotsInProgress.SnapshotInProgressState.STARTED,
                         Map.of(
                             shardId.getIndexName(),
                             new IndexId(shardId.getIndexName(), randomUUID()),
@@ -338,11 +338,13 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
         return SnapshotsInProgress.EMPTY.withUpdatedEntriesForRepo(
             repositoryName,
             List.of(
-                SnapshotsInProgress.Entry.snapshot(
+                SnapshotsInProgress.SnapshotInProgressEntry.snapshot(
                     snapshot,
                     randomBoolean(),
                     randomBoolean(),
-                    shardState.completed() ? SnapshotsInProgress.State.SUCCESS : SnapshotsInProgress.State.STARTED,
+                    shardState.completed()
+                        ? SnapshotsInProgress.SnapshotInProgressState.SUCCESS
+                        : SnapshotsInProgress.SnapshotInProgressState.STARTED,
                     Map.of(snapshotShardId.getIndexName(), new IndexId(snapshotShardId.getIndexName(), randomUUID())),
                     List.of(),
                     List.of(),

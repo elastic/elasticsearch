@@ -15,9 +15,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
-import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.cluster.SnapshotsInProgress.SnapshotInProgressEntry;
+import org.elasticsearch.cluster.SnapshotsInProgress.SnapshotInProgressState;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -97,7 +97,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         );
     }
 
-    private Entry randomSnapshot() {
+    private SnapshotInProgressEntry randomSnapshot() {
         Snapshot snapshot = new Snapshot("repo-" + randomInt(5), new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         boolean includeGlobalState = randomBoolean();
         boolean partial = randomBoolean();
@@ -119,7 +119,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             }
         }
         List<SnapshotFeatureInfo> featureStates = randomList(5, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo);
-        return Entry.snapshot(
+        return SnapshotInProgressEntry.snapshot(
             snapshot,
             includeGlobalState,
             partial,
@@ -161,8 +161,8 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         if (randomBoolean() && snapshots.count() > 1) {
             // remove some elements
             int leaveElements = randomIntBetween(0, snapshots.count() - 1);
-            for (List<Entry> entriesForRepo : snapshots.entriesByRepo()) {
-                for (Entry entry : entriesForRepo) {
+            for (List<SnapshotInProgressEntry> entriesForRepo : snapshots.entriesByRepo()) {
+                for (SnapshotInProgressEntry entry : entriesForRepo) {
                     if (updatedInstance.count() == leaveElements) {
                         break;
                     }
@@ -181,11 +181,11 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         }
         if (randomBoolean()) {
             // modify some elements
-            for (List<Entry> perRepoEntries : updatedInstance.entriesByRepo()) {
-                List<Entry> entries = new ArrayList<>(perRepoEntries);
+            for (List<SnapshotInProgressEntry> perRepoEntries : updatedInstance.entriesByRepo()) {
+                List<SnapshotInProgressEntry> entries = new ArrayList<>(perRepoEntries);
                 for (int i = 0; i < entries.size(); i++) {
                     if (randomBoolean()) {
-                        final Entry entry = entries.get(i);
+                        final SnapshotInProgressEntry entry = entries.get(i);
                         entries.set(i, mutateEntryWithLegalChange(entry));
                     }
                 }
@@ -218,12 +218,12 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             } else {
                 // mutate or remove an entry
                 final String repo = randomFrom(
-                    snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::repository).collect(Collectors.toSet())
+                    snapshotsInProgress.asStream().map(SnapshotInProgressEntry::repository).collect(Collectors.toSet())
                 );
-                final List<Entry> forRepo = snapshotsInProgress.forRepo(repo);
+                final List<SnapshotInProgressEntry> forRepo = snapshotsInProgress.forRepo(repo);
                 int index = randomIntBetween(0, forRepo.size() - 1);
-                Entry entry = forRepo.get(index);
-                final List<Entry> updatedEntries = new ArrayList<>(forRepo);
+                SnapshotInProgressEntry entry = forRepo.get(index);
+                final List<SnapshotInProgressEntry> updatedEntries = new ArrayList<>(forRepo);
                 if (randomBoolean()) {
                     updatedEntries.set(index, mutateEntry(entry));
                 } else {
@@ -238,11 +238,11 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         }
     }
 
-    private Entry mutateEntry(Entry entry) {
+    private SnapshotInProgressEntry mutateEntry(SnapshotInProgressEntry entry) {
         switch (randomInt(5)) {
             case 0 -> {
                 boolean includeGlobalState = entry.includeGlobalState() == false;
-                return Entry.snapshot(
+                return SnapshotInProgressEntry.snapshot(
                     entry.snapshot(),
                     includeGlobalState,
                     entry.partial(),
@@ -260,7 +260,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             }
             case 1 -> {
                 boolean partial = entry.partial() == false;
-                return Entry.snapshot(
+                return SnapshotInProgressEntry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     partial,
@@ -278,7 +278,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             }
             case 2 -> {
                 long startTime = randomValueOtherThan(entry.startTime(), ESTestCase::randomLong);
-                return Entry.snapshot(
+                return SnapshotInProgressEntry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     entry.partial(),
@@ -302,7 +302,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 } else {
                     userMetadata.put(key, randomAlphaOfLengthBetween(2, 10));
                 }
-                return Entry.snapshot(
+                return SnapshotInProgressEntry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     entry.partial(),
@@ -324,7 +324,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                     5,
                     () -> randomValueOtherThanMany(entry.featureStates()::contains, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo)
                 );
-                return Entry.snapshot(
+                return SnapshotInProgressEntry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     entry.partial(),
@@ -348,11 +348,11 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     }
 
     // mutates an entry with a change that could occur as part of a cluster state update and is thus diffable
-    private Entry mutateEntryWithLegalChange(Entry entry) {
+    private SnapshotInProgressEntry mutateEntryWithLegalChange(SnapshotInProgressEntry entry) {
         switch (randomInt(3)) {
             case 0 -> {
                 List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10))).toList();
-                return Entry.snapshot(
+                return SnapshotInProgressEntry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     entry.partial(),
@@ -370,7 +370,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             }
             case 1 -> {
                 long repositoryStateId = randomValueOtherThan(entry.repositoryStateId(), ESTestCase::randomLong);
-                return Entry.snapshot(
+                return SnapshotInProgressEntry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     entry.partial(),
@@ -388,7 +388,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             }
             case 2 -> {
                 String failure = randomValueOtherThan(entry.failure(), () -> randomAlphaOfLengthBetween(2, 10));
-                return Entry.snapshot(
+                return SnapshotInProgressEntry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     entry.partial(),
@@ -414,7 +414,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 for (int j = 0; j < shardsCount; j++) {
                     shards.put(new ShardId(index, j), randomShardSnapshotStatus(randomAlphaOfLength(10)));
                 }
-                return Entry.snapshot(
+                return SnapshotInProgressEntry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     entry.partial(),
@@ -437,11 +437,11 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     public void testXContent() throws IOException {
         final IndexId indexId = new IndexId("index", "uuid");
         SnapshotsInProgress sip = SnapshotsInProgress.EMPTY.withAddedEntry(
-            Entry.snapshot(
+            SnapshotInProgressEntry.snapshot(
                 new Snapshot("repo", new SnapshotId("name", "uuid")),
                 true,
                 true,
-                State.SUCCESS,
+                SnapshotInProgressState.SUCCESS,
                 Collections.singletonMap(indexId.getName(), indexId),
                 Collections.emptyList(),
                 Collections.emptyList(),
@@ -593,16 +593,16 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         );
     }
 
-    public static State randomState(Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
+    public static SnapshotInProgressState randomState(Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
         if (SnapshotsInProgress.completed(shards.values())) {
-            return randomFrom(State.SUCCESS, State.FAILED);
+            return randomFrom(SnapshotInProgressState.SUCCESS, SnapshotInProgressState.FAILED);
         }
         if (shards.values()
             .stream()
             .map(SnapshotsInProgress.ShardSnapshotStatus::state)
             .allMatch(st -> st.completed() || st == ShardState.ABORTED)) {
-            return State.ABORTED;
+            return SnapshotInProgressState.ABORTED;
         }
-        return State.STARTED;
+        return SnapshotInProgressState.STARTED;
     }
 }

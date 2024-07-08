@@ -369,7 +369,10 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 return false;
             }
 
-            assertEquals(SnapshotsInProgress.State.ABORTED, SnapshotsInProgress.get(state).forRepo(repoName).get(0).state());
+            assertEquals(
+                SnapshotsInProgress.SnapshotInProgressState.ABORTED,
+                SnapshotsInProgress.get(state).forRepo(repoName).get(0).state()
+            );
             return true;
         });
 

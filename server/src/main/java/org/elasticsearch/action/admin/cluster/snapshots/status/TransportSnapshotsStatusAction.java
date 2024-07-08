@@ -62,7 +62,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.cluster.SnapshotsInProgress.ShardState.SUCCESS;
 
 public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
 
@@ -115,7 +114,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         final CancellableTask cancellableTask = (CancellableTask) task;
 
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
-        List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsService.currentSnapshots(
+        List<SnapshotsInProgress.SnapshotInProgressEntry> currentSnapshots = SnapshotsService.currentSnapshots(
             snapshotsInProgress,
             request.repository(),
             Arrays.asList(request.snapshots())
@@ -126,8 +125,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         }
 
         Set<String> nodesIds = new HashSet<>();
-        for (SnapshotsInProgress.Entry entry : currentSnapshots) {
-            for (SnapshotsInProgress.ShardSnapshotStatus status : entry.shardsByRepoShardId().values()) {
+        for (SnapshotsInProgress.SnapshotInProgressEntry entry : currentSnapshots) {
+            for (SnapshotsInProgress.ShardSnapshotStatus status : entry.shardSnapshotStatusByRepoShardId().values()) {
                 if (status.nodeId() != null) {
                     nodesIds.add(status.nodeId());
                 }
@@ -169,7 +168,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     private void buildResponse(
         SnapshotsInProgress snapshotsInProgress,
         SnapshotsStatusRequest request,
-        List<SnapshotsInProgress.Entry> currentSnapshotEntries,
+        List<SnapshotsInProgress.SnapshotInProgressEntry> currentSnapshotEntries,
         TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses,
         CancellableTask task,
         ActionListener<SnapshotsStatusResponse> listener
@@ -185,10 +184,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 nodeSnapshotStatusMap = new HashMap<>();
             }
 
-            for (SnapshotsInProgress.Entry entry : currentSnapshotEntries) {
+            for (SnapshotsInProgress.SnapshotInProgressEntry entry : currentSnapshotEntries) {
                 currentSnapshotNames.add(entry.snapshot().getSnapshotId().getName());
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
-                for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shardsByRepoShardId()
+                for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry
+                    .shardSnapshotStatusByRepoShardId()
                     .entrySet()) {
                     SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.getValue();
                     if (status.nodeId() != null) {
@@ -202,7 +202,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                 if (shardStatus != null) {
                                     // We have full information about this shard
                                     if (shardStatus.getStage() == SnapshotIndexShardStage.DONE
-                                        && shardEntry.getValue().state() != SUCCESS) {
+                                        && shardEntry.getValue().state() != SnapshotsInProgress.ShardState.SUCCESS) {
                                         // Unlikely edge case:
                                         // Data node has finished snapshotting the shard but the cluster state has not yet been updated
                                         // to reflect this. We adjust the status to show up as snapshot metadata being written because
@@ -328,12 +328,12 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue();
                         shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), lastSnapshotStatus));
                     }
-                    final SnapshotsInProgress.State state = switch (snapshotInfo.state()) {
-                        case FAILED -> SnapshotsInProgress.State.FAILED;
+                    final SnapshotsInProgress.SnapshotInProgressState state = switch (snapshotInfo.state()) {
+                        case FAILED -> SnapshotsInProgress.SnapshotInProgressState.FAILED;
                         case SUCCESS, PARTIAL ->
                             // Translating both PARTIAL and SUCCESS to SUCCESS for now
                             // TODO: add the differentiation on the metadata level in the next major release
-                            SnapshotsInProgress.State.SUCCESS;
+                            SnapshotsInProgress.SnapshotInProgressState.SUCCESS;
                         default -> throw new IllegalArgumentException("Unexpected snapshot state " + snapshotInfo.state());
                     };
                     final long startTime = snapshotInfo.startTime();

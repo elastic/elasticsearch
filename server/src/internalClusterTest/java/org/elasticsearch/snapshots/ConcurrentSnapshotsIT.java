@@ -463,7 +463,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             assertThat(currentSnapshots(repoName), hasSize(1));
             assertThat(
                 SnapshotsInProgress.get(clusterService().state()).forRepo(repoName).get(0).state(),
-                is(SnapshotsInProgress.State.ABORTED)
+                is(SnapshotsInProgress.SnapshotInProgressState.ABORTED)
             );
         }, 30L, TimeUnit.SECONDS);
 
@@ -533,8 +533,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> waiting for second snapshot to finish and the other two snapshots to become aborted");
         assertBusy(() -> {
             assertThat(currentSnapshots(repoName), hasSize(2));
-            for (SnapshotsInProgress.Entry entry : SnapshotsInProgress.get(clusterService().state()).forRepo(repoName)) {
-                assertThat(entry.state(), is(SnapshotsInProgress.State.ABORTED));
+            for (SnapshotsInProgress.SnapshotInProgressEntry entry : SnapshotsInProgress.get(clusterService().state()).forRepo(repoName)) {
+                assertThat(entry.state(), is(SnapshotsInProgress.SnapshotInProgressState.ABORTED));
                 assertThat(entry.snapshot().getSnapshotId().getName(), not(secondSnapshot));
             }
         }, 30L, TimeUnit.SECONDS);
@@ -1618,7 +1618,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).setIndices(index1).setWaitForCompletion(true).execute();
 
         awaitClusterState(state -> {
-            final List<SnapshotsInProgress.Entry> snapshotsInProgress = SnapshotsInProgress.get(state).forRepo(repository);
+            final List<SnapshotsInProgress.SnapshotInProgressEntry> snapshotsInProgress = SnapshotsInProgress.get(state)
+                .forRepo(repository);
             return snapshotsInProgress.size() == 2 && snapshotsInProgress.get(1).state().completed();
         });
 
@@ -2295,7 +2296,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static boolean snapshotHasCompletedShard(String repoName, String snapshot, SnapshotsInProgress snapshotsInProgress) {
-        for (SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(repoName)) {
+        for (SnapshotsInProgress.SnapshotInProgressEntry entry : snapshotsInProgress.forRepo(repoName)) {
             if (entry.snapshot().getSnapshotId().getName().equals(snapshot)) {
                 for (SnapshotsInProgress.ShardSnapshotStatus shard : entry.shards().values()) {
                     if (shard.state().completed()) {

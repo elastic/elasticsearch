@@ -876,7 +876,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         if (SnapshotsInProgress.get(clusterState).forRepo(repository).isEmpty() == false) {
             throw newRepositoryConflictException(repository, "snapshot is in progress");
         }
-        for (SnapshotDeletionsInProgress.Entry entry : SnapshotDeletionsInProgress.get(clusterState).getEntries()) {
+        for (SnapshotDeletionsInProgress.SnapshotDeletionEntry entry : SnapshotDeletionsInProgress.get(clusterState).getEntries()) {
             if (entry.repository().equals(repository)) {
                 throw newRepositoryConflictException(repository, "snapshot deletion is in progress");
             }

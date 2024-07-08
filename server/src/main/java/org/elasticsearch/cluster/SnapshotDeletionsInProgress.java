@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * A class that represents the snapshot deletions that are in progress in the cluster.
+ * Represents the in-progress snapshot deletions in the cluster state.
  */
 public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
@@ -41,15 +41,16 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public static final String TYPE = "snapshot_deletions";
 
     // the list of snapshot deletion request entries
-    private final List<Entry> entries;
+    private final List<SnapshotDeletionEntry> entries;
 
-    private SnapshotDeletionsInProgress(List<Entry> entries) {
+    private SnapshotDeletionsInProgress(List<SnapshotDeletionEntry> entries) {
         this.entries = entries;
-        assert entries.size() == entries.stream().map(Entry::uuid).distinct().count() : "Found duplicate UUIDs in entries " + entries;
+        assert entries.size() == entries.stream().map(SnapshotDeletionEntry::uuid).distinct().count()
+            : "Found duplicate UUIDs in entries " + entries;
         assert assertNoConcurrentDeletionsForSameRepository(entries);
     }
 
-    public static SnapshotDeletionsInProgress of(List<SnapshotDeletionsInProgress.Entry> entries) {
+    public static SnapshotDeletionsInProgress of(List<SnapshotDeletionEntry> entries) {
         if (entries.isEmpty()) {
             return EMPTY;
         }
@@ -57,13 +58,13 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
-        this(in.readCollectionAsImmutableList(Entry::readFrom));
+        this(in.readCollectionAsImmutableList(SnapshotDeletionEntry::readFrom));
     }
 
-    private static boolean assertNoConcurrentDeletionsForSameRepository(List<Entry> entries) {
+    private static boolean assertNoConcurrentDeletionsForSameRepository(List<SnapshotDeletionEntry> entries) {
         final Set<String> activeRepositories = new HashSet<>();
-        for (Entry entry : entries) {
-            if (entry.state() == State.STARTED) {
+        for (SnapshotDeletionEntry entry : entries) {
+            if (entry.state() == SnapshotDeletionState.STARTED) {
                 final boolean added = activeRepositories.add(entry.repository());
                 assert added : "Found multiple running deletes for a single repository in " + entries;
             }
@@ -77,9 +78,9 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     /**
      * Returns a new instance of {@link SnapshotDeletionsInProgress} which adds
-     * the given {@link Entry} to the invoking instance.
+     * the given {@link SnapshotDeletionEntry} to the invoking instance.
      */
-    public SnapshotDeletionsInProgress withAddedEntry(Entry entry) {
+    public SnapshotDeletionsInProgress withAddedEntry(SnapshotDeletionEntry entry) {
         return SnapshotDeletionsInProgress.of(CollectionUtils.appendToCopy(getEntries(), entry));
     }
 
@@ -88,9 +89,9 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      * entries.
      */
     public SnapshotDeletionsInProgress withRemovedEntry(String deleteUUID) {
-        List<Entry> updatedEntries = new ArrayList<>(entries.size() - 1);
+        List<SnapshotDeletionEntry> updatedEntries = new ArrayList<>(entries.size() - 1);
         boolean removed = false;
-        for (Entry entry : entries) {
+        for (SnapshotDeletionEntry entry : entries) {
             if (entry.uuid().equals(deleteUUID)) {
                 removed = true;
             } else {
@@ -103,7 +104,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     /**
      * Returns an unmodifiable list of snapshot deletion entries.
      */
-    public List<Entry> getEntries() {
+    public List<SnapshotDeletionEntry> getEntries() {
         return entries;
     }
 
@@ -113,8 +114,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      * @param repository repository name
      */
     public boolean hasExecutingDeletion(String repository) {
-        for (Entry entry : entries) {
-            if (entry.state() == State.STARTED && entry.repository().equals(repository)) {
+        for (SnapshotDeletionEntry entry : entries) {
+            if (entry.state() == SnapshotDeletionState.STARTED && entry.repository().equals(repository)) {
                 return true;
             }
         }
@@ -205,56 +206,73 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     /**
      * A class representing a snapshot deletion request entry in the cluster state.
      */
-    public record Entry(String repoName, List<SnapshotId> snapshots, long startTime, long repositoryStateId, State state, String uuid)
-        implements
-            Writeable,
-            RepositoryOperation {
+    public record SnapshotDeletionEntry(
+        String repoName,
+        List<SnapshotId> snapshots,
+        long startTime,
+        long repositoryStateId,
+        SnapshotDeletionState state,
+        String uuid
+    ) implements Writeable, RepositoryOperation {
 
         @SuppressForbidden(reason = "using a private constructor within the same file")
-        public Entry(String repoName, List<SnapshotId> snapshots, long startTime, long repositoryStateId, State state) {
+        public SnapshotDeletionEntry(
+            String repoName,
+            List<SnapshotId> snapshots,
+            long startTime,
+            long repositoryStateId,
+            SnapshotDeletionState state
+        ) {
             this(repoName, snapshots, startTime, repositoryStateId, state, UUIDs.randomBase64UUID());
         }
 
-        public Entry {
+        public SnapshotDeletionEntry {
             assert snapshots.size() == new HashSet<>(snapshots).size() : "Duplicate snapshot ids in " + snapshots;
         }
 
         @SuppressForbidden(reason = "using a private constructor within the same file")
-        public static Entry readFrom(StreamInput in) throws IOException {
-            return new Entry(
+        public static SnapshotDeletionEntry readFrom(StreamInput in) throws IOException {
+            return new SnapshotDeletionEntry(
                 in.readString(),
                 in.readCollectionAsImmutableList(SnapshotId::new),
                 in.readVLong(),
                 in.readLong(),
-                State.readFrom(in),
+                SnapshotDeletionState.readFrom(in),
                 in.readString()
             );
         }
 
         @SuppressForbidden(reason = "using a private constructor within the same file")
-        public Entry started() {
-            assert state == State.WAITING;
-            return new Entry(repository(), snapshots, startTime, repositoryStateId, State.STARTED, uuid);
+        public SnapshotDeletionEntry started() {
+            assert state == SnapshotDeletionState.WAITING;
+            return new SnapshotDeletionEntry(repository(), snapshots, startTime, repositoryStateId, SnapshotDeletionState.STARTED, uuid);
         }
 
         @SuppressForbidden(reason = "using a private constructor within the same file")
-        public Entry withAddedSnapshots(Collection<SnapshotId> newSnapshots) {
-            assert state == State.WAITING;
+        public SnapshotDeletionEntry withAddedSnapshots(Collection<SnapshotId> newSnapshots) {
+            assert state == SnapshotDeletionState.WAITING;
             final Collection<SnapshotId> updatedSnapshots = new HashSet<>(snapshots);
             if (updatedSnapshots.addAll(newSnapshots) == false) {
                 return this;
             }
-            return new Entry(repository(), List.copyOf(updatedSnapshots), startTime, repositoryStateId, State.WAITING, uuid);
+            return new SnapshotDeletionEntry(
+                repository(),
+                List.copyOf(updatedSnapshots),
+                startTime,
+                repositoryStateId,
+                SnapshotDeletionState.WAITING,
+                uuid
+            );
         }
 
         @SuppressForbidden(reason = "using a private constructor within the same file")
-        public Entry withSnapshots(Collection<SnapshotId> snapshots) {
-            return new Entry(repository(), List.copyOf(snapshots), startTime, repositoryStateId, state, uuid);
+        public SnapshotDeletionEntry withSnapshots(Collection<SnapshotId> snapshots) {
+            return new SnapshotDeletionEntry(repository(), List.copyOf(snapshots), startTime, repositoryStateId, state, uuid);
         }
 
         @SuppressForbidden(reason = "using a private constructor within the same file")
-        public Entry withRepoGen(long repoGen) {
-            return new Entry(repository(), snapshots, startTime, repoGen, state, uuid);
+        public SnapshotDeletionEntry withRepoGen(long repoGen) {
+            return new SnapshotDeletionEntry(repository(), snapshots, startTime, repoGen, state, uuid);
         }
 
         @Override
@@ -278,7 +296,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         }
     }
 
-    public enum State implements Writeable {
+    public enum SnapshotDeletionState implements Writeable {
 
         /**
          * Delete is waiting to execute because there are snapshots and or a delete operation that has to complete before this delete may
@@ -293,11 +311,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         private final byte value;
 
-        State(byte value) {
+        SnapshotDeletionState(byte value) {
             this.value = value;
         }
 
-        public static State readFrom(StreamInput in) throws IOException {
+        public static SnapshotDeletionState readFrom(StreamInput in) throws IOException {
             final byte value = in.readByte();
             return switch (value) {
                 case 0 -> WAITING;

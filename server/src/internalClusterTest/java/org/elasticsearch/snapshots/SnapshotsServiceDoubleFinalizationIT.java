@@ -109,7 +109,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
             return snapshotsInProgress.asStream()
                 .anyMatch(
                     entry -> entry.snapshot().getSnapshotId().getName().equals("snap-2")
-                        && entry.state() == SnapshotsInProgress.State.STARTED
+                        && entry.state() == SnapshotsInProgress.SnapshotInProgressState.STARTED
                         && entry.shards()
                             .values()
                             .stream()
@@ -133,7 +133,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
             final boolean foundSnapshot = snapshotsInProgress.asStream()
                 .anyMatch(
                     entry -> entry.snapshot().getSnapshotId().getName().equals("snap-2")
-                        && entry.state() == SnapshotsInProgress.State.SUCCESS
+                        && entry.state() == SnapshotsInProgress.SnapshotInProgressState.SUCCESS
                         && entry.shards()
                             .values()
                             .stream()
@@ -148,7 +148,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
             return snapshotDeletionsInProgress.getEntries()
                 .stream()
                 .anyMatch(
-                    entry -> entry.state() == SnapshotDeletionsInProgress.State.WAITING
+                    entry -> entry.state() == SnapshotDeletionsInProgress.SnapshotDeletionState.WAITING
                         && entry.snapshots().stream().anyMatch(snapshotId -> snapshotId.getName().equals("snap-2"))
                 );
         });

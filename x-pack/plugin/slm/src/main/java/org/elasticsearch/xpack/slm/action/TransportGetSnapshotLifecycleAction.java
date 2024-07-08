@@ -82,8 +82,8 @@ public class TransportGetSnapshotLifecycleAction extends TransportMasterNodeActi
             }
         } else {
             final Map<String, SnapshotLifecyclePolicyItem.SnapshotInProgress> inProgress = new HashMap<>();
-            for (List<SnapshotsInProgress.Entry> entriesForRepo : SnapshotsInProgress.get(state).entriesByRepo()) {
-                for (SnapshotsInProgress.Entry entry : entriesForRepo) {
+            for (List<SnapshotsInProgress.SnapshotInProgressEntry> entriesForRepo : SnapshotsInProgress.get(state).entriesByRepo()) {
+                for (SnapshotsInProgress.SnapshotInProgressEntry entry : entriesForRepo) {
                     Map<String, Object> meta = entry.userMetadata();
                     if (meta == null
                         || meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) == null

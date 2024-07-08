@@ -471,7 +471,7 @@ public final class DocumentParser {
 
     private static boolean shouldFlattenObject(DocumentParserContext context, FieldMapper fieldMapper) {
         return context.parser().currentToken() == XContentParser.Token.START_OBJECT
-            && context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
+            && context.parent().subobjects() != ObjectMapper.Subobjects.ENABLED
             && fieldMapper.supportsParsingObject() == false;
     }
 
@@ -512,7 +512,7 @@ public final class DocumentParser {
     private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {
         context.path().add(currentFieldName);
         boolean withinLeafObject = context.path().isWithinLeafObject();
-        if (objectMapper instanceof ObjectMapper objMapper && objMapper.subobjects() == ObjectMapper.Subobjects.DISABLED) {
+        if (objectMapper instanceof ObjectMapper objMapper && objMapper.subobjects() != ObjectMapper.Subobjects.ENABLED) {
             context.path().setWithinLeafObject(true);
         }
         parseObjectOrField(context, objectMapper);
@@ -558,7 +558,7 @@ public final class DocumentParser {
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
             }
-            if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED) {
+            if (context.parent().subobjects() != ObjectMapper.Subobjects.ENABLED) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
                     throw new DocumentParsingException(
                         context.parser().getTokenLocation(),

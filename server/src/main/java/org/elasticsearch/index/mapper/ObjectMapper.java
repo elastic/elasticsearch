@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -41,7 +42,12 @@ public class ObjectMapper extends Mapper {
 
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
+    static final NodeFeature SUBOBJECTS_AUTO = new NodeFeature("mapper.subobjects_auto");
 
+    /**
+     * Enhances the previously boolean option for subobjects support with an intermediate mode `auto` that uses
+     * any objects that are present in the mappings and flattens any fields defined outside the predefined objects.
+     */
     public enum Subobjects {
         ENABLED(Boolean.TRUE),
         DISABLED(Boolean.FALSE),

@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -62,11 +63,6 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         List<Tuple<String, String>> values = ESTestCase.randomList(1, maxValues, this::generateValue);
         List<String> in = values.stream().map(Tuple::v1).toList();
 
-        if (preservesExactSource()) {
-            var blockLoaderResult = in.stream().filter(Objects::nonNull).toList();
-            return new MapperTestCase.SyntheticSourceExample(in, in, blockLoaderResult, this::mapping);
-        }
-
         List<String> validValues = new ArrayList<>();
         List<String> ignoredValues = new ArrayList<>();
         values.stream().map(Tuple::v2).forEach(v -> {
@@ -76,9 +72,17 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
                 validValues.add(v);
             }
         });
-
         List<String> outputFromDocValues = new HashSet<>(validValues).stream().sorted().collect(Collectors.toList());
-        List<String> syntheticSourceOutputList = store ? validValues : outputFromDocValues;
+
+        Object out;
+        if (preservesExactSource()) {
+            out = in;
+        } else {
+            var validValuesInCorrectOrder = store ? validValues : outputFromDocValues;
+            var syntheticSourceOutputList = Stream.concat(validValuesInCorrectOrder.stream(), ignoredValues.stream()).toList();
+            out = syntheticSourceOutputList.size() == 1 ? syntheticSourceOutputList.get(0) : syntheticSourceOutputList;
+        }
+
         List<String> loadBlock;
         if (loadBlockFromSource) {
             // The block loader infrastructure will never return nulls. Just zap them all.
@@ -86,12 +90,11 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         } else if (docValues) {
             loadBlock = List.copyOf(outputFromDocValues);
         } else {
-            loadBlock = List.copyOf(syntheticSourceOutputList);
+            // Meaning loading from terms.
+            loadBlock = List.copyOf(validValues);
         }
-        Object loadBlockResult = loadBlock.size() == 1 ? loadBlock.get(0) : loadBlock;
 
-        syntheticSourceOutputList.addAll(ignoredValues);
-        Object out = syntheticSourceOutputList.size() == 1 ? syntheticSourceOutputList.get(0) : syntheticSourceOutputList;
+        Object loadBlockResult = loadBlock.size() == 1 ? loadBlock.get(0) : loadBlock;
         return new MapperTestCase.SyntheticSourceExample(in, out, loadBlockResult, this::mapping);
     }
 

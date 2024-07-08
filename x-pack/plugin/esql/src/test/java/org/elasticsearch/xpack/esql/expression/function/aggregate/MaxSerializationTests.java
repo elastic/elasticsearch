@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class MaxSerializationTests extends AbstractExpressionSerializationTests<Max> {
     @Override
@@ -22,11 +20,6 @@ public class MaxSerializationTests extends AbstractExpressionSerializationTests<
     @Override
     protected Max mutateInstance(Max instance) throws IOException {
         return new Max(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return AggregateFunction.getNamedWriteables();
     }
 
     @Override

@@ -24,6 +24,10 @@ import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloa
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettings;
@@ -50,6 +54,11 @@ import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSett
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
@@ -113,11 +122,48 @@ public class InferenceNamedWriteablesProvider {
         addAzureOpenAiNamedWriteables(namedWriteables);
         addAzureAiStudioNamedWriteables(namedWriteables);
         addGoogleAiStudioNamedWritables(namedWriteables);
+        addGoogleVertexAiNamedWriteables(namedWriteables);
         addMistralNamedWriteables(namedWriteables);
         addCustomElandWriteables(namedWriteables);
         addAnthropicNamedWritables(namedWriteables);
+        addAmazonBedrockNamedWriteables(namedWriteables);
 
         return namedWriteables;
+    }
+
+    private static void addAmazonBedrockNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                AmazonBedrockSecretSettings.class,
+                AmazonBedrockSecretSettings.NAME,
+                AmazonBedrockSecretSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AmazonBedrockEmbeddingsServiceSettings.NAME,
+                AmazonBedrockEmbeddingsServiceSettings::new
+            )
+        );
+
+        // no task settings for Amazon Bedrock Embeddings
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AmazonBedrockChatCompletionServiceSettings.NAME,
+                AmazonBedrockChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AmazonBedrockChatCompletionTaskSettings.NAME,
+                AmazonBedrockChatCompletionTaskSettings::new
+            )
+        );
     }
 
     private static void addMistralNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
@@ -286,6 +332,44 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 GoogleAiStudioEmbeddingsServiceSettings.NAME,
                 GoogleAiStudioEmbeddingsServiceSettings::new
+            )
+        );
+    }
+
+    private static void addGoogleVertexAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(SecretSettings.class, GoogleVertexAiSecretSettings.NAME, GoogleVertexAiSecretSettings::new)
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                GoogleVertexAiEmbeddingsServiceSettings.NAME,
+                GoogleVertexAiEmbeddingsServiceSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                GoogleVertexAiEmbeddingsTaskSettings.NAME,
+                GoogleVertexAiEmbeddingsTaskSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                GoogleVertexAiRerankServiceSettings.NAME,
+                GoogleVertexAiRerankServiceSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                GoogleVertexAiRerankTaskSettings.NAME,
+                GoogleVertexAiRerankTaskSettings::new
             )
         );
     }

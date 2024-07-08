@@ -13,12 +13,12 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -69,10 +69,22 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                             } else {
                                 // Aggs cannot produce pages with 0 columns, so retain one grouping.
                                 remaining = List.of(Expressions.attribute(aggregate.groupings().get(0)));
-                                p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
+                                p = new Aggregate(
+                                    aggregate.source(),
+                                    aggregate.child(),
+                                    aggregate.aggregateType(),
+                                    aggregate.groupings(),
+                                    remaining
+                                );
                             }
                         } else {
-                            p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
+                            p = new Aggregate(
+                                aggregate.source(),
+                                aggregate.child(),
+                                aggregate.aggregateType(),
+                                aggregate.groupings(),
+                                remaining
+                            );
                         }
                     }
 

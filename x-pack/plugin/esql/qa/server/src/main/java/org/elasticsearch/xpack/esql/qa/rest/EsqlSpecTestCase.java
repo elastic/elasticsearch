@@ -37,6 +37,9 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -244,10 +247,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Logger logger
     ) {
         assertMetadata(expected, actualColumns, logger);
-        assertData(expected, actualValues, testCase.ignoreOrder, logger, EsqlSpecTestCase::valueMapper);
+        assertData(expected, actualValues, testCase.ignoreOrder, logger, this::valueMapper);
     }
 
-    private static Object valueMapper(CsvTestUtils.Type type, Object value) {
+    private Object valueMapper(CsvTestUtils.Type type, Object value) {
         if (value == null) {
             return "null";
         }
@@ -262,7 +265,28 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 } catch (Throwable ignored) {}
             }
         }
+        if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting()) {
+            if (value instanceof List<?> vs) {
+                List<Object> values = new ArrayList<>();
+                for (Object v : vs) {
+                    values.add(valueMapper(type, v));
+                }
+                return values;
+            } else if (value instanceof Double d) {
+                return new BigDecimal(d).round(new MathContext(10, RoundingMode.DOWN)).doubleValue();
+            } else if (value instanceof String s) {
+                return new BigDecimal(s).round(new MathContext(10, RoundingMode.DOWN)).doubleValue();
+            }
+        }
         return value.toString();
+    }
+
+    /**
+     * Rounds double values when asserting double values returned in queries.
+     * By default, no rounding is performed.
+     */
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return false;
     }
 
     private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {

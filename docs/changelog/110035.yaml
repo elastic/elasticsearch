@@ -1,5 +1,0 @@
-pr: 110035
-summary: Fix equals and hashcode for `SingleValueQuery.LuceneQuery`
-area: ES|QL
-type: bug
-issues: []

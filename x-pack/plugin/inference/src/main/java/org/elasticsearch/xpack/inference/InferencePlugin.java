@@ -34,8 +34,10 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
@@ -51,6 +53,7 @@ import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
@@ -59,6 +62,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorSer
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
+import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
+import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceDiagnosticsAction;
@@ -66,6 +71,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
@@ -73,6 +79,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
@@ -109,8 +116,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
+
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
+    private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
@@ -164,6 +173,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var httpRequestSenderFactory = new HttpRequestSender.Factory(serviceComponents.get(), httpClientManager, services.clusterService());
         httpFactory.set(httpRequestSenderFactory);
 
+        var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
+        amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
+
         ModelRegistry modelRegistry = new ModelRegistry(services.client());
 
         if (inferenceServiceExtensions == null) {
@@ -200,16 +212,18 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get()),
             context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get()),
             context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get()),
+            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get()),
             context -> new MistralService(httpFactory.get(), serviceComponents.get()),
             context -> new AnthropicService(httpFactory.get(), serviceComponents.get()),
+            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        var entries = new ArrayList<NamedWriteableRegistry.Entry>();
-        entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
+        var entries = new ArrayList<>(InferenceNamedWriteablesProvider.getNamedWriteables());
+        entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankBuilder.NAME, TextSimilarityRankBuilder::new));
         return entries;
     }
 
@@ -287,24 +301,22 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        if (SemanticTextFeature.isEnabled()) {
-            return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
-        }
-        return Map.of();
+        return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
     }
 
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
-        if (SemanticTextFeature.isEnabled()) {
-            return singletonList(shardBulkInferenceActionFilter.get());
-        }
-        return List.of();
+        return singletonList(shardBulkInferenceActionFilter.get());
     }
 
     public List<QuerySpec<?>> getQueries() {
-        if (SemanticTextFeature.isEnabled()) {
-            return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
-        }
-        return List.of();
+        return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<RetrieverSpec<?>> getRetrievers() {
+        return List.of(
+            new RetrieverSpec<>(new ParseField(TextSimilarityRankBuilder.NAME), TextSimilarityRankRetrieverBuilder::fromXContent)
+        );
     }
 }

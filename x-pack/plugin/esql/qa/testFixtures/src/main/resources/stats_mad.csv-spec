@@ -1,0 +1,9 @@
+madOfNulls
+row x = null::integer, y = null, z = 123 - null, a = [1,2,3], b = 5 | stats x = MEDIAN_ABSOLUTE_DEVIATION(x), y = MEDIAN_ABSOLUTE_DEVIATION(y), z = MEDIAN_ABSOLUTE_DEVIATION(null), madnull = MEDIAN_ABSOLUTE_DEVIATION(2+null), madnullEvalNull = MEDIAN_ABSOLUTE_DEVIATION(z) by a, b;
+
+x:double|y:double       |z:double       |madnull:double |madnullEvalNull:double|a:integer      |b:integer       
+null    |null           |null           |null           |null                  |1              |5              
+null    |null           |null           |null           |null                  |2              |5              
+null    |null           |null           |null           |null                  |3              |5
+;
+

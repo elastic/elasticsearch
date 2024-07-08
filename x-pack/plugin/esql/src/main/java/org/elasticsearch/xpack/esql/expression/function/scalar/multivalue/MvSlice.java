@@ -69,7 +69,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "long",
             "text",
             "version" },
-        description = "Returns a subset of the multivalued field using the start and end index values.",
+        description = "Returns a subset of the multivalued field using the start and end index values. The function uses 0-based indexing.",
         examples = { @Example(file = "ints", tag = "mv_slice_positive"), @Example(file = "ints", tag = "mv_slice_negative") }
     )
     public MvSlice(

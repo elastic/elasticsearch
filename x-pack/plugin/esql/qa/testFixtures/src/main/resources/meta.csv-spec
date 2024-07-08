@@ -304,7 +304,7 @@ mv_median     |Converts a multivalued field into a single valued field containin
 mv_min        |Converts a multivalued expression into a single valued column containing the minimum value.
 mv_percentile |Converts a multivalued field into a single valued field containing the value at which a certain percentage of observed values occur.
 mv_pseries_wei|Converts a multivalued expression into a single-valued column by multiplying every element on the input list by its corresponding term in P-Series and computing the sum.
-mv_slice      |Returns a subset of the multivalued field using the start and end index values.
+mv_slice      |Returns a subset of the multivalued field using the start and end index values. The function uses 0-based indexing.
 mv_sort       |Sorts a multivalued field in lexicographical order.
 mv_sum        |Converts a multivalued field into a single valued field containing the sum of all of the values.
 mv_zip        |Combines the values from two multivalued fields with a delimiter that joins them together.

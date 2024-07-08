@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 
 public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Aggregate> {
-    // TODO: currently this rule only works for aggregate functions (AVG)
 
     public SubstituteSurrogates() {
         super(OptimizerRules.TransformDirection.UP);
@@ -44,19 +43,25 @@ public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Agg
     protected LogicalPlan rule(Aggregate aggregate) {
         var aggs = aggregate.aggregates();
         List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
-        // existing aggregate and their respective attributes
-        Map<AggregateFunction, Attribute> aggFuncToAttr = new HashMap<>();
-        // surrogate functions eval
-        List<Alias> transientEval = new ArrayList<>();
+        Map<AggregateFunction, Attribute> aggFuncToAttr = new HashMap<>(); // existing aggregate and their respective attributes
+        List<Alias> transientEval = new ArrayList<>(); // surrogate functions eval
         boolean changed = false;
+        boolean hasSurrogates = false;
 
         // first pass to check existing aggregates (to avoid duplication and alias waste)
         for (NamedExpression agg : aggs) {
             if (Alias.unwrap(agg) instanceof AggregateFunction af) {
                 if ((af instanceof SurrogateExpression se && se.surrogate() != null) == false) {
                     aggFuncToAttr.put(af, agg.toAttribute());
+                } else {
+                    hasSurrogates = true;
                 }
             }
+        }
+
+        // no surrogates, return early
+        if (hasSurrogates == false) {
+            return aggregate;
         }
 
         int[] counter = new int[] { 0 };

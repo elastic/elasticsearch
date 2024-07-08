@@ -1,3 +1,22 @@
+percentileOfNull
+row x = null::integer, y = null, z = 123 - null | stats percIntNull = percentile(y, 90), percNull = percentile(y, 90), percentile(null, 90), percentile(null+2, 90), percentile(z, 90);
+
+  percIntNull:double|percNull:double|percentile(null, 90):double|percentile(null+2, 90):double|percentile(z, 90):double
+null                |null           |null                       |null                         |null
+;
+
+percentileOfNullsOnRealIndex
+from employees | eval x = null::integer, y = null, z = 123 - null | stats percIntNull = percentile(y, 90), percNull = percentile(y, 90), percentile(null, 90), percentile(null+2, 90), percentile(z, 90) by languages | sort languages desc;
+
+  percIntNull:double|percNull:double|percentile(null, 90):double|percentile(null+2, 90):double|percentile(z, 90):double|languages:integer
+null                |null           |null                       |null                         |null                    |null
+null                |null           |null                       |null                         |null                    |5
+null                |null           |null                       |null                         |null                    |4
+null                |null           |null                       |null                         |null                    |3
+null                |null           |null                       |null                         |null                    |2
+null                |null           |null                       |null                         |null                    |1
+;              
+
 percentileOfLong
 from employees | stats p0 = percentile(salary_change.long, 0), p50 = percentile(salary_change.long, 50), p99 = percentile(salary_change.long, 99);
 

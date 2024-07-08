@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.RemoveStatsOverride;
+import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceAggregatesWithNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceAliasingEvalWithProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceLookupWithJoin;
@@ -198,9 +199,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
             new FoldNull(),
+            new ReplaceAggregatesWithNull(),
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
             new ConstantFolding(),
+            new SubstituteSurrogates(),
             new PartiallyFoldCase(),
             // boolean
             new BooleanSimplification(),

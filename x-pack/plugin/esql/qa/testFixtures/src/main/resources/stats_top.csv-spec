@@ -40,6 +40,55 @@ date:date | double:double | integer:integer | long:long
 [1999-04-30T00:00:00.000Z,1997-05-19T00:00:00.000Z] | [14.74,14.68] | [74999,74970] | [14,14]
 ;
 
+topRowWithEval
+required_capability: agg_top
+ROW d=-9.81, i=25324, l=TO_LONG(-9) | EVAL x=d+1, y=i/2, z=l+3 | STATS double = TOP(x, 2, "asc"), integer = TOP(y, 2, "asc"), long = TOP(z, 2, "asc") | keep double, integer, long
+;
+
+ double:double |integer:integer| long:long
+-8.81          |12662          |-6             
+;
+
+topRowWithNull
+required_capability: agg_top
+ROW d=-9.81, i=25324, l=TO_LONG(-9), n=null | EVAL x=d+1+null, y=i/2+n, z=l+3, t=null | STATS double = TOP(x, 2, "asc"), integer = TOP(y, 5, "desc"), long = TOP(z, 8, "desc"), null1 = TOP(n, 1000, "asc"), null2 = TOP(t, 444, "desc") | keep double, long, integer, null1, null2
+;
+
+double:double  |long:long      |integer:integer| null1:null    |null2:null     
+null           |-6             |null           |null           |null
+;
+
+topRowWithNull_WithBY
+required_capability: agg_top
+ROW d=-9.81, i=25324, l=TO_LONG(-9), n=null, `by` = [1,2,3] | EVAL x=d+1+null, y=i/2+n, z=l+3, t=null | STATS double = TOP(x, 2, "asc"), integer = TOP(y, 5, "desc"), long = TOP(z, 8, "desc"), null1 = TOP(n, 1000, "asc"), null2 = TOP(t, 444, "desc")  BY `by` | keep double, long, integer, null1, null2, `by`
+;
+
+double:double  |long:long      |integer:integer| null1:null    |null2:null     | by:integer
+null           |-6             |null           |null           |null           |1              
+null           |-6             |null           |null           |null           |2              
+null           |-6             |null           |null           |null           |3
+;
+
+topRowWithMultiValues
+required_capability: agg_top
+row x = [1,2,3,4,5], z = [1,2,3,4,5] | eval y = mv_slice(x, 1, 3) | stats z2a=top(z, 2, "asc"), z3d=top(z, 3, "desc"), y2a=top(y, 2, "asc"), y2d=top(y, 2, "desc")
+;
+
+z2a:integer|z3d:integer|y2a:integer|y2d:integer
+[1, 2]     |[5, 4, 3]  |[2, 3]     |[4, 3]
+;
+
+topRowWithMultiValues_WithBY
+required_capability: agg_top
+row x = [1,2,3,4,5], z = [1,2,3,4,5] | eval y = mv_slice(x, 1, 3) | stats z2a=top(z, 2, "asc"), z3d=top(z, 3, "desc"), y2a=top(y, 2, "asc"), y2d=top(y, 2, "desc") by y
+;
+
+z2a:integer|z3d:integer|y2a:integer|y2d:integer| y:integer
+[1, 2]     |[5, 4, 3]  |[2, 3]     |[4, 3]     | 2
+[1, 2]     |[5, 4, 3]  |[2, 3]     |[4, 3]     | 3
+[1, 2]     |[5, 4, 3]  |[2, 3]     |[4, 3]     | 4
+;
+
 topAllTypesRow
 required_capability: agg_top
 ROW

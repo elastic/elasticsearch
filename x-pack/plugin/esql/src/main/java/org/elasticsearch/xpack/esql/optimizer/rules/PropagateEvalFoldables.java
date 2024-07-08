@@ -11,11 +11,17 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Replace any reference attribute with its source, if it does not affect the result.
@@ -52,6 +58,18 @@ public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan>
             // C.f. https://github.com/elastic/elasticsearch/issues/100634
             if (p instanceof Filter || p instanceof Eval) {
                 p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+            } else if (p instanceof Aggregate agg) {
+                List<NamedExpression> newAggs = new ArrayList<>(agg.aggregates().size());
+                agg.aggregates().forEach(e -> {
+                    if (Alias.unwrap(e) instanceof AggregateFunction) {
+                        newAggs.add((NamedExpression) e.transformUp(ReferenceAttribute.class, replaceReference));
+                    } else {
+                        newAggs.add(e);
+                    }
+                });
+                if (agg.aggregates().equals(newAggs) == false) {
+                    p = new Aggregate(agg.source(), agg.child(), agg.aggregateType(), agg.groupings(), newAggs);
+                }
             }
             return p;
         });

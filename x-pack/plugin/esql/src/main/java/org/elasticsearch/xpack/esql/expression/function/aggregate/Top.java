@@ -19,6 +19,7 @@ import org.elasticsearch.compute.aggregation.TopIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -26,6 +27,10 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -197,11 +202,18 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     public Expression surrogate() {
         var s = source();
 
-        if (limitValue() == 1) {
-            if (orderValue()) {
-                return new Min(s, field());
+        if (field().foldable()) {
+            if (limitValue() == 1) {
+                if (orderValue()) {
+                    return new MvMin(s, field());
+                } else {
+                    return new MvMax(s, field());
+                }
             } else {
-                return new Max(s, field());
+                var start = new Literal(s, 0, DataType.INTEGER);
+                var end = new Literal(s, limitValue() - 1, DataType.INTEGER);
+                MvSort sort = new MvSort(s, field(), new Literal(s, orderValue() ? ORDER_ASC : ORDER_DESC, DataType.KEYWORD));
+                return new MvSlice(s, sort, start, end);
             }
         }
 

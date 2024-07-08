@@ -595,6 +595,37 @@ public class VerifierTests extends ESTestCase {
              and inside another aggregate"""));
     }
 
+    public void testWeightedAvg() {
+        assertEquals(
+            "1:35: SECOND argument of [weighted_avg(v, null)] cannot be null or 0, received [null]",
+            error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, null)")
+        );
+        assertEquals(
+            "1:27: SECOND argument of [weighted_avg(salary, null)] cannot be null or 0, received [null]",
+            error("from test | stats w_avg = weighted_avg(salary, null)")
+        );
+        assertEquals(
+            "1:45: SECOND argument of [weighted_avg(v, w)] cannot be null or 0, received [null]",
+            error("row v = [1, 2, 3], w = null | stats w_avg = weighted_avg(v, w)")
+        );
+        assertEquals(
+            "1:44: SECOND argument of [weighted_avg(salary, w)] cannot be null or 0, received [null]",
+            error("from test | eval w = null |  stats w_avg = weighted_avg(salary, w)")
+        );
+        assertEquals(
+            "1:51: SECOND argument of [weighted_avg(salary, w)] cannot be null or 0, received [null]",
+            error("from test | eval w = null + null |  stats w_avg = weighted_avg(salary, w)")
+        );
+        assertEquals(
+            "1:35: SECOND argument of [weighted_avg(v, 0)] cannot be null or 0, received [0]",
+            error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, 0)")
+        );
+        assertEquals(
+            "1:27: SECOND argument of [weighted_avg(salary, 0.0)] cannot be null or 0, received [0.0]",
+            error("from test | stats w_avg = weighted_avg(salary, 0.0)")
+        );
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }

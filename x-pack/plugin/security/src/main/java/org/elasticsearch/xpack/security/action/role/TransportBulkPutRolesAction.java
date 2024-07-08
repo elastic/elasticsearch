@@ -14,11 +14,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
-import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesResponse;
+import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
-public class TransportBulkPutRolesAction extends TransportAction<BulkPutRolesRequest, BulkPutRolesResponse> {
-
+public class TransportBulkPutRolesAction extends TransportAction<BulkPutRolesRequest, BulkRolesResponse> {
     private final NativeRolesStore rolesStore;
 
     @Inject
@@ -28,7 +27,7 @@ public class TransportBulkPutRolesAction extends TransportAction<BulkPutRolesReq
     }
 
     @Override
-    protected void doExecute(Task task, final BulkPutRolesRequest request, final ActionListener<BulkPutRolesResponse> listener) {
+    protected void doExecute(Task task, final BulkPutRolesRequest request, final ActionListener<BulkRolesResponse> listener) {
         rolesStore.putRoles(request.getRefreshPolicy(), request.getRoles(), listener);
     }
 }

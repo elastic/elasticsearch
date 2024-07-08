@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,16 +29,16 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
     protected BinaryScalarFunction(StreamInput in) throws IOException {
         this(
             Source.readFrom((StreamInput & PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression()
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(left());
-        ((PlanStreamOutput) out).writeExpression(right());
+        out.writeNamedWriteable(left);
+        out.writeNamedWriteable(right);
     }
 
     @Override

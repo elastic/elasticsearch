@@ -41,9 +41,6 @@ tests:
 - class: "org.elasticsearch.xpack.inference.InferenceCrudIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109391"
   method: "testDeleteEndpointWhileReferencedByPipeline"
-- class: "org.elasticsearch.xpack.rollup.job.RollupIndexerStateTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109627"
-  method: "testMultipleJobTriggering"
 - class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109687"
   method: "test {p0=sql/translate/Translate SQL}"
@@ -68,9 +65,6 @@ tests:
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testPreload
   issue: https://github.com/elastic/elasticsearch/issues/110211
-- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
-  method: testUpdateRuleWithMaxSynonyms
-  issue: https://github.com/elastic/elasticsearch/issues/110212
 - class: "org.elasticsearch.rest.RestControllerIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110225"
 - class: "org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests"
@@ -82,12 +76,6 @@ tests:
 - class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/110244
-- class: org.elasticsearch.painless.LangPainlessClientYamlTestSuiteIT
-  method: test {yaml=painless/146_dense_vector_bit_basic/Cosine Similarity is not supported}
-  issue: https://github.com/elastic/elasticsearch/issues/110290
-- class: org.elasticsearch.painless.LangPainlessClientYamlTestSuiteIT
-  method: test {yaml=painless/146_dense_vector_bit_basic/Dot Product is not supported}
-  issue: https://github.com/elastic/elasticsearch/issues/110291
 - class: org.elasticsearch.action.search.SearchProgressActionListenerIT
   method: testSearchProgressWithQuery
   issue: https://github.com/elastic/elasticsearch/issues/109867
@@ -100,18 +88,18 @@ tests:
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testMinVersionAsOldVersion
   issue: https://github.com/elastic/elasticsearch/issues/109454
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial}
-  issue: https://github.com/elastic/elasticsearch/issues/110310
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testInfoParameters {class org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial}
-  issue: https://github.com/elastic/elasticsearch/issues/110310
 - class: org.elasticsearch.search.vectors.ExactKnnQueryBuilderTests
   method: testToQuery
   issue: https://github.com/elastic/elasticsearch/issues/110357
 - class: org.elasticsearch.search.aggregations.bucket.terms.RareTermsIT
   method: testSingleValuedString
   issue: https://github.com/elastic/elasticsearch/issues/110388
+- class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/110408"
+  method: "testCreateAndRestorePartialSearchableSnapshot"
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_half_byte_quantized/Test create, merge, and search cosine}
+  issue: https://github.com/elastic/elasticsearch/issues/109978
 
 # Examples:
 #

@@ -4,13 +4,13 @@
 Creates an {infer} endpoint to perform an {infer} task with the `amazonbedrock` service.
 
 [discrete]
-[[infer-service-azure-ai-studio-api-request]]
+[[infer-service-amazon-bedrock-api-request]]
 ==== {api-request-title}
 
 `PUT /_inference/<task_type>/<inference_id>`
 
 [discrete]
-[[infer-service-azure-ai-studio-api-path-params]]
+[[infer-service-amazon-bedrock-api-path-params]]
 ==== {api-path-parms-title}
 
 `<inference_id>`::
@@ -85,8 +85,8 @@ The list of available regions per model can be found in the https://docs.aws.ama
 
 `rate_limit`:::
 (Optional, object)
-By default, the `azureaistudio` service sets the number of requests allowed per minute to `240`.
-This helps to minimize the number of rate limit errors returned from Azure AI Studio.
+By default, the `amazonbedrock` service sets the number of requests allowed per minute to `240`.
+This helps to minimize the number of rate limit errors returned from Amazon Bedrock.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
 --

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
@@ -90,7 +92,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
-import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP;
+import static org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules.TransformDirection.UP;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
 
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
@@ -598,54 +600,73 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
             PhysicalPlan plan = filterExec;
             if (filterExec.child() instanceof EsQueryExec) {
-                if (filterExec.condition() instanceof EsqlBinaryComparison comparison) {
+                // Find and rewrite any binary comparisons that involve a distance function and a literal
+                var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
                     ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
                     if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
-                        plan = rewriteComparison(filterExec, dist, comparison.right(), comparisonType);
+                        return rewriteComparison(comparison, dist, comparison.right(), comparisonType);
                     } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
-                        plan = rewriteComparison(filterExec, dist, comparison.right(), ComparisonType.invert(comparisonType));
+                        return rewriteComparison(comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
                     }
+                    return comparison;
+                });
+                if (rewritten.equals(filterExec.condition()) == false) {
+                    plan = new FilterExec(filterExec.source(), filterExec.child(), rewritten);
                 }
             }
 
             return plan;
         }
 
-        private FilterExec rewriteComparison(FilterExec filterExec, StDistance dist, Expression literal, ComparisonType comparisonType) {
-            // We currently only support spatial distance within a minimum range
-            if (comparisonType.lt) {
-                Object value = literal.fold();
-                if (value instanceof Number number) {
-                    if (dist.right().foldable()) {
-                        return rewriteDistanceFilter(filterExec, dist.source(), dist.left(), dist.right(), number, comparisonType.eq);
-                    } else if (dist.left().foldable()) {
-                        return rewriteDistanceFilter(filterExec, dist.source(), dist.right(), dist.left(), number, comparisonType.eq);
-                    }
+        private Expression rewriteComparison(
+            EsqlBinaryComparison comparison,
+            StDistance dist,
+            Expression literal,
+            ComparisonType comparisonType
+        ) {
+            Object value = literal.fold();
+            if (value instanceof Number number) {
+                if (dist.right().foldable()) {
+                    return rewriteDistanceFilter(comparison, dist.left(), dist.right(), number, comparisonType);
+                } else if (dist.left().foldable()) {
+                    return rewriteDistanceFilter(comparison, dist.right(), dist.left(), number, comparisonType);
                 }
             }
-            return filterExec;
+            return comparison;
         }
 
-        private FilterExec rewriteDistanceFilter(
-            FilterExec filterExec,
-            Source source,
-            Expression spatialExpression,
-            Expression literalExpression,
+        private Expression rewriteDistanceFilter(
+            EsqlBinaryComparison comparison,
+            Expression spatialExp,
+            Expression literalExp,
             Number number,
-            boolean inclusive
+            ComparisonType comparisonType
         ) {
-            Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literalExpression);
+            Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literalExp);
             if (geometry instanceof Point point) {
                 double distance = number.doubleValue();
-                if (inclusive == false) {
-                    distance = Math.nextDown(distance);
+                Source source = comparison.source();
+                if (comparisonType.lt) {
+                    distance = comparisonType.eq ? distance : Math.nextDown(distance);
+                    return new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp));
+                } else if (comparisonType.gt) {
+                    distance = comparisonType.eq ? distance : Math.nextUp(distance);
+                    return new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, distance, literalExp));
+                } else if (comparisonType.eq) {
+                    return new And(
+                        source,
+                        new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp)),
+                        new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, Math.nextDown(distance), literalExp))
+                    );
                 }
-                var circle = new Circle(point.getX(), point.getY(), distance);
-                var wkb = WellKnownBinary.toWKB(circle, ByteOrder.LITTLE_ENDIAN);
-                var cExp = new Literal(literalExpression.source(), new BytesRef(wkb), DataType.GEO_SHAPE);
-                return new FilterExec(filterExec.source(), filterExec.child(), new SpatialIntersects(source, spatialExpression, cExp));
             }
-            return filterExec;
+            return comparison;
+        }
+
+        private Literal makeCircleLiteral(Point point, double distance, Expression literalExpression) {
+            var circle = new Circle(point.getX(), point.getY(), distance);
+            var wkb = WellKnownBinary.toWKB(circle, ByteOrder.LITTLE_ENDIAN);
+            return new Literal(literalExpression.source(), new BytesRef(wkb), DataType.GEO_SHAPE);
         }
 
         /**
@@ -655,20 +676,20 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
          * field disables those.
          */
         enum ComparisonType {
-            LTE(true, true, true),
-            LT(true, false, true),
+            LTE(true, false, true),
+            LT(true, false, false),
             GTE(false, true, true),
-            GT(false, false, true),
-            UNSUPPORTED(false, false, false);
+            GT(false, true, false),
+            EQ(false, false, true);
 
             private final boolean lt;
+            private final boolean gt;
             private final boolean eq;
-            private final boolean supported;
 
-            ComparisonType(boolean lt, boolean eq, boolean supported) {
+            ComparisonType(boolean lt, boolean gt, boolean eq) {
                 this.lt = lt;
+                this.gt = gt;
                 this.eq = eq;
-                this.supported = supported;
             }
 
             static ComparisonType from(EsqlBinaryComparison.BinaryComparisonOperation op) {
@@ -677,7 +698,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     case LTE -> LTE;
                     case GT -> GT;
                     case GTE -> GTE;
-                    default -> UNSUPPORTED;
+                    default -> EQ;
                 };
             }
 
@@ -687,7 +708,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     case LTE -> GTE;
                     case GT -> LT;
                     case GTE -> LTE;
-                    default -> UNSUPPORTED;
+                    default -> EQ;
                 };
             }
         }

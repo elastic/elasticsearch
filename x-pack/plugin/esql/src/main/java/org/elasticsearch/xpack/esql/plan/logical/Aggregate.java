@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -24,9 +22,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 
 public class Aggregate extends UnaryPlan {
 
@@ -74,7 +69,7 @@ public class Aggregate extends UnaryPlan {
             Source.readFrom(in),
             in.readLogicalPlanNode(),
             AggregateType.readType(in),
-            in.readCollectionAsList(readerFromPlanReader(org.elasticsearch.xpack.esql.io.stream.PlanStreamInput::readExpression)),
+            in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class)
         );
     }
@@ -83,7 +78,7 @@ public class Aggregate extends UnaryPlan {
         Source.EMPTY.writeTo(out);
         out.writeLogicalPlanNode(aggregate.child());
         AggregateType.writeType(out, aggregate.aggregateType());
-        out.writeCollection(aggregate.groupings(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
+        out.writeNamedWriteableCollection(aggregate.groupings);
         out.writeNamedWriteableCollection(aggregate.aggregates());
     }
 

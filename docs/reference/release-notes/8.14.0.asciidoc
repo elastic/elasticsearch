@@ -13,6 +13,12 @@ Also see <<breaking-changes-8.14,Breaking changes in 8.14>>.
   The workaround is to grant Elasticsearch read access to the directory mentioned in the `java.nio.file.AccessDeniedException` as observed in the logs
   and repeat this until the process starts up properly, see https://support.elastic.co/knowledge/5979309d[here] for further details.
   With 8.14.1 the workaround won't be necessary anymore and original permissions can be restored.
+* When upgrading clusters from version 8.12.2 or earlier, if your cluster contains non-master-eligible nodes,
+  information about the new functionality of these upgraded nodes may not be registered properly with the master node.
+  This can lead to some new functionality added since 8.13.0 not being accessible on the upgraded cluster.
+  If your cluster is running on ECK 2.12.1 and above, this may cause problems with finalizing the upgrade.
+  To resolve this issue, perform a rolling restart on the non-master-eligible nodes once all Elasticsearch nodes
+  are upgraded.
 
 [[breaking-8.14.0]]
 [float]
@@ -22,16 +28,6 @@ Security::
 * Prevent DLS/FLS if `replication` is assigned {es-pull}108600[#108600]
 * Apply stricter Document Level Security (DLS) rules for the validate query API with the rewrite parameter {es-pull}105709[#105709]
 * Apply stricter Document Level Security (DLS) rules for terms aggregations when min_doc_count is set to 0 {es-pull}105714[#105714]
-
-[[known-issues-8.14.0]]
-[float]
-=== Known issues
-* When upgrading clusters from version 8.12.2 or earlier, if your cluster contains non-master-eligible nodes,
-information about the new functionality of these upgraded nodes may not be registered properly with the master node.
-This can lead to some new functionality added since 8.13.0 not being accessible on the upgraded cluster.
-If your cluster is running on ECK 2.12.1 and above, this may cause problems with finalizing the upgrade.
-To resolve this issue, perform a rolling restart on the non-master-eligible nodes once all Elasticsearch nodes
-are upgraded.
 
 [[bug-8.14.0]]
 [float]

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -107,6 +109,8 @@ public class SearchTransportService {
      * filtered out.
      */
     public static final String QUERY_CAN_MATCH_NODE_NAME = "indices:data/read/search[can_match][n]";
+
+    private static final Logger logger = LogManager.getLogger(SearchTransportService.class);
 
     private final TransportService transportService;
     private final NodeClient client;
@@ -442,6 +446,7 @@ public class SearchTransportService {
         SearchTransportAPMMetrics searchTransportMetrics
     ) {
         final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
+            logger.trace("releasing search context [{}]", request.id());
             boolean freed = searchService.freeReaderContext(request.id());
             channel.sendResponse(new SearchFreeContextResponse(freed));
         };

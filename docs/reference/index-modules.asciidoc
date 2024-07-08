@@ -81,8 +81,9 @@ breaking change].
     If you are updating the compression type, the new one will be applied
     after segments are merged. Segment merging can be forced using
     <<indices-forcemerge,force merge>>. Experiments with indexing log datasets
-    have shown that `best_compression` gives up to ~18% lower storage usage
-    compared to `default` while only minimally affecting indexing throughput (~2%).
+    have shown that `best_compression` gives up to ~18% lower storage usage in
+    the most ideal scenario compared to `default` while only minimally affecting
+    indexing throughput (~2%).
 
 [[index-mode-setting]] `index.mode`::
 +

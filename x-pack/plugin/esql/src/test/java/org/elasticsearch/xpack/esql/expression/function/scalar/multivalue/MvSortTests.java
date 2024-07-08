@@ -12,7 +12,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -181,6 +183,22 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
             );
         }));
+    }
+
+    public void testInvalidOrder() {
+        String invalidOrder = randomAlphaOfLength(10);
+        DriverContext driverContext = driverContext();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> evaluator(
+                new MvSort(
+                    Source.EMPTY,
+                    field("str", DataType.DATETIME),
+                    new Literal(Source.EMPTY, new BytesRef(invalidOrder), DataType.KEYWORD)
+                )
+            ).get(driverContext)
+        );
+        assertThat(e.getMessage(), equalTo("Invalid order value in [], expected one of [ASC, DESC] but got [" + invalidOrder + "]"));
     }
 
     @Override

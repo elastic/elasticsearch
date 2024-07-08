@@ -1326,6 +1326,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 }
 
                 @Override
+                public IndexSettings indexSettings() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
                 public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
                     return columnReader ? DOC_VALUES : NONE;
                 }

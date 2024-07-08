@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -449,6 +450,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return new MappedFieldType.BlockLoaderContext() {
             @Override
             public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
                 throw new UnsupportedOperationException();
             }
 

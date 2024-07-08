@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -87,7 +88,9 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
         DenseVectorQuery.Floats denseVectorQuery = (DenseVectorQuery.Floats) query;
         assertEquals(VECTOR_FIELD, denseVectorQuery.field);
         float[] expected = Arrays.copyOf(queryBuilder.getQuery().asFloatVector(), queryBuilder.getQuery().asFloatVector().length);
-        if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)) {
+        float magnitude = VectorUtil.dotProduct(expected, expected);
+        if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)
+            && DenseVectorFieldMapper.isNotUnitVector(magnitude)) {
             VectorUtil.l2normalize(expected);
             assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.0f);
         } else {

@@ -23,7 +23,10 @@ import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -31,8 +34,11 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Base class for aggregation tests.
@@ -47,13 +53,55 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      */
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
         // TODO: Add case with no input expecting null
-        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
+        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
+    }
+
+    /**
+     * Adds a test case with no rows, expecting null, to the list of suppliers.
+     */
+    protected static List<TestCaseSupplier> withNoRowsExpectingNull(List<TestCaseSupplier> suppliers) {
+        List<TestCaseSupplier> newSuppliers = new ArrayList<>(suppliers);
+        Set<List<DataType>> uniqueSignatures = new HashSet<>();
+
+        for (TestCaseSupplier original : suppliers) {
+            if (uniqueSignatures.add(original.types())) {
+                newSuppliers.add(new TestCaseSupplier(original.name() + " with no rows", original.types(), () -> {
+                    var testCase = original.get();
+
+                    if (testCase.getData().stream().noneMatch(TestCaseSupplier.TypedData::isMultiRow)) {
+                        // Fail if no multi-row data, at least until a real case is found
+                        fail("No multi-row data found in test case: " + testCase);
+                    }
+
+                    var newData = testCase.getData().stream().map(td -> td.isMultiRow() ? td.withData(List.of()) : td).toList();
+
+                    return new TestCaseSupplier.TestCase(
+                        newData,
+                        testCase.evaluatorToString(),
+                        testCase.expectedType(),
+                        nullValue(),
+                        null,
+                        testCase.getExpectedTypeError(),
+                        null,
+                        null
+                    );
+                }));
+            }
+        }
+
+        return newSuppliers;
     }
 
     public void testAggregate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
         resolveExpression(expression, this::aggregateSingleMode, this::evaluate);
+    }
+
+    public void testAggregateIntermediate() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+
+        resolveExpression(expression, this::aggregateWithIntermediates, this::evaluate);
     }
 
     public void testFold() {
@@ -80,17 +128,78 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         });
     }
 
-    private void aggregateSingleMode(AggregatorFunctionSupplier aggregatorFunctionSupplier) {
+    private void aggregateSingleMode(Expression expression) {
         Object result;
-        try (var aggregator = new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), AggregatorMode.SINGLE)) {
-            Page inputPage = rows(testCase.getMultiRowDataValues());
+        try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+            Page inputPage = rows(testCase.getMultiRowFields());
             try {
                 aggregator.processPage(inputPage);
             } finally {
                 inputPage.releaseBlocks();
             }
 
-            // ElementType from DataType
+            result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
+        }
+
+        assertThat(result, not(equalTo(Double.NaN)));
+        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
+        assertThat(result, testCase.getMatcher());
+        if (testCase.getExpectedWarnings() != null) {
+            assertWarnings(testCase.getExpectedWarnings());
+        }
+    }
+
+    private void aggregateWithIntermediates(Expression expression) {
+        int intermediateBlockOffset = randomIntBetween(0, 10);
+        Block[] intermediateBlocks;
+        int intermediateStates;
+
+        // Input rows to intermediate states
+        try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.INITIAL)) {
+            intermediateStates = aggregator.evaluateBlockCount();
+
+            int intermediateBlockExtraSize = randomIntBetween(0, 10);
+            intermediateBlocks = new Block[intermediateBlockOffset + intermediateStates + intermediateBlockExtraSize];
+
+            Page inputPage = rows(testCase.getMultiRowFields());
+            try {
+                aggregator.processPage(inputPage);
+            } finally {
+                inputPage.releaseBlocks();
+            }
+
+            aggregator.evaluate(intermediateBlocks, intermediateBlockOffset, driverContext());
+
+            int positionCount = intermediateBlocks[intermediateBlockOffset].getPositionCount();
+
+            // Fill offset and extra blocks with nulls
+            for (int i = 0; i < intermediateBlockOffset; i++) {
+                intermediateBlocks[i] = driverContext().blockFactory().newConstantNullBlock(positionCount);
+            }
+            for (int i = intermediateBlockOffset + intermediateStates; i < intermediateBlocks.length; i++) {
+                intermediateBlocks[i] = driverContext().blockFactory().newConstantNullBlock(positionCount);
+            }
+        }
+
+        Object result;
+        // Intermediate states to final result
+        try (
+            var aggregator = aggregator(
+                expression,
+                intermediaryInputChannels(intermediateStates, intermediateBlockOffset),
+                AggregatorMode.FINAL
+            )
+        ) {
+            Page inputPage = new Page(intermediateBlocks);
+            try {
+                aggregator.processPage(inputPage);
+            } finally {
+                inputPage.releaseBlocks();
+            }
+
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
         }
 
@@ -124,11 +233,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
     }
 
-    private void resolveExpression(
-        Expression expression,
-        Consumer<AggregatorFunctionSupplier> onAggregator,
-        Consumer<Expression> onEvaluableExpression
-    ) {
+    private void resolveExpression(Expression expression, Consumer<Expression> onAggregator, Consumer<Expression> onEvaluableExpression) {
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
@@ -154,8 +259,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         assertThat(expression, instanceOf(ToAggregator.class));
         logger.info("Result type: " + expression.dataType());
 
-        var inputChannels = inputChannels();
-        onAggregator.accept(((ToAggregator) expression).supplier(inputChannels));
+        onAggregator.accept(expression);
     }
 
     private Object extractResultFromAggregator(Aggregator aggregator, ElementType expectedElementType) {
@@ -167,7 +271,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
             var block = blocks[resultBlockIndex];
 
-            assertThat(block.elementType(), equalTo(expectedElementType));
+            // For null blocks, the element type is NULL, so if the provided matcher matches, the type works too
+            assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
             return toJavaObject(blocks[resultBlockIndex], 0);
         } finally {
@@ -175,10 +280,14 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
     }
 
-    private List<Integer> inputChannels() {
+    private List<Integer> initialInputChannels() {
         // TODO: Randomize channels
         // TODO: If surrogated, channels may change
-        return IntStream.range(0, testCase.getMultiRowDataValues().size()).boxed().toList();
+        return IntStream.range(0, testCase.getMultiRowFields().size()).boxed().toList();
+    }
+
+    private List<Integer> intermediaryInputChannels(int intermediaryStates, int offset) {
+        return IntStream.range(offset, offset + intermediaryStates).boxed().toList();
     }
 
     /**
@@ -209,5 +318,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
 
         return expression;
+    }
+
+    private Aggregator aggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
+        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
+
+        return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), mode);
     }
 }

@@ -44,7 +44,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -109,7 +108,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     EsqlQueryResponse randomResponseAsync(boolean columnar, EsqlQueryResponse.Profile profile, boolean async) {
         int noCols = randomIntBetween(1, 10);
-        List<ColumnInfo> columns = randomList(noCols, noCols, this::randomColumnInfo);
+        List<ColumnInfoImpl> columns = randomList(noCols, noCols, this::randomColumnInfo);
         int noPages = randomIntBetween(1, 20);
         List<Page> values = randomList(noPages, noPages, () -> randomPage(columns));
         String id = null;
@@ -121,12 +120,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         return new EsqlQueryResponse(columns, values, profile, columnar, id, isRunning, async);
     }
 
-    private ColumnInfo randomColumnInfo() {
+    private ColumnInfoImpl randomColumnInfo() {
         DataType type = randomValueOtherThanMany(
             t -> false == DataType.isPrimitive(t) || t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION || t == DataType.PARTIAL_AGG,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
-        return new ColumnInfo(randomAlphaOfLength(10), type.esType());
+        return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType());
     }
 
     private EsqlQueryResponse.Profile randomProfile() {
@@ -136,34 +135,34 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         return new EsqlQueryResponseProfileTests().createTestInstance();
     }
 
-    private Page randomPage(List<ColumnInfo> columns) {
+    private Page randomPage(List<ColumnInfoImpl> columns) {
         return new Page(columns.stream().map(c -> {
-            Block.Builder builder = PlannerUtils.toElementType(DataType.fromEs(c.type())).newBlockBuilder(1, blockFactory);
+            Block.Builder builder = PlannerUtils.toElementType(c.type()).newBlockBuilder(1, blockFactory);
             switch (c.type()) {
-                case "unsigned_long", "long", "counter_long" -> ((LongBlock.Builder) builder).appendLong(randomLong());
-                case "integer", "counter_integer" -> ((IntBlock.Builder) builder).appendInt(randomInt());
-                case "double", "counter_double" -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
-                case "keyword" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
-                case "text" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
-                case "ip" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                case UNSIGNED_LONG, LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(randomLong());
+                case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(randomInt());
+                case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
+                case KEYWORD -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                case TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
+                case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())))
                 );
-                case "date" -> ((LongBlock.Builder) builder).appendLong(randomInstant().toEpochMilli());
-                case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
-                case "unsupported" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                case DATETIME -> ((LongBlock.Builder) builder).appendLong(randomInstant().toEpochMilli());
+                case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
+                case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     new BytesRef(UnsupportedValueSource.UNSUPPORTED_OUTPUT)
                 );
-                case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
-                case "geo_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
-                case "cartesian_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));
-                case "geo_shape" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                case VERSION -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
+                case GEO_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
+                case CARTESIAN_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));
+                case GEO_SHAPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()))
                 );
-                case "cartesian_shape" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                case CARTESIAN_SHAPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
                 );
-                case "null" -> builder.appendNull();
-                case "_source" -> {
+                case NULL -> builder.appendNull();
+                case SOURCE -> {
                     try {
                         ((BytesRefBlock.Builder) builder).appendBytesRef(
                             BytesReference.bytes(
@@ -177,7 +176,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         throw new UncheckedIOException(e);
                     }
                 }
-                default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
+                // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
             return builder.build();
         }).toArray(Block[]::new));
@@ -186,17 +185,17 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     @Override
     protected EsqlQueryResponse mutateInstance(EsqlQueryResponse instance) {
         boolean allNull = true;
-        for (ColumnInfo info : instance.columns()) {
-            if (false == info.type().equals("null")) {
+        for (ColumnInfoImpl info : instance.columns()) {
+            if (info.type() != DataType.NULL) {
                 allNull = false;
             }
         }
         return switch (allNull ? between(0, 2) : between(0, 3)) {
             case 0 -> {
                 int mutCol = between(0, instance.columns().size() - 1);
-                List<ColumnInfo> cols = new ArrayList<>(instance.columns());
+                List<ColumnInfoImpl> cols = new ArrayList<>(instance.columns());
                 // keep the type the same so the values are still valid but change the name
-                cols.set(mutCol, new ColumnInfo(cols.get(mutCol).name() + "mut", cols.get(mutCol).type()));
+                cols.set(mutCol, new ColumnInfoImpl(cols.get(mutCol).name() + "mut", cols.get(mutCol).type()));
                 yield new EsqlQueryResponse(cols, deepCopyOfPages(instance), instance.profile(), instance.columnar(), instance.isAsync());
             }
             case 1 -> new EsqlQueryResponse(
@@ -273,7 +272,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 IS_RUNNING,
                 ObjectParser.ValueType.BOOLEAN_OR_NULL
             );
-            parser.declareObjectArray(constructorArg(), (p, c) -> ColumnInfo.fromXContent(p), new ParseField("columns"));
+            parser.declareObjectArray(constructorArg(), (p, c) -> ColumnInfoImpl.fromXContent(p), new ParseField("columns"));
             parser.declareField(constructorArg(), (p, c) -> p.list(), new ParseField("values"), ObjectParser.ValueType.OBJECT_ARRAY);
             PARSER = parser.build();
         }
@@ -282,7 +281,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         private final EsqlQueryResponse response;
 
         @ParserConstructor
-        public ResponseBuilder(@Nullable String asyncExecutionId, Boolean isRunning, List<ColumnInfo> columns, List<List<Object>> values) {
+        public ResponseBuilder(
+            @Nullable String asyncExecutionId,
+            Boolean isRunning,
+            List<ColumnInfoImpl> columns,
+            List<List<Object>> values
+        ) {
             this.response = new EsqlQueryResponse(
                 columns,
                 List.of(valuesToPage(TestBlockFactory.getNonBreakingInstance(), columns, values)),
@@ -372,7 +376,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     public void testBasicXContentIdAndRunning() {
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
-                List.of(new ColumnInfo("foo", "integer")),
+                List.of(new ColumnInfoImpl("foo", "integer")),
                 List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 null,
                 false,
@@ -389,7 +393,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     public void testNullColumnsXContentDropNulls() {
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
-                List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("all_null", "integer")),
+                List.of(new ColumnInfoImpl("foo", "integer"), new ColumnInfoImpl("all_null", "integer")),
                 List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock(), blockFactory.newConstantNullBlock(2))),
                 null,
                 false,
@@ -418,7 +422,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             b.appendNull();
             try (
                 EsqlQueryResponse response = new EsqlQueryResponse(
-                    List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("all_null", "integer")),
+                    List.of(new ColumnInfoImpl("foo", "integer"), new ColumnInfoImpl("all_null", "integer")),
                     List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock(), b.build())),
                     null,
                     false,
@@ -444,7 +448,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     private EsqlQueryResponse simple(boolean columnar, boolean async) {
         return new EsqlQueryResponse(
-            List.of(new ColumnInfo("foo", "integer")),
+            List.of(new ColumnInfoImpl("foo", "integer")),
             List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
             null,
             columnar,
@@ -455,7 +459,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     public void testProfileXContent() {
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
-                List.of(new ColumnInfo("foo", "integer")),
+                List.of(new ColumnInfoImpl("foo", "integer")),
                 List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 new EsqlQueryResponse.Profile(
                     List.of(
@@ -520,7 +524,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         var intBlk2 = blockFactory.newIntArrayVector(new int[] { 30, 40, 50 }, 3).asBlock();
         var longBlk1 = blockFactory.newLongArrayVector(new long[] { 100L, 200L }, 2).asBlock();
         var longBlk2 = blockFactory.newLongArrayVector(new long[] { 300L, 400L, 500L }, 3).asBlock();
-        var columnInfo = List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("bar", "long"));
+        var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"), new ColumnInfoImpl("bar", "long"));
         var pages = List.of(new Page(intBlk1, longBlk1), new Page(intBlk2, longBlk2));
         try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             assertThat(columnValues(response.column(0)), contains(10, 20, 30, 40, 50));
@@ -532,7 +536,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     public void testColumnsIllegalArg() {
         var intBlk1 = blockFactory.newIntArrayVector(new int[] { 10 }, 1).asBlock();
-        var columnInfo = List.of(new ColumnInfo("foo", "integer"));
+        var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"));
         var pages = List.of(new Page(intBlk1));
         try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
@@ -551,7 +555,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             blk2 = bb2.appendInt(30).appendNull().appendNull().appendInt(60).build();
             blk3 = bb3.appendNull().appendInt(80).appendInt(90).appendNull().build();
         }
-        var columnInfo = List.of(new ColumnInfo("foo", "integer"));
+        var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
         try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             assertThat(columnValues(response.column(0)), contains(10, null, 30, null, null, 60, null, 80, 90, null));
@@ -571,7 +575,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             blk2 = bb2.beginPositionEntry().appendInt(40).appendInt(50).endPositionEntry().build();
             blk3 = bb3.appendNull().appendInt(70).appendInt(80).appendNull().build();
         }
-        var columnInfo = List.of(new ColumnInfo("foo", "integer"));
+        var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
         try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             assertThat(columnValues(response.column(0)), contains(List.of(10, 20), null, List.of(40, 50), null, 70, 80, null));
@@ -583,7 +587,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     public void testRowValues() {
         for (int times = 0; times < 10; times++) {
             int numColumns = randomIntBetween(1, 10);
-            List<ColumnInfo> columns = randomList(numColumns, numColumns, this::randomColumnInfo);
+            List<ColumnInfoImpl> columns = randomList(numColumns, numColumns, this::randomColumnInfo);
             int noPages = randomIntBetween(1, 20);
             List<Page> pages = randomList(noPages, noPages, () -> randomPage(columns));
             try (var resp = new EsqlQueryResponse(columns, pages, null, false, "", false, false)) {

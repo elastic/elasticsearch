@@ -135,7 +135,7 @@ public final class ResponseValueUtils {
                 long longVal = ((LongBlock) block).getLong(offset);
                 yield dateTimeToString(longVal);
             }
-            case "date_nanos" -> {
+            case DATE_NANOS -> {
                 long longVal = ((LongBlock) block).getLong(offset);
                 yield nanoTimeToString(longVal);
             }

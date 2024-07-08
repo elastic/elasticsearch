@@ -7,21 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class OrSerializationTests extends AbstractExpressionSerializationTests<Or> {
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return EsqlScalarFunction.getNamedWriteables();
-    }
-
     @Override
     protected Or createTestInstance() {
         Source source = randomSource();

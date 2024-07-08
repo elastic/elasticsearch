@@ -11,6 +11,8 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.geometry.Geometry;
@@ -49,6 +51,12 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  * Here we simply wire the rules together specific to ST_WITHIN and QueryRelation.WITHIN.
  */
 public class SpatialWithin extends SpatialRelatesFunction implements SurrogateExpression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "SpatialWithin",
+        SpatialWithin::new
+    );
+
     // public for test access with reflection
     public static final SpatialRelations GEO = new SpatialRelations(
         ShapeField.QueryRelation.WITHIN,
@@ -87,6 +95,15 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
 
     SpatialWithin(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues);
+    }
+
+    private SpatialWithin(StreamInput in) throws IOException {
+        super(in, false, false);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

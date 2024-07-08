@@ -5,6 +5,34 @@ a:integer | b:integer
 1         | 2
 ;
 
+
+shadowing
+ROW left = "left", x = 10000 , right = "right"
+| EVAL x = 1
+;
+
+left:keyword | right:keyword | x:integer
+left         | right         | 1
+;
+
+shadowingSelf
+ROW left = "left", x = 10000 , right = "right"
+| EVAL x = x + 1
+;
+
+left:keyword | right:keyword | x:integer
+left         | right         | 10001
+;
+
+shadowingMulti
+ROW left = "left", x = 0, middle = "middle", y = -1, right = "right"
+| EVAL x = 9, y = 10
+;
+
+left:keyword | middle:keyword | right:keyword | x:integer | y:integer
+left         | middle         | right         | 9         | 10
+;
+
 withMath
 row a = 1 | eval b = 2 + 3;
 

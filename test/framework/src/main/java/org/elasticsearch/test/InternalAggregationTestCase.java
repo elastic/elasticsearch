@@ -77,7 +77,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, aggs);
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, aggs, b -> {});
             }
 
             @Override
@@ -95,7 +95,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, agg);
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, agg, b -> {});
             }
 
             @Override
@@ -244,7 +244,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 bigArrays,
                 mockScriptService,
                 () -> false,
-                inputs.builder()
+                inputs.builder(),
+                b -> {}
             );
             @SuppressWarnings("unchecked")
             T reduced = (T) reduce(toPartialReduce, context);

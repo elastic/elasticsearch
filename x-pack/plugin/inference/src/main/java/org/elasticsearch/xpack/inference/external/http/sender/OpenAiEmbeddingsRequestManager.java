@@ -55,13 +55,13 @@ public class OpenAiEmbeddingsRequestManager extends OpenAiRequestManager {
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
         OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(truncator, truncatedInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

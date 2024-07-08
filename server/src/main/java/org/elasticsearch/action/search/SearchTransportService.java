@@ -133,6 +133,10 @@ public class SearchTransportService {
         this.responseWrapper = responseWrapper;
     }
 
+    TransportService transportService() {
+        return transportService;
+    }
+
     public void sendFreeContext(Transport.Connection connection, final ShardSearchContextId contextId, OriginalIndices originalIndices) {
         transportService.sendRequest(
             connection,
@@ -381,10 +385,10 @@ public class SearchTransportService {
         }
     }
 
-    static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
+    public static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private final OriginalIndices originalIndices;
 
-        SearchFreeContextRequest(OriginalIndices originalIndices, ShardSearchContextId id) {
+        public SearchFreeContextRequest(OriginalIndices originalIndices, ShardSearchContextId id) {
             super(id);
             this.originalIndices = originalIndices;
         }
@@ -422,7 +426,7 @@ public class SearchTransportService {
 
         private final boolean freed;
 
-        SearchFreeContextResponse(StreamInput in) throws IOException {
+        public SearchFreeContextResponse(StreamInput in) throws IOException {
             freed = in.readBoolean();
         }
 

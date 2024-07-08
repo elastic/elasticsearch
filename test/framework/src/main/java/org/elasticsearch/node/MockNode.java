@@ -8,6 +8,9 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.action.search.MockSearchTransportService;
+import org.elasticsearch.action.search.SearchExecutionStatsCollector;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
@@ -237,6 +240,24 @@ public class MockNode extends Node {
                 return super.newHttpTransport(pluginsService, networkModule);
             } else {
                 return new MockHttpTransport();
+            }
+        }
+
+        @Override
+        SearchTransportService newSearchTransportService(
+            PluginsService pluginsService,
+            TransportService transportService,
+            NodeClient client,
+            ResponseCollectorService responseCollectorService
+        ) {
+            if (pluginsService.filterPlugins(MockSearchTransportService.TestPlugin.class).findAny().isEmpty()) {
+                return super.newSearchTransportService(pluginsService, transportService, client, responseCollectorService);
+            } else {
+                return new MockSearchTransportService(
+                    transportService,
+                    client,
+                    SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
+                );
             }
         }
     }

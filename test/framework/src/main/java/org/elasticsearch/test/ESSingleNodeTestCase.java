@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteCom
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.MockSearchTransportService;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.AdminClient;
@@ -44,6 +45,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeService;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
@@ -130,6 +132,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         awaitIndexShardCloseAsyncTasks();
         ensureNoInitializingShards();
+        ensureAllFreeContextActionsAreConsumed();
+
         SearchService searchService = getInstanceFromNode(SearchService.class);
         assertThat(searchService.getActiveContexts(), equalTo(0));
         assertThat(searchService.getOpenScrollContexts(), equalTo(0));
@@ -274,6 +278,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (enableConcurrentSearch) {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
+        plugins.add(MockSearchTransportService.TestPlugin.class);
         plugins.add(MockScriptService.TestPlugin.class);
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
@@ -453,6 +458,24 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .actionGet();
 
         assertFalse("timed out waiting for shards to initialize", actionGet.isTimedOut());
+    }
+
+    /**
+     * waits until all free_context actions have been handled by the generic thread pool
+     */
+    protected void ensureAllFreeContextActionsAreConsumed() throws Exception {
+        NodeService nodeService = getInstanceFromNode(NodeService.class);
+        MockSearchTransportService searchTransportService = (MockSearchTransportService) nodeService.getSearchTransportService();
+        assertBusy(() -> {
+            assertThat(
+                searchTransportService.getFreeContextRequests().get(),
+                equalTo(
+                    searchTransportService.getSuccessfulFreeContextRequests().get() + searchTransportService.getFailedFreeContextRequests()
+                        .get()
+                )
+            );
+        }, 5, TimeUnit.SECONDS);
+        assertThat(searchTransportService.getFailedFreeContextRequests().get(), equalTo(0));
     }
 
     /**

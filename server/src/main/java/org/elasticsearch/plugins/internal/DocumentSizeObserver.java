@@ -46,9 +46,7 @@ public interface DocumentSizeObserver {
      */
     long normalisedBytesParsed();
 
-    default IndexRequest setNormalisedBytesParsedOn(IndexRequest indexRequest) {
-        return indexRequest;
-    }
+    default void setNormalisedBytesParsedOn(IndexRequest indexRequest) {}
 
     default boolean isUpdateByScript() {
         return false;

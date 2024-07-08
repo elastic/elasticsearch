@@ -61,10 +61,9 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     @Override
     public synchronized void start(Collection<Watch> jobs) {
-        logger.debug("Starting engine");
         long startTime = clock.millis();
         isRunning.set(true);
-        logger.info("Watcher starting watches at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(startTime));
+        logger.info("Starting watcher engine at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(startTime));
         Map<String, ActiveSchedule> startingSchedules = Maps.newMapWithExpectedSize(jobs.size());
         for (Watch job : jobs) {
             if (job.trigger() instanceof ScheduleTrigger trigger) {
@@ -85,7 +84,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     @Override
     public void stop() {
-        logger.debug("Stopping engine");
+        logger.info("Stopping watcher engine");
         isRunning.set(false);
         schedules.clear();
         ticker.close();
@@ -93,14 +92,14 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     @Override
     public void pauseExecution() {
-        logger.debug("Pausing engine");
+        logger.info("Pausing watcher engine");
         isRunning.set(false);
         schedules.clear();
     }
 
     @Override
     public void add(Watch watch) {
-        logger.debug("Adding watch [{}] to engine (engine is running: {})", watch.id(), isRunning.get());
+        logger.trace("Adding watch [{}] to engine (engine is running: {})", watch.id(), isRunning.get());
         assert watch.trigger() instanceof ScheduleTrigger;
         ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
         ActiveSchedule currentSchedule = schedules.get(watch.id());

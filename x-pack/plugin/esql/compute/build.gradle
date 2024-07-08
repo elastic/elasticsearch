@@ -523,26 +523,26 @@ tasks.named('stringTemplates').configure {
   }
 
 
-  File topListAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopListAggregator.java.st")
+  File topAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopAggregator.java.st")
   template {
     it.properties = intProperties
-    it.inputFile =  topListAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/TopListIntAggregator.java"
+    it.inputFile =  topAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopIntAggregator.java"
   }
   template {
     it.properties = longProperties
-    it.inputFile =  topListAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/TopListLongAggregator.java"
+    it.inputFile =  topAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopLongAggregator.java"
   }
   template {
     it.properties = floatProperties
-    it.inputFile =  topListAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/TopListFloatAggregator.java"
+    it.inputFile =  topAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopFloatAggregator.java"
   }
   template {
     it.properties = doubleProperties
-    it.inputFile =  topListAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/TopListDoubleAggregator.java"
+    it.inputFile =  topAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopDoubleAggregator.java"
   }
 
   File multivalueDedupeInputFile = file("src/main/java/org/elasticsearch/compute/operator/mvdedupe/X-MultivalueDedupe.java.st")

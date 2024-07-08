@@ -12,24 +12,25 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
  * Configuration for a {@code JOIN} style operation.
- * @param matchFields fields that are merged from the left and right relations
- * @param conditions when these conditions are true the rows are joined
+ * @param matchFields fields either from the left or right fields which decide which side is kept
+ * @param leftFields matched with the right fields
+ * @param rightFields matched with the left fields
  */
-public record JoinConfig(JoinType type, List<Attribute> matchFields, List<Expression> conditions) implements Writeable {
+public record JoinConfig(JoinType type, List<Attribute> matchFields, List<Attribute> leftFields, List<Attribute> rightFields)
+    implements
+        Writeable {
     public JoinConfig(StreamInput in) throws IOException {
         this(
             JoinType.readFrom(in),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readCollectionAsList(i -> ((PlanStreamInput) i).readExpression())
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
 
@@ -37,10 +38,11 @@ public record JoinConfig(JoinType type, List<Attribute> matchFields, List<Expres
     public void writeTo(StreamOutput out) throws IOException {
         type.writeTo(out);
         out.writeNamedWriteableCollection(matchFields);
-        out.writeCollection(conditions, (o, v) -> ((PlanStreamOutput) o).writeExpression(v));
+        out.writeNamedWriteableCollection(leftFields);
+        out.writeNamedWriteableCollection(rightFields);
     }
 
     public boolean expressionsResolved() {
-        return Resolvables.resolved(matchFields) && Resolvables.resolved(conditions);
+        return Resolvables.resolved(matchFields) && Resolvables.resolved(leftFields) && Resolvables.resolved(rightFields);
     }
 }

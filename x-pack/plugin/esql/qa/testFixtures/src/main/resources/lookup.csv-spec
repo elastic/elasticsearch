@@ -1,5 +1,5 @@
 keywordByInt
-required_capability: lookup_v3
+required_capability: lookup_v4
 FROM employees
 | SORT emp_no
 | LIMIT 4
@@ -16,20 +16,20 @@ emp_no:integer | languages:integer | lang_name:keyword
          10004 |                 5 | five
 ;
 
-keywordByMvInt
-required_capability: lookup_v3
+keywordByMvIntAndQuotedSource
+required_capability: lookup_v4
 ROW int=[1, 2, 3]
-| LOOKUP int_number_names ON int
+| LOOKUP "int_number_names" ON int
 ;
 
 int:integer | name:keyword
   [1, 2, 3] | [one, two, three]
 ;
 
-keywordByDupeInt
-required_capability: lookup_v3
+keywordByDupeIntAndTripleQuotedSource
+required_capability: lookup_v4
 ROW int=[1, 1, 1]
-| LOOKUP int_number_names ON int
+| LOOKUP """int_number_names""" ON int
 ;
 
 int:integer | name:keyword
@@ -37,7 +37,7 @@ int:integer | name:keyword
 ;
 
 intByKeyword
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW name="two"
 | LOOKUP int_number_names ON name
 ;
@@ -48,7 +48,7 @@ name:keyword | int:integer
 
 
 keywordByLong
-required_capability: lookup_v3
+required_capability: lookup_v4
 FROM employees
 | SORT emp_no
 | LIMIT 4
@@ -66,7 +66,7 @@ emp_no:integer | languages:long | lang_name:keyword
 ;
 
 longByKeyword
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW name="two"
 | LOOKUP long_number_names ON name
 ;
@@ -76,7 +76,7 @@ name:keyword | long:long
 ;
 
 keywordByFloat
-required_capability: lookup_v3
+required_capability: lookup_v4
 FROM employees
 | SORT emp_no
 | LIMIT 4
@@ -94,7 +94,7 @@ emp_no:integer | height:double | height_name:keyword
 ;
 
 floatByKeyword
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW name="two point zero eight"
 | LOOKUP double_number_names ON name
 ;
@@ -104,7 +104,7 @@ two point zero eight |          2.08
 ;
 
 floatByNullMissing
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW name=null
 | LOOKUP double_number_names ON name
 ;
@@ -114,7 +114,7 @@ name:null | double:double
 ;
 
 floatByNullMatching
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW name=null
 | LOOKUP double_number_names_with_null ON name
 ;
@@ -124,7 +124,7 @@ name:null | double:double
 ;
 
 intIntByKeywordKeyword
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW aa="foo", ab="zoo"
 | LOOKUP big ON aa, ab
 ;
@@ -134,7 +134,7 @@ foo        | zoo        |          1 |         -1
 ;
 
 intIntByKeywordKeywordMissing
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW aa="foo", ab="zoi"
 | LOOKUP big ON aa, ab
 ;
@@ -144,7 +144,7 @@ foo        | zoi        |       null |       null
 ;
 
 intIntByKeywordKeywordSameValues
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW aa="foo", ab="foo"
 | LOOKUP big ON aa, ab
 ;
@@ -154,7 +154,7 @@ foo        | foo        |          2 |         -2
 ;
 
 intIntByKeywordKeywordSameValuesMissing
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW aa="bar", ab="bar"
 | LOOKUP big ON aa, ab
 ;
@@ -164,7 +164,7 @@ bar        | bar        |       null |       null
 ;
 
 lookupBeforeStats
-required_capability: lookup_v3
+required_capability: lookup_v4
   FROM employees
 | RENAME languages AS int
 | LOOKUP int_number_names ON int
@@ -182,7 +182,7 @@ height:double | languages:keyword
 ;
 
 lookupAfterStats
-required_capability: lookup_v3
+required_capability: lookup_v4
   FROM employees
 | STATS int=TO_INT(AVG(height))
 | LOOKUP int_number_names ON int
@@ -194,7 +194,7 @@ two
 
 // Makes sure the LOOKUP squashes previous names 
 doesNotDuplicateNames
-required_capability: lookup_v3
+required_capability: lookup_v4
 FROM employees
 | SORT emp_no
 | LIMIT 4
@@ -213,7 +213,7 @@ emp_no:integer | languages:long | name:keyword
 ;
 
 lookupBeforeSort
-required_capability: lookup_v3
+required_capability: lookup_v4
 FROM employees
 | WHERE emp_no < 10005
 | RENAME languages AS int
@@ -231,7 +231,7 @@ languages:keyword | emp_no:integer
 ;
 
 lookupAfterSort
-required_capability: lookup_v3
+required_capability: lookup_v4
 FROM employees
 | WHERE emp_no < 10005
 | SORT languages ASC, emp_no ASC
@@ -249,7 +249,7 @@ languages:keyword | emp_no:integer
 ;
 
 shadowing
-required_capability: lookup_v3
+required_capability: lookup_v4
 FROM employees
 | KEEP emp_no
 | WHERE emp_no == 10001
@@ -262,7 +262,7 @@ emp_no:integer | left:keyword | int:integer | right:keyword | name:keyword
 ;
 
 shadowingMulti
-required_capability: lookup_v3
+required_capability: lookup_v4
 FROM employees
 | KEEP emp_no
 | WHERE emp_no == 10001
@@ -279,7 +279,7 @@ emp_no:integer | left:keyword | nb:integer | middle:keyword | aa:keyword | right
 // named "lookup"
 //
 rowNamedLookup
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW lookup = "a"
 ;
 
@@ -288,7 +288,7 @@ lookup:keyword
 ;
 
 rowNamedLOOKUP
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW LOOKUP = "a"
 ;
 
@@ -297,7 +297,7 @@ LOOKUP:keyword
 ;
 
 evalNamedLookup
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW a = "a" | EVAL lookup = CONCAT(a, "1")
 ;
 
@@ -306,7 +306,7 @@ a:keyword | lookup:keyword
 ;
 
 dissectNamedLookup
-required_capability: lookup_v3
+required_capability: lookup_v4
 row a = "foo bar" | dissect a "foo %{lookup}";
 
 a:keyword | lookup:keyword
@@ -314,7 +314,7 @@ a:keyword | lookup:keyword
 ;
 
 renameIntoLookup
-required_capability: lookup_v3
+required_capability: lookup_v4
 row a = "foo bar" | RENAME a AS lookup;
 
 lookup:keyword
@@ -322,7 +322,7 @@ lookup:keyword
 ;
 
 sortOnLookup
-required_capability: lookup_v3
+required_capability: lookup_v4
 ROW lookup = "a" | SORT lookup
 ;
 

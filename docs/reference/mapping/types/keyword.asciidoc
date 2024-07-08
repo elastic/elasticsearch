@@ -166,7 +166,6 @@ Dimension fields have the following constraints:
 * Field values cannot be an <<array,array or multi-value>>.
 // end::dimension[]
 * Dimension values are used to identify a document’s time series. If dimension values are altered in any way during indexing, the document will be stored as belonging to different from intended time series. As a result there are additional constraints:
-** <<ignore-above,`ignore_above`>> mapping parameter isn't supported.
 ** The field cannot use a <<normalizer,`normalizer`>>.
 --
 

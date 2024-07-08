@@ -21,11 +21,10 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
  * This rule must always be placed after {@link LiteralsOnTheRight}
  * since it looks at TRUE/FALSE literals' existence on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
  */
-public final class BooleanFunctionEqualsElimination extends
-    org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
+public final class BooleanFunctionEqualsElimination extends OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
 
     public BooleanFunctionEqualsElimination() {
-        super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP);
+        super(OptimizerRules.TransformDirection.UP);
     }
 
     @Override

@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.LiteralTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class LiteralSerializationTests extends AbstractExpressionSerializationTests<Literal> {
     @Override
@@ -23,11 +21,6 @@ public class LiteralSerializationTests extends AbstractExpressionSerializationTe
     @Override
     protected Literal mutateInstance(Literal instance) throws IOException {
         return LiteralTests.mutateLiteral(instance);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(Literal.ENTRY);
     }
 
     @Override

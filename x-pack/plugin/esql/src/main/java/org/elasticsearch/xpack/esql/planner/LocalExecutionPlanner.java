@@ -63,7 +63,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -354,7 +353,7 @@ public class LocalExecutionPlanner {
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE ->
                     TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
-                case UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
+                case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
                 case SOURCE -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
             };
         }
@@ -501,21 +500,21 @@ public class LocalExecutionPlanner {
         Layout layout = layoutBuilder.build();
         Block[] localData = join.joinData().supplier().get();
 
-        RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.conditions().size()];
-        int[] blockMapping = new int[join.conditions().size()];
-        for (int k = 0; k < join.conditions().size(); k++) {
-            Equals cond = join.conditions().get(k);
+        RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.leftFields().size()];
+        int[] blockMapping = new int[join.leftFields().size()];
+        for (int k = 0; k < join.leftFields().size(); k++) {
+            Attribute left = join.leftFields().get(k);
+            Attribute right = join.rightFields().get(k);
             Block localField = null;
             for (int l = 0; l < join.joinData().output().size(); l++) {
-                if (join.joinData().output().get(l).name().equals((((NamedExpression) cond.right()).name()))) {
+                if (join.joinData().output().get(l).name().equals((((NamedExpression) right).name()))) {
                     localField = localData[l];
                 }
             }
             if (localField == null) {
-                throw new IllegalArgumentException("can't find local data for [" + cond.right() + "]");
+                throw new IllegalArgumentException("can't find local data for [" + right + "]");
             }
 
-            NamedExpression left = (NamedExpression) cond.left();
             keys[k] = new RowInTableLookupOperator.Key(left.name(), localField);
             Layout.ChannelAndType input = source.layout.get(left.id());
             blockMapping[k] = input.channel();

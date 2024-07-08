@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
-    protected static final int NODE_NUM = 3;
+    protected static final int NODE_NUM = 4;
     private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static final Set<Integer> upgradedNodes = new HashSet<>();
     private static TestFeatureService oldClusterTestFeatureService = null;

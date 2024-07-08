@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -91,7 +93,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
-import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP;
+import static org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules.TransformDirection.UP;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
 
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
@@ -192,7 +194,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                  * it loads the field lazily. If we have more than one field we need to
                  * make sure the fields are loaded for the standard hash aggregator.
                  */
-                if (p instanceof AggregateExec agg && agg.groupings().size() == 1) {
+                if (p instanceof AggregateExec agg
+                    && agg.groupings().size() == 1
+                    && (isMultiTypeFieldAttribute(agg.groupings().get(0)) == false) // Union types rely on field extraction.
+                ) {
                     var leaves = new LinkedList<>();
                     // TODO: this seems out of place
                     agg.aggregates()
@@ -214,6 +219,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             });
 
             return plan;
+        }
+
+        private static boolean isMultiTypeFieldAttribute(Expression attribute) {
+            return attribute instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
         }
 
         private static Set<Attribute> missingAttributes(PhysicalPlan p) {
@@ -599,71 +608,73 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
             PhysicalPlan plan = filterExec;
             if (filterExec.child() instanceof EsQueryExec) {
-                List<Expression> rewritten = new ArrayList<>();
-                List<Expression> notRewritten = new ArrayList<>();
-                for (Expression exp : splitAnd(filterExec.condition())) {
-                    boolean didRewrite = false;
-                    if (exp instanceof EsqlBinaryComparison comparison) {
-                        ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
-                        if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
-                            didRewrite = rewriteComparison(rewritten, dist, comparison.right(), comparisonType);
-                        } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
-                            didRewrite = rewriteComparison(rewritten, dist, comparison.left(), ComparisonType.invert(comparisonType));
-                        }
+                // Find and rewrite any binary comparisons that involve a distance function and a literal
+                var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
+                    ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
+                    if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
+                        return rewriteComparison(comparison, dist, comparison.right(), comparisonType);
+                    } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
+                        return rewriteComparison(comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
                     }
-                    if (didRewrite == false) {
-                        notRewritten.add(exp);
-                    }
-                }
-                if (rewritten.isEmpty() == false) {
-                    rewritten.addAll(notRewritten);
-                    plan = new FilterExec(filterExec.source(), filterExec.child(), Predicates.combineAnd(rewritten));
+                    return comparison;
+                });
+                if (rewritten.equals(filterExec.condition()) == false) {
+                    plan = new FilterExec(filterExec.source(), filterExec.child(), rewritten);
                 }
             }
 
             return plan;
         }
 
-        private boolean rewriteComparison(List<Expression> rewritten, StDistance dist, Expression literal, ComparisonType comparisonType) {
-            // Currently we do not support Equals
-            if (comparisonType.lt || comparisonType.gt) {
-                Object value = literal.fold();
-                if (value instanceof Number number) {
-                    if (dist.right().foldable()) {
-                        return rewriteDistanceFilter(rewritten, dist.source(), dist.left(), dist.right(), number, comparisonType);
-                    } else if (dist.left().foldable()) {
-                        return rewriteDistanceFilter(rewritten, dist.source(), dist.right(), dist.left(), number, comparisonType);
-                    }
+        private Expression rewriteComparison(
+            EsqlBinaryComparison comparison,
+            StDistance dist,
+            Expression literal,
+            ComparisonType comparisonType
+        ) {
+            Object value = literal.fold();
+            if (value instanceof Number number) {
+                if (dist.right().foldable()) {
+                    return rewriteDistanceFilter(comparison, dist.left(), dist.right(), number, comparisonType);
+                } else if (dist.left().foldable()) {
+                    return rewriteDistanceFilter(comparison, dist.right(), dist.left(), number, comparisonType);
                 }
             }
-            return false;
+            return comparison;
         }
 
-        private boolean rewriteDistanceFilter(
-            List<Expression> rewritten,
-            Source source,
-            Expression spatialExpression,
-            Expression literalExpression,
+        private Expression rewriteDistanceFilter(
+            EsqlBinaryComparison comparison,
+            Expression spatialExp,
+            Expression literalExp,
             Number number,
             ComparisonType comparisonType
         ) {
-            Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literalExpression);
+            Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literalExp);
             if (geometry instanceof Point point) {
                 double distance = number.doubleValue();
-                if (comparisonType.eq == false) {
-                    distance = comparisonType.lt ? Math.nextDown(distance) : Math.nextUp(distance);
+                Source source = comparison.source();
+                if (comparisonType.lt) {
+                    distance = comparisonType.eq ? distance : Math.nextDown(distance);
+                    return new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp));
+                } else if (comparisonType.gt) {
+                    distance = comparisonType.eq ? distance : Math.nextUp(distance);
+                    return new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, distance, literalExp));
+                } else if (comparisonType.eq) {
+                    return new And(
+                        source,
+                        new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp)),
+                        new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, Math.nextDown(distance), literalExp))
+                    );
                 }
-                var circle = new Circle(point.getX(), point.getY(), distance);
-                var wkb = WellKnownBinary.toWKB(circle, ByteOrder.LITTLE_ENDIAN);
-                var cExp = new Literal(literalExpression.source(), new BytesRef(wkb), DataType.GEO_SHAPE);
-                rewritten.add(
-                    comparisonType.lt
-                        ? new SpatialIntersects(source, spatialExpression, cExp)
-                        : new SpatialDisjoint(source, spatialExpression, cExp)
-                );
-                return true;
             }
-            return false;
+            return comparison;
+        }
+
+        private Literal makeCircleLiteral(Point point, double distance, Expression literalExpression) {
+            var circle = new Circle(point.getX(), point.getY(), distance);
+            var wkb = WellKnownBinary.toWKB(circle, ByteOrder.LITTLE_ENDIAN);
+            return new Literal(literalExpression.source(), new BytesRef(wkb), DataType.GEO_SHAPE);
         }
 
         /**

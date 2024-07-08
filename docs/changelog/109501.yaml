@@ -1,0 +1,14 @@
+pr: 109501
+summary: Reflect latest changes in synthetic source documentation
+area: Mapping
+type: enhancement
+issues: []
+highlight:
+  title: Synthetic `_source` improvements
+  body: |-
+    There are multiple improvements to synthetic `_source` functionality:
+
+    * Synthetic `_source` is now supported for all field types including `nested` and `object`. `object` fields are supported with `enabled` set to `false`.
+
+    * Synthetic `_source` can be enabled together with `ignore_malformed` and `ignore_above` parameters for all field types that support them.
+  notable: false

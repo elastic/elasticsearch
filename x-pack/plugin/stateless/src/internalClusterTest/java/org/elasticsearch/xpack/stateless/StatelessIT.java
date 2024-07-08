@@ -165,14 +165,16 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, indexNodeName);
         var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
         final long directoryGeneration = Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
-        final BatchedCompoundCommit latestUploadedBcc = readLatestUploadedBccUptoGen(blobContainerForCommit, directoryGeneration);
-        StatelessCompoundCommit commit = latestUploadedBcc.lastCompoundCommit();
-        assertThat(commit.generation(), equalTo(directoryGeneration));
-        assertThat(
-            "Expected that the compound commit has the ephemeral Id of the indexing node",
-            commit.nodeEphemeralId(),
-            equalTo(clusterService.localNode().getEphemeralId())
-        );
+        assertBusy(() -> {
+            final BatchedCompoundCommit latestUploadedBcc = readLatestUploadedBccUptoGen(blobContainerForCommit, directoryGeneration);
+            StatelessCompoundCommit commit = latestUploadedBcc.lastCompoundCommit();
+            assertThat(commit.generation(), equalTo(directoryGeneration));
+            assertThat(
+                "Expected that the compound commit has the ephemeral Id of the indexing node",
+                commit.nodeEphemeralId(),
+                equalTo(clusterService.localNode().getEphemeralId())
+            );
+        });
     }
 
     public void testClusterCanFormWithStatelessEnabled() {

@@ -156,7 +156,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         final AtomicInteger numSuccess = new AtomicInteger();
         final AtomicInteger numFailure = new AtomicInteger();
         Phaser phaser = new Phaser(numThreads);
-        runInParallel(numThreads, i -> () -> {
+        runInParallel(numThreads, i -> {
             phaser.arriveAndAwaitAdvance();
             while (completedRequests.incrementAndGet() <= numRequests) {
                 try {

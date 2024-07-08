@@ -144,7 +144,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         final CyclicBarrier barrier = new CyclicBarrier(numberOfThreads);
 
         // start concurrent indexing threads
-        runInParallel(numberOfThreads, index -> () -> {
+        runInParallel(numberOfThreads, index -> {
             try {
                 barrier.await();
             } catch (BrokenBarrierException | InterruptedException e) {

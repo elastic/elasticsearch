@@ -329,7 +329,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         final int threadCount = randomIntBetween(2, 5);
         final CyclicBarrier barrier = new CyclicBarrier(threadCount);
         try {
-            runInParallel(threadCount, i -> () -> {
+            runInParallel(threadCount, i -> {
                 safeAwait(barrier);
                 try {
                     indicesAdmin().prepareAddBlock(block, indexName).get();

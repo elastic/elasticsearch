@@ -520,7 +520,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         final BulkResponse[] responses = new BulkResponse[30];
         final CyclicBarrier cyclicBarrier = new CyclicBarrier(responses.length);
 
-        runInParallel(responses.length, threadID -> () -> {
+        runInParallel(responses.length, threadID -> {
             try {
                 cyclicBarrier.await();
             } catch (Exception e) {

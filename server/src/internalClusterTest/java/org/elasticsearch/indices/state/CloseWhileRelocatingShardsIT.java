@@ -188,7 +188,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
 
             // start index closing threads
             final CyclicBarrier barrier = new CyclicBarrier(indices.length);
-            runInParallel(indices.length, i -> () -> {
+            runInParallel(indices.length, i -> {
                 try {
                     safeAwait(barrier);
                 } finally {

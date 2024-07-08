@@ -832,7 +832,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet());
 
         final CyclicBarrier barrier = new CyclicBarrier(numOfThreads);
-        runInParallel(numOfThreads, i -> () -> {
+        runInParallel(numOfThreads, i -> {
             var aliasName = "test-" + i;
             assertAcked(prepareCreate(aliasName + "-000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
             for (int j = 1; j <= numberOfRolloversPerThread; j++) {

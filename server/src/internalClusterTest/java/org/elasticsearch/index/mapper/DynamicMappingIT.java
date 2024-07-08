@@ -164,7 +164,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         ensureGreen("index");
         final CyclicBarrier barrier = new CyclicBarrier(numberOfFieldsToCreate);
         final AtomicReference<Throwable> error = new AtomicReference<>();
-        runInParallel(numberOfFieldsToCreate, i -> () -> {
+        runInParallel(numberOfFieldsToCreate, i -> {
             final String id = Integer.toString(i);
             try {
                 barrier.await();

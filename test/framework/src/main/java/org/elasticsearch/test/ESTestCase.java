@@ -186,6 +186,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -2438,11 +2439,12 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param numberOfTasks number of tasks to run in parallel
      * @param taskFactory task factory
      */
-    public static void runInParallel(int numberOfTasks, IntFunction<Runnable> taskFactory) throws InterruptedException, ExecutionException {
+    public static void runInParallel(int numberOfTasks, IntConsumer taskFactory) throws InterruptedException, ExecutionException {
         final ArrayList<Future<?>> futures = new ArrayList<>(numberOfTasks);
         final Thread[] threads = new Thread[numberOfTasks - 1];
         for (int i = 0; i < numberOfTasks; i++) {
-            var future = new FutureTask<Void>(taskFactory.apply(i), null);
+            final int index = i;
+            var future = new FutureTask<Void>(() -> taskFactory.accept(index), null);
             futures.add(future);
             if (i == numberOfTasks - 1) {
                 future.run();

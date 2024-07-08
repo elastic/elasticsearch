@@ -1746,7 +1746,7 @@ public final class InternalTestCluster extends TestCluster {
                 .count();
             rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
             try {
-                runInParallel(nodeAndClients.size(), i -> nodeAndClients.get(i)::startNode);
+                runInParallel(nodeAndClients.size(), i -> nodeAndClients.get(i).startNode());
             } catch (InterruptedException e) {
                 throw new AssertionError("interrupted while starting nodes", e);
             } catch (ExecutionException e) {

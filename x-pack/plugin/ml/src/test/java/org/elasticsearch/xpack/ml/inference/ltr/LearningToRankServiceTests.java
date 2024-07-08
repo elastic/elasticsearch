@@ -50,11 +50,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 public class LearningToRankServiceTests extends ESTestCase {
-    public static final String GOOD_MODEL = "inferenceEntityId";
-    public static final String BAD_MODEL = "badModel";
+    public static final String GOOD_MODEL = "inference-entity-id";
+    public static final String BAD_MODEL = "bad-model";
     public static final TrainedModelConfig GOOD_MODEL_CONFIG = TrainedModelConfig.builder()
         .setModelId(GOOD_MODEL)
-        .setInput(new TrainedModelInput(List.of("field1", "field2")))
         .setEstimatedOperations(1)
         .setModelSize(2)
         .setModelType(TrainedModelType.TREE_ENSEMBLE)

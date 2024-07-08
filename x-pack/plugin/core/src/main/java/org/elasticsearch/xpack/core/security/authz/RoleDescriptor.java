@@ -417,13 +417,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation) throws IOException {
-        return toXContent(builder, params, docCreation, false);
-    }
-
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation, boolean includeMetadataFlattened)
-        throws IOException {
         builder.startObject();
-        innerToXContent(builder, params, docCreation, includeMetadataFlattened);
+        innerToXContent(builder, params, docCreation);
         return builder.endObject();
     }
 
@@ -435,12 +430,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
      * @param docCreation {@code true} if the x-content is being generated for creating a document
      *                    in the security index, {@code false} if the x-content being generated
      *                    is for API display purposes
-     * @param includeMetadataFlattened {@code true} if the metadataFlattened field should be included in doc
      * @return x-content builder
      * @throws IOException if there was an error writing the x-content to the builder
      */
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params, boolean docCreation, boolean includeMetadataFlattened)
-        throws IOException {
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params, boolean docCreation) throws IOException {
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
         if (configurableClusterPrivileges.length != 0) {
             builder.field(Fields.GLOBAL.getPreferredName());
@@ -452,9 +445,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             builder.array(Fields.RUN_AS.getPreferredName(), runAs);
         }
         builder.field(Fields.METADATA.getPreferredName(), metadata);
-        if (includeMetadataFlattened) {
-            builder.field(Fields.METADATA_FLATTENED.getPreferredName(), metadata);
-        }
+
         if (docCreation) {
             builder.field(Fields.TYPE.getPreferredName(), ROLE_TYPE);
         } else {
@@ -1196,7 +1187,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static final class RemoteIndicesPrivileges implements Writeable, ToXContentObject {
 
-        private static final RemoteIndicesPrivileges[] NONE = new RemoteIndicesPrivileges[0];
+        public static final RemoteIndicesPrivileges[] NONE = new RemoteIndicesPrivileges[0];
 
         private final IndicesPrivileges indicesPrivileges;
         private final String[] remoteClusters;

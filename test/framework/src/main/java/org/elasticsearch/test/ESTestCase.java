@@ -2440,7 +2440,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param numberOfTasks number of tasks to run in parallel
      * @param taskFactory task factory
      */
-    public static void runInParallel(int numberOfTasks, IntConsumer taskFactory) throws InterruptedException, ExecutionException {
+    public static void runInParallel(int numberOfTasks, IntConsumer taskFactory) throws InterruptedException {
         final ArrayList<Future<?>> futures = new ArrayList<>(numberOfTasks);
         final Thread[] threads = new Thread[numberOfTasks - 1];
         for (int i = 0; i < numberOfTasks; i++) {
@@ -2451,6 +2451,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 future.run();
             } else {
                 threads[i] = new Thread(future);
+                threads[i].setName("runInParallel-T#" + i);
                 threads[i].start();
             }
         }

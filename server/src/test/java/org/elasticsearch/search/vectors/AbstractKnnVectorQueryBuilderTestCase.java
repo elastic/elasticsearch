@@ -158,7 +158,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     public void testNonexistentField() {
         SearchExecutionContext context = createSearchExecutionContext();
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5 10, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5, 10, null);
         context.setAllowUnmappedFields(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.doToQuery(context));
         assertThat(e.getMessage(), containsString("No field mapping can be found for the field with name [nonexistent]"));

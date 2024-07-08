@@ -26,7 +26,9 @@ public class MapperFeatures implements FeatureSpecification {
             RangeFieldMapper.NULL_VALUES_OFF_BY_ONE_FIX,
             SourceFieldMapper.SYNTHETIC_SOURCE_FALLBACK,
             DenseVectorFieldMapper.INT4_QUANTIZATION,
-            DenseVectorFieldMapper.BIT_VECTORS
+            DenseVectorFieldMapper.BIT_VECTORS,
+            DocumentMapper.INDEX_SORTING_ON_NESTED,
+            KeywordFieldMapper.KEYWORD_DIMENSION_IGNORE_ABOVE
         );
     }
 }

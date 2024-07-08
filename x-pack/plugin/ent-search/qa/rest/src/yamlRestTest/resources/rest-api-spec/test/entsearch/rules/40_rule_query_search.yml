@@ -40,7 +40,7 @@ setup:
           - { "text": "observability" }
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-ruleset
         body:
           rules:
@@ -84,7 +84,7 @@ setup:
                   - 'doc7'
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: another-test-ruleset
         body:
           rules:
@@ -101,17 +101,17 @@ setup:
 ---
 teardown:
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-ruleset
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: another-test-ruleset
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: combined-ruleset
         ignore: 404
 
@@ -314,7 +314,7 @@ teardown:
 "Perform a rule query over a ruleset with combined numeric and text rule matching":
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: combined-ruleset
         body:
           rules:
@@ -426,7 +426,7 @@ teardown:
         wait_for: started
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: combined-ruleset
         body:
           rules:
@@ -455,10 +455,10 @@ teardown:
           query:
             rule:
               organic:
-                text_expansion:
-                  ml.tokens:
-                    model_id: text_expansion_model
-                    model_text: "octopus comforter smells"
+                sparse_vector:
+                  field: ml.tokens
+                  inference_id: text_expansion_model
+                  query: "octopus comforter smells"
               match_criteria:
                 foo: bar
               ruleset_ids:
@@ -473,10 +473,10 @@ teardown:
           query:
             rule:
               organic:
-                text_expansion:
-                  ml.tokens:
-                    model_id: text_expansion_model
-                    model_text: "octopus comforter smells"
+                sparse_vector:
+                  field: ml.tokens
+                  inference_id: text_expansion_model
+                  query: "octopus comforter smells"
               match_criteria:
                 foo: baz
               ruleset_ids:
@@ -491,10 +491,10 @@ teardown:
           query:
             rule:
               organic:
-                text_expansion:
-                  ml.tokens:
-                    model_id: text_expansion_model
-                    model_text: "octopus comforter smells"
+                sparse_vector:
+                  field: ml.tokens
+                  inference_id: text_expansion_model
+                  query: "octopus comforter smells"
               match_criteria:
                 foo: puggle
               ruleset_ids:

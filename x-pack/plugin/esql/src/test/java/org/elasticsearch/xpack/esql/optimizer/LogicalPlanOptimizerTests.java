@@ -42,11 +42,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -122,11 +117,16 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -5475,6 +5475,49 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         Values values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
         assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+    }
+
+    public void testMvSortInvalidOrder() {
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | EVAL sd = mv_sort(salary, "ABC")
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        final String header = "Found 1 problem\nline ";
+        assertEquals(
+            "2:29: Invalid order value in [mv_sort(salary, \"ABC\")], expected one of [ASC, DESC] but got [ABC]",
+            e.getMessage().substring(header.length())
+        );
+
+        e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | EVAL order = "ABC", sd = mv_sort(salary, order)
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "2:16: Invalid order value in [mv_sort(salary, order)], expected one of [ASC, DESC] but got [ABC]",
+            e.getMessage().substring(header.length())
+        );
+
+        e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | EVAL order = concat("d", "sc"), sd = mv_sort(salary, order)
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "2:16: Invalid order value in [mv_sort(salary, order)], expected one of [ASC, DESC] but got [dsc]",
+            e.getMessage().substring(header.length())
+        );
+
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> plan("""
+            row v = [1, 2, 3] | EVAL sd = mv_sort(v, "dsc")
+            """));
+        assertEquals("Invalid order value in [mv_sort(v, \"dsc\")], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
+
+        iae = expectThrows(IllegalArgumentException.class, () -> plan("""
+            row v = [1, 2, 3], o = concat("d", "sc") | EVAL sd = mv_sort(v, o)
+            """));
+        assertEquals("Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
     }
 
     private Literal nullOf(DataType dataType) {

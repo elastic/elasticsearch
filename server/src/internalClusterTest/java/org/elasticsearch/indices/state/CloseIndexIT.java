@@ -38,12 +38,12 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -170,7 +170,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
     }
 
-    public void testConcurrentClose() throws InterruptedException {
+    public void testConcurrentClose() throws InterruptedException, ExecutionException {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
@@ -196,25 +196,16 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getIndices().get(indexName).getStatus().value(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW.value()));
 
-        final CountDownLatch startClosing = new CountDownLatch(1);
-        final Thread[] threads = new Thread[randomIntBetween(2, 5)];
-
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                safeAwait(startClosing);
-                try {
-                    indicesAdmin().prepareClose(indexName).get();
-                } catch (final Exception e) {
-                    assertException(e, indexName);
-                }
-            });
-            threads[i].start();
-        }
-
-        startClosing.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        final int tasks = randomIntBetween(2, 5);
+        final CyclicBarrier barrier = new CyclicBarrier(tasks);
+        runInParallel(tasks, i -> {
+            safeAwait(barrier);
+            try {
+                indicesAdmin().prepareClose(indexName).get();
+            } catch (final Exception e) {
+                assertException(e, indexName);
+            }
+        });
         assertIndexIsClosed(indexName);
     }
 
@@ -256,37 +247,20 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
         assertThat(clusterAdmin().prepareState().get().getState().metadata().indices().size(), equalTo(indices.length));
 
-        final List<Thread> threads = new ArrayList<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-
-        for (final String indexToDelete : indices) {
-            threads.add(new Thread(() -> {
-                safeAwait(latch);
-                try {
-                    assertAcked(indicesAdmin().prepareDelete(indexToDelete));
-                } catch (final Exception e) {
-                    assertException(e, indexToDelete);
+        final CyclicBarrier barrier = new CyclicBarrier(indices.length * 2);
+        runInParallel(indices.length * 2, i -> {
+            safeAwait(barrier);
+            final String index = indices[i % indices.length];
+            try {
+                if (i < indices.length) {
+                    assertAcked(indicesAdmin().prepareDelete(index));
+                } else {
+                    indicesAdmin().prepareClose(index).get();
                 }
-            }));
-        }
-        for (final String indexToClose : indices) {
-            threads.add(new Thread(() -> {
-                safeAwait(latch);
-                try {
-                    indicesAdmin().prepareClose(indexToClose).get();
-                } catch (final Exception e) {
-                    assertException(e, indexToClose);
-                }
-            }));
-        }
-
-        for (Thread thread : threads) {
-            thread.start();
-        }
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+            } catch (final Exception e) {
+                assertException(e, index);
+            }
+        });
     }
 
     public void testConcurrentClosesAndOpens() throws Exception {
@@ -297,37 +271,22 @@ public class CloseIndexIT extends ESIntegTestCase {
         indexer.setFailureAssertion(e -> {});
         waitForDocs(1, indexer);
 
-        final CountDownLatch latch = new CountDownLatch(1);
+        final int closes = randomIntBetween(1, 3);
+        final int opens = randomIntBetween(1, 3);
+        final CyclicBarrier barrier = new CyclicBarrier(opens + closes);
 
-        final List<Thread> threads = new ArrayList<>();
-        for (int i = 0; i < randomIntBetween(1, 3); i++) {
-            threads.add(new Thread(() -> {
-                try {
-                    safeAwait(latch);
+        runInParallel(opens + closes, i -> {
+            try {
+                safeAwait(barrier);
+                if (i < closes) {
                     indicesAdmin().prepareClose(indexName).get();
-                } catch (final Exception e) {
-                    throw new AssertionError(e);
-                }
-            }));
-        }
-        for (int i = 0; i < randomIntBetween(1, 3); i++) {
-            threads.add(new Thread(() -> {
-                try {
-                    safeAwait(latch);
+                } else {
                     assertAcked(indicesAdmin().prepareOpen(indexName).get());
-                } catch (final Exception e) {
-                    throw new AssertionError(e);
                 }
-            }));
-        }
-
-        for (Thread thread : threads) {
-            thread.start();
-        }
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+            } catch (final Exception e) {
+                throw new AssertionError(e);
+            }
+        });
 
         indexer.stopAndAwaitStopped();
 

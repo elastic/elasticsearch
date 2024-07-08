@@ -367,10 +367,6 @@ public final class DateFieldMapper extends FieldMapper {
                 ignoreMalformed.setValue(false);
             }
 
-            // isDataStream is true when DataStreamTimestampFieldMapper is enabled
-            // which indicates a data stream or a standalone index in time series mode.
-            boolean storeTimestampValueForReuse = context.isDataStream() && ft.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-
             return new DateFieldMapper(
                 leafName(),
                 ft,
@@ -379,7 +375,6 @@ public final class DateFieldMapper extends FieldMapper {
                 nullTimestamp,
                 resolution,
                 context.isSourceSynthetic(),
-                storeTimestampValueForReuse,
                 this
             );
         }
@@ -868,10 +863,6 @@ public final class DateFieldMapper extends FieldMapper {
     private final String nullValueAsString;
     private final Resolution resolution;
     private final boolean isSourceSynthetic;
-    // DataStreamTimestampFieldMapper and TsidExtractingFieldMapper need to use timestamp value,
-    // so when this is true we store it in a well-known place
-    // instead of forcing them to iterate over all fields.
-    private final boolean storeTimestampValueForReuse;
 
     private final boolean ignoreMalformedByDefault;
     private final IndexVersion indexCreatedVersion;
@@ -888,7 +879,6 @@ public final class DateFieldMapper extends FieldMapper {
         Long nullValue,
         Resolution resolution,
         boolean isSourceSynthetic,
-        boolean storeTimestampValueForReuse,
         Builder builder
     ) {
         super(leafName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
@@ -902,7 +892,6 @@ public final class DateFieldMapper extends FieldMapper {
         this.nullValue = nullValue;
         this.resolution = resolution;
         this.isSourceSynthetic = isSourceSynthetic;
-        this.storeTimestampValueForReuse = storeTimestampValueForReuse;
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.script = builder.script.get();
@@ -956,7 +945,13 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, long timestamp) {
-        if (storeTimestampValueForReuse) {
+        // DataStreamTimestampFieldMapper and TsidExtractingFieldMapper need to use timestamp value,
+        // so when this is true we store it in a well-known place
+        // instead of forcing them to iterate over all fields.
+        //
+        // DataStreamTimestampFieldMapper is present and enabled both
+        // in data streams and standalone indices in time_series mode
+        if (context.mappingLookup().isDataStreamTimestampFieldEnabled()) {
             var existingField = context.doc().getByKey(DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY);
             if (existingField == null) {
                 context.doc()

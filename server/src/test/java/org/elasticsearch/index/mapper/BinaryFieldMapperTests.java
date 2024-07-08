@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryFieldMapperTests extends MapperTestCase {
@@ -147,6 +148,8 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
             .build();
 
+        var mapperService = new TestMapperServiceBuilder().settings(indexSettings).withTsdbDefaults().build();
+
         var mapping = mapping(b -> {
             b.startObject("field");
             b.field("type", "binary");
@@ -163,11 +166,11 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             b.field("time_series_dimension", "true");
             b.endObject();
         });
-        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+        DocumentMapper mapper = withMapping(mapperService, mapping).documentMapper();
 
         var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", Base64.getEncoder().encodeToString(randomByteArrayOfLength(10)));
-            b.field("@timestamp", randomMillisUpToYear9999());
+            b.field("@timestamp", "2000-10-10T23:40:53.384Z");
             b.field("dimension", "dimension1");
         }, null);
         ParsedDocument doc = mapper.parse(source);

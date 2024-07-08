@@ -40,14 +40,17 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
     }
 
     private DocumentMapper createMapper(XContentBuilder mappings) throws IOException {
-        return createMapperService(
-            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing path is required")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
-                .build(),
-            mappings
-        ).documentMapper();
+        var mapperService = new TestMapperServiceBuilder().withTsdbDefaults()
+            .settings(
+                getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing path is required")
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
+                    .build()
+            )
+            .build();
+
+        return withMapping(mapperService, mappings).documentMapper();
     }
 
     private static ParsedDocument parseDocument(int hash, DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)

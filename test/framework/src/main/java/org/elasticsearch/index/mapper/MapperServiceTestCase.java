@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -225,6 +226,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         private BooleanSupplier idFieldDataEnabled;
         private ScriptCompiler scriptCompiler;
         private MapperMetrics mapperMetrics;
+        private boolean useTsdbDefaults;
 
         public TestMapperServiceBuilder() {
             indexVersion = getVersion();
@@ -232,6 +234,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             idFieldDataEnabled = () -> true;
             scriptCompiler = MapperServiceTestCase.this::compileScript;
             mapperMetrics = MapperMetrics.NOOP;
+            useTsdbDefaults = false;
         }
 
         public TestMapperServiceBuilder indexVersion(IndexVersion indexVersion) {
@@ -254,6 +257,13 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             return this;
         }
 
+        // Configures mapper service to apply default TSDB mappings.
+        // This emulates how such indices is creates in reality by MetadataCreateIndexService.
+        public TestMapperServiceBuilder withTsdbDefaults() {
+            this.useTsdbDefaults = true;
+            return this;
+        }
+
         public MapperService build() {
             IndexSettings indexSettings = createIndexSettings(indexVersion, settings);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
@@ -269,7 +279,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 public void onRemoval(ShardId shardId, Accountable accountable) {}
             });
 
-            return new MapperService(
+            var mapperService = new MapperService(
                 () -> TransportVersion.current(),
                 indexSettings,
                 createIndexAnalyzers(indexSettings),
@@ -284,6 +294,12 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 bitsetFilterCache::getBitSetProducer,
                 mapperMetrics
             );
+
+            if (useTsdbDefaults) {
+                mapperService.merge(null, IndexMode.TIME_SERIES.getDefaultMapping(), MapperService.MergeReason.MAPPING_UPDATE);
+            }
+
+            return mapperService;
         }
     }
 

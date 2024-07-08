@@ -121,7 +121,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
     // ie from test | stats c = count(*)
     public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, null, Nullability.TRUE, null, true)
+        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
     );
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
@@ -330,7 +330,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return new UnresolvedAttribute(source, enrichFieldName, msg);
             } else {
-                return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType(), null, Nullability.TRUE, null, false);
+                return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
             }
         }
     }
@@ -495,15 +495,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     p.child(),
                     resolved,
                     resolved.resolved()
-                        ? new ReferenceAttribute(
-                            resolved.source(),
-                            resolved.name(),
-                            resolved.dataType(),
-                            null,
-                            resolved.nullable(),
-                            null,
-                            false
-                        )
+                        ? new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), resolved.nullable(), null, false)
                         : resolved
                 );
             }

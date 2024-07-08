@@ -1760,7 +1760,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             contains(
                 new Order(
                     EMPTY,
-                    new ReferenceAttribute(EMPTY, "e", INTEGER, null, Nullability.TRUE, null, false),
+                    new ReferenceAttribute(EMPTY, "e", INTEGER, Nullability.TRUE, null, false),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 ),
@@ -1803,7 +1803,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             contains(
                 new Order(
                     EMPTY,
-                    new ReferenceAttribute(EMPTY, "e", INTEGER, null, Nullability.TRUE, null, false),
+                    new ReferenceAttribute(EMPTY, "e", INTEGER, Nullability.TRUE, null, false),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 ),

@@ -18,10 +18,9 @@ public class ReferenceAttributeTests extends AbstractAttributeTestCase<Reference
         Source source = Source.EMPTY;
         String name = randomAlphaOfLength(5);
         DataType type = randomFrom(DataType.types());
-        String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
-        return new ReferenceAttribute(source, name, type, qualifier, nullability, new NameId(), synthetic);
+        return new ReferenceAttribute(source, name, type, nullability, new NameId(), synthetic);
     }
 
     @Override
@@ -42,6 +41,6 @@ public class ReferenceAttributeTests extends AbstractAttributeTestCase<Reference
             case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
             case 3 -> synthetic = false == synthetic;
         }
-        return new ReferenceAttribute(source, name, type, null, nullability, new NameId(), synthetic);
+        return new ReferenceAttribute(source, name, type, nullability, new NameId(), synthetic);
     }
 }

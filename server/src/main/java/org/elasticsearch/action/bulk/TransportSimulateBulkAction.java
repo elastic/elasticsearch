@@ -13,14 +13,24 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.SimulateIngestService;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,6 +43,7 @@ import java.util.concurrent.Executor;
  * shards are not actually modified).
  */
 public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
+    private final IndicesService indicesService;
 
     @Inject
     public TransportSimulateBulkAction(
@@ -42,7 +53,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         IngestService ingestService,
         ActionFilters actionFilters,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        IndicesService indicesService
     ) {
         super(
             SimulateBulkAction.INSTANCE,
@@ -56,6 +68,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             systemIndices,
             System::nanoTime
         );
+        this.indicesService = indicesService;
     }
 
     @Override
@@ -71,7 +84,43 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
             IndexRequest request = (IndexRequest) docRequest;
+            final SourceToParse sourceToParse = new SourceToParse(
+                request.id(),
+                request.source(),
+                request.getContentType(),
+                request.routing(),
+                request.getDynamicTemplates(),
+                DocumentSizeObserver.EMPTY_INSTANCE
+            );
 
+            ClusterState state = clusterService.state();
+            Exception mappingValidationException = null;
+            IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
+            if (indexAbstraction != null) {
+                IndexMetadata imd = state.metadata().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
+
+                try {
+                    indicesService.withTempIndexService(imd, indexService -> {
+                        indexService.mapperService().updateMapping(null, imd);
+                        return IndexShard.prepareIndex(
+                            indexService.mapperService(),
+                            sourceToParse,
+                            SequenceNumbers.UNASSIGNED_SEQ_NO,
+                            -1,
+                            -1,
+                            VersionType.INTERNAL,
+                            Engine.Operation.Origin.PRIMARY,
+                            Long.MIN_VALUE,
+                            false,
+                            request.ifSeqNo(),
+                            request.ifPrimaryTerm(),
+                            relativeStartTime
+                        );
+                    });
+                } catch (Exception e) {
+                    mappingValidationException = e;
+                }
+            }
             responses.set(
                 i,
                 BulkItemResponse.success(
@@ -84,7 +133,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         request.source(),
                         request.getContentType(),
                         request.getExecutedPipelines(),
-                        null
+                        mappingValidationException
                     )
                 )
             );

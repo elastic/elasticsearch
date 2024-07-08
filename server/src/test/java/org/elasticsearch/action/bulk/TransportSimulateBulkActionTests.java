@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -57,6 +58,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
     private TransportService transportService;
     private ClusterService clusterService;
     private TestThreadPool threadPool;
+    private IndicesService indicesService;
 
     private TestTransportSimulateBulkAction bulkAction;
 
@@ -70,7 +72,8 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 null,
                 new ActionFilters(Set.of()),
                 new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                indicesService
             );
         }
     }
@@ -99,6 +102,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         bulkAction = new TestTransportSimulateBulkAction();
+        indicesService = mock(IndicesService.class);
     }
 
     @After

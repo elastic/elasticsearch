@@ -37,12 +37,12 @@ public abstract class ResponseMatcher<T> {
             this.challengeSettings = challengeSettings;
         }
 
-        public Builder<T> with(final T response) {
+        public Builder<T> compare(final T response) {
             this.response = response;
             return this;
         }
 
-        public void equalTo(final T challenge, final ResponseMatcher<T> matcher) throws MatcherException {
+        public void with(final T challenge, final ResponseMatcher<T> matcher) throws MatcherException {
             matcher.match(this.response, challenge);
         }
     }

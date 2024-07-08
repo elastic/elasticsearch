@@ -225,7 +225,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         private BooleanSupplier idFieldDataEnabled;
         private ScriptCompiler scriptCompiler;
         private MapperMetrics mapperMetrics;
-        private boolean useTsdbDefaults;
+        private boolean applyDefaultMapping;
 
         public TestMapperServiceBuilder() {
             indexVersion = getVersion();
@@ -233,7 +233,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             idFieldDataEnabled = () -> true;
             scriptCompiler = MapperServiceTestCase.this::compileScript;
             mapperMetrics = MapperMetrics.NOOP;
-            useTsdbDefaults = false;
+            applyDefaultMapping = true;
         }
 
         public TestMapperServiceBuilder indexVersion(IndexVersion indexVersion) {
@@ -253,6 +253,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
         public TestMapperServiceBuilder mapperMetrics(MapperMetrics mapperMetrics) {
             this.mapperMetrics = mapperMetrics;
+            return this;
+        }
+
+        public TestMapperServiceBuilder applyDefaultMapping(boolean applyDefaultMapping) {
+            this.applyDefaultMapping = applyDefaultMapping;
             return this;
         }
 
@@ -287,7 +292,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 mapperMetrics
             );
 
-            if (indexSettings.getMode().getDefaultMapping() != null) {
+            if (applyDefaultMapping && indexSettings.getMode().getDefaultMapping() != null) {
                 mapperService.merge(null, indexSettings.getMode().getDefaultMapping(), MapperService.MergeReason.MAPPING_UPDATE);
             }
 

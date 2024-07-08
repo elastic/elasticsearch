@@ -1,8 +1,77 @@
-maxOfLong
+maxOfIntByKeyword
 FROM employees
-| INLINESTATS max_lang = MAX(languages)
-| WHERE max_lang == languages;
+| KEEP emp_no, languages, gender
+| INLINESTATS max_lang = MAX(languages) BY gender 
+| WHERE max_lang == languages
+| SORT emp_no ASC
+| LIMIT 5;
 
-l:long
-5
+emp_no:integer | languages:integer | gender:keyword | max_lang:integer
+         10002 |                 5 | F              | 5
+         10004 |                 5 | M              | 5
+         10011 |                 5 | null           | 5
+         10012 |                 5 | null           | 5
+         10014 |                 5 | null           | 5
+;
+
+maxOfLongByKeyword
+FROM employees
+| KEEP emp_no, avg_worked_seconds, gender
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY gender 
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT emp_no ASC;
+
+emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_seconds:long
+         10007 |               393084805 | F              | 393084805
+         10015 |               390266432 | null           | 390266432
+         10030 |               394597613 | M              | 394597613
+;
+
+// TODO allow inline calculation like BY l = SUBSTRING(
+maxOfLongByCalculatedKeyword
+FROM employees
+| EVAL l = SUBSTRING(last_name, 0, 1)
+| KEEP emp_no, avg_worked_seconds, l
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l 
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT emp_no ASC
+| LIMIT 5;
+
+emp_no:integer | avg_worked_seconds:long | l:keyword | max_avg_worked_seconds:long
+         10006 |               372957040 | P         | 372957040
+         10007 |               393084805 | Z         | 393084805
+         10015 |               390266432 | N         | 390266432
+         10020 |               373309605 | W         | 373309605
+         10025 |               371270797 | H         | 371270797
+;
+
+maxOfLongByInt
+FROM employees
+| KEEP emp_no, avg_worked_seconds, languages
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY languages
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT languages ASC;
+
+emp_no:integer | avg_worked_seconds:long | languages:integer | max_avg_worked_seconds:long
+         10044 |               387408356 |                 1 | 387408356
+         10099 |               377713748 |                 2 | 377713748
+         10030 |               394597613 |                 3 | 394597613
+         10007 |               393084805 |                 4 | 393084805
+         10015 |               390266432 |                 5 | 390266432
+         10027 |               374037782 |              null | 374037782
+;
+
+two
+FROM employees
+| KEEP emp_no, languages, avg_worked_seconds, gender
+| INLINESTATS avg_avg_worked_seconds = AVG(avg_worked_seconds) BY languages
+| WHERE avg_worked_seconds > avg_avg_worked_seconds
+| INLINESTATS max_languages = MAX(languages) BY gender
+| SORT emp_no ASC
+| LIMIT 3;
+
+emp_no:integer | languages:integer | avg_worked_seconds:long | gender:keyword | avg_avg_worked_seconds:double | max_languages:integer
+         10002 |                 5 |               328922887 | F              | 3.133013149047619E8           | 5
+         10006 |                 3 |               372957040 | F              | 2.978159518235294E8           | 5
+         10007 |                 4 |               393084805 | F              | 2.863684210555556E8           | 5
 ;

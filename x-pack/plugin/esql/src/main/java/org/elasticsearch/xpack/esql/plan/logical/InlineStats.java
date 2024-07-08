@@ -131,6 +131,9 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased {
 
     @Override
     public LogicalPlan firstPhase() {
+        if (groupings.isEmpty()) {
+            throw new IllegalArgumentException("INLINESTATS doesn't yet support non-grouping mode");
+        }
         return new Aggregate(source(), child(), Aggregate.AggregateType.STANDARD, groupings, aggregates);
     }
 
@@ -158,7 +161,6 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased {
             }
         }
         JoinConfig config = new JoinConfig(JoinType.LEFT, groupingAttributes, leftFields, rightFields);
-
         return new Join(source(), child(), local, config);
     }
 

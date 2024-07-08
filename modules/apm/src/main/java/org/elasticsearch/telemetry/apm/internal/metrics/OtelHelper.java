@@ -68,7 +68,9 @@ class OtelHelper {
                 return;
             }
             for (DoubleWithAttributes observation : observations) {
-                measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+                if (observation != null) {
+                    measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+                }
             }
         };
     }
@@ -87,7 +89,9 @@ class OtelHelper {
                 return;
             }
             for (LongWithAttributes observation : observations) {
-                measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+                if (observation != null) {
+                    measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+                }
             }
         };
     }

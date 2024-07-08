@@ -1,4 +1,4 @@
-metaFunctionsSynopsis#[skip:-8.14.99]
+metaFunctionsSynopsis#[skip:-8.15.99]
 meta functions | keep synopsis;
 
 synopsis:keyword
@@ -116,7 +116,7 @@ double tau()
 "double weighted_avg(number:double|integer|long, weight:double|integer|long)"
 ;
 
-metaFunctionsArgs#[skip:-8.14.99]
+metaFunctionsArgs#[skip:-8.15.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, argNames, argTypes, argDescriptions;
@@ -236,7 +236,7 @@ values        |field                               |"boolean|date|double|integer
 weighted_avg  |[number, weight]                    |["double|integer|long", "double|integer|long"]                                                                                    |[A numeric value., A numeric weight.]
 ;
 
-metaFunctionsDescription#[skip:-8.14.99]
+metaFunctionsDescription#[skip:-8.15.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, description
@@ -357,7 +357,7 @@ values        |Collect values for a field.
 weighted_avg  |The weighted average of a numeric field.
 ;
 
-metaFunctionsRemaining#[skip:-8.14.99]
+metaFunctionsRemaining#[skip:-8.15.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, *
@@ -479,7 +479,7 @@ values        |"boolean|date|double|integer|ip|keyword|long|text|version"       
 weighted_avg  |"double"                                                                                                                    |[false, false]              |false           |true
 ;
 
-metaFunctionsFiltered#[skip:-8.14.99]
+metaFunctionsFiltered#[skip:-8.15.99]
 META FUNCTIONS
 | WHERE STARTS_WITH(name, "sin")
 ;
@@ -489,9 +489,7 @@ sin          |"double sin(angle:double|integer|long|unsigned_long)"   |angle    
 sinh         |"double sinh(angle:double|integer|long|unsigned_long)"  |angle             |"double|integer|long|unsigned_long" | "An angle, in radians. If `null`, the function returns `null`." | double             | "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle."        | false                | false            | false
 ;
 
-
-// see https://github.com/elastic/elasticsearch/issues/102120
-countFunctions#[skip:-8.14.99, reason:BIN added]
+countFunctions#[skip:-8.15.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long

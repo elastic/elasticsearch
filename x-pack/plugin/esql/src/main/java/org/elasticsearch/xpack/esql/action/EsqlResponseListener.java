@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -29,7 +31,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.esql.core.util.LoggingUtils.logOnFailure;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
@@ -168,7 +169,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
      */
     public ActionListener<EsqlQueryResponse> wrapWithLogging() {
         ActionListener<EsqlQueryResponse> listener = ActionListener.wrap(this::onResponse, ex -> {
-            logOnFailure(LOGGER, ex);
+            logOnFailure(ex);
             onFailure(ex);
         });
         if (LOGGER.isDebugEnabled() == false) {
@@ -190,4 +191,8 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
         });
     }
 
+    static void logOnFailure(Throwable throwable) {
+        RestStatus status = ExceptionsHelper.status(throwable);
+        LOGGER.log(status.getStatus() >= 500 ? Level.WARN : Level.DEBUG, () -> "Request failed with status [" + status + "]: ", throwable);
+    }
 }

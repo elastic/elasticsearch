@@ -820,6 +820,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unary(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
     }
 
+    /**
+     * Generate cases for {@link DataType#INTEGER}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#intCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> intCases(int min, int max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         if (0 <= max && 0 >= min && includeZero) {
@@ -844,6 +850,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#LONG}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#longCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> longCases(long min, long max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         if (0L <= max && 0L >= min && includeZero) {
@@ -909,6 +921,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#DOUBLE}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#doubleCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> doubleCases(double min, double max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -980,6 +998,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#DATETIME}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> dateCases() {
         return List.of(
             new TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataType.DATETIME),
@@ -1301,8 +1325,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return data.stream().filter(d -> d.forceLiteral == false).map(TypedData::data).collect(Collectors.toList());
         }
 
-        public List<List<Object>> getMultiRowDataValues() {
-            return data.stream().filter(TypedData::isMultiRow).map(TypedData::multiRowData).collect(Collectors.toList());
+        public List<TypedData> getMultiRowFields() {
+            return data.stream().filter(TypedData::isMultiRow).collect(Collectors.toList());
         }
 
         public boolean canGetDataAsLiterals() {

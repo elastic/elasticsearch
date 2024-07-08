@@ -48,6 +48,7 @@ public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
         PathUtilsForTesting.teardown();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/110551")
     public void testFsyncFailureDoesNotAdvanceLocalCheckpoints() {
         String indexName = randomIdentifier();
         client().admin()

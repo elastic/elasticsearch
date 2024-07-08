@@ -148,7 +148,7 @@ PUT _inference/text_embedding/amazon_bedrock_embeddings
         "secret_key": "<aws_secret_key>",
         "region": "us-east-1",
         "provider": "amazontitan",
-        "model": "amazon.titan-embed-text-v2:0",
+        "model": "amazon.titan-embed-text-v2:0"
     }
 }
 ------------------------------------------------------------
@@ -166,7 +166,7 @@ PUT _inference/completion/amazon_bedrock_completion
         "secret_key": "<aws_secret_key>",
         "region": "us-east-1",
         "provider": "amazontitan",
-        "model": "amazon.titan-text-premier-v1:0",
+        "model": "amazon.titan-text-premier-v1:0"
     }
 }
 ------------------------------------------------------------

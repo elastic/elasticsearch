@@ -17,7 +17,6 @@ import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteCom
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.MockSearchTransportService;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.AdminClient;
@@ -45,7 +44,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeService;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
@@ -71,6 +69,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.action.search.SearchTransportService.FREE_CONTEXT_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataNode;
@@ -278,7 +277,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (enableConcurrentSearch) {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
-        plugins.add(MockSearchTransportService.TestPlugin.class);
         plugins.add(MockScriptService.TestPlugin.class);
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
@@ -464,17 +462,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * waits until all free_context actions have been handled by the generic thread pool
      */
     protected void ensureAllFreeContextActionsAreConsumed() throws Exception {
-        NodeService nodeService = getInstanceFromNode(NodeService.class);
-        MockSearchTransportService searchTransportService = (MockSearchTransportService) nodeService.getSearchTransportService();
-        assertBusy(() -> {
-            assertThat(
-                searchTransportService.getFreeContextRequests().get(),
-                equalTo(
-                    searchTransportService.getSuccessfulFreeContextRequests().get() + searchTransportService.getFailedFreeContextRequests()
-                        .get()
-                )
-            );
-        }, 5, TimeUnit.SECONDS);
+        logger.info("--> waiting for all ongoing tasks to complete within a reasonable time");
+        safeGet(clusterAdmin().prepareListTasks().setActions(FREE_CONTEXT_ACTION_NAME + "*").setWaitForCompletion(true).execute());
     }
 
     /**

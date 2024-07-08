@@ -8,8 +8,6 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.action.search.SearchExecutionStatsCollector;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -147,14 +145,5 @@ class NodeServiceProvider {
 
     ReadinessService newReadinessService(PluginsService pluginsService, ClusterService clusterService, Environment environment) {
         return new ReadinessService(clusterService, environment);
-    }
-
-    SearchTransportService newSearchTransportService(
-        PluginsService pluginsService,
-        TransportService transportService,
-        NodeClient client,
-        ResponseCollectorService responseCollectorService
-    ) {
-        return new SearchTransportService(transportService, client, SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
     }
 }

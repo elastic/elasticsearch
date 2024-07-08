@@ -133,10 +133,6 @@ public class SearchTransportService {
         this.responseWrapper = responseWrapper;
     }
 
-    TransportService transportService() {
-        return transportService;
-    }
-
     public void sendFreeContext(Transport.Connection connection, final ShardSearchContextId contextId, OriginalIndices originalIndices) {
         transportService.sendRequest(
             connection,

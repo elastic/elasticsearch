@@ -209,10 +209,6 @@ public class NodeService implements Closeable {
         return monitorService;
     }
 
-    public SearchTransportService getSearchTransportService() {
-        return searchTransportService;
-    }
-
     @Override
     public void close() throws IOException {
         IOUtils.close(indicesService);

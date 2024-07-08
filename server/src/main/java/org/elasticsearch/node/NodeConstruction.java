@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.repositories.reservedstate.Reserve
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
+import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -951,11 +952,10 @@ class NodeConstruction {
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         final SearchTransportAPMMetrics searchTransportAPMMetrics = new SearchTransportAPMMetrics(telemetryProvider.getMeterRegistry());
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
-        final SearchTransportService searchTransportService = serviceProvider.newSearchTransportService(
-            pluginsService,
+        final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,
             client,
-            responseCollectorService
+            SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
         );
         final HttpServerTransport httpServerTransport = serviceProvider.newHttpTransport(pluginsService, networkModule);
         final IndexingPressure indexingLimits = new IndexingPressure(settings);

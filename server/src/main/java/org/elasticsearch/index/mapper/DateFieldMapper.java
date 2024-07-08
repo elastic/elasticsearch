@@ -870,6 +870,8 @@ public final class DateFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final FieldValues<Long> scriptValues;
 
+    private final boolean isDataStreamTimestampField;
+
     private DateFieldMapper(
         String leafName,
         MappedFieldType mappedFieldType,
@@ -896,6 +898,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptCompiler = builder.scriptCompiler;
         this.scriptValues = builder.scriptValues();
+        this.isDataStreamTimestampField = mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
     }
 
     @Override
@@ -950,7 +953,7 @@ public final class DateFieldMapper extends FieldMapper {
         //
         // DataStreamTimestampFieldMapper is present and enabled both
         // in data streams and standalone indices in time_series mode
-        if (context.mappingLookup().isDataStreamTimestampFieldEnabled()) {
+        if (isDataStreamTimestampField && context.mappingLookup().isDataStreamTimestampFieldEnabled()) {
             var existingField = context.doc().getByKey(DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY);
             if (existingField == null) {
                 context.doc()

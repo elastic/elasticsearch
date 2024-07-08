@@ -74,6 +74,7 @@ public enum ReferenceDocs {
     EXECUTABLE_JNA_TMPDIR,
     NETWORK_THREADING_MODEL,
     ALLOCATION_EXPLAIN_API,
+    NETWORK_BINDING_AND_PUBLISHING,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

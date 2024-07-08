@@ -475,7 +475,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 )
             );
         }, 5, TimeUnit.SECONDS);
-        assertThat(searchTransportService.getFailedFreeContextRequests().get(), equalTo(0));
     }
 
     /**

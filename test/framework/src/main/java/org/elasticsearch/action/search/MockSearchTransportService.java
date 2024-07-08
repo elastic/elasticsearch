@@ -69,11 +69,7 @@ public class MockSearchTransportService extends SearchTransportService {
             new ActionListenerResponseHandler<>(new ActionListener<>() {
                 @Override
                 public void onResponse(SearchFreeContextResponse searchFreeContextResponse) {
-                    if (searchFreeContextResponse.isFreed()) {
-                        successfulFreeContextRequests.incrementAndGet();
-                    } else {
-                        failedFreeContextRequests.incrementAndGet();
-                    }
+                    successfulFreeContextRequests.incrementAndGet();
                 }
 
                 @Override

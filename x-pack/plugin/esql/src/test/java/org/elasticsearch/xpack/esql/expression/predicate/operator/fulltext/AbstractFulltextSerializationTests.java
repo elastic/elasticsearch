@@ -7,23 +7,16 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.fulltext;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 public abstract class AbstractFulltextSerializationTests<T extends FullTextPredicate> extends AbstractExpressionSerializationTests<T> {
 
     static final String OPTION_DELIMITER = ";";
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return FullTextPredicate.getNamedWriteables();
-    }
 
     String randomOptionOrNull() {
         if (randomBoolean()) {

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,7 +49,17 @@ public class In extends ScalarFunction {
     }
 
     @Override
-    protected NodeInfo<? extends Expression> info() {
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected NodeInfo<In> info() {
         return NodeInfo.create(this, In::new, value(), list(), zoneId());
     }
 
@@ -84,12 +96,25 @@ public class In extends ScalarFunction {
     }
 
     @Override
-    public Object fold() {
+    public Boolean fold() {
         // Optimization for early return and Query folding to LocalExec
         if (Expressions.isNull(value) || list.size() == 1 && Expressions.isNull(list.get(0))) {
             return null;
         }
-        return InProcessor.apply(value.fold(), foldAndConvertListOfValues(list, value.dataType()));
+        return apply(value.fold(), foldAndConvertListOfValues(list, value.dataType()));
+    }
+
+    private static Boolean apply(Object input, List<Object> values) {
+        Boolean result = Boolean.FALSE;
+        for (Object v : values) {
+            Boolean compResult = Comparisons.eq(input, v);
+            if (compResult == null) {
+                result = null;
+            } else if (compResult == Boolean.TRUE) {
+                return Boolean.TRUE;
+            }
+        }
+        return result;
     }
 
     @Override

@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -23,9 +26,11 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
@@ -48,6 +53,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
 
 public class In extends EsqlScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
+
     private final Expression value;
     private final List<Expression> list;
 
@@ -63,13 +70,46 @@ public class In extends EsqlScalarFunction {
         this.list = list;
     }
 
+    public Expression value() {
+        return value;
+    }
+
+    public List<Expression> list() {
+        return list;
+    }
+
+    @Override
+    public DataType dataType() {
+        return BOOLEAN;
+    }
+
+    private In(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(value);
+        out.writeNamedWriteableCollection(list);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, In::new, value, list);
     }
 
     @Override
-    public In replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new In(source(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1));
     }
 
@@ -84,10 +124,49 @@ public class In extends EsqlScalarFunction {
 
     @Override
     public Object fold() {
-        if (Expressions.isNull(value) || list.stream().allMatch(e -> Expressions.isNull(e))) {
+        if (Expressions.isNull(value) || list.stream().allMatch(Expressions::isNull)) {
             return null;
         }
         return super.fold();
+    }
+
+    protected boolean areCompatible(DataType left, DataType right) {
+        if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
+            // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
+            return left == right;
+        }
+        if (EsqlDataTypes.isSpatial(left) && EsqlDataTypes.isSpatial(right)) {
+            return left == right;
+        }
+        return EsqlDataTypes.areCompatible(left, right);
+    }
+
+    @Override
+    protected TypeResolution resolveType() { // TODO: move the foldability check from QL's In to SQL's and remove this method
+        TypeResolution resolution = EsqlTypeResolutions.isExact(value, functionName(), DEFAULT);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        DataType dt = value.dataType();
+        for (int i = 0; i < list.size(); i++) {
+            Expression listValue = list.get(i);
+            if (areCompatible(dt, listValue.dataType()) == false) {
+                return new TypeResolution(
+                    format(
+                        null,
+                        "{} argument of [{}] must be [{}], found value [{}] type [{}]",
+                        ordinal(i + 1),
+                        sourceText(),
+                        dt.typeName(),
+                        Expressions.name(listValue),
+                        listValue.dataType().typeName()
+                    )
+                );
+            }
+        }
+
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
@@ -158,76 +237,6 @@ public class In extends EsqlScalarFunction {
             commonType = EsqlDataTypeRegistry.INSTANCE.commonType(commonType, e.dataType());
         }
         return commonType;
-    }
-
-    protected boolean areCompatible(DataType left, DataType right) {
-        if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
-            // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
-            return left == right;
-        }
-        if (EsqlDataTypes.isSpatial(left) && EsqlDataTypes.isSpatial(right)) {
-            return left == right;
-        }
-        return EsqlDataTypes.areCompatible(left, right);
-    }
-
-    @Override
-    protected TypeResolution resolveType() { // TODO: move the foldability check from QL's In to SQL's and remove this method
-        TypeResolution resolution = EsqlTypeResolutions.isExact(value, functionName(), DEFAULT);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        DataType dt = value.dataType();
-        for (int i = 0; i < list.size(); i++) {
-            Expression listValue = list.get(i);
-            if (areCompatible(dt, listValue.dataType()) == false) {
-                return new TypeResolution(
-                    format(
-                        null,
-                        "{} argument of [{}] must be [{}], found value [{}] type [{}]",
-                        ordinal(i + 1),
-                        sourceText(),
-                        dt.typeName(),
-                        Expressions.name(listValue),
-                        listValue.dataType().typeName()
-                    )
-                );
-            }
-        }
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
-    public Expression value() {
-        return value;
-    }
-
-    public List<Expression> list() {
-        return list;
-    }
-
-    @Override
-    public DataType dataType() {
-        return BOOLEAN;
-    }
-
-    private static <T> void processCommon(BooleanBlock.Builder builder, BitSet nulls, T lhs, T[] rhs) {
-        boolean hasNull = nulls.cardinality() > 0;
-        for (int i = 0; i < rhs.length; i++) {
-            if (nulls.get(i)) {
-                continue;
-            }
-            Boolean compResult = Comparisons.eq(lhs, rhs[i]);
-            if (compResult == Boolean.TRUE) {
-                builder.appendBoolean(true);
-                return;
-            }
-        }
-        if (hasNull) {
-            builder.appendNull();
-        } else {
-            builder.appendBoolean(false);
-        }
     }
 
     static void process(BooleanBlock.Builder builder, BitSet nulls, BitSet mvs, boolean lhs, boolean[] rhs) {

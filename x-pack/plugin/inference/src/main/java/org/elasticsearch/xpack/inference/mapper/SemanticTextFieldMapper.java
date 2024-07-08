@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
@@ -137,7 +138,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             super.merge(mergeWith, conflicts, mapperMergeContext);
             conflicts.check();
             var semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
-            var context = mapperMergeContext.createChildContext(mergeWith.simpleName(), ObjectMapper.Dynamic.FALSE);
+            var context = mapperMergeContext.createChildContext(mergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
             var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
             var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
             inferenceFieldBuilder = c -> mergedInferenceField;
@@ -152,6 +153,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
             final String fullName = context.buildFullName(leafName());
+
+            if (context.isInNestedContext()) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + fullName + "] cannot be nested");
+            }
             var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE);
             final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext);
             return new SemanticTextFieldMapper(
@@ -182,7 +187,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), fieldType().indexVersionCreated, fieldType().getChunksField().bitsetProducer()).init(this);
+        return new Builder(leafName(), fieldType().indexVersionCreated, fieldType().getChunksField().bitsetProducer()).init(this);
     }
 
     @Override
@@ -197,7 +202,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         boolean isWithinLeaf = context.path().isWithinLeafObject();
         try {
             context.path().setWithinLeafObject(true);
-            field = SemanticTextField.parse(parser, new Tuple<>(name(), context.parser().contentType()));
+            field = SemanticTextField.parse(parser, new Tuple<>(fullPath(), context.parser().contentType()));
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
         }
@@ -221,7 +226,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (fieldType().getModelSettings() == null) {
             context.path().remove();
             Builder builder = (Builder) new Builder(
-                simpleName(),
+                leafName(),
                 fieldType().indexVersionCreated,
                 fieldType().getChunksField().bitsetProducer()
             ).init(this);
@@ -231,7 +236,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     .build(context.createDynamicMapperBuilderContext());
                 context.addDynamicMapper(mapper);
             } finally {
-                context.path().add(simpleName());
+                context.path().add(leafName());
             }
         } else {
             Conflicts conflicts = new Conflicts(fullFieldName);
@@ -242,7 +247,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 throw new DocumentParsingException(
                     xContentLocation,
                     "Incompatible model settings for field ["
-                        + name()
+                        + fullPath()
                         + "]. Check that the "
                         + INFERENCE_ID_FIELD
                         + " is not using different model settings",
@@ -284,12 +289,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         String[] copyFields = sourcePaths.toArray(String[]::new);
         // ensure consistent order
         Arrays.sort(copyFields);
-        return new InferenceFieldMetadata(name(), fieldType().inferenceId, copyFields);
+        return new InferenceFieldMetadata(fullPath(), fieldType().inferenceId, copyFields);
     }
 
     @Override
     public Object getOriginalValue(Map<String, Object> sourceAsMap) {
-        Object fieldValue = sourceAsMap.get(name());
+        Object fieldValue = sourceAsMap.get(fullPath());
         if (fieldValue == null) {
             return null;
         } else if (fieldValue instanceof Map<?, ?> == false) {
@@ -297,7 +302,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return fieldValue;
         }
 
-        Map<String, Object> fieldValueMap = XContentMapValues.nodeMapValue(fieldValue, "Field [" + name() + "]");
+        Map<String, Object> fieldValueMap = XContentMapValues.nodeMapValue(fieldValue, "Field [" + fullPath() + "]");
         return XContentMapValues.extractValue(TEXT_FIELD, fieldValueMap);
     }
 
@@ -350,6 +355,21 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support term query");
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (getEmbeddingsField() == null) {
+                return new MatchNoDocsQuery();
+            }
+
+            return NestedQueryBuilder.toQuery(
+                (c -> getEmbeddingsField().fieldType().existsQuery(c)),
+                getChunksFieldName(name()),
+                ScoreMode.None,
+                false,
+                context
+            );
         }
 
         @Override
@@ -427,7 +447,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null);
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null, null);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["
@@ -478,6 +498,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated
                 );
+
                 SimilarityMeasure similarity = modelSettings.similarity();
                 if (similarity != null) {
                     switch (similarity) {
@@ -490,6 +511,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     }
                 }
                 denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
+                denseVectorMapperBuilder.elementType(modelSettings.elementType());
+
                 yield denseVectorMapperBuilder;
             }
             default -> throw new IllegalArgumentException("Invalid task_type in model_settings [" + modelSettings.taskType().name() + "]");

@@ -55,10 +55,10 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.CsvSpecReader;
 import org.elasticsearch.xpack.esql.core.SpecReader;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -86,7 +86,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -161,7 +160,7 @@ public class CsvTests extends ESTestCase {
     private final EsqlConfiguration configuration = EsqlTestUtils.configuration(
         new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build())
     );
-    private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+    private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
     private final Mapper mapper = new Mapper(functionRegistry);
     private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
@@ -240,6 +239,15 @@ public class CsvTests extends ESTestCase {
                     testCase.requiredCapabilities,
                     everyItem(in(EsqlCapabilities.CAPABILITIES))
                 );
+            } else {
+                for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
+                    if (c.snapshotOnly()) {
+                        assumeFalse(
+                            c.capabilityName() + " is not supported in non-snapshot releases",
+                            testCase.requiredCapabilities.contains(c.capabilityName())
+                        );
+                    }
+                }
             }
 
             doTest();
@@ -414,10 +422,10 @@ public class CsvTests extends ESTestCase {
         }
 
         List<String> columnNames = Expressions.names(coordinatorPlan.output());
-        List<String> dataTypes = new ArrayList<>(columnNames.size());
+        List<DataType> dataTypes = new ArrayList<>(columnNames.size());
         List<Type> columnTypes = coordinatorPlan.output()
             .stream()
-            .peek(o -> dataTypes.add(EsqlDataTypes.outputType(o.dataType())))
+            .peek(o -> dataTypes.add(o.dataType()))
             .map(o -> Type.asType(o.dataType().nameUpper()))
             .toList();
 

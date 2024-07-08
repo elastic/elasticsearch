@@ -34,7 +34,7 @@ public class MockFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName());
+        return new Builder(leafName());
     }
 
     static String findSimpleName(String fullName) {

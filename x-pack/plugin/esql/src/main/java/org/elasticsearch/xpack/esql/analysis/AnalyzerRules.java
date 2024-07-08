@@ -79,9 +79,7 @@ public final class AnalyzerRules {
         final String name = u.name();
 
         Predicate<Attribute> predicate = a -> {
-            return (Objects.equals(name, a.name()))
-                // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
-                || Objects.equals(name, a.name());
+            return Objects.equals(name, a.name());
 
         };
         return maybeResolveAgainstList(predicate, () -> u, attrList, false, fieldInspector);
@@ -113,7 +111,7 @@ public final class AnalyzerRules {
         // found exact match or multiple if pattern
         if (matches.size() == 1 || isPattern) {
             // NB: only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
-            matches.replaceAll(e -> fieldInspector.apply(e));
+            matches.replaceAll(fieldInspector::apply);
             return matches;
         }
 

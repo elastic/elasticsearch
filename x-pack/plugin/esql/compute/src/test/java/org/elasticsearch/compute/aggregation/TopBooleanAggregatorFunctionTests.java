@@ -11,12 +11,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.operator.SequenceBooleanBlockSourceOperator;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.List;
 import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.contains;
 

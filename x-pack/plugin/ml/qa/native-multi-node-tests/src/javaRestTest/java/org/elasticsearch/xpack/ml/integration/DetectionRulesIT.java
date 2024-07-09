@@ -95,6 +95,9 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         closeJob(job.getId());
 
         List<AnomalyRecord> records = getRecords(job.getId());
+        // remove records that are not anomalies
+        records.removeIf(record -> record.getInitialRecordScore() < 1e-5);
+
         assertThat(records.size(), equalTo(1));
         assertThat(records.get(0).getByFieldValue(), equalTo("high"));
         long firstRecordTimestamp = records.get(0).getTimestamp().getTime();

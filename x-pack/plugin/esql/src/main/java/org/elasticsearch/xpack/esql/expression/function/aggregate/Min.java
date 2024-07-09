@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
@@ -37,7 +38,16 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date" },
         description = "The minimum value of a field.",
-        isAggregation = true
+        isAggregation = true,
+        examples = {
+            @Example(file = "stats", tag = "min"),
+            @Example(
+                description = "The expression can use inline functions. For example, to calculate the minimum "
+                    + "over an average of a multivalued column, use `MV_AVG` to first average the "
+                    + "multiple values per row, and use the result with the `MIN` function",
+                file = "stats",
+                tag = "docsStatsMinNestedExpression"
+            ) }
     )
     public Min(Source source, @Param(name = "field", type = { "boolean", "double", "integer", "long", "date" }) Expression field) {
         super(source, field);

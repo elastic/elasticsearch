@@ -22,7 +22,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class MaxDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceDoubleBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
+        return new SequenceDoubleBlockSourceOperator(
+            blockFactory,
+            LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true))
+        );
     }
 
     @Override

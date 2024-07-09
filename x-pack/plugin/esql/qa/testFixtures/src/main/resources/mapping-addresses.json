@@ -25,7 +25,14 @@
                                     "type": "keyword"
                                 },
                                 "planet": {
-                                    "type": "keyword"
+                                    "properties": {
+                                        "name": {
+                                            "type": "keyword"
+                                        },
+                                        "galaxy": {
+                                            "type": "keyword"
+                                        }
+                                    }
                                 }
                             }
                         }

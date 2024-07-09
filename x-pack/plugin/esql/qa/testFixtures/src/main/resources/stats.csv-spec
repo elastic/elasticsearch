@@ -1828,3 +1828,15 @@ FROM employees
 x:integer
 10001
 ;
+
+shadowingInternalWithGroup
+FROM employees
+| STATS x = MAX(emp_no), x = MIN(emp_no) BY x = gender
+| SORT x ASC
+;
+
+x:keyword
+F
+M
+null
+;

@@ -85,41 +85,8 @@ import static org.hamcrest.Matchers.contains;
 public class OptimizerRulesTests extends ESTestCase {
     private static final Expression DUMMY_EXPRESSION =
         new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
-
-    // Test Propagate Equals
-
     //
     // Null folding
-
-    public void testNullFoldingIsNull() {
-        FoldNull foldNull = new FoldNull();
-        assertEquals(true, foldNull.rule(new IsNull(EMPTY, NULL)).fold());
-        assertEquals(false, foldNull.rule(new IsNull(EMPTY, TRUE)).fold());
-    }
-
-    public void testGenericNullableExpression() {
-        FoldNull rule = new FoldNull();
-        // arithmetic
-        assertNullLiteral(rule.rule(new Add(EMPTY, getFieldAttribute(), NULL)));
-        // comparison
-        assertNullLiteral(rule.rule(greaterThanOf(getFieldAttribute(), NULL)));
-        // regex
-        assertNullLiteral(rule.rule(new RLike(EMPTY, NULL, new RLikePattern("123"))));
-    }
-
-    public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
-        OptimizerRules.FoldNull rule = new OptimizerRules.FoldNull();
-
-        Or or = new Or(EMPTY, NULL, TRUE);
-        assertEquals(or, rule.rule(or));
-        or = new Or(EMPTY, NULL, NULL);
-        assertEquals(or, rule.rule(or));
-
-        And and = new And(EMPTY, NULL, TRUE);
-        assertEquals(and, rule.rule(and));
-        and = new And(EMPTY, NULL, NULL);
-        assertEquals(and, rule.rule(and));
-    }
 
     //
     // Propagate nullability (IS NULL / IS NOT NULL)

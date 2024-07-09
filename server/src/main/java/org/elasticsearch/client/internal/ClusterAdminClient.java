@@ -20,6 +20,9 @@ import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthActio
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesResponse;
 import org.elasticsearch.action.admin.cluster.node.capabilities.TransportNodesCapabilitiesAction;
+import org.elasticsearch.action.admin.cluster.node.features.NodesFeaturesRequest;
+import org.elasticsearch.action.admin.cluster.node.features.NodesFeaturesResponse;
+import org.elasticsearch.action.admin.cluster.node.features.TransportNodesFeaturesAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -240,6 +243,14 @@ public class ClusterAdminClient implements ElasticsearchClient {
 
     public void nodesCapabilities(final NodesCapabilitiesRequest request, final ActionListener<NodesCapabilitiesResponse> listener) {
         execute(TransportNodesCapabilitiesAction.TYPE, request, listener);
+    }
+
+    public ActionFuture<NodesFeaturesResponse> nodesFeatures(final NodesFeaturesRequest request) {
+        return execute(TransportNodesFeaturesAction.TYPE, request);
+    }
+
+    public void nodesFeatures(final NodesFeaturesRequest request, final ActionListener<NodesFeaturesResponse> listener) {
+        execute(TransportNodesFeaturesAction.TYPE, request, listener);
     }
 
     public void nodesUsage(final NodesUsageRequest request, final ActionListener<NodesUsageResponse> listener) {

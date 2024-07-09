@@ -109,6 +109,17 @@ public class EsqlCapabilities {
         AGG_WEIGHTED_AVG,
 
         /**
+         * Fix for union-types when aggregating over an inline conversion with casting operator. Done in #110476.
+         */
+        UNION_TYPES_AGG_CAST,
+
+        /**
+         * Fix to GROK validation in case of multiple fields with same name and different types
+         * https://github.com/elastic/elasticsearch/issues/110533
+         */
+        GROK_VALIDATION,
+
+        /**
          * Fix for non-unique attribute names in ROW.
          * https://github.com/elastic/elasticsearch/issues/110541
          */

@@ -32,7 +32,7 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class WordListsIndexService {
-    public static final String WORD_LISTS_FEATURE_NAME = "synonyms";
+    public static final String WORD_LISTS_FEATURE_NAME = "word_lists";
     public static final String ANALYSIS_ORIGIN = "analysis";
 
     private static final String WORD_LISTS_INDEX_NAME_PATTERN = ".word_lists-*";

@@ -82,7 +82,9 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             Request::new,
             Request::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT),
-            ActionFlags.BypassCircuitBreakerOnReplica
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.Normal,
+            ReplicaActionExecution.BypassCircuitBreaker
         );
     }
 

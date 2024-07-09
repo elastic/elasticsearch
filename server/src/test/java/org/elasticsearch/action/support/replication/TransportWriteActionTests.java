@@ -433,7 +433,9 @@ public class TransportWriteActionTests extends ESTestCase {
                 TestRequest::new,
                 (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                PrimaryActionExecution.Normal,
+                ReplicaActionExecution.Normal
             );
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
@@ -460,7 +462,9 @@ public class TransportWriteActionTests extends ESTestCase {
                 TestRequest::new,
                 (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new IndexingPressure(settings),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                PrimaryActionExecution.Normal,
+                ReplicaActionExecution.Normal
             );
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;

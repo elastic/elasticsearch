@@ -96,7 +96,9 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
                 Request::new,
                 Request::new,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                ActionFlags.BypassCircuitBreakerOnReplica
+                SyncGlobalCheckpointAfterOperation.DoNotSync,
+                PrimaryActionExecution.Normal,
+                ReplicaActionExecution.BypassCircuitBreaker
             );
         }
 

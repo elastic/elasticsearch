@@ -37,7 +37,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
@@ -90,19 +89,46 @@ public abstract class TransportReplicationAction<
     ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
     Response extends ReplicationResponse> extends TransportAction<Request, Response> {
 
-    protected enum ActionFlags {
+    /**
+     * Execution of the primary action
+     */
+    protected enum PrimaryActionExecution {
         /**
-         * Bypass queue-length and indexing pressure checks when executing on the primary
+         * Is subject to usual queue length and indexing pressure checks
          */
-        ForceExecutionOnPrimary,
+        Normal,
         /**
-         * Sync the global checkpoint to the replicas after the action completes successfully
+         * Will be "forced" (bypassing queue length and indexing pressure checks)
          */
-        SyncGlobalCheckpointAfterOperation,
+        Force
+    }
+
+    /**
+     * Global checkpoint behaviour
+     */
+    protected enum SyncGlobalCheckpointAfterOperation {
         /**
-         * Prevent the replica action being rejected by the circuit breakers if the primary action succeeded
+         * Do not sync as part of this action
          */
-        BypassCircuitBreakerOnReplica
+        DoNotSync,
+        /**
+         * Attempt to sync the global checkpoint to the replica(s) after success
+         */
+        AttemptAfterSuccess
+    }
+
+    /**
+     * Execution of the replica action
+     */
+    protected enum ReplicaActionExecution {
+        /**
+         * Will bypass queue length and indexing pressure checks
+         */
+        Normal,
+        /**
+         * Will bypass queue length, indexing pressure and circuit breaker checks
+         */
+        BypassCircuitBreaker;
     }
 
     /**
@@ -157,9 +183,14 @@ public abstract class TransportReplicationAction<
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
         Executor executor,
-        ActionFlags... flags
+        SyncGlobalCheckpointAfterOperation syncGlobalCheckpointAfterOperation,
+        PrimaryActionExecution primaryActionExecution,
+        ReplicaActionExecution replicaActionExecution
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
+        assert syncGlobalCheckpointAfterOperation != null : "Must specify global checkpoint sync behaviour";
+        assert primaryActionExecution != null : "Must specify primary action execution behaviour";
+        assert replicaActionExecution != null : "Myst specify replica action execution behaviour";
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -172,7 +203,10 @@ public abstract class TransportReplicationAction<
 
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
-        this.forceExecutionOnPrimary = ArrayUtils.contains(flags, ActionFlags.ForceExecutionOnPrimary);
+        this.forceExecutionOnPrimary = switch (primaryActionExecution) {
+            case Force -> true;
+            case Normal -> false;
+        };
 
         transportService.registerRequestHandler(
             actionName,
@@ -190,19 +224,25 @@ public abstract class TransportReplicationAction<
             this::handlePrimaryRequest
         );
 
-        // we must never reject on because of thread pool capacity on replicas
+        boolean canTripCircuitBreakerOnReplica = switch (replicaActionExecution) {
+            case BypassCircuitBreaker -> false;
+            case Normal -> true;
+        };
         transportService.registerRequestHandler(
             transportReplicaAction,
             executor,
-            true,
-            ArrayUtils.contains(flags, ActionFlags.BypassCircuitBreakerOnReplica) == false,
+            true, // we must never reject on because of thread pool capacity on replicas
+            canTripCircuitBreakerOnReplica,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in),
             this::handleReplicaRequest
         );
 
         this.transportOptions = transportOptions();
 
-        this.syncGlobalCheckpointAfterOperation = ArrayUtils.contains(flags, ActionFlags.SyncGlobalCheckpointAfterOperation);
+        this.syncGlobalCheckpointAfterOperation = switch (syncGlobalCheckpointAfterOperation) {
+            case AttemptAfterSuccess -> true;
+            case DoNotSync -> false;
+        };
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_INITIAL_RETRY_BACKOFF_BOUND, (v) -> initialRetryBackoffBound = v);

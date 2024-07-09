@@ -68,7 +68,9 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             BulkShardOperationsRequest::new,
             ExecutorSelector.getWriteExecutorForShard(threadPool),
             indexingPressure,
-            systemIndices
+            systemIndices,
+            PrimaryActionExecution.Normal,
+            ReplicaActionExecution.Normal
         );
     }
 

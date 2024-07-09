@@ -26,6 +26,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomArray;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -117,6 +118,27 @@ public final class RoleDescriptorTestHelper {
             applicationPrivileges[i] = builder.build();
         }
         return applicationPrivileges;
+    }
+
+    public static ConfigurableClusterPrivilege[] randomManageRolesPrivileges() {
+        List<ConfigurableClusterPrivileges.ManageRolesPrivilege.ManageRolesIndexPermissionGroup> indexPatternPrivileges = randomList(
+            1,
+            10,
+            () -> {
+                String[] indexPatterns = randomArray(5, String[]::new, () -> randomAlphaOfLengthBetween(5, 100));
+
+                int startIndex = randomIntBetween(0, IndexPrivilege.names().size() - 2);
+                int endIndex = randomIntBetween(startIndex + 1, IndexPrivilege.names().size());
+
+                String[] indexPrivileges = IndexPrivilege.names().stream().toList().subList(startIndex, endIndex).toArray(String[]::new);
+                return new ConfigurableClusterPrivileges.ManageRolesPrivilege.ManageRolesIndexPermissionGroup(
+                    indexPatterns,
+                    indexPrivileges
+                );
+            }
+        );
+
+        return new ConfigurableClusterPrivilege[] { new ConfigurableClusterPrivileges.ManageRolesPrivilege(indexPatternPrivileges) };
     }
 
     public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max) {

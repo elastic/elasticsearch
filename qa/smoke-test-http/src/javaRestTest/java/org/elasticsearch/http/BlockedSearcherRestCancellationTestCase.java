@@ -8,6 +8,7 @@
 
 package org.elasticsearch.http;
 
+import org.apache.http.NameValuePair;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -15,6 +16,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexService;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -71,10 +74,31 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
         return false;
     }
 
+    // add opaque id to http request header if it does not exist
+    // returns new or existing id
+    private static String setOpaqueIdIfNotExists(Request request) {
+        String opaqueId;
+        if (request.getOptions().containsHeader(Task.X_OPAQUE_ID_HTTP_HEADER)) {
+            opaqueId = request.getOptions()
+                .getHeaders()
+                .stream()
+                .filter(h -> h.getName().equals(Task.X_OPAQUE_ID_HTTP_HEADER))
+                .findFirst()
+                .map(NameValuePair::getValue)
+                .get();
+        } else {
+            opaqueId = randomUUID();
+            request.setOptions(request.getOptions().toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId));
+        }
+        return opaqueId;
+    }
+
     void runTest(Request request, String actionPrefix) throws Exception {
 
         createIndex("test", Settings.builder().put(BLOCK_SEARCHER_SETTING.getKey(), true).build());
         ensureGreen("test");
+
+        final var opaqueId = setOpaqueIdIfNotExists(request);
 
         final List<Semaphore> searcherBlocks = new ArrayList<>();
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
@@ -96,7 +120,8 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             }
 
             final PlainActionFuture<Response> future = new PlainActionFuture<>();
-            logger.info("--> sending request");
+            logger.info("--> sending request, opaque id={}", opaqueId);
+
             final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
             awaitTaskWithPrefix(actionPrefix);
@@ -108,12 +133,12 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             cancellable.cancel();
             expectThrows(CancellationException.class, future::actionGet);
 
-            assertAllCancellableTasksAreCancelled(actionPrefix);
+            assertAllCancellableTasksAreCancelled(actionPrefix, opaqueId);
         } finally {
             Releasables.close(releasables);
         }
 
-        assertAllTasksHaveFinished(actionPrefix);
+        assertAllTasksHaveFinished(actionPrefix, opaqueId);
     }
 
     public static class SearcherBlockingPlugin extends Plugin implements EnginePlugin {

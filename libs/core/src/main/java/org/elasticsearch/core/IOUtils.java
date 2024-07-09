@@ -169,9 +169,7 @@ public final class IOUtils {
         // noinspection EmptyCatchBlock
         try {
             close(closeable);
-        } catch (final IOException | RuntimeException e) {
-            LogManager.getLogger(IOUtils.class).error("failed to close", e);
-        }
+        } catch (final IOException | RuntimeException e) {}
     }
 
     /**

@@ -227,11 +227,11 @@ public final class NodeEnvironment implements Closeable {
                         continue;
                     }
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
-                        logger.warn("obtaining node lock on {} ...", dir.toAbsolutePath());
+                        logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
                         locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
                         this.dataPaths[dirIndex] = new DataPath(dir);
                     } catch (IOException e) {
-                        logger.error(() -> format("failed to obtain node lock on %s", dir.toAbsolutePath()), e);
+                        logger.trace(() -> format("failed to obtain node lock on %s", dir.toAbsolutePath()), e);
                         // release all the ones that were obtained up until now
                         throw (e instanceof LockObtainFailedException
                             ? e
@@ -510,9 +510,6 @@ public final class NodeEnvironment implements Closeable {
 
         // We are upgrading the cluster, but we didn't find any previous metadata. Corrupted state or incompatible version.
         if (metadata == null) {
-            Stream<Path> files = Files.walk(paths[0]);
-            logger.warn("Data path listing: \n" + String.join("\n", files.map(Path::toString).toList()));
-            files.close();
             throw new CorruptStateException(
                 "Format version is not supported. Upgrading to ["
                     + Build.current().version()

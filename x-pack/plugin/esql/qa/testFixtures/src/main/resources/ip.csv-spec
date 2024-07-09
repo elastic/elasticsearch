@@ -285,8 +285,8 @@ str1:keyword |str2:keyword |ip1:ip  |ip2:ip
 pushDownIP
 from hosts | where ip1 == to_ip("::1") | keep card, host, ip0, ip1;
 ignoreOrder:true
-warning:#[Emulated:Line 1:20: evaluation of [ip1 == to_ip(\"::1\")] failed, treating result as null. Only first 20 failures recorded.]
-warning:#[Emulated:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value]
+warningRegex:evaluation of \[ip1 == to_ip\(\\\"::1\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip     |ip1:ip
 eth1           |alpha          |::1        |::1

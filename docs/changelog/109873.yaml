@@ -1,0 +1,5 @@
+pr: 109873
+summary: "ESQL: add Arrow dataframes output format"
+area: ES|QL
+type: feature
+issues: []

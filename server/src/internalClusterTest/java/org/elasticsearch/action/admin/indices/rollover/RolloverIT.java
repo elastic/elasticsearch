@@ -832,30 +832,22 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet());
 
         final CyclicBarrier barrier = new CyclicBarrier(numOfThreads);
-        final Thread[] threads = new Thread[numOfThreads];
-        for (int i = 0; i < numOfThreads; i++) {
+        runInParallel(numOfThreads, i -> {
             var aliasName = "test-" + i;
-            threads[i] = new Thread(() -> {
-                assertAcked(prepareCreate(aliasName + "-000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
-                for (int j = 1; j <= numberOfRolloversPerThread; j++) {
-                    try {
-                        barrier.await();
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                    var response = indicesAdmin().prepareRolloverIndex(aliasName).waitForActiveShards(ActiveShardCount.NONE).get();
-                    assertThat(response.getOldIndex(), equalTo(aliasName + Strings.format("-%06d", j)));
-                    assertThat(response.getNewIndex(), equalTo(aliasName + Strings.format("-%06d", j + 1)));
-                    assertThat(response.isDryRun(), equalTo(false));
-                    assertThat(response.isRolledOver(), equalTo(true));
+            assertAcked(prepareCreate(aliasName + "-000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+            for (int j = 1; j <= numberOfRolloversPerThread; j++) {
+                try {
+                    barrier.await();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
-            });
-            threads[i].start();
-        }
-
-        for (Thread thread : threads) {
-            thread.join();
-        }
+                var response = indicesAdmin().prepareRolloverIndex(aliasName).waitForActiveShards(ActiveShardCount.NONE).get();
+                assertThat(response.getOldIndex(), equalTo(aliasName + Strings.format("-%06d", j)));
+                assertThat(response.getNewIndex(), equalTo(aliasName + Strings.format("-%06d", j + 1)));
+                assertThat(response.isDryRun(), equalTo(false));
+                assertThat(response.isRolledOver(), equalTo(true));
+            }
+        });
 
         for (int i = 0; i < numOfThreads; i++) {
             var aliasName = "test-" + i;

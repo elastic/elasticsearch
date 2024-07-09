@@ -122,7 +122,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             @Override
             public AggregationReduceContext forPartialReduction() {
                 reductions.add(false);
-                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg);
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {});
             }
 
             public AggregationReduceContext forFinalReduction() {

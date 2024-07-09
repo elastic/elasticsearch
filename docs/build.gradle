@@ -1816,6 +1816,20 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
             "metadata" : {"version": 1}
           }
 '''
+  setups['user_role'] = '''
+  - do:
+      security.put_role:
+        name: "my_user_role"
+        body: >
+          {
+            "description": "Grants user access to some indicies.",
+            "indices": [
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
+              ],
+            "metadata" : {"version": 1}
+          }
+
+'''
   setups['jacknich_user'] = '''
   - do:
       security.put_user:

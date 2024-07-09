@@ -101,7 +101,19 @@ public class EsqlCapabilities {
         /**
          * Support for quoting index sources in double quotes.
          */
-        DOUBLE_QUOTES_SOURCE_ENCLOSING;
+        DOUBLE_QUOTES_SOURCE_ENCLOSING,
+
+        /**
+         * Support for WEIGHTED_AVG function.
+         */
+        AGG_WEIGHTED_AVG,
+
+        /**
+         * Fix for union-types when aggregating over an inline conversion with casting operator. Done in #110476.
+         */
+        UNION_TYPES_AGG_CAST;
+
+        private final boolean snapshotOnly;
 
         Cap() {
             snapshotOnly = false;
@@ -115,7 +127,9 @@ public class EsqlCapabilities {
             return name().toLowerCase(Locale.ROOT);
         }
 
-        private final boolean snapshotOnly;
+        public boolean snapshotOnly() {
+            return snapshotOnly;
+        }
     }
 
     public static final Set<String> CAPABILITIES = capabilities();

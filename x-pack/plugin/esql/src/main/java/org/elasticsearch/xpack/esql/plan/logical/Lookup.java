@@ -11,8 +11,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -57,7 +55,7 @@ public class Lookup extends UnaryPlan {
 
     public Lookup(PlanStreamInput in) throws IOException {
         super(Source.readFrom(in), in.readLogicalPlanNode());
-        this.tableName = in.readExpression();
+        this.tableName = in.readNamedWriteable(Expression.class);
         this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.localRelation = in.readBoolean() ? new LocalRelation(in) : null;
     }
@@ -65,7 +63,7 @@ public class Lookup extends UnaryPlan {
     public void writeTo(PlanStreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeLogicalPlanNode(child());
-        out.writeExpression(tableName);
+        out.writeNamedWriteable(tableName);
         out.writeNamedWriteableCollection(matchFields);
         if (localRelation == null) {
             out.writeBoolean(false);

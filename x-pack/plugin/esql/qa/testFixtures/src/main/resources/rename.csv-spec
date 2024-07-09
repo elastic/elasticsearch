@@ -188,6 +188,19 @@ last_name:integer  | first_name:keyword
              10002 | Bezalel
 ;
 
+shadowingHierarchical
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.continent.name, city.country.name, city.name
+| RENAME city.name AS city.country.continent.planet.name, city.country.name AS city.country.continent.name
+| SORT city.country.continent.planet.name
+;
+
+city.country.continent.name:keyword | city.country.continent.planet.name:keyword
+Netherlands                         | Amsterdam
+United States of America            | San Francisco
+Japan                               | Tokyo
+;
+
 shadowingInternal
 FROM employees
 | SORT emp_no ASC

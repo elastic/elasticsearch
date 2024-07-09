@@ -38,10 +38,19 @@ a:integer
 
 shadowingInternal
 //TODO: needs cap to skip on bwc tests
-row a = 1, a = 2;
+ROW a = 1, a = 2;
 
 a:integer
         2
+;
+
+shadowingInternalHierarchical
+// Fun fact: "Sissi" is an actual exoplanet name, after the character from the movie with the same name. A.k.a. HAT-P-14 b.
+ROW city.country.continent.planet.name = "Earth", city.country.continent.name = "Netherlands", city.country.continent.planet.name = "Sissi"
+;
+
+city.country.continent.name:keyword | city.country.continent.planet.name:keyword
+Netherlands                         | Sissi
 ;
 
 unsignedLongLiteral

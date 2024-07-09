@@ -197,9 +197,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertThat(healthResponse.getIndices().get(indexName).getStatus().value(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW.value()));
 
         final int tasks = randomIntBetween(2, 5);
-        final CyclicBarrier barrier = new CyclicBarrier(tasks);
-        runInParallel(tasks, i -> {
-            safeAwait(barrier);
+        startInParallel(tasks, i -> {
             try {
                 indicesAdmin().prepareClose(indexName).get();
             } catch (final Exception e) {
@@ -247,9 +245,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
         assertThat(clusterAdmin().prepareState().get().getState().metadata().indices().size(), equalTo(indices.length));
 
-        final CyclicBarrier barrier = new CyclicBarrier(indices.length * 2);
-        runInParallel(indices.length * 2, i -> {
-            safeAwait(barrier);
+        startInParallel(indices.length * 2, i -> {
             final String index = indices[i % indices.length];
             try {
                 if (i < indices.length) {
@@ -275,9 +271,8 @@ public class CloseIndexIT extends ESIntegTestCase {
         final int opens = randomIntBetween(1, 3);
         final CyclicBarrier barrier = new CyclicBarrier(opens + closes);
 
-        runInParallel(opens + closes, i -> {
+        startInParallel(opens + closes, i -> {
             try {
-                safeAwait(barrier);
                 if (i < closes) {
                     indicesAdmin().prepareClose(indexName).get();
                 } else {

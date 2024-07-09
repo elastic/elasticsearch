@@ -26,7 +26,7 @@ class EqualMatcher<T> extends Matcher {
     private final T expected;
     private final boolean ignoreSorting;
 
-    public EqualMatcher(
+    EqualMatcher(
         XContentBuilder actualMappings,
         Settings.Builder actualSettings,
         XContentBuilder expectedMappings,

@@ -68,9 +68,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
             refresh();
             SearchResponse searchResponse;
             try {
-                searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                    .setQuery(termQuery("metadata.foo", "bar"))
-                    .get();
+                searchResponse = prepareSearch(HistoryStoreField.DATA_STREAM + "*").setQuery(termQuery("metadata.foo", "bar")).get();
             } catch (SearchPhaseExecutionException e) {
                 if (e.getCause() instanceof NoShardAvailableActionException) {
                     // Nothing has created the index yet
@@ -80,7 +78,11 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                 }
             }
             assertNotNull(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+            try {
+                assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+            } finally {
+                searchResponse.decRef();
+            }
         });
     }
 

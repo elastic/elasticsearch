@@ -22,12 +22,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
@@ -91,7 +92,8 @@ public class JoinHelperTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
-            CompatibilityVersionsUtils.staticCurrent()
+            CompatibilityVersionsUtils.staticCurrent(),
+            new FeatureService(List.of())
         );
         transportService.start();
 
@@ -112,7 +114,7 @@ public class JoinHelperTests extends ESTestCase {
         assertEquals(node1, capturedRequest1.node());
 
         assertTrue(joinHelper.isJoinPending());
-        final var join1Term = optionalJoin1.stream().mapToLong(Join::getTerm).findFirst().orElse(0L);
+        final var join1Term = optionalJoin1.stream().mapToLong(Join::term).findFirst().orElse(0L);
         final var join1Status = new JoinStatus(node1, join1Term, PENDING_JOIN_WAITING_RESPONSE, TimeValue.ZERO);
         assertThat(joinHelper.getInFlightJoinStatuses(), equalTo(List.of(join1Status)));
 
@@ -126,7 +128,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest capturedRequest2 = capturedRequests2[0];
         assertEquals(node2, capturedRequest2.node());
 
-        final var join2Term = optionalJoin2.stream().mapToLong(Join::getTerm).findFirst().orElse(0L);
+        final var join2Term = optionalJoin2.stream().mapToLong(Join::term).findFirst().orElse(0L);
         final var join2Status = new JoinStatus(node2, join2Term, PENDING_JOIN_WAITING_RESPONSE, TimeValue.ZERO);
         assertThat(
             new HashSet<>(joinHelper.getInFlightJoinStatuses()),
@@ -258,7 +260,8 @@ public class JoinHelperTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
-            CompatibilityVersionsUtils.staticCurrent()
+            CompatibilityVersionsUtils.staticCurrent(),
+            new FeatureService(List.of())
         );
         transportService.start();
 
@@ -334,26 +337,26 @@ public class JoinHelperTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             Function.identity(),
             (listener, term) -> listener.onFailure(new ElasticsearchException("simulated")),
-            CompatibilityVersionsUtils.staticCurrent()
+            CompatibilityVersionsUtils.staticCurrent(),
+            new FeatureService(List.of())
         );
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();
         final var joinListener = new PlainActionFuture<Void>();
-        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), joinListener);
+        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinListener);
         assert joinListener.isDone() == false;
 
-        final var mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "warning log",
-                JoinHelper.class.getCanonicalName(),
-                Level.WARN,
-                "failed to retrieve latest stored state after winning election in term [1]"
-            )
-        );
-        try (var ignored = mockAppender.capturing(JoinHelper.class)) {
+        try (var mockLog = MockLog.capture(JoinHelper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "warning log",
+                    JoinHelper.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to retrieve latest stored state after winning election in term [1]"
+                )
+            );
             joinAccumulator.close(Coordinator.Mode.LEADER);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         assertEquals("simulated", expectThrows(ElasticsearchException.class, () -> FutureUtils.get(joinListener)).getMessage());

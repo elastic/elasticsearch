@@ -235,7 +235,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         @SuppressWarnings("unchecked")
         final ActionFuture<XPackUsageResponse> xPackUsageFuture = (ActionFuture<XPackUsageResponse>) mock(ActionFuture.class);
         when(client.execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class))).thenReturn(xPackUsageFuture);
-        when(xPackUsageFuture.actionGet()).thenReturn(xPackUsageResponse);
+        when(xPackUsageFuture.actionGet(any(TimeValue.class))).thenReturn(xPackUsageResponse);
 
         final ClusterStatsCollector collector = new ClusterStatsCollector(
             settings.build(),
@@ -345,7 +345,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             @SuppressWarnings("unchecked")
             final ActionFuture<XPackUsageResponse> xPackUsageFuture = (ActionFuture<XPackUsageResponse>) mock(ActionFuture.class);
             when(client.execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class))).thenReturn(xPackUsageFuture);
-            when(xPackUsageFuture.actionGet()).thenReturn(xPackUsageResponse);
+            when(xPackUsageFuture.actionGet(any(TimeValue.class))).thenReturn(xPackUsageResponse);
         }
 
         final long interval = randomNonNegativeLong();

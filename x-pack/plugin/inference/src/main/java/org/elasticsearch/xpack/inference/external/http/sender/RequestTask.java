@@ -7,52 +7,95 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.inference.external.http.HttpClient;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.action.support.ListenerTimeouts;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-class RequestTask extends HttpTask {
-    private static final Logger logger = LogManager.getLogger(RequestTask.class);
+class RequestTask implements RejectableTask {
 
-    private final HttpUriRequest request;
-    private final ActionListener<HttpResult> listener;
-    private final HttpClient httpClient;
-    private final HttpClientContext context;
+    private final AtomicBoolean finished = new AtomicBoolean();
+    private final RequestManager requestCreator;
+    private final InferenceInputs inferenceInputs;
+    private final ActionListener<InferenceServiceResults> listener;
 
-    RequestTask(HttpUriRequest request, HttpClient httpClient, HttpClientContext context, ActionListener<HttpResult> listener) {
-        this.request = Objects.requireNonNull(request);
-        this.httpClient = Objects.requireNonNull(httpClient);
-        this.listener = Objects.requireNonNull(listener);
-        this.context = Objects.requireNonNull(context);
+    RequestTask(
+        RequestManager requestCreator,
+        InferenceInputs inferenceInputs,
+        @Nullable TimeValue timeout,
+        ThreadPool threadPool,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        this.requestCreator = Objects.requireNonNull(requestCreator);
+        this.listener = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
+        this.inferenceInputs = Objects.requireNonNull(inferenceInputs);
+    }
+
+    private ActionListener<InferenceServiceResults> getListener(
+        ActionListener<InferenceServiceResults> origListener,
+        @Nullable TimeValue timeout,
+        ThreadPool threadPool
+    ) {
+        ActionListener<InferenceServiceResults> notificationListener = ActionListener.wrap(result -> {
+            finished.set(true);
+            origListener.onResponse(result);
+        }, e -> {
+            finished.set(true);
+            origListener.onFailure(e);
+        });
+
+        if (timeout == null) {
+            return notificationListener;
+        }
+
+        return ListenerTimeouts.wrapWithTimeout(
+            threadPool,
+            timeout,
+            threadPool.executor(UTILITY_THREAD_POOL_NAME),
+            notificationListener,
+            (ignored) -> notificationListener.onFailure(
+                new ElasticsearchTimeoutException(Strings.format("Request timed out waiting to be sent after [%s]", timeout))
+            )
+        );
     }
 
     @Override
-    public void onFailure(Exception e) {
+    public boolean hasCompleted() {
+        return finished.get();
+    }
+
+    @Override
+    public Supplier<Boolean> getRequestCompletedFunction() {
+        return this::hasCompleted;
+    }
+
+    @Override
+    public InferenceInputs getInferenceInputs() {
+        return inferenceInputs;
+    }
+
+    @Override
+    public ActionListener<InferenceServiceResults> getListener() {
+        return listener;
+    }
+
+    @Override
+    public void onRejection(Exception e) {
         listener.onFailure(e);
     }
 
     @Override
-    protected void doRun() throws Exception {
-        try {
-            httpClient.send(request, context, listener);
-        } catch (IOException e) {
-            logger.error(format("Failed to send request [%s] via the http client", request.getRequestLine()), e);
-            listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));
-        }
-    }
-
-    @Override
-    public String toString() {
-        return request.getRequestLine().toString();
+    public RequestManager getRequestManager() {
+        return requestCreator;
     }
 }

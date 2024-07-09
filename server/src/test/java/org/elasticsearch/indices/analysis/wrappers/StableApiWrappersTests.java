@@ -75,7 +75,10 @@ public class StableApiWrappersTests extends ESTestCase {
             IllegalStateException.class,
             () -> oldTokenFilter.get(null, mock(Environment.class), null, null)
         );
-        assertThat(illegalStateException.getMessage(), equalTo("Missing @Inject annotation for constructor with settings."));
+        assertThat(
+            illegalStateException.getMessage(),
+            equalTo("Missing @org.elasticsearch.plugin.Inject annotation for constructor with settings.")
+        );
     }
 
     public void testAnalyzerFactoryDelegation() throws IOException {

@@ -21,6 +21,8 @@ import spock.lang.Specification
 import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 
@@ -50,6 +52,17 @@ abstract class AbstractGradleFuncTest extends Specification {
         propertiesFile = testProjectDir.newFile('gradle.properties')
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+
+        def nativeLibsProject = subProject(":libs:elasticsearch-native:elasticsearch-native-libraries")
+        nativeLibsProject << """
+            plugins {
+                id 'base'
+            }
+        """
+        def mutedTestsFile = testProjectDir.newFile("muted-tests.yml")
+        mutedTestsFile << """
+            tests: []
+        """
     }
 
     def cleanup() {

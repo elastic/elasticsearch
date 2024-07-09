@@ -24,7 +24,7 @@ public class ShardsAcknowledgedResponse extends AcknowledgedResponse {
 
     protected static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");
 
-    protected static <T extends ShardsAcknowledgedResponse> void declareAcknowledgedAndShardsAcknowledgedFields(
+    public static <T extends ShardsAcknowledgedResponse> void declareAcknowledgedAndShardsAcknowledgedFields(
         ConstructingObjectParser<T, Void> objectParser
     ) {
         declareAcknowledgedField(objectParser);

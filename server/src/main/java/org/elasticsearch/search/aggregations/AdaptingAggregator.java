@@ -130,10 +130,6 @@ public abstract class AdaptingAggregator extends Aggregator {
         add.accept("delegate_debug", delegateDebug);
     }
 
-    public Aggregator delegate() {
-        return delegate;
-    }
-
     @Override
     public String toString() {
         return name();

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -15,7 +16,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
@@ -42,6 +46,13 @@ public class MappingParserTests extends MapperServiceTestCase {
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        });
         Supplier<MappingParserContext> mappingParserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
@@ -54,7 +65,8 @@ public class MappingParserTests extends MapperServiceTestCase {
             scriptService,
             indexAnalyzers,
             indexSettings,
-            indexSettings.getMode().idFieldMapperWithoutFieldData()
+            indexSettings.getMode().idFieldMapperWithoutFieldData(),
+            bitsetFilterCache::getBitSetProducer
         );
 
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
@@ -194,27 +206,27 @@ public class MappingParserTests extends MapperServiceTestCase {
         assertEquals(1, mapping.getRoot().mappers.size());
         Mapper object = mapping.getRoot().getMapper("obj");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("obj", object.simpleName());
-        assertEquals("obj", object.name());
+        assertEquals("obj", object.leafName());
+        assertEquals("obj", object.fullPath());
         ObjectMapper objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
         object = objectMapper.getMapper("source");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("source", object.simpleName());
-        assertEquals("obj.source", object.name());
+        assertEquals("source", object.leafName());
+        assertEquals("obj.source", object.fullPath());
         objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
         object = objectMapper.getMapper("geo");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("geo", object.simpleName());
-        assertEquals("obj.source.geo", object.name());
+        assertEquals("geo", object.leafName());
+        assertEquals("obj.source.geo", object.fullPath());
         objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
         Mapper location = objectMapper.getMapper("location");
         assertThat(location, CoreMatchers.instanceOf(GeoPointFieldMapper.class));
         GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) location;
-        assertEquals("obj.source.geo.location", geoPointFieldMapper.name());
-        assertEquals("location", geoPointFieldMapper.simpleName());
+        assertEquals("obj.source.geo.location", geoPointFieldMapper.fullPath());
+        assertEquals("location", geoPointFieldMapper.leafName());
         assertEquals("obj.source.geo.location", geoPointFieldMapper.mappedFieldType.name());
     }
 
@@ -317,7 +329,7 @@ public class MappingParserTests extends MapperServiceTestCase {
     }
 
     public void testBlankFieldNameBefore8_6_0() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.V_8_5_0);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.V_8_5_0);
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.MINIMUM_COMPATIBLE,

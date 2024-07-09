@@ -77,17 +77,17 @@ public class TokenCountFieldMapper extends FieldMapper {
         @Override
         public TokenCountFieldMapper build(MapperBuilderContext context) {
             if (analyzer.getValue() == null) {
-                throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
+                throw new MapperParsingException("Analyzer must be set for field [" + leafName() + "] but wasn't.");
             }
             MappedFieldType ft = new TokenCountFieldType(
-                context.buildFullName(name),
+                context.buildFullName(leafName()),
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
                 nullValue.getValue(),
                 meta.getValue()
             );
-            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new TokenCountFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -163,7 +163,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         if (value == null) {
             tokenCount = nullValue;
         } else {
-            tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
+            tokenCount = countPositions(analyzer, fullPath(), value, enablePositionIncrements);
         }
 
         NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
@@ -206,14 +206,6 @@ public class TokenCountFieldMapper extends FieldMapper {
         return analyzer.name();
     }
 
-    /**
-     * Indicates if position increments are counted.
-     * @return <code>true</code> if position increments are counted
-     */
-    public boolean enablePositionIncrements() {
-        return enablePositionIncrements;
-    }
-
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
@@ -221,6 +213,6 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 }

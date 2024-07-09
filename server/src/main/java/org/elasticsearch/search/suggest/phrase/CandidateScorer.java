@@ -28,13 +28,13 @@ final class CandidateScorer {
         if (sets.length == 0) {
             return Correction.EMPTY;
         }
-        PriorityQueue<Correction> corrections = new PriorityQueue<Correction>(maxNumCorrections) {
+        PriorityQueue<Correction> corrections = new PriorityQueue<>(maxNumCorrections) {
             @Override
             protected boolean lessThan(Correction a, Correction b) {
                 return a.compareTo(b) < 0;
             }
         };
-        int numMissspellings = 1;
+        final int numMissspellings;
         if (errorFraction >= 1.0) {
             numMissspellings = (int) errorFraction;
         } else {
@@ -62,11 +62,11 @@ final class CandidateScorer {
         CandidateSet current = candidates[ord];
         if (ord == candidates.length - 1) {
             path[ord] = current.originalTerm;
-            updateTop(candidates, path, corrections, cutoffScore, pathScore + scorer.score(path, candidates, ord, gramSize));
+            updateTop(candidates, path, corrections, cutoffScore, pathScore + scorer.score(path, ord, gramSize));
             if (numMissspellingsLeft > 0) {
                 for (int i = 0; i < current.candidates.length; i++) {
                     path[ord] = current.candidates[i];
-                    updateTop(candidates, path, corrections, cutoffScore, pathScore + scorer.score(path, candidates, ord, gramSize));
+                    updateTop(candidates, path, corrections, cutoffScore, pathScore + scorer.score(path, ord, gramSize));
                 }
             }
         } else {
@@ -79,7 +79,7 @@ final class CandidateScorer {
                     numMissspellingsLeft,
                     corrections,
                     cutoffScore,
-                    pathScore + scorer.score(path, candidates, ord, gramSize)
+                    pathScore + scorer.score(path, ord, gramSize)
                 );
                 for (int i = 0; i < current.candidates.length; i++) {
                     path[ord] = current.candidates[i];
@@ -90,20 +90,12 @@ final class CandidateScorer {
                         numMissspellingsLeft - 1,
                         corrections,
                         cutoffScore,
-                        pathScore + scorer.score(path, candidates, ord, gramSize)
+                        pathScore + scorer.score(path, ord, gramSize)
                     );
                 }
             } else {
                 path[ord] = current.originalTerm;
-                findCandidates(
-                    candidates,
-                    path,
-                    ord + 1,
-                    0,
-                    corrections,
-                    cutoffScore,
-                    pathScore + scorer.score(path, candidates, ord, gramSize)
-                );
+                findCandidates(candidates, path, ord + 1, 0, corrections, cutoffScore, pathScore + scorer.score(path, ord, gramSize));
             }
         }
 
@@ -135,7 +127,7 @@ final class CandidateScorer {
     public double score(Candidate[] path, CandidateSet[] candidates) throws IOException {
         double score = 0.0d;
         for (int i = 0; i < candidates.length; i++) {
-            score += scorer.score(path, candidates, i, gramSize);
+            score += scorer.score(path, i, gramSize);
         }
         return Math.exp(score);
     }

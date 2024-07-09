@@ -10,6 +10,7 @@ package org.elasticsearch.indexlifecycle;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -79,7 +80,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         final String node2 = getLocalNodeId(server_2);
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
-        clusterAdmin().prepareReroute().execute().actionGet();
+        ClusterRerouteUtils.reroute(client());
 
         clusterHealth = clusterAdmin().health(
             new ClusterHealthRequest(new String[] {}).waitForGreenStatus().waitForNodes("2").waitForNoRelocatingShards(true)
@@ -120,7 +121,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         final String node3 = getLocalNodeId(server_3);
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
-        clusterAdmin().prepareReroute().execute().actionGet();
+        ClusterRerouteUtils.reroute(client());
 
         clusterHealth = clusterAdmin().prepareHealth()
             .setWaitForGreenStatus()
@@ -174,7 +175,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
 
         clusterHealth = clusterAdmin().prepareHealth()
             .setWaitForGreenStatus()
@@ -203,7 +204,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         logger.info("Deleting index [test]");
         // last, lets delete the index
-        AcknowledgedResponse deleteIndexResponse = indicesAdmin().prepareDelete("test").execute().actionGet();
+        AcknowledgedResponse deleteIndexResponse = indicesAdmin().prepareDelete("test").get();
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
 
         clusterState = clusterAdmin().prepareState().get().getState();

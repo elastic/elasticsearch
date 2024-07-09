@@ -53,6 +53,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -62,8 +63,9 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.BeforeClass;
 
@@ -80,6 +82,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
@@ -92,7 +95,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAll
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
-import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -129,19 +132,19 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             final var shardRouting = unassigned.next();
             if (shardRouting.primary() && shardRouting.shardId().id() == 1) {
                 final var unassignedInfo = shardRouting.unassignedInfo();
-                assertThat(unassignedInfo.getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.NO_ATTEMPT));
+                assertThat(unassignedInfo.lastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.NO_ATTEMPT));
                 unassigned.updateUnassigned(
                     new UnassignedInfo(
-                        unassignedInfo.getReason(),
-                        unassignedInfo.getMessage(),
-                        unassignedInfo.getFailure(),
-                        unassignedInfo.getNumFailedAllocations(),
-                        unassignedInfo.getUnassignedTimeInNanos(),
-                        unassignedInfo.getUnassignedTimeInMillis(),
-                        unassignedInfo.isDelayed(),
+                        unassignedInfo.reason(),
+                        unassignedInfo.message(),
+                        unassignedInfo.failure(),
+                        unassignedInfo.failedAllocations(),
+                        unassignedInfo.unassignedTimeNanos(),
+                        unassignedInfo.unassignedTimeMillis(),
+                        unassignedInfo.delayed(),
                         UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED,
-                        unassignedInfo.getFailedNodeIds(),
-                        unassignedInfo.getLastAllocatedNodeId()
+                        unassignedInfo.failedNodeIds(),
+                        unassignedInfo.lastAllocatedNodeId()
                     ),
                     shardRouting.recoverySource(),
                     new RoutingChangesObserver.DelegatingRoutingChangesObserver()
@@ -161,7 +164,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         for (ShardRouting shardRouting : routingAllocation.routingNodes().unassigned()) {
             assertTrue(shardRouting.toString(), shardRouting.unassigned());
             assertThat(
-                shardRouting.unassignedInfo().getLastAllocationStatus(),
+                shardRouting.unassignedInfo().lastAllocationStatus(),
                 equalTo(
                     shardRouting.primary() && shardRouting.shardId().id() == 1
                         ? UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED
@@ -187,7 +190,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         for (ShardRouting shardRouting : routingAllocation.routingNodes().unassigned()) {
             assertTrue(shardRouting.toString(), shardRouting.unassigned());
             assertThat(
-                shardRouting.unassignedInfo().getLastAllocationStatus(),
+                shardRouting.unassignedInfo().lastAllocationStatus(),
                 equalTo(
                     // we only update primaries, and only if currently NO_ATTEMPT
                     shardRouting.primary()
@@ -674,7 +677,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 .replicaShards()
                 .stream()
                 .allMatch(
-                    shardRouting -> shardRouting.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
+                    shardRouting -> shardRouting.unassignedInfo().lastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
                 )
         );
     }
@@ -721,7 +724,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             nonYesDecision == Decision.NO
                 ? UnassignedInfo.AllocationStatus.DECIDERS_NO
                 : UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED,
-            redState.routingTable().shardRoutingTable("index-0", 0).primaryShard().unassignedInfo().getLastAllocationStatus()
+            redState.routingTable().shardRoutingTable("index-0", 0).primaryShard().unassignedInfo().lastAllocationStatus()
         );
 
         assignPrimary.set(true);
@@ -730,7 +733,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             startInitializingShardsAndReroute(allocationService, redState)
         );
         for (final var shardRouting : yellowState.routingTable().shardRoutingTable("index-0", 0).replicaShards()) {
-            assertEquals(UnassignedInfo.AllocationStatus.NO_ATTEMPT, shardRouting.unassignedInfo().getLastAllocationStatus());
+            assertEquals(UnassignedInfo.AllocationStatus.NO_ATTEMPT, shardRouting.unassignedInfo().lastAllocationStatus());
         }
     }
 
@@ -1205,7 +1208,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new ConcurrentRebalanceAllocationDecider(clusterSettings),
             new ThrottlingAllocationDecider(clusterSettings) };
 
-        var reconciler = new DesiredBalanceReconciler(clusterSettings, mock(ThreadPool.class));
+        var reconciler = new DesiredBalanceReconciler(clusterSettings, mock(ThreadPool.class), mock(MeterRegistry.class));
 
         var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
         for (int i = 0; i < numberOfNodes; i++) {
@@ -1226,7 +1229,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             }
             for (ShardRouting shardRouting : initializing) {
                 totalOutgoingMoves.get(shardRouting.relocatingNodeId()).incrementAndGet();
-                allocation.routingNodes().startShard(logger, shardRouting, allocation.changes(), 0L);
+                allocation.routingNodes().startShard(shardRouting, allocation.changes(), 0L);
             }
 
             var summary = totalOutgoingMoves.values().stream().mapToInt(AtomicInteger::get).summaryStatistics();
@@ -1247,50 +1250,77 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
     public void testShouldLogOnTooManyUndesiredAllocations() {
 
-        var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
-        final var index = indexMetadata.getIndex();
-        final var shardId = new ShardId(index, 0);
+        final int shardCount = 5;
+
+        final var dataNode1Assignments = Maps.<ShardId, ShardAssignment>newMapWithExpectedSize(shardCount);
+        final var dataNode2Assignments = Maps.<ShardId, ShardAssignment>newMapWithExpectedSize(shardCount);
+
+        final var metadataBuilder = Metadata.builder();
+        final var routingTableBuilder = RoutingTable.builder();
+        for (int i = 0; i < shardCount; i++) {
+            final var indexMetadata = IndexMetadata.builder("index-" + i).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+            final var index = indexMetadata.getIndex();
+            final var shardId = new ShardId(index, 0);
+            metadataBuilder.put(indexMetadata, false);
+            routingTableBuilder.add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "data-node-1", true, STARTED)));
+
+            dataNode1Assignments.put(shardId, new ShardAssignment(Set.of("data-node-1"), 1, 0, 0));
+            dataNode2Assignments.put(shardId, new ShardAssignment(Set.of("data-node-2"), 1, 0, 0));
+        }
 
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNode("data-node-1")).add(newNode("data-node-2")))
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(
-                RoutingTable.builder()
-                    .add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "data-node-2", true, STARTED)))
-            )
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
             .build();
 
-        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("data-node-1"), 1, 0, 0)));
-
         var threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(1L).thenReturn(2L);
+        when(threadPool.relativeTimeInMillis()).thenReturn(1L).thenReturn(2L).thenReturn(3L);
 
-        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool);
+        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class));
 
+        var expectedWarningMessage = "[100%] of assigned shards ("
+            + shardCount
+            + "/"
+            + shardCount
+            + ") are not on their desired nodes, which exceeds the warn threshold of [10%]";
         assertThatLogger(
-            () -> reconciler.reconcile(balance, createRoutingAllocationFrom(clusterState)),
+            () -> reconciler.reconcile(new DesiredBalance(1, dataNode1Assignments), createRoutingAllocationFrom(clusterState)),
             DesiredBalanceReconciler.class,
-            new MockLogAppender.SeenEventExpectation(
-                "Should log first too many shards on undesired locations",
+            new MockLog.UnseenEventExpectation(
+                "Should not log if all shards on desired location",
                 DesiredBalanceReconciler.class.getCanonicalName(),
                 Level.WARN,
-                "[100%] of assigned shards (1/1) are not on their desired nodes, which exceeds the warn threshold of [10%]"
+                expectedWarningMessage
             )
         );
         assertThatLogger(
-            () -> reconciler.reconcile(balance, createRoutingAllocationFrom(clusterState)),
+            () -> reconciler.reconcile(new DesiredBalance(1, dataNode2Assignments), createRoutingAllocationFrom(clusterState)),
             DesiredBalanceReconciler.class,
-            new MockLogAppender.UnseenEventExpectation(
+            new MockLog.SeenEventExpectation(
+                "Should log first too many shards on undesired locations",
+                DesiredBalanceReconciler.class.getCanonicalName(),
+                Level.WARN,
+                expectedWarningMessage
+            )
+        );
+        assertThatLogger(
+            () -> reconciler.reconcile(new DesiredBalance(1, dataNode2Assignments), createRoutingAllocationFrom(clusterState)),
+            DesiredBalanceReconciler.class,
+            new MockLog.UnseenEventExpectation(
                 "Should not log immediate second too many shards on undesired locations",
                 DesiredBalanceReconciler.class.getCanonicalName(),
                 Level.WARN,
-                "[100.0%] of assigned shards (1/1) are not on their desired nodes, which exceeds the warn threshold of [10.0%]"
+                expectedWarningMessage
             )
         );
     }
 
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), mock(ThreadPool.class)).reconcile(desiredBalance, routingAllocation);
+        new DesiredBalanceReconciler(createBuiltInClusterSettings(), mock(ThreadPool.class), mock(MeterRegistry.class)).reconcile(
+            desiredBalance,
+            routingAllocation
+        );
     }
 
     private static boolean isReconciled(RoutingNode node, DesiredBalance balance) {
@@ -1351,7 +1381,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         public void beforeAllocation(RoutingAllocation allocation) {}
 
         @Override
-        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
 
         @Override
         public void allocateUnassigned(

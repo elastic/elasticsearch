@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,7 +20,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -43,18 +41,13 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
     public static final String NAME = "cluster:monitor/xpack/enrich/coordinator_stats";
 
     private EnrichCoordinatorStatsAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     // This always executes on all ingest nodes, hence no node ids need to be provided.
     public static class Request extends BaseNodesRequest<Request> {
         public Request() {
             super(new String[0]);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            org.elasticsearch.action.support.TransportAction.localOnly();
         }
     }
 
@@ -98,9 +91,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
         NodeResponse(StreamInput in) throws IOException {
             super(in);
-            this.cacheStats = in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)
-                ? new EnrichStatsAction.Response.CacheStats(in)
-                : null;
+            this.cacheStats = new EnrichStatsAction.Response.CacheStats(in);
             this.coordinatorStats = new CoordinatorStats(in);
         }
 
@@ -115,9 +106,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-                cacheStats.writeTo(out);
-            }
+            cacheStats.writeTo(out);
             coordinatorStats.writeTo(out);
         }
     }
@@ -142,9 +131,8 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         }
 
         @Override
-        protected void resolveRequest(Request request, ClusterState clusterState) {
-            DiscoveryNode[] ingestNodes = clusterState.getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
-            request.setConcreteNodes(ingestNodes);
+        protected DiscoveryNode[] resolveRequest(Request request, ClusterState clusterState) {
+            return clusterState.getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
         }
 
         @Override

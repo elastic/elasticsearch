@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.dangling.find;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -34,7 +35,8 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
     NodeFindDanglingIndexRequest,
     NodeFindDanglingIndexResponse> {
 
-    private final TransportService transportService;
+    public static final ActionType<FindDanglingIndexResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/find");
+
     private final DanglingIndicesState danglingIndicesState;
 
     @Inject
@@ -46,14 +48,13 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
         DanglingIndicesState danglingIndicesState
     ) {
         super(
-            FindDanglingIndexAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
             NodeFindDanglingIndexRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.transportService = transportService;
         this.danglingIndicesState = danglingIndicesState;
     }
 

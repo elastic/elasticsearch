@@ -15,14 +15,13 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.compute.data.ConstantIntVector;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,14 +33,19 @@ import java.io.UncheckedIOException;
  */
 final class EnrichQuerySourceOperator extends SourceOperator {
 
+    private final BlockFactory blockFactory;
     private final QueryList queryList;
-    private int queryPosition;
-    private Weight weight = null;
+    private int queryPosition = -1;
     private final IndexReader indexReader;
-    private int leafIndex = 0;
     private final IndexSearcher searcher;
+    private final int maxPageSize;
 
-    EnrichQuerySourceOperator(QueryList queryList, IndexReader indexReader) {
+    // using smaller pages enables quick cancellation and reduces sorting costs
+    static final int DEFAULT_MAX_PAGE_SIZE = 256;
+
+    EnrichQuerySourceOperator(BlockFactory blockFactory, int maxPageSize, QueryList queryList, IndexReader indexReader) {
+        this.blockFactory = blockFactory;
+        this.maxPageSize = maxPageSize;
         this.queryList = queryList;
         this.indexReader = indexReader;
         this.searcher = new IndexSearcher(indexReader);
@@ -57,57 +61,100 @@ final class EnrichQuerySourceOperator extends SourceOperator {
 
     @Override
     public Page getOutput() {
-        if (leafIndex == indexReader.leaves().size()) {
-            queryPosition++;
-            leafIndex = 0;
-            weight = null;
-        }
-        if (isFinished()) {
-            return null;
-        }
-        if (weight == null) {
-            Query query = queryList.getQuery(queryPosition);
-            if (query != null) {
-                try {
-                    query = searcher.rewrite(new ConstantScoreQuery(query));
-                    weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        }
+        int estimatedSize = Math.min(maxPageSize, queryList.getPositionCount() - queryPosition);
+        IntVector.Builder positionsBuilder = null;
+        IntVector.Builder docsBuilder = null;
+        IntVector.Builder segmentsBuilder = null;
         try {
-            return queryOneLeaf(weight, leafIndex++);
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
+            positionsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
+            docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
+            if (indexReader.leaves().size() > 1) {
+                segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
+            }
+            int totalMatches = 0;
+            do {
+                Query query = nextQuery();
+                if (query == null) {
+                    assert isFinished();
+                    break;
+                }
+                query = searcher.rewrite(new ConstantScoreQuery(query));
+                final var weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+                if (weight == null) {
+                    continue;
+                }
+                for (LeafReaderContext leaf : indexReader.leaves()) {
+                    var scorer = weight.bulkScorer(leaf);
+                    if (scorer == null) {
+                        continue;
+                    }
+                    final DocCollector collector = new DocCollector(docsBuilder);
+                    scorer.score(collector, leaf.reader().getLiveDocs());
+                    int matches = collector.matches;
+
+                    if (segmentsBuilder != null) {
+                        for (int i = 0; i < matches; i++) {
+                            segmentsBuilder.appendInt(leaf.ord);
+                        }
+                    }
+                    for (int i = 0; i < matches; i++) {
+                        positionsBuilder.appendInt(queryPosition);
+                    }
+                    totalMatches += matches;
+                }
+            } while (totalMatches < maxPageSize);
+
+            return buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } finally {
+            Releasables.close(docsBuilder, segmentsBuilder, positionsBuilder);
         }
     }
 
-    private Page queryOneLeaf(Weight weight, int leafIndex) throws IOException {
-        if (weight == null) {
-            return null;
+    Page buildPage(int positions, IntVector.Builder positionsBuilder, IntVector.Builder segmentsBuilder, IntVector.Builder docsBuilder) {
+        IntVector positionsVector = null;
+        IntVector shardsVector = null;
+        IntVector segmentsVector = null;
+        IntVector docsVector = null;
+        Page page = null;
+        try {
+            positionsVector = positionsBuilder.build();
+            shardsVector = blockFactory.newConstantIntVector(0, positions);
+            if (segmentsBuilder == null) {
+                segmentsVector = blockFactory.newConstantIntVector(0, positions);
+            } else {
+                segmentsVector = segmentsBuilder.build();
+            }
+            docsVector = docsBuilder.build();
+            page = new Page(new DocVector(shardsVector, segmentsVector, docsVector, null).asBlock(), positionsVector.asBlock());
+        } finally {
+            if (page == null) {
+                Releasables.close(positionsBuilder, segmentsVector, docsBuilder, positionsVector, shardsVector, docsVector);
+            }
         }
-        LeafReaderContext leafReaderContext = indexReader.leaves().get(leafIndex);
-        var scorer = weight.bulkScorer(leafReaderContext);
-        if (scorer == null) {
-            return null;
+        return page;
+    }
+
+    private Query nextQuery() {
+        ++queryPosition;
+        while (isFinished() == false) {
+            Query query = queryList.getQuery(queryPosition);
+            if (query != null) {
+                return query;
+            }
+            ++queryPosition;
         }
-        DocCollector collector = new DocCollector();
-        scorer.score(collector, leafReaderContext.reader().getLiveDocs());
-        final int matches = collector.matches;
-        DocVector docVector = new DocVector(
-            new ConstantIntVector(0, matches),
-            new ConstantIntVector(leafIndex, matches),
-            new IntArrayVector(collector.docs, matches),
-            true
-        );
-        IntBlock positionBlock = new ConstantIntVector(queryPosition, matches).asBlock();
-        return new Page(docVector.asBlock(), positionBlock);
+        return null;
     }
 
     private static class DocCollector implements LeafCollector {
+        final IntVector.Builder docIds;
         int matches = 0;
-        int[] docs = new int[0];
+
+        DocCollector(IntVector.Builder docIds) {
+            this.docIds = docIds;
+        }
 
         @Override
         public void setScorer(Scorable scorer) {
@@ -115,9 +162,9 @@ final class EnrichQuerySourceOperator extends SourceOperator {
         }
 
         @Override
-        public void collect(int doc) throws IOException {
-            docs = ArrayUtil.grow(docs, matches + 1);
-            docs[matches++] = doc;
+        public void collect(int doc) {
+            ++matches;
+            docIds.appendInt(doc);
         }
     }
 

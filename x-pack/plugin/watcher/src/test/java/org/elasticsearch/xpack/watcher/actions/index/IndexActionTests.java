@@ -242,7 +242,7 @@ public class IndexActionTests extends ESTestCase {
         final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", new Payload.Simple(Maps.ofEntries(entries)));
 
         ArgumentCaptor<IndexRequest> captor = ArgumentCaptor.forClass(IndexRequest.class);
-        PlainActionFuture<DocWriteResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<DocWriteResponse> listener = new PlainActionFuture<>();
         listener.onResponse(new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", 1, 1, 1, true));
         when(client.index(captor.capture())).thenReturn(listener);
         Action.Result result = executable.execute("_id", ctx, ctx.payload());
@@ -272,7 +272,7 @@ public class IndexActionTests extends ESTestCase {
         );
 
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
-        PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> listener = new PlainActionFuture<>();
         IndexResponse indexResponse = new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", 1, 1, 1, true);
         BulkItemResponse response = BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, indexResponse);
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] { response }, 1);
@@ -340,7 +340,7 @@ public class IndexActionTests extends ESTestCase {
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, payload);
 
         ArgumentCaptor<IndexRequest> captor = ArgumentCaptor.forClass(IndexRequest.class);
-        PlainActionFuture<DocWriteResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<DocWriteResponse> listener = new PlainActionFuture<>();
         listener.onResponse(new IndexResponse(new ShardId(new Index("test-index", "uuid"), 0), docId, 1, 1, 1, true));
         when(client.index(captor.capture())).thenReturn(listener);
 
@@ -393,7 +393,7 @@ public class IndexActionTests extends ESTestCase {
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", ZonedDateTime.now(ZoneOffset.UTC), payload);
 
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
-        PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> listener = new PlainActionFuture<>();
         BulkItemResponse.Failure failure = new BulkItemResponse.Failure("test-index", "anything", new ElasticsearchException("anything"));
         BulkItemResponse firstResponse = BulkItemResponse.failure(0, DocWriteRequest.OpType.INDEX, failure);
         BulkItemResponse secondResponse;

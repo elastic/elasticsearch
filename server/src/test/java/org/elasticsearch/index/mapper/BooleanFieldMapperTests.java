@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -260,6 +261,12 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 );
             }
         };
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        // Just assert that we expect a boolean. Otherwise no munging.
+        return v -> (Boolean) v;
     }
 
     protected IngestScriptSupport ingestScriptSupport() {

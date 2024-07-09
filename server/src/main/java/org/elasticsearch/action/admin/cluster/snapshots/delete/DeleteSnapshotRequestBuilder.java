@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.delete;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * Delete snapshot request builder
@@ -21,17 +22,10 @@ public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
     DeleteSnapshotRequestBuilder> {
 
     /**
-     * Constructs delete snapshot request builder
-     */
-    public DeleteSnapshotRequestBuilder(ElasticsearchClient client, DeleteSnapshotAction action) {
-        super(client, action, new DeleteSnapshotRequest());
-    }
-
-    /**
      * Constructs delete snapshot request builder with specified repository and snapshot names
      */
-    public DeleteSnapshotRequestBuilder(ElasticsearchClient client, DeleteSnapshotAction action, String repository, String... snapshots) {
-        super(client, action, new DeleteSnapshotRequest(repository, snapshots));
+    public DeleteSnapshotRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout, String repository, String... snapshots) {
+        super(client, TransportDeleteSnapshotAction.TYPE, new DeleteSnapshotRequest(masterNodeTimeout, repository, snapshots));
     }
 
     /**
@@ -53,6 +47,17 @@ public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
      */
     public DeleteSnapshotRequestBuilder setSnapshots(String... snapshots) {
         request.snapshots(snapshots);
+        return this;
+    }
+
+    /**
+     * Sets whether to wait for completion
+     *
+     * @param waitForCompletion true to wait for completion, false otherwise
+     * @return this builder
+     */
+    public DeleteSnapshotRequestBuilder setWaitForCompletion(boolean waitForCompletion) {
+        request.waitForCompletion(waitForCompletion);
         return this;
     }
 }

@@ -41,7 +41,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
 
     public void testGetMappingsWhereThereAreNone() {
         createIndex("index");
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings().execute().actionGet();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings().get();
         assertThat(response.mappings().containsKey("index"), equalTo(true));
         assertEquals(MappingMetadata.EMPTY_MAPPINGS, response.mappings().get("index"));
     }
@@ -59,42 +59,41 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
     }
 
     public void testSimpleGetMappings() throws Exception {
-        indicesAdmin().prepareCreate("indexa").setMapping(getMappingForType()).execute().actionGet();
-        indicesAdmin().prepareCreate("indexb").setMapping(getMappingForType()).execute().actionGet();
+        indicesAdmin().prepareCreate("indexa").setMapping(getMappingForType()).get();
+        indicesAdmin().prepareCreate("indexb").setMapping(getMappingForType()).get();
 
         ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
-            .execute()
-            .actionGet();
+            .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // Get all mappings
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings().execute().actionGet();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings().get();
         assertThat(response.mappings().size(), equalTo(2));
         assertThat(response.mappings().get("indexa"), notNullValue());
         assertThat(response.mappings().get("indexb"), notNullValue());
 
         // Get all mappings, via wildcard support
-        response = indicesAdmin().prepareGetMappings("*").execute().actionGet();
+        response = indicesAdmin().prepareGetMappings("*").get();
         assertThat(response.mappings().size(), equalTo(2));
         assertThat(response.mappings().get("indexa"), notNullValue());
         assertThat(response.mappings().get("indexb"), notNullValue());
 
         // Get mappings in indexa
-        response = indicesAdmin().prepareGetMappings("indexa").execute().actionGet();
+        response = indicesAdmin().prepareGetMappings("indexa").get();
         assertThat(response.mappings().size(), equalTo(1));
         assertThat(response.mappings().get("indexa"), notNullValue());
     }
 
     public void testGetMappingsWithBlocks() throws IOException {
-        indicesAdmin().prepareCreate("test").setMapping(getMappingForType()).execute().actionGet();
+        indicesAdmin().prepareCreate("test").setMapping(getMappingForType()).get();
         ensureGreen();
 
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
             try {
                 enableIndexBlock("test", block);
-                GetMappingsResponse response = indicesAdmin().prepareGetMappings().execute().actionGet();
+                GetMappingsResponse response = indicesAdmin().prepareGetMappings().get();
                 assertThat(response.mappings().size(), equalTo(1));
                 assertNotNull(response.mappings().get("test"));
             } finally {

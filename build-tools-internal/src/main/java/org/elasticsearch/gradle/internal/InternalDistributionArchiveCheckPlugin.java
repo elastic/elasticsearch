@@ -135,7 +135,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
-                    final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2021 Elasticsearch");
+                    final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2024 Elasticsearch");
                     final Path noticePath = checkExtraction.get()
                         .getDestinationDir()
                         .toPath()
@@ -207,27 +207,10 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         }
     }
 
-    private static boolean toolExists(Project project) {
-        if (project.getName().contains("tar")) {
-            return tarExists();
-        } else {
-            assert project.getName().contains("zip");
-            return zipExists();
-        }
-    }
-
     private static void assertNoClassFile(File file) {
         if (file.getName().endsWith(".class")) {
             throw new GradleException("Detected class file in distribution ('" + file.getName() + "')");
         }
-    }
-
-    private static boolean zipExists() {
-        return new File("/bin/unzip").exists() || new File("/usr/bin/unzip").exists() || new File("/usr/local/bin/unzip").exists();
-    }
-
-    private static boolean tarExists() {
-        return new File("/bin/tar").exists() || new File("/usr/bin/tar").exists() || new File("/usr/local/bin/tar").exists();
     }
 
     private Object distTaskOutput(TaskProvider<Task> buildDistTask) {

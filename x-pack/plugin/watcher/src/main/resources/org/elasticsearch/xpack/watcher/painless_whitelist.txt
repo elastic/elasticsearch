@@ -8,6 +8,7 @@
 class java.lang.String {
   String org.elasticsearch.painless.api.Augmentation sha1()
   String org.elasticsearch.painless.api.Augmentation sha256()
+  String org.elasticsearch.painless.api.Augmentation sha512()
 }
 
 class org.elasticsearch.painless.api.Json {

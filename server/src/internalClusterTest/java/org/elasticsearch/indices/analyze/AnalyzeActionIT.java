@@ -77,9 +77,8 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping("long", "type=long", "double", "type=double"));
         ensureGreen("test");
 
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareAnalyze(indexOrAlias(), "123").setField("long").get());
-
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get());
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAnalyze(indexOrAlias(), "123").setField("long"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAnalyze(indexOrAlias(), "123.0").setField("double"));
     }
 
     public void testAnalyzeWithNoIndex() throws Exception {
@@ -280,7 +279,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     public void testNonExistTokenizer() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareAnalyze("this is a test").setAnalyzer("not_exist_analyzer").get()
+            indicesAdmin().prepareAnalyze("this is a test").setAnalyzer("not_exist_analyzer")
         );
         assertThat(e.getMessage(), startsWith("failed to find global analyzer"));
     }

@@ -38,6 +38,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestRequest;
@@ -53,6 +54,7 @@ import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestShardsAction extends AbstractCatAction {
@@ -83,7 +85,7 @@ public class RestShardsAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final var clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(IndicesOptions.strictExpandHidden());
 
         return channel -> {
@@ -252,7 +254,11 @@ public class RestShardsAction extends AbstractCatAction {
         );
         table.addCell(
             "dense_vector.value_count",
-            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:number of indexed dense vectors in shard"
+        );
+        table.addCell(
+            "sparse_vector.value_count",
+            "alias:svc,sparseVectorCount;default:false;text-align:right;desc:number of indexed sparse vectors in shard"
         );
 
         table.endHeaders();
@@ -293,8 +299,8 @@ public class RestShardsAction extends AbstractCatAction {
             }
             table.addCell(shard.state());
             table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));
-            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getSize));
-            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getTotalDataSetSize));
+            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::size));
+            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::totalDataSetSize));
             if (shard.assignedToNode()) {
                 String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
                 String nodeId = shard.currentNodeId();
@@ -323,11 +329,13 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(commitStats == null ? null : commitStats.getUserData().get(Engine.SYNC_COMMIT_ID));
 
             if (shard.unassignedInfo() != null) {
-                table.addCell(shard.unassignedInfo().getReason());
-                Instant unassignedTime = Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis());
+                table.addCell(shard.unassignedInfo().reason());
+                Instant unassignedTime = Instant.ofEpochMilli(shard.unassignedInfo().unassignedTimeMillis());
                 table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.format(unassignedTime));
-                table.addCell(TimeValue.timeValueMillis(System.currentTimeMillis() - shard.unassignedInfo().getUnassignedTimeInMillis()));
-                table.addCell(shard.unassignedInfo().getDetails());
+                table.addCell(
+                    TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - shard.unassignedInfo().unassignedTimeMillis()))
+                );
+                table.addCell(shard.unassignedInfo().details());
             } else {
                 table.addCell(null);
                 table.addCell(null);
@@ -417,6 +425,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgSizeInBytes));
 
             table.addCell(getOrNull(commonStats, CommonStats::getDenseVectorStats, DenseVectorStats::getValueCount));
+            table.addCell(getOrNull(commonStats, CommonStats::getSparseVectorStats, SparseVectorStats::getValueCount));
 
             table.endRow();
         }

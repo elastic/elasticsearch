@@ -14,9 +14,11 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 
 import java.util.Arrays;
 import java.util.Random;
@@ -59,7 +61,7 @@ public class RandomizingClient extends FilterClient {
 
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
-        SearchRequestBuilder searchRequestBuilder = in.prepareSearch(indices)
+        SearchRequestBuilder searchRequestBuilder = new RandomizedSearchRequestBuilder(this).setIndices(indices)
             .setSearchType(defaultSearchType)
             .setPreference(defaultPreference)
             .setBatchedReduceSize(batchedReduceSize);
@@ -82,6 +84,20 @@ public class RandomizingClient extends FilterClient {
 
     public Client in() {
         return super.in();
+    }
+
+    private class RandomizedSearchRequestBuilder extends SearchRequestBuilder {
+        RandomizedSearchRequestBuilder(ElasticsearchClient client) {
+            super(client);
+        }
+
+        @Override
+        public SearchRequestBuilder setPointInTime(PointInTimeBuilder pointInTimeBuilder) {
+            if (defaultPreference != null) {
+                setPreference(null);
+            }
+            return super.setPointInTime(pointInTimeBuilder);
+        }
     }
 
 }

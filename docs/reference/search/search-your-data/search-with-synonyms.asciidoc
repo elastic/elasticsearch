@@ -47,7 +47,7 @@ An example synonyms file:
 
 [source,synonyms]
 --------------------------------------------------
-include::{es-test-dir}/cluster/config/analysis/synonym.txt[]
+include::{elasticsearch-root}/docs/src/test/cluster/config/analysis/synonym.txt[]
 --------------------------------------------------
 
 To update an existing synonyms set, upload new files to your cluster.
@@ -74,6 +74,13 @@ A large number of inline synonyms increases cluster size unnecessarily and can l
 ==== Configure synonyms token filters and analyzers
 
 Once your synonyms sets are created, you can start configuring your token filters and analyzers to use them.
+
+[WARNING]
+======
+Synonyms sets must exist before they can be added to indices.
+If an index is created referencing a nonexistent synonyms set, the index will remain in a partially created and inoperable state.
+The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.
+======
 
 {es} uses synonyms as part of the <<analysis-overview,analysis process>>.
 You can use two types of <<analysis-tokenfilters,token filter>> to include synonyms:

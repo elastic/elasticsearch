@@ -39,7 +39,9 @@ public class ConsumeProcessor implements Processor {
             "org.elasticsearch.common.inject.Inject",
             "org.elasticsearch.xpack.esql.expression.function.FunctionInfo",
             "org.elasticsearch.xpack.esql.expression.function.Param",
-
+            "org.elasticsearch.rest.ServerlessScope",
+            "org.elasticsearch.xcontent.ParserConstructor",
+            "org.elasticsearch.core.UpdateForV9",
             Fixed.class.getName()
         );
     }

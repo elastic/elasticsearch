@@ -15,11 +15,8 @@ public class ClearRealmCacheRequestBuilder extends NodesOperationRequestBuilder<
     ClearRealmCacheRequestBuilder> {
 
     public ClearRealmCacheRequestBuilder(ElasticsearchClient client) {
-        this(client, ClearRealmCacheAction.INSTANCE);
-    }
+        super(client, ClearRealmCacheAction.INSTANCE, new ClearRealmCacheRequest());
 
-    public ClearRealmCacheRequestBuilder(ElasticsearchClient client, ClearRealmCacheAction action) {
-        super(client, action, new ClearRealmCacheRequest());
     }
 
     /**

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -48,6 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.xpack.core.ml.annotations.AnnotationTests.randomAnnotation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -288,22 +289,24 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         return data;
     }
 
-    private Quantiles getQuantiles(String jobId) {
-        SearchResponse response = client().prepareSearch(".ml-state*")
-            .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId)))
-            .setSize(1)
-            .get();
-        SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(1L));
-        try {
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                XContentParserConfiguration.EMPTY,
-                hits.getAt(0).getSourceAsString()
-            );
-            return Quantiles.LENIENT_PARSER.apply(parser, null);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+    private Quantiles getQuantiles(String jobId) throws Exception {
+        SetOnce<Quantiles> quantilesSetOnce = new SetOnce<>();
+        assertCheckedResponse(
+            prepareSearch(".ml-state*").setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId))).setSize(1),
+            response -> {
+                SearchHits hits = response.getHits();
+                assertThat(hits.getTotalHits().value, equalTo(1L));
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        XContentParserConfiguration.EMPTY,
+                        hits.getAt(0).getSourceAsString()
+                    )
+                ) {
+                    quantilesSetOnce.set(Quantiles.LENIENT_PARSER.apply(parser, null));
+                }
+            }
+        );
+        return quantilesSetOnce.get();
     }
 
     private static IndexRequest randomAnnotationIndexRequest(String jobId, Instant timestamp, Event event) throws IOException {

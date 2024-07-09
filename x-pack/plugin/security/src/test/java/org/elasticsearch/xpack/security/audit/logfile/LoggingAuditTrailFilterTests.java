@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
@@ -124,7 +125,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             mock(SecurityIndexManager.class),
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            MeterRegistry.NOOP
         );
     }
 
@@ -2893,6 +2895,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         LoggingAuditTrail.registerSettings(settingsList);
         settingsList.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingsList.add(ApiKeyService.DELETE_RETENTION_PERIOD);
+        settingsList.add(ApiKeyService.DELETE_INTERVAL);
         return new ClusterSettings(settings, new HashSet<>(settingsList));
     }
 

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -103,6 +105,15 @@ public class PlanNameRegistry {
             PlanReader<S> reader
         ) {
             return new Entry(categoryClass, PlanNamedTypes.name(concreteClass), writer, reader);
+        }
+
+        static <T extends NamedWriteable, C extends T, S extends T> Entry of(Class<T> categoryClass, NamedWriteableRegistry.Entry entry) {
+            return new Entry(
+                categoryClass,
+                entry.name,
+                (o, v) -> categoryClass.cast(v).writeTo(o),
+                in -> categoryClass.cast(entry.reader.read(in))
+            );
         }
 
         static <T, C extends T, S extends T> Entry of(

@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
 import static org.elasticsearch.indices.SystemIndexDescriptor.findDynamicMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,11 +44,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         }
         """;
 
-    private static final String MAPPINGS = Strings.format(
-        MAPPINGS_FORMAT_STRING,
-        SystemIndexDescriptor.VERSION_META_KEY,
-        TEST_MAPPINGS_VERSION
-    );
+    private static final String MAPPINGS = getVersionedMappings(TEST_MAPPINGS_VERSION);
 
     /**
      * Tests the various validation rules that are applied when creating a new system index descriptor.
@@ -190,21 +185,21 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setPriorSystemIndexDescriptors(List.of(prior)).build()
         );
-        assertThat(iae.getMessage(), containsString("same minimum node version"));
+        assertThat(iae.getMessage(), containsString("same mappings version"));
 
         // different min version but prior is after latest!
         iae = expectThrows(
             IllegalArgumentException.class,
-            () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.fromString("6.8.0"))
+            () -> priorSystemIndexDescriptorBuilder().setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION - 1))
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
-        assertThat(iae.getMessage(), containsString("has minimum node version [7.0.0] which is after [6.8.0]"));
+        assertThat(iae.getMessage(), containsString("has mappings version [10] which is after [9]"));
 
         // prior has another prior!
         iae = expectThrows(
             IllegalArgumentException.class,
-            () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.V_7_5_0)
+            () -> priorSystemIndexDescriptorBuilder().setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 2))
                 .setPriorSystemIndexDescriptors(
                     List.of(
                         SystemIndexDescriptor.builder()
@@ -214,10 +209,9 @@ public class SystemIndexDescriptorTests extends ESTestCase {
                             .setAliasName(".system")
                             .setType(Type.INTERNAL_MANAGED)
                             .setSettings(Settings.EMPTY)
-                            .setMappings(MAPPINGS)
+                            .setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 1))
                             .setVersionMetaKey("version")
                             .setOrigin("system")
-                            .setMinimumNodeVersion(Version.V_7_4_1)
                             .setPriorSystemIndexDescriptors(List.of(prior))
                             .build()
                     )
@@ -230,7 +224,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         iae = expectThrows(
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setIndexPattern(".system1*")
-                .setMinimumNodeVersion(Version.V_7_5_0)
+                .setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 1))
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -240,7 +234,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         iae = expectThrows(
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setPrimaryIndex(".system-2")
-                .setMinimumNodeVersion(Version.V_7_5_0)
+                .setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 1))
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -250,7 +244,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         iae = expectThrows(
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setAliasName(".system1")
-                .setMinimumNodeVersion(Version.V_7_5_0)
+                .setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 1))
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -258,10 +252,14 @@ public class SystemIndexDescriptorTests extends ESTestCase {
 
         // success!
         assertNotNull(
-            priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.V_7_5_0)
+            priorSystemIndexDescriptorBuilder().setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 1))
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
+    }
+
+    private static String getVersionedMappings(int version) {
+        return Strings.format(MAPPINGS_FORMAT_STRING, SystemIndexDescriptor.VERSION_META_KEY, version);
     }
 
     public void testGetDescriptorCompatibleWith() {
@@ -272,7 +270,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setAliasName(".system")
             .setType(Type.INTERNAL_MANAGED)
             .setSettings(Settings.EMPTY)
-            .setMappings(Strings.format(MAPPINGS_FORMAT_STRING, VERSION_META_KEY, TEST_MAPPINGS_PRIOR_VERSION))
+            .setMappings(getVersionedMappings(TEST_MAPPINGS_PRIOR_VERSION))
             .setVersionMetaKey("version")
             .setOrigin("system")
             .setMinimumNodeVersion(Version.V_7_0_0)

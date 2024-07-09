@@ -42,7 +42,7 @@ import java.lang.annotation.Target;
  *     not need this after we convert AVG into a composite operation.
  * </p>
  * <p>
- *     The generation code also looks for the optional methods {@code combineStates}
+ *     The generation code also looks for the optional methods {@code combineIntermediate}
  *     and {@code evaluateFinal} which are used to combine intermediate states and
  *     produce the final output. If the first is missing then the generated code will
  *     call the {@code combine} method to combine intermediate states. If the second

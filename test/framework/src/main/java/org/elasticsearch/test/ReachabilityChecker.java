@@ -116,7 +116,7 @@ public class ReachabilityChecker {
                     assertNull(phantomReference.get()); // always succeeds, we're just doing this to use the phantomReference for something
                 }
             } catch (Exception e) {
-                throw new AssertionError("unexpected", e);
+                ESTestCase.fail(e);
             }
         }
 
@@ -128,7 +128,7 @@ public class ReachabilityChecker {
                 memoryMXBean.gc();
                 assertNull("became unreachable: " + description, referenceQueue.remove(100));
             } catch (Exception e) {
-                throw new AssertionError("unexpected", e);
+                ESTestCase.fail(e);
             }
         }
     }

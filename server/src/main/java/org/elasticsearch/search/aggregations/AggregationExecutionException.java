@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -27,5 +28,25 @@ public class AggregationExecutionException extends ElasticsearchException {
 
     public AggregationExecutionException(StreamInput in) throws IOException {
         super(in);
+    }
+
+    public static class InvalidPath extends AggregationExecutionException {
+
+        public InvalidPath(String msg) {
+            super(msg);
+        }
+
+        public InvalidPath(String msg, Throwable cause) {
+            super(msg, cause);
+        }
+
+        public InvalidPath(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.BAD_REQUEST;
+        }
     }
 }

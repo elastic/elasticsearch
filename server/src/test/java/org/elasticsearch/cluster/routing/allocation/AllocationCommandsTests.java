@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -51,6 +49,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -69,7 +68,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -77,7 +76,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AllocationCommandsTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(AllocationCommandsTests.class);
 
     public void testMoveShardCommand() {
         AllocationService allocation = createAllocationService(
@@ -707,15 +705,15 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             .build();
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
-        ShardRouting primary = newShardRouting(shardId, "node-0", null, true, STARTED, allocationId1);
-        ShardRouting replica = newShardRouting(shardId, "node-1", null, false, STARTED, allocationId2);
+        ShardRouting primary = shardRoutingBuilder(shardId, "node-0", true, STARTED).withAllocationId(allocationId1).build();
+        ShardRouting replica = shardRoutingBuilder(shardId, "node-1", false, STARTED).withAllocationId(allocationId2).build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("node-0", Version.V_8_10_0, IndexVersion.V_8_10_0))
-                    .add(newNode("node-1", Version.V_8_9_0, IndexVersion.V_8_9_0))
-                    .add(newNode("node-2", Version.V_8_9_0, IndexVersion.V_8_9_0))
+                    .add(newNode("node-0", Version.V_8_10_0, IndexVersions.V_8_10_0))
+                    .add(newNode("node-1", Version.V_8_9_0, IndexVersions.V_8_9_0))
+                    .add(newNode("node-2", Version.V_8_9_0, IndexVersions.V_8_9_0))
             )
             .metadata(Metadata.builder().put(indexMetadata, false))
             .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(shardId.getIndex()).addShard(primary).addShard(replica)))
@@ -813,23 +811,24 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                ]
              }
             """;
-        XContentParser parser = createParser(JsonXContent.jsonXContent, commands);
-        // move two tokens, parser expected to be "on" `commands` field
-        parser.nextToken();
-        parser.nextToken();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, commands)) {
+            // move two tokens, parser expected to be "on" `commands` field
+            parser.nextToken();
+            parser.nextToken();
 
-        assertThat(
-            AllocationCommands.fromXContent(parser),
-            equalTo(
-                new AllocationCommands(
-                    new AllocateEmptyPrimaryAllocationCommand("test", 1, "node1", true),
-                    new AllocateStalePrimaryAllocationCommand("test", 2, "node1", true),
-                    new AllocateReplicaAllocationCommand("test", 2, "node1"),
-                    new MoveAllocationCommand("test", 3, "node2", "node3"),
-                    new CancelAllocationCommand("test", 4, "node5", true)
+            assertThat(
+                AllocationCommands.fromXContent(parser),
+                equalTo(
+                    new AllocationCommands(
+                        new AllocateEmptyPrimaryAllocationCommand("test", 1, "node1", true),
+                        new AllocateStalePrimaryAllocationCommand("test", 2, "node1", true),
+                        new AllocateReplicaAllocationCommand("test", 2, "node1"),
+                        new MoveAllocationCommand("test", 3, "node2", "node3"),
+                        new CancelAllocationCommand("test", 4, "node5", true)
+                    )
                 )
-            )
-        );
+            );
+        }
     }
 
     @Override

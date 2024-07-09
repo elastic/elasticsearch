@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: "API added in in 8.6.0"
 
 ---
@@ -61,8 +61,8 @@ setup:
 ---
 "Test cluster_balance_stats":
 
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "cluster_balance_stats added in in 8.7.0"
 
   - do:
@@ -109,8 +109,8 @@ setup:
 ---
 "Test cluster_info":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: [gte_v8.8.0]
       reason: "cluster_info added in in 8.8.0"
 
   - do:
@@ -121,8 +121,8 @@ setup:
 ---
 "Test cluster_balance_stats contains node ID and roles":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "node_id and roles added in in 8.8.0"
 
   - do:
@@ -140,8 +140,8 @@ setup:
 ---
 "Test tier_preference":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "tier_preference added in in 8.8.0"
 
   - do:
@@ -165,8 +165,8 @@ setup:
 ---
 "Test computed_shard_movements":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "computed_shard_movements added in in 8.8.0"
 
   - do:
@@ -177,9 +177,62 @@ setup:
 ---
 "Test reset desired balance":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "reset API added in in 8.8.0"
 
   - do:
       _internal.delete_desired_balance: { }
+
+---
+"Test undesired_shard_allocation_count":
+
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "undesired_shard_allocation_count added in in 8.12.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      cluster.state: {}
+  - set: { nodes._arbitrary_key_ : node_id }
+  - set: { nodes.$node_id.name : node_name }
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { 'cluster_balance_stats.shard_count' : 0 }
+  - gte: { 'cluster_balance_stats.undesired_shard_allocation_count' : 0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.undesired_shard_allocation_count' : 0 }
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.total'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.min'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.max'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.average'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.std_dev'
+
+---
+"Test unassigned_shards, total_allocations, undesired_allocations and undesired_allocations_fraction":
+
+  - requires:
+      cluster_features: [ "gte_v8.12.0" ]
+      reason: "undesired_shard_allocation_count added in in 8.12.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { 'stats.unassigned_shards' : 0 }
+  - gte: { 'stats.total_allocations' : 0 }
+  - gte: { 'stats.undesired_allocations' : 0 }
+  - gte: { 'stats.undesired_allocations_ratio' : 0.0 }

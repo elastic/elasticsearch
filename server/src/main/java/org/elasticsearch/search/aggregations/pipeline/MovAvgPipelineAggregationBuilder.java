@@ -37,7 +37,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     public static final String MOVING_AVG_AGG_DEPRECATION_MSG = "Moving Average aggregation usage is not supported. "
         + "Use the [moving_fn] aggregation instead.";
 
-    public static ParseField NAME_V7 = new ParseField("moving_avg").withAllDeprecated(MOVING_AVG_AGG_DEPRECATION_MSG)
+    public static final ParseField NAME_V7 = new ParseField("moving_avg").withAllDeprecated(MOVING_AVG_AGG_DEPRECATION_MSG)
         .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
 
     public static final ContextParser<String, MovAvgPipelineAggregationBuilder> PARSER = (parser, name) -> {

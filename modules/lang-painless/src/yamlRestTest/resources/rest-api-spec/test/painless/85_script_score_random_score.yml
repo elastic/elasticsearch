@@ -1,8 +1,8 @@
 # Integration tests for ScriptScoreQuery using Painless
 
 setup:
-- skip:
-    version: " - 7.1.99"
+- requires:
+    cluster_features: ["gte_v7.2.0"]
     reason: "random score function of script score was added in 7.2"
 
 ---

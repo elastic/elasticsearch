@@ -8,10 +8,8 @@
 
 package org.elasticsearch.index.mapper.murmur3;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -36,15 +34,6 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "murmur3";
 
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE;
-        static {
-            FieldType ft = new FieldType();
-            ft.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
-        }
-    }
-
     private static Murmur3FieldMapper toType(FieldMapper in) {
         return (Murmur3FieldMapper) in;
     }
@@ -66,8 +55,8 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public Murmur3FieldMapper build(MapperBuilderContext context) {
             return new Murmur3FieldMapper(
-                name,
-                new Murmur3FieldType(context.buildFullName(name), stored.getValue(), meta.getValue()),
+                leafName(),
+                new Murmur3FieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo
             );
@@ -91,7 +80,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new, isIndexed());
         }
 
         @Override
@@ -111,7 +100,7 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
@@ -127,7 +116,7 @@ public class Murmur3FieldMapper extends FieldMapper {
             final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), hash));
             if (fieldType().isStored()) {
-                context.doc().add(new StoredField(name(), hash));
+                context.doc().add(new StoredField(fullPath(), hash));
             }
         }
     }

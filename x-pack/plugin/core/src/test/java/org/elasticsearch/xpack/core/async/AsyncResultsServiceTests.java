@@ -90,12 +90,13 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
             return this.expirationTimeMillis;
         }
 
-        public synchronized void addListener(ActionListener<TestAsyncResponse> listener, TimeValue timeout) {
+        public synchronized boolean addListener(ActionListener<TestAsyncResponse> listener, TimeValue timeout) {
             if (timeout.getMillis() < 0) {
                 listener.onResponse(new TestAsyncResponse(null, expirationTimeMillis));
             } else {
                 assertThat(listeners.put(listener, timeout), nullValue());
             }
+            return true;
         }
 
         private synchronized void onResponse(String response) {

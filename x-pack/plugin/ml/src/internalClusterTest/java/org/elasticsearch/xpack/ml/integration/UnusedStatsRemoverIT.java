@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -57,7 +56,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
             client(),
             clusterService().state(),
             TestIndexNameExpressionResolver.newInstance(client().threadPool().getThreadContext()),
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             future
         );
         future.actionGet();
@@ -65,7 +64,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
     public void testRemoveUnusedStats() throws Exception {
 
-        client().prepareIndex("foo").setId("some-empty-doc").setSource("{}", XContentType.JSON).get();
+        prepareIndex("foo").setId("some-empty-doc").setSource("{}", XContentType.JSON).get();
 
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(
             new DataFrameAnalyticsConfig.Builder().setId("analytics-with-stats")

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -62,6 +63,7 @@ public class NodeService implements Closeable {
     private final AggregationUsageService aggregationUsageService;
     private final Coordinator coordinator;
     private final RepositoriesService repositoriesService;
+    private final Map<String, Integer> componentVersions;
 
     NodeService(
         Settings settings,
@@ -100,6 +102,7 @@ public class NodeService implements Closeable {
         this.indexingPressure = indexingPressure;
         this.aggregationUsageService = aggregationUsageService;
         this.repositoriesService = repositoriesService;
+        this.componentVersions = findComponentVersions(pluginService);
         clusterService.addStateApplier(ingestService);
     }
 
@@ -118,10 +121,11 @@ public class NodeService implements Closeable {
         boolean indices
     ) {
         return new NodeInfo(
-            Version.CURRENT,
+            // TODO: revert to Build.current().version() when Kibana is updated
+            Version.CURRENT.toString(),
             TransportVersion.current(),
             IndexVersion.current(),
-            findComponentVersions(),
+            componentVersions,
             Build.current(),
             transportService.getLocalNode(),
             settings ? settingsFilter.filter(this.settings) : null,
@@ -135,11 +139,11 @@ public class NodeService implements Closeable {
             plugin ? (pluginService == null ? null : pluginService.info()) : null,
             ingest ? (ingestService == null ? null : ingestService.info()) : null,
             aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,
-            indices ? indicesService.getTotalIndexingBufferBytes() : null
+            indices ? ByteSizeValue.ofBytes(indicesService.getTotalIndexingBufferBytes()) : null
         );
     }
 
-    private Map<String, Integer> findComponentVersions() {
+    private static Map<String, Integer> findComponentVersions(PluginsService pluginService) {
         var versions = pluginService.loadServiceProviders(ComponentVersionNumber.class)
             .stream()
             .collect(Collectors.toUnmodifiableMap(ComponentVersionNumber::componentId, cvn -> cvn.versionNumber().id()));
@@ -192,7 +196,8 @@ public class NodeService implements Closeable {
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressure.stats() : null,
-            repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null
+            repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null,
+            null
         );
     }
 

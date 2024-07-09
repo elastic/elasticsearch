@@ -22,13 +22,13 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
-        for (ElementType elementType : ElementType.values()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+        for (ElementType e : ElementType.values()) {
+            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
                 for (int[] valuesPerPosition : new int[][] { new int[] { 1, 1 }, new int[] { 1, 10 } }) {  // TODO 0
-                    params.add(new Object[] { elementType, nullAllowed, valuesPerPosition[0], valuesPerPosition[1] });
+                    params.add(new Object[] { e, nullAllowed, valuesPerPosition[0], valuesPerPosition[1] });
                 }
             }
         }
@@ -69,22 +69,24 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
     }
 
     public void testSmallAllNull() {
-        assertSmall(Block.constantNullBlock(10));
+        assertSmall(TestBlockFactory.getNonBreakingInstance().newConstantNullBlock(10));
     }
 
     public void testEvensAllNull() {
-        assertEvens(Block.constantNullBlock(10));
+        assertEvens(TestBlockFactory.getNonBreakingInstance().newConstantNullBlock(10));
     }
 
     private void assertSmall(Block block) {
         int smallSize = Math.min(block.getPositionCount(), 10);
-        Block.Builder builder = elementType.newBlockBuilder(smallSize);
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        Block.Builder builder = elementType.newBlockBuilder(smallSize, blockFactory);
         builder.copyFrom(block, 0, smallSize);
         assertBlockValues(builder.build(), BasicBlockTests.valuesAtPositions(block, 0, smallSize));
     }
 
     private void assertEvens(Block block) {
-        Block.Builder builder = elementType.newBlockBuilder(block.getPositionCount() / 2);
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        Block.Builder builder = elementType.newBlockBuilder(block.getPositionCount() / 2, blockFactory);
         List<List<Object>> expected = new ArrayList<>();
         for (int i = 0; i < block.getPositionCount(); i += 2) {
             builder.copyFrom(block, i, i + 1);

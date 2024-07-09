@@ -78,7 +78,7 @@ To target all data streams in a cluster, omit this parameter or use `*`.
 [[data-stream-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
 +
 Defaults to `open`.
 
@@ -160,9 +160,8 @@ the {wikipedia}/Unix_time[Unix epoch].
 +
 [NOTE]
 =====
-This timestamp is provided as a best effort. The data stream may contain
-`@timestamp` values higher than this if one or more of the following conditions
-are met:
+The data stream may contain `@timestamp` values higher than this if one or more
+of the following conditions are met:
 
 * The stream contains <<indices-open-close,closed>> backing indices.
 * Backing indices with a <<data-streams-generation,lower generation>> contain

@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -82,7 +82,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
         RequestInfo requestInfo = new RequestInfo(
             Authentication.newAnonymousAuthentication(new AnonymousUser(Settings.EMPTY), randomAlphaOfLengthBetween(3, 8)),
             searchRequest,
-            SearchAction.NAME,
+            TransportSearchAction.TYPE.name(),
             null
         );
 

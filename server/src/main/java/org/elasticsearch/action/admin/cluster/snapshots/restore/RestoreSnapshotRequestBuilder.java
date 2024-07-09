@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
@@ -26,17 +27,10 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     RestoreSnapshotRequestBuilder> {
 
     /**
-     * Constructs new restore snapshot request builder
-     */
-    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action) {
-        super(client, action, new RestoreSnapshotRequest());
-    }
-
-    /**
      * Constructs new restore snapshot request builder with specified repository and snapshot names
      */
-    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action, String repository, String name) {
-        super(client, action, new RestoreSnapshotRequest(repository, name));
+    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout, String repository, String name) {
+        super(client, TransportRestoreSnapshotAction.TYPE, new RestoreSnapshotRequest(masterNodeTimeout, repository, name));
     }
 
     /**

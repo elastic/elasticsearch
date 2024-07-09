@@ -42,9 +42,9 @@ import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BackgroundIndexer implements AutoCloseable {
+public final class BackgroundIndexer implements AutoCloseable {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(BackgroundIndexer.class);
 
     final Thread[] writers;
     final Client client;
@@ -98,7 +98,6 @@ public class BackgroundIndexer implements AutoCloseable {
      * @param autoStart   set to true to start indexing as soon as all threads have been created.
      * @param random      random instance to use
      */
-    @SuppressWarnings("this-escape")
     public BackgroundIndexer(
         final String index,
         final Client client,

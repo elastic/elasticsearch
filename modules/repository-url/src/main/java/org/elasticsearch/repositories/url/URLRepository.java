@@ -186,5 +186,6 @@ public class URLRepository extends BlobStoreRepository {
     @Override
     protected void doClose() {
         IOUtils.closeWhileHandlingException(httpClient);
+        super.doClose();
     }
 }

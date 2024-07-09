@@ -62,6 +62,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private String index;
 
+    private boolean requireDataStream;
+
+    private boolean initializeFailureStore;
+
     private Settings settings = Settings.EMPTY;
 
     private String mappings = "{}";
@@ -102,9 +106,21 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             origin = in.readString();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            requireDataStream = in.readBoolean();
+        } else {
+            requireDataStream = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
+            initializeFailureStore = in.readBoolean();
+        } else {
+            initializeFailureStore = true;
+        }
     }
 
-    public CreateIndexRequest() {}
+    public CreateIndexRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Constructs a request to create an index.
@@ -122,6 +138,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param settings the settings to apply to the index
      */
     public CreateIndexRequest(String index, Settings settings) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.index = index;
         this.settings = settings;
     }
@@ -446,6 +463,31 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
+    public boolean isRequireDataStream() {
+        return requireDataStream;
+    }
+
+    /**
+     * Set whether this CreateIndexRequest requires a data stream. The data stream may be pre-existing or to-be-created.
+     */
+    public CreateIndexRequest requireDataStream(boolean requireDataStream) {
+        this.requireDataStream = requireDataStream;
+        return this;
+    }
+
+    public boolean isInitializeFailureStore() {
+        return initializeFailureStore;
+    }
+
+    /**
+     * Set whether this CreateIndexRequest should initialize the failure store on data stream creation. This can be necessary when, for
+     * example, a failure occurs while trying to ingest a document into a data stream that has to be auto-created.
+     */
+    public CreateIndexRequest initializeFailureStore(boolean initializeFailureStore) {
+        this.initializeFailureStore = initializeFailureStore;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -467,6 +509,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         waitForActiveShards.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             out.writeString(origin);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            out.writeBoolean(this.requireDataStream);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
+            out.writeBoolean(this.initializeFailureStore);
         }
     }
 

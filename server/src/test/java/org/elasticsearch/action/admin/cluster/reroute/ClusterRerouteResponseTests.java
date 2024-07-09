@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -139,6 +142,12 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             }
                           }
                         ],
+                        "nodes_features": [
+                          {
+                            "node_id": "node0",
+                            "features": []
+                          }
+                        ],
                         "metadata": {
                           "cluster_uuid": "_na_",
                           "cluster_uuid_committed": false,
@@ -179,9 +188,13 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                 "0": []
                               },
                               "rollover_info": {},
+                              "mappings_updated_version" : %s,
                               "system": false,
                               "timestamp_range": {
                                 "shards": []
+                              },
+                              "event_ingested_range": {
+                                "unknown":true
                               }
                             }
                           },
@@ -204,7 +217,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                 clusterState.stateUUID(),
                 clusterState.getNodes().get("node0").getEphemeralId(),
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersion.current(),
                 IndexVersion.current(),
                 IndexVersion.current()
             ),
@@ -218,7 +232,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         assertXContent(
             createClusterRerouteResponse(createClusterState()),
             new ToXContent.MapParams(Map.of("metric", "metadata", "settings_filter", "index.number*,index.version.created")),
-            """
+            Strings.format("""
                 {
                   "acknowledged" : true,
                   "state" : {
@@ -258,9 +272,13 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             "0" : [ ]
                           },
                           "rollover_info" : { },
+                          "mappings_updated_version" : %s,
                           "system" : false,
                           "timestamp_range" : {
                             "shards" : [ ]
+                          },
+                          "event_ingested_range" : {
+                            "unknown" : true
                           }
                         }
                       },
@@ -270,7 +288,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       "reserved_state":{}
                     }
                   }
-                }""",
+                }""", IndexVersion.current()),
             """
                 The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
                 Specify ?metric=none to adopt the future behaviour."""
@@ -291,7 +309,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, params);
             assertEquals(XContentHelper.stripWhitespace(expectedBody), XContentHelper.stripWhitespace(Strings.toString(builder)));
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
 
         final var expectedChunks = Objects.equals(params.param("metric"), "none")
@@ -344,6 +362,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .build()
                             )
+                            .eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersion.current())
                             .build(),
                         false
                     )

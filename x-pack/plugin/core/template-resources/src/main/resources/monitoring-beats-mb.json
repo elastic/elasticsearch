@@ -838,6 +838,9 @@
                           "properties": {
                             "acked": {
                               "type": "long"
+                            },
+                            "max_events": {
+                              "type": "long"
                             }
                           }
                         }
@@ -1928,6 +1931,10 @@
                             "acked": {
                               "type": "alias",
                               "path": "beat.stats.libbeat.pipeline.queue.acked"
+                            },
+                            "max_events": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.pipeline.queue.max_events"
                             }
                           }
                         }

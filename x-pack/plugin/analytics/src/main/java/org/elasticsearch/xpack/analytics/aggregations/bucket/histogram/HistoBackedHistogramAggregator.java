@@ -25,11 +25,10 @@ import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSou
 import java.io.IOException;
 import java.util.Map;
 
-public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator {
+public final class HistoBackedHistogramAggregator extends AbstractHistogramAggregator {
 
     private final HistogramValuesSource.Histogram valuesSource;
 
-    @SuppressWarnings("this-escape")
     public HistoBackedHistogramAggregator(
         String name,
         AggregatorFactories factories,

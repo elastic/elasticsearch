@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.repositories.get;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * Get repository request builder
@@ -23,15 +24,8 @@ public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationReques
     /**
      * Creates new get repository request builder
      */
-    public GetRepositoriesRequestBuilder(ElasticsearchClient client, GetRepositoriesAction action) {
-        super(client, action, new GetRepositoriesRequest());
-    }
-
-    /**
-     * Creates new get repository request builder
-     */
-    public GetRepositoriesRequestBuilder(ElasticsearchClient client, GetRepositoriesAction action, String... repositories) {
-        super(client, action, new GetRepositoriesRequest(repositories));
+    public GetRepositoriesRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout, String... repositories) {
+        super(client, GetRepositoriesAction.INSTANCE, new GetRepositoriesRequest(masterNodeTimeout, repositories));
     }
 
     /**

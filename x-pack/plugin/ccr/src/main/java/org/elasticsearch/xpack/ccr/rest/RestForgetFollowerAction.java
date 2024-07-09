@@ -40,7 +40,11 @@ public class RestForgetFollowerAction extends BaseRestHandler {
 
     private static Request createRequest(final RestRequest restRequest, final String leaderIndex) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-            return Request.fromXContent(parser, leaderIndex);
+            Request request = Request.fromXContent(parser, leaderIndex);
+            if (restRequest.hasParam("timeout")) {
+                request.timeout(restRequest.paramAsTime("timeout", null));
+            }
+            return request;
         }
     }
 }

@@ -107,9 +107,8 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
     ) {
         logger.debug("[{}] Force deleting data frame analytics job", request.getId());
 
-        ActionListener<StopDataFrameAnalyticsAction.Response> stopListener = ActionListener.wrap(
-            stopResponse -> normalDelete(parentTaskClient, clusterService.state(), request, listener),
-            listener::onFailure
+        ActionListener<StopDataFrameAnalyticsAction.Response> stopListener = listener.delegateFailureAndWrap(
+            (l, stopResponse) -> normalDelete(parentTaskClient, clusterService.state(), request, l)
         );
 
         stopJob(parentTaskClient, request, stopListener);
@@ -126,7 +125,7 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         // still used from the running task which results in logging errors.
 
         StopDataFrameAnalyticsAction.Request stopRequest = new StopDataFrameAnalyticsAction.Request(request.getId());
-        stopRequest.setTimeout(request.timeout());
+        stopRequest.setTimeout(request.ackTimeout());
 
         ActionListener<StopDataFrameAnalyticsAction.Response> normalStopListener = ActionListener.wrap(
             listener::onResponse,
@@ -168,10 +167,10 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         // We clean up the memory tracker on delete because there is no stop; the task stops by itself
         memoryTracker.removeDataFrameAnalyticsJob(id);
 
-        configProvider.get(id, ActionListener.wrap(config -> {
+        configProvider.get(id, listener.delegateFailureAndWrap((l, config) -> {
             DataFrameAnalyticsDeleter deleter = new DataFrameAnalyticsDeleter(parentTaskClient, auditor);
-            deleter.deleteAllDocuments(config, request.timeout(), listener);
-        }, listener::onFailure));
+            deleter.deleteAllDocuments(config, request.ackTimeout(), l);
+        }));
     }
 
     @Override

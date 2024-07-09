@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import javax.net.ServerSocketFactory;
 
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -183,6 +184,13 @@ public class SimpleKdcLdapServer {
         final TimeValue maxRenewableLifeTime = new TimeValue(7, TimeUnit.DAYS);
         simpleKdc.getKdcConfig().setLong(KdcConfigKey.MINIMUM_TICKET_LIFETIME, minimumTicketLifeTime.getMillis());
         simpleKdc.getKdcConfig().setLong(KdcConfigKey.MAXIMUM_RENEWABLE_LIFETIME, maxRenewableLifeTime.getMillis());
+        if (inFipsJvm()) {
+            // Triple DES is not allowed when running in FIPS mode
+            String encryptionTypes = (String) KdcConfigKey.ENCRYPTION_TYPES.getDefaultValue();
+            simpleKdc.getKdcConfig()
+                .setString(KdcConfigKey.ENCRYPTION_TYPES, encryptionTypes.toLowerCase().replace("des3-cbc-sha1-kd", ""));
+        }
+
         simpleKdc.init();
         simpleKdc.start();
     }

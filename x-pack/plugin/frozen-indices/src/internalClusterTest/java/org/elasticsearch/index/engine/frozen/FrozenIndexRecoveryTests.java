@@ -61,9 +61,7 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, randomIntBetween(0, 50))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, randomIntBetween(0, 50)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
         indicesAdmin().prepareFlush(indexName).get();
@@ -76,7 +74,10 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
                 for (int i = 0; i < moreDocs; i++) {
                     client.prepareIndex(indexName).setSource("num", i).get();
                 }
-                assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
+                assertAcked(
+                    client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, indexName))
+                        .actionGet()
+                );
                 return super.onNodeStopped(nodeName);
             }
         });

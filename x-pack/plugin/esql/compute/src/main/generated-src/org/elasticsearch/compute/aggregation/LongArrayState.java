@@ -10,10 +10,8 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
@@ -66,14 +64,14 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            try (LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            try (var builder = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.appendLong(values.get(selected.getInt(i)));
+                    builder.appendLong(i, values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
         }
-        try (LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+        try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (hasValue(group)) {
@@ -104,8 +102,8 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
     ) {
         assert blocks.length >= offset + 2;
         try (
-            var valuesBuilder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())
+            var valuesBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
+            var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
@@ -114,10 +112,10 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
                 } else {
                     valuesBuilder.appendLong(0); // TODO can we just use null?
                 }
-                hasValueBuilder.appendBoolean(hasValue(group));
+                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build();
-            blocks[offset + 1] = hasValueBuilder.build();
+            blocks[offset + 1] = hasValueBuilder.build().asBlock();
         }
     }
 

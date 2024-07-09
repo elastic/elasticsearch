@@ -8,5 +8,9 @@
       }
     }
   },
+  "_meta": {
+    "index-template-version": ${xpack.profiling.template.version},
+    "managed": true
+  },
   "version": ${xpack.profiling.template.version}
 }

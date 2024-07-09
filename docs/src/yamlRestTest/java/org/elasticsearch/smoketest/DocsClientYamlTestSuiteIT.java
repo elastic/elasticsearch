@@ -16,7 +16,6 @@ import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
@@ -97,20 +96,9 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     protected ClientYamlTestClient initClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
-        final List<HttpHost> hosts,
-        final Version esVersion,
-        final Version masterVersion,
-        final String os
+        final List<HttpHost> hosts
     ) {
-        return new ClientYamlDocsTestClient(
-            restSpec,
-            restClient,
-            hosts,
-            esVersion,
-            masterVersion,
-            os,
-            this::getClientBuilderWithSniffedHosts
-        );
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts);
     }
 
     @Before
@@ -263,7 +251,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         if (isWatcherTest()) {
             assertBusy(() -> {
                 ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
-                String state = (String) response.evaluate("stats.0.watcher_state");
+                String state = response.evaluate("stats.0.watcher_state");
 
                 switch (state) {
                     case "stopped":
@@ -273,7 +261,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                             emptyList(),
                             emptyMap()
                         );
-                        boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
+                        boolean isAcknowledged = startResponse.evaluate("acknowledged");
                         assertThat(isAcknowledged, is(true));
                         throw new AssertionError("waiting until stopped state reached started state");
                     case "stopping":

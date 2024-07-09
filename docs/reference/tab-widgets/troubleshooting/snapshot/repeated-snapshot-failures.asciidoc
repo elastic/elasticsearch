@@ -89,7 +89,7 @@ https://www.elastic.co/guide/en/cloud-enterprise/current/ece-manage-repositories
 if you are using such a deployment.
 
 One common failure scenario is repository corruption. This occurs most often when multiple instances of {es} write to
-the same repository location. There is a <<add-repository, separate troubleshooting guide>> to fix this problem.
+the same repository location. There is a <<diagnosing-corrupted-repositories, separate troubleshooting guide>> to fix this problem.
 
 In the event that snapshots are failing for other reasons check the logs on the elected master node during the snapshot
 execution period for more information.
@@ -163,7 +163,7 @@ Snapshots can fail for a variety reasons. If the failures are due to configurati
 documentation for the repository that the automated snapshots are using.
 
 One common failure scenario is repository corruption. This occurs most often when multiple instances of {es} write to
-the same repository location. There is a <<add-repository, separate troubleshooting guide>> to fix this problem.
+the same repository location. There is a <<diagnosing-corrupted-repositories, separate troubleshooting guide>> to fix this problem.
 
 In the event that snapshots are failing for other reasons check the logs on the elected master node during the snapshot
 execution period for more information.

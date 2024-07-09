@@ -1,0 +1,1055 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: 'pagination for rrf was added in 8.15'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              number_val:
+                type: keyword
+              char_val:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          number_val: "1"
+          char_val: "A"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body:
+          number_val: "2"
+          char_val: "B"
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body:
+          number_val: "3"
+          char_val: "C"
+
+  - do:
+      index:
+        index: test
+        id: 4
+        body:
+          number_val: "4"
+          char_val: "D"
+
+  - do:
+      index:
+        index: test
+        id: 5
+        body:
+          number_val: "5"
+          char_val: "E"
+
+  - do:
+      indices.refresh: {}
+
+---
+"Standard pagination within rank_window_size":
+  # this test retrieves the same results from two queries, and applies a simple pagination skipping the first result
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          sub_searches: [
+            {
+              # this should clause would generate the result set [1, 2, 3, 4]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        number_val: {
+                          value: "1",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "2",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "3",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "4",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            },
+            {
+              # this should clause would generate the result set [1, 2, 3, 4]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        char_val: {
+                          value: "A",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "B",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "C",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "D",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 10
+              rank_constant: 10
+          from : 1
+          size : 10
+
+  - match: { hits.total.value : 4 }
+  - length: { hits.hits : 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0._rank: 2 }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1._rank: 3 }
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.2._rank: 4 }
+
+---
+"Standard pagination outside rank_window_size":
+  # in this example, from starts *after* rank_window_size so, we expect 0 results to be returned
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          sub_searches: [
+            {
+              # this should clause would generate the result set [1, 2, 3, 4]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        number_val: {
+                          value: "1",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "2",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "3",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "4",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            },
+            {
+              # this should clause would generate the result set [1, 2, 3, 4]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        char_val: {
+                          value: "A",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "B",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "C",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "D",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 2
+              rank_constant: 10
+          from : 10
+          size : 2
+
+  - match: { hits.total.value : 4 }
+  - length: { hits.hits : 0 }
+
+---
+"Standard pagination partially outside rank_window_size":
+  # in this example we have that from starts *within* rank_window_size, but "from + size" goes over
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          sub_searches: [
+            {
+              # this should clause would generate the result set [1, 2, 3, 4]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        number_val: {
+                          value: "1",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "2",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "3",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "4",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            },
+            {
+              # this should clause would generate the result set [1, 2, 3, 4]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        char_val: {
+                          value: "A",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "B",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "C",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "D",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 3
+              rank_constant: 10
+          from : 2
+          size : 2
+
+  - match: { hits.total.value : 4 }
+  - length: { hits.hits : 1 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._rank: 3 }
+
+
+---
+"Pagination within interleaved results":
+  # perform two searches with different "from" parameter, ensuring that results are consistent
+  # rank_window_size covers the entire result set for both queries, so pagination should be consistent
+  # queryA has a result set of [1, 2, 3, 4] and
+  # queryB has a result set of [4, 3, 1, 2]
+  # so for rank_constant=10, the expected order is [1, 4, 3, 2]
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          sub_searches: [
+            {
+              # this should clause would generate the result set [1, 2, 3, 4]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        number_val: {
+                          value: "1",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "2",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "3",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "4",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            },
+            {
+              # this should clause would generate the result set [4, 3, 1, 2]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        char_val: {
+                          value: "D",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "C",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "A",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "B",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 10
+              rank_constant: 10
+          from : 0
+          size : 2
+
+  - match: { hits.total.value : 4 }
+  - length: { hits.hits : 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._rank: 1 }
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.1._rank: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          sub_searches: [
+            {
+              # this should clause would generate the result set [1, 2, 3, 4]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        number_val: {
+                          value: "1",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "2",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "3",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "4",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            },
+            {
+              # this should clause would generate the result set [4, 3, 1, 2]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        char_val: {
+                          value: "D",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "C",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "A",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "B",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 10
+              rank_constant: 10
+          from : 2
+          size : 2
+
+  - match: { hits.total.value : 4 }
+  - length: { hits.hits : 2 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._rank: 3 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._rank: 4 }
+
+---
+"Pagination within interleaved results, different result set sizes, rank_window_size covering all results":
+  # perform multiple searches with different "from" parameter, ensuring that results are consistent
+  # rank_window_size covers the entire result set for both queries, so pagination should be consistent
+  # queryA has a result set of [5, 1] and
+  # queryB has a result set of [4, 3, 1, 2]
+  # so for rank_constant=10, the expected order is [1, 5, 4, 3, 2]
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          sub_searches: [
+            {
+              # this should clause would generate the result set [5, 1]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        number_val: {
+                          value: "5",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "1",
+                          boost: 9.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            },
+            {
+              # this should clause would generate the result set [4, 3, 1, 2]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        char_val: {
+                          value: "D",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "C",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "A",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "B",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 10
+              rank_constant: 10
+          from : 0
+          size : 2
+
+  - match: { hits.total.value : 5 }
+  - length: { hits.hits : 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._rank: 1 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.1._rank: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          sub_searches: [
+            {
+              # this should clause would generate the result set [5, 1]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        number_val: {
+                          value: "5",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "1",
+                          boost: 9.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            },
+            {
+              # this should clause would generate the result set [4, 3, 1, 2]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        char_val: {
+                          value: "D",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "C",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "A",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "B",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 10
+              rank_constant: 10
+          from : 2
+          size : 2
+
+  - match: { hits.total.value : 5 }
+  - length: { hits.hits : 2 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.0._rank: 3 }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1._rank: 4 }
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          sub_searches: [
+            {
+              # this should clause would generate the result set [5, 1]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        number_val: {
+                          value: "5",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "1",
+                          boost: 9.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            },
+            {
+              # this should clause would generate the result set [4, 3, 1, 2]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        char_val: {
+                          value: "D",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "C",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "A",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "B",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 10
+              rank_constant: 10
+          from: 4
+          size: 2
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0._rank: 5 }
+
+
+---
+"Pagination within interleaved results, different result set sizes, rank_window_size not covering all results":
+  # perform multiple searches with different "from" parameter, ensuring that results are consistent
+  # rank_window_size does not cover the entire result set for both queries, so the results should be different
+  # from the test above. More specifically, we'd get to collect 2 results from each query, so we'd have:
+  # queryA has a result set of [5, 1] and
+  # queryB has a result set of [4, 3]
+  # so for rank_constant=10, the expected order is [5, 4, 1, 3],
+  # and the rank_window_size-sized result set that we'd paginate over is [5, 4]
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          sub_searches: [
+            {
+              # this should clause would generate the result set [5, 1]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        number_val: {
+                          value: "5",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "1",
+                          boost: 9.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            },
+            {
+              # this should clause would generate the result set [4, 3, 1, 2]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        char_val: {
+                          value: "D",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "C",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "A",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "B",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 2
+              rank_constant: 10
+          from : 0
+          size : 2
+
+  - match: { hits.total.value : 5 }
+  - length: { hits.hits : 2 }
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.0._rank: 1 }
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.1._rank: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          sub_searches: [
+            {
+              # this should clause would generate the result set [5, 1]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        number_val: {
+                          value: "5",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        number_val: {
+                          value: "1",
+                          boost: 9.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            },
+            {
+              # this should clause would generate the result set [4, 3, 1, 2]
+              "query": {
+                bool: {
+                  should: [
+                    {
+                      term: {
+                        char_val: {
+                          value: "D",
+                          boost: 10.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "C",
+                          boost: 9.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "A",
+                          boost: 8.0
+                        }
+                      }
+                    },
+                    {
+                      term: {
+                        char_val: {
+                          value: "B",
+                          boost: 7.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 2
+              rank_constant: 10
+          from : 2
+          size : 2
+
+  - match: { hits.total.value : 5 }
+  - length: { hits.hits : 0 }

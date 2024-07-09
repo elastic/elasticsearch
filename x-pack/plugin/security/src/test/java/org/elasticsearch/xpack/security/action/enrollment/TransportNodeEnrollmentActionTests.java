@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.security.action.enrollment;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -102,7 +102,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             DiscoveryNode n = node(i);
             nodeInfos.add(
                 new NodeInfo(
-                    Version.CURRENT,
+                    Build.current().version(),
                     TransportVersion.current(),
                     IndexVersion.current(),
                     Map.of(),
@@ -129,7 +129,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             ActionListener<NodesInfoResponse> listener = (ActionListener) invocation.getArguments()[2];
             listener.onResponse(new NodesInfoResponse(new ClusterName("cluster"), nodeInfos, List.of()));
             return null;
-        }).when(client).execute(same(NodesInfoAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportNodesInfoAction.TYPE), any(), any());
 
         final TransportService transportService = new TransportService(
             Settings.EMPTY,

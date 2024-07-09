@@ -30,11 +30,17 @@ public class JwtAuthenticatorAccessTokenTypeTests extends JwtAuthenticatorTests 
 
     public void testAccessTokenTypeMandatesAllowedSubjects() {
         allowedSubject = null;
+        allowedSubjectPattern = null;
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildJwtAuthenticator());
-
         assertThat(
-            e.getMessage(),
-            containsString("Invalid empty list for [" + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS) + "]")
+            e.getCause().getMessage(),
+            containsString(
+                "One of either ["
+                    + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
+                    + "] must be specified and not be empty."
+            )
         );
     }
 

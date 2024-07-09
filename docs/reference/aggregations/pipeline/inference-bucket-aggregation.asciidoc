@@ -65,7 +65,7 @@ aggregations some options can be overridden for each of the two types of model.
 
 `num_top_feature_importance_values`::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
 
 [discrete]
 [[inference-agg-classification-opt]]
@@ -73,15 +73,15 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num
 
 `num_top_classes`::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
 
 `num_top_feature_importance_values`::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
 
 `prediction_field_type`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
 
 
 [[inference-bucket-agg-example]]

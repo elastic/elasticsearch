@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
@@ -91,7 +92,6 @@ public class TransportWriteActionTests extends ESTestCase {
 
     private ClusterService clusterService;
     private IndexShard indexShard;
-    private Translog.Location location;
 
     @BeforeClass
     public static void beforeClass() {
@@ -101,9 +101,8 @@ public class TransportWriteActionTests extends ESTestCase {
     @Before
     public void initCommonMocks() {
         indexShard = mock(IndexShard.class);
-        location = mock(Translog.Location.class);
         clusterService = createClusterService(threadPool);
-        when(indexShard.refresh(any())).thenReturn(new Engine.RefreshResult(true, 1));
+        when(indexShard.refresh(any())).thenReturn(new Engine.RefreshResult(true, randomNonNegativeLong(), 1));
         ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
         when(indexShard.getReplicationGroup()).thenReturn(replicationGroup);
         when(replicationGroup.getReplicationTargets()).thenReturn(Collections.emptyList());
@@ -149,7 +148,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
         TestAction testAction = new TestAction();
-        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
@@ -188,7 +187,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         TestAction testAction = new TestAction();
-        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
@@ -199,7 +198,7 @@ public class TransportWriteActionTests extends ESTestCase {
         verify(indexShard).externalRefresh(eq(PostWriteRefresh.FORCED_REFRESH_AFTER_INDEX), refreshListener.capture());
         verify(indexShard, never()).addRefreshListener(any(), any());
         // Fire the listener manually
-        refreshListener.getValue().onResponse(new Engine.RefreshResult(randomBoolean(), randomNonNegativeLong()));
+        refreshListener.getValue().onResponse(new Engine.RefreshResult(randomBoolean(), randomNonNegativeLong(), randomNonNegativeLong()));
         assertNotNull(listener.response);
         assertNull(listener.failure);
     }
@@ -235,7 +234,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         TestAction testAction = new TestAction();
-        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
@@ -273,7 +272,7 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testDocumentFailureInShardOperationOnReplica() throws Exception {
         TestRequest request = new TestRequest();
         TestAction testAction = new TestAction(randomBoolean(), true);
-        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
@@ -430,7 +429,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 TestRequest::new,
                 TestRequest::new,
-                (service, ignore) -> ThreadPool.Names.SAME,
+                (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 false,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE
@@ -458,7 +457,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 TestRequest::new,
                 TestRequest::new,
-                (service, ignore) -> ThreadPool.Names.SAME,
+                (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 false,
                 new IndexingPressure(settings),
                 EmptySystemIndices.INSTANCE
@@ -482,7 +481,14 @@ public class TransportWriteActionTests extends ESTestCase {
                 if (withDocumentFailureOnPrimary) {
                     throw new RuntimeException("simulated");
                 } else {
-                    return new WritePrimaryResult<>(request, new TestResponse(), location, primary, logger, postWriteRefresh);
+                    return new WritePrimaryResult<>(
+                        request,
+                        new TestResponse(),
+                        Translog.Location.EMPTY,
+                        primary,
+                        logger,
+                        postWriteRefresh
+                    );
                 }
             });
         }
@@ -494,7 +500,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 if (withDocumentFailureOnReplica) {
                     replicaResult = new WriteReplicaResult<>(request, null, new RuntimeException("simulated"), replica, logger);
                 } else {
-                    replicaResult = new WriteReplicaResult<>(request, location, null, replica, logger);
+                    replicaResult = new WriteReplicaResult<>(request, Translog.Location.EMPTY, null, replica, logger);
                 }
                 return replicaResult;
             });

@@ -32,6 +32,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<ComponentTemplate> {
     @Override
@@ -65,7 +66,17 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         return randomInstance(false);
     }
 
+    // Deprecated component templates may lead to deprecation warnings when used in non-deprecated index templates
+    // to avoid test failures due to unexpected deprecation warnings, returns a non-deprecated instance
+    public static ComponentTemplate randomNonDeprecatedInstance() {
+        return randomInstance(false, randomFrom(Boolean.FALSE, null));
+    }
+
     public static ComponentTemplate randomInstance(boolean lifecycleAllowed) {
+        return randomInstance(lifecycleAllowed, randomOptionalBoolean());
+    }
+
+    public static ComponentTemplate randomInstance(boolean lifecycleAllowed, Boolean deprecated) {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
@@ -88,7 +99,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             meta = randomMeta();
         }
-        return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta);
+        return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta, deprecated);
     }
 
     public static Map<String, AliasMetadata> randomAliases() {
@@ -102,7 +113,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         return Collections.singletonMap(aliasName, aliasMeta);
     }
 
-    private static CompressedXContent randomMappings() {
+    public static CompressedXContent randomMappings() {
         try {
             return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
         } catch (IOException e) {
@@ -111,7 +122,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         }
     }
 
-    private static Settings randomSettings() {
+    public static Settings randomSettings() {
         return indexSettings(randomIntBetween(1, 10), randomIntBetween(0, 5)).put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
@@ -136,7 +147,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     public static ComponentTemplate mutateTemplate(ComponentTemplate orig) {
-        return switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 3)) {
             case 0 -> {
                 Template ot = orig.template();
                 yield switch (randomIntBetween(0, 3)) {
@@ -148,7 +159,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.lifecycle()
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     case 1 -> new ComponentTemplate(
                         new Template(
@@ -158,7 +170,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.lifecycle()
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     case 2 -> new ComponentTemplate(
                         new Template(
@@ -168,7 +181,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.lifecycle()
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     case 3 -> new ComponentTemplate(
                         new Template(
@@ -178,7 +192,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle)
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     default -> throw new IllegalStateException("illegal randomization branch");
                 };
@@ -186,12 +201,20 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             case 1 -> new ComponentTemplate(
                 orig.template(),
                 randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
-                orig.metadata()
+                orig.metadata(),
+                orig.deprecated()
             );
             case 2 -> new ComponentTemplate(
                 orig.template(),
                 orig.version(),
-                randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta)
+                randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta),
+                orig.deprecated()
+            );
+            case 3 -> new ComponentTemplate(
+                orig.template(),
+                orig.version(),
+                orig.metadata(),
+                orig.isDeprecated() ? randomFrom(false, null) : true
             );
             default -> throw new IllegalStateException("illegal randomization branch");
         };
@@ -243,7 +266,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         }
     }
 
-    public void testXContentSerializationWithRollover() throws IOException {
+    public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
@@ -256,7 +279,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         ComponentTemplate template = new ComponentTemplate(
             new Template(settings, mappings, aliases, lifecycle),
             randomNonNegativeLong(),
@@ -266,14 +289,22 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
-            template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
+            DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
+            ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
+            template.toXContent(builder, withEffectiveRetention, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention())
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
                 .getConditions()
                 .keySet()) {
                 assertThat(serialized, containsString(label));
             }
+            /*
+             * A template does not have a global retention and the lifecycle has no retention, so there will be no data_retention or
+             * effective_retention.
+             */
+            assertThat(serialized, not(containsString("data_retention")));
+            assertThat(serialized, not(containsString("effective_retention")));
         }
     }
 }

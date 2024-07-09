@@ -38,12 +38,12 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -79,16 +79,13 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     public void testCloseMissingIndex() {
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareClose("test").get());
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, indicesAdmin().prepareClose("test"));
         assertThat(e.getMessage(), is("no such index [test]"));
     }
 
     public void testCloseOneMissingIndex() {
         createIndex("test1");
-        final IndexNotFoundException e = expectThrows(
-            IndexNotFoundException.class,
-            () -> indicesAdmin().prepareClose("test1", "test2").get()
-        );
+        final IndexNotFoundException e = expectThrows(IndexNotFoundException.class, indicesAdmin().prepareClose("test1", "test2"));
         assertThat(e.getMessage(), is("no such index [test2]"));
     }
 
@@ -99,17 +96,14 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     public void testCloseNoIndex() {
-        final ActionRequestValidationException e = expectThrows(
-            ActionRequestValidationException.class,
-            () -> indicesAdmin().prepareClose().get()
-        );
+        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, indicesAdmin().prepareClose());
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
     public void testCloseNullIndex() {
         final ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> indicesAdmin().prepareClose((String[]) null).get()
+            indicesAdmin().prepareClose((String[]) null)
         );
         assertThat(e.getMessage(), containsString("index is missing"));
     }
@@ -123,16 +117,14 @@ public class CloseIndexIT extends ESIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
-                .collect(toList())
+            IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
         );
 
         assertBusy(() -> closeIndices(indexName));
         assertIndexIsClosed(indexName);
 
         assertAcked(indicesAdmin().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0), nbDocs);
+        assertHitCount(prepareSearch(indexName).setSize(0), nbDocs);
     }
 
     public void testCloseAlreadyClosedIndex() throws Exception {
@@ -145,7 +137,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                 false,
                 randomBoolean(),
                 IntStream.range(0, randomIntBetween(1, 10))
-                    .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
+                    .mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                     .collect(toList())
             );
         }
@@ -178,7 +170,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
     }
 
-    public void testConcurrentClose() throws InterruptedException {
+    public void testConcurrentClose() throws InterruptedException, ExecutionException {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
@@ -187,9 +179,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
-                .collect(toList())
+            IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
         );
 
         ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(indexName)
@@ -206,25 +196,14 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getIndices().get(indexName).getStatus().value(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW.value()));
 
-        final CountDownLatch startClosing = new CountDownLatch(1);
-        final Thread[] threads = new Thread[randomIntBetween(2, 5)];
-
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                safeAwait(startClosing);
-                try {
-                    indicesAdmin().prepareClose(indexName).get();
-                } catch (final Exception e) {
-                    assertException(e, indexName);
-                }
-            });
-            threads[i].start();
-        }
-
-        startClosing.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        final int tasks = randomIntBetween(2, 5);
+        startInParallel(tasks, i -> {
+            try {
+                indicesAdmin().prepareClose(indexName).get();
+            } catch (final Exception e) {
+                assertException(e, indexName);
+            }
+        });
         assertIndexIsClosed(indexName);
     }
 
@@ -244,7 +223,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         assertIndexIsClosed(indexName);
         assertAcked(indicesAdmin().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE), nbDocs);
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE), nbDocs);
     }
 
     public void testCloseWhileDeletingIndices() throws Exception {
@@ -258,7 +237,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                     false,
                     randomBoolean(),
                     IntStream.range(0, 10)
-                        .mapToObj(n -> client().prepareIndex(indexName).setId(String.valueOf(n)).setSource("num", n))
+                        .mapToObj(n -> prepareIndex(indexName).setId(String.valueOf(n)).setSource("num", n))
                         .collect(toList())
                 );
             }
@@ -266,37 +245,18 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
         assertThat(clusterAdmin().prepareState().get().getState().metadata().indices().size(), equalTo(indices.length));
 
-        final List<Thread> threads = new ArrayList<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-
-        for (final String indexToDelete : indices) {
-            threads.add(new Thread(() -> {
-                safeAwait(latch);
-                try {
-                    assertAcked(indicesAdmin().prepareDelete(indexToDelete));
-                } catch (final Exception e) {
-                    assertException(e, indexToDelete);
+        startInParallel(indices.length * 2, i -> {
+            final String index = indices[i % indices.length];
+            try {
+                if (i < indices.length) {
+                    assertAcked(indicesAdmin().prepareDelete(index));
+                } else {
+                    indicesAdmin().prepareClose(index).get();
                 }
-            }));
-        }
-        for (final String indexToClose : indices) {
-            threads.add(new Thread(() -> {
-                safeAwait(latch);
-                try {
-                    indicesAdmin().prepareClose(indexToClose).get();
-                } catch (final Exception e) {
-                    assertException(e, indexToClose);
-                }
-            }));
-        }
-
-        for (Thread thread : threads) {
-            thread.start();
-        }
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+            } catch (final Exception e) {
+                assertException(e, index);
+            }
+        });
     }
 
     public void testConcurrentClosesAndOpens() throws Exception {
@@ -307,37 +267,21 @@ public class CloseIndexIT extends ESIntegTestCase {
         indexer.setFailureAssertion(e -> {});
         waitForDocs(1, indexer);
 
-        final CountDownLatch latch = new CountDownLatch(1);
+        final int closes = randomIntBetween(1, 3);
+        final int opens = randomIntBetween(1, 3);
+        final CyclicBarrier barrier = new CyclicBarrier(opens + closes);
 
-        final List<Thread> threads = new ArrayList<>();
-        for (int i = 0; i < randomIntBetween(1, 3); i++) {
-            threads.add(new Thread(() -> {
-                try {
-                    safeAwait(latch);
+        startInParallel(opens + closes, i -> {
+            try {
+                if (i < closes) {
                     indicesAdmin().prepareClose(indexName).get();
-                } catch (final Exception e) {
-                    throw new AssertionError(e);
-                }
-            }));
-        }
-        for (int i = 0; i < randomIntBetween(1, 3); i++) {
-            threads.add(new Thread(() -> {
-                try {
-                    safeAwait(latch);
+                } else {
                     assertAcked(indicesAdmin().prepareOpen(indexName).get());
-                } catch (final Exception e) {
-                    throw new AssertionError(e);
                 }
-            }));
-        }
-
-        for (Thread thread : threads) {
-            thread.start();
-        }
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+            } catch (final Exception e) {
+                throw new AssertionError(e);
+            }
+        });
 
         indexer.stopAndAwaitStopped();
 
@@ -348,10 +292,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
         refresh(indexName);
         assertIndexIsOpened(indexName);
-        assertHitCount(
-            client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE),
-            indexer.totalIndexedDocs()
-        );
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE), indexer.totalIndexedDocs());
     }
 
     public void testCloseIndexWaitForActiveShards() throws Exception {
@@ -364,9 +305,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
-                .collect(toList())
+            IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
         );
         ensureGreen(indexName);
 
@@ -391,9 +330,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
-                IntStream.range(0, randomIntBetween(0, 50))
-                    .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                    .collect(toList())
+                IntStream.range(0, randomIntBetween(0, 50)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
             );
             ensureGreen(indexName);
 
@@ -428,9 +365,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, randomIntBetween(0, 50))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, randomIntBetween(0, 50)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
         indicesAdmin().prepareFlush(indexName).get();
@@ -471,9 +406,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, randomIntBetween(0, 50))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, randomIntBetween(0, 50)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         assertAcked(indicesAdmin().prepareClose(indexName));
         // move single shard to second node
@@ -492,9 +425,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, randomIntBetween(0, 50))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, randomIntBetween(0, 50)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
         assertAcked(indicesAdmin().prepareClose(indexName));
@@ -523,9 +454,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, randomIntBetween(0, 50))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, randomIntBetween(0, 50)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
         assertAcked(indicesAdmin().prepareClose(indexName));

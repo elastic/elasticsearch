@@ -235,8 +235,8 @@ public class TextStructure implements ToXContentObject, Writeable {
         javaTimestampFormats = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
         timestampField = in.readOptionalString();
         needClientTimezone = in.readBoolean();
-        mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
-        ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readMap()) : null;
+        mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readGenericMap()));
+        ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readGenericMap()) : null;
         fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(FieldStats::new)));
         explanation = in.readCollectionAsImmutableList(StreamInput::readString);
     }
@@ -523,7 +523,7 @@ public class TextStructure implements ToXContentObject, Writeable {
             && Objects.equals(this.explanation, that.explanation);
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private int numLinesAnalyzed;
         private int numMessagesAnalyzed;
@@ -553,7 +553,6 @@ public class TextStructure implements ToXContentObject, Writeable {
             this(Format.SEMI_STRUCTURED_TEXT);
         }
 
-        @SuppressWarnings("this-escape")
         public Builder(Format format) {
             setFormat(format);
         }

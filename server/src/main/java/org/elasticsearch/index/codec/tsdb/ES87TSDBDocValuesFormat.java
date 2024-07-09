@@ -34,6 +34,14 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final byte SORTED_SET = 3;
     static final byte SORTED_NUMERIC = 4;
 
+    static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
+    static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;
+    static final int TERMS_DICT_BLOCK_LZ4_MASK = TERMS_DICT_BLOCK_LZ4_SIZE - 1;
+
+    static final int TERMS_DICT_REVERSE_INDEX_SHIFT = 10;
+    static final int TERMS_DICT_REVERSE_INDEX_SIZE = 1 << TERMS_DICT_REVERSE_INDEX_SHIFT;
+    static final int TERMS_DICT_REVERSE_INDEX_MASK = TERMS_DICT_REVERSE_INDEX_SIZE - 1;
+
     public ES87TSDBDocValuesFormat() {
         super(CODEC_NAME);
     }

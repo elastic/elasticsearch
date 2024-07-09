@@ -10,11 +10,11 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
+public class TsdbIT extends AbstractRollingUpgradeTestCase {
 
     public TsdbIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -130,10 +130,7 @@ public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
         """;
 
     public void testTsdbDataStream() throws Exception {
-        assumeTrue(
-            "Skipping version [" + getOldClusterVersion() + "], because TSDB was GA-ed in 8.7.0",
-            getOldClusterVersion().onOrAfter(Version.V_8_7_0)
-        );
+        assumeTrue("TSDB was GA-ed in 8.7.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_GENERALLY_AVAILABLE));
         String dataStreamName = "k8s";
         if (isOldCluster()) {
             final String INDEX_TEMPLATE = """
@@ -159,8 +156,9 @@ public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
 
     public void testTsdbDataStreamWithComponentTemplate() throws Exception {
         assumeTrue(
-            "Skipping version [" + getOldClusterVersion() + "], because TSDB was GA-ed in 8.7.0 and bug was fixed in 8.11.0",
-            getOldClusterVersion().onOrAfter(Version.V_8_7_0) && getOldClusterVersion().before(Version.V_8_11_0)
+            "TSDB was GA-ed in 8.7.0 and bug was fixed in 8.11.0",
+            oldClusterHasFeature(RestTestLegacyFeatures.TSDB_GENERALLY_AVAILABLE)
+                && (oldClusterHasFeature(RestTestLegacyFeatures.TSDB_EMPTY_TEMPLATE_FIXED) == false)
         );
         String dataStreamName = "template-with-component-template";
         if (isOldCluster()) {

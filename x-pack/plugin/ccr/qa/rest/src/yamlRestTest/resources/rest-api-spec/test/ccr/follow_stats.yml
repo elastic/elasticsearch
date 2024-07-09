@@ -54,6 +54,7 @@
       ccr.follow_stats:
         index: bar
   - match: { indices.0.index: "bar" }
+  - match: { indices.0.total_global_checkpoint_lag: 0 }
   - match: { indices.0.shards.0.leader_index: "foo" }
   - match: { indices.0.shards.0.follower_index: "bar" }
   - match: { indices.0.shards.0.shard_id: 0 }

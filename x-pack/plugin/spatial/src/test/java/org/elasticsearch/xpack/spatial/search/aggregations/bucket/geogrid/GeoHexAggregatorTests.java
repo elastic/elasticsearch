@@ -72,7 +72,7 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
     }
 
     @Override
-    protected GeoBoundingBox randomBBox() {
+    protected GeoBoundingBox randomBBox(int precision) {
         GeoBoundingBox bbox = randomValueOtherThanMany(
             (b) -> b.top() > GeoTileUtils.LATITUDE_MASK || b.bottom() < -GeoTileUtils.LATITUDE_MASK,
             () -> {

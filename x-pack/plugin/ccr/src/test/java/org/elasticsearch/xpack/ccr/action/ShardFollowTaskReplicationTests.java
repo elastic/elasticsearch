@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -170,7 +171,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     if (leaderGroup.getReplicas().isEmpty() == false && randomInt(100) < 5) {
                         IndexShard closingReplica = randomFrom(leaderGroup.getReplicas());
                         leaderGroup.removeReplica(closingReplica);
-                        closingReplica.close("test", false);
+                        closeShardNoCheck(closingReplica);
                         closingReplica.store().close();
                     } else if (leaderGroup.getReplicas().isEmpty() == false && rarely()) {
                         IndexShard newPrimary = randomFrom(leaderGroup.getReplicas());
@@ -527,7 +528,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     )
                 );
                 primaryShard.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
-                final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 primaryShard.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
                     public void restoreShard(
@@ -802,7 +803,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
         @Override
         protected void performOnPrimary(IndexShard primary, BulkShardOperationsRequest request, ActionListener<PrimaryResult> listener) {
-            final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
+            final PlainActionFuture<Releasable> permitFuture = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
             primary.acquirePrimaryOperationPermit(permitFuture, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
             final var threadpool = mock(ThreadPool.class);

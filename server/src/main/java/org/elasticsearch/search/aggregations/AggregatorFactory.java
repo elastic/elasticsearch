@@ -64,8 +64,6 @@ public abstract class AggregatorFactory {
         return name;
     }
 
-    public void doValidate() {}
-
     protected abstract Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException;
 

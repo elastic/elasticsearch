@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.math;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 
 import java.io.IOException;
@@ -79,7 +80,7 @@ public class ToNumberFunctionProcessor implements Processor {
                 return Long.parseLong(value.toString(), radix);
             }
         } catch (NumberFormatException e) {
-            throw new EqlIllegalArgumentException("Unable to convert [{}] to number of base [{}]", value, radix);
+            throw new InvalidArgumentException(e, "Unable to convert [{}] to number of base [{}]", value, radix);
         }
 
     }

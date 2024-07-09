@@ -15,15 +15,13 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class InvalidIndexNameException extends ElasticsearchException {
+public final class InvalidIndexNameException extends ElasticsearchException {
 
-    @SuppressWarnings("this-escape")
     public InvalidIndexNameException(String name, String desc) {
         super("Invalid index name [" + name + "], " + desc);
         setIndex(name);
     }
 
-    @SuppressWarnings("this-escape")
     public InvalidIndexNameException(Index index, String name, String desc) {
         super("Invalid index name [" + name + "], " + desc);
         setIndex(index);

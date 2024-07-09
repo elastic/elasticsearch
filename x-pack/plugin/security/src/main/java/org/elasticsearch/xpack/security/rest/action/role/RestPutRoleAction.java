@@ -18,6 +18,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 
 import java.io.IOException;
@@ -29,11 +30,14 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add a Role to the security index
  */
-@ServerlessScope(Scope.INTERNAL)
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
-    public RestPutRoleAction(Settings settings, XPackLicenseState licenseState) {
+    private final PutRoleRequestBuilderFactory builderFactory;
+
+    public RestPutRoleAction(Settings settings, XPackLicenseState licenseState, PutRoleRequestBuilderFactory builderFactory) {
         super(settings, licenseState);
+        this.builderFactory = builderFactory;
     }
 
     @Override
@@ -51,11 +55,10 @@ public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutRoleRequestBuilder requestBuilder = new PutRoleRequestBuilder(client).source(
-            request.param("name"),
-            request.requiredContent(),
-            request.getXContentType()
-        ).setRefreshPolicy(request.param("refresh"));
+        final boolean restrictRequest = request.hasParam(RestRequest.PATH_RESTRICTED);
+        final PutRoleRequestBuilder requestBuilder = builderFactory.create(client, restrictRequest)
+            .source(request.param("name"), request.requiredContent(), request.getXContentType())
+            .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {

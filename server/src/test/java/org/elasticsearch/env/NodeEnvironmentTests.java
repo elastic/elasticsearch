@@ -34,16 +34,19 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -129,25 +132,24 @@ public class NodeEnvironmentTests extends ESTestCase {
 
             Index index = new Index("foo", "fooUUID");
 
-            var appender = new MockLogAppender();
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "hot threads logging",
-                    NODE_ENVIRONMENT_LOGGER_NAME,
-                    Level.DEBUG,
-                    "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
-                )
-            );
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "second attempt should be suppressed due to throttling",
-                    NODE_ENVIRONMENT_LOGGER_NAME,
-                    Level.DEBUG,
-                    "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [3] timed out after *"
-                )
-            );
+            try (var mockLog = MockLog.capture(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "hot threads logging",
+                        NODE_ENVIRONMENT_LOGGER_NAME,
+                        Level.DEBUG,
+                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "second attempt should be suppressed due to throttling",
+                        NODE_ENVIRONMENT_LOGGER_NAME,
+                        Level.DEBUG,
+                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [3] timed out after *"
+                    )
+                );
 
-            try (var ignored = appender.capturing(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
                 assertEquals(new ShardId(index, 0), lock.getShardId());
 
                 expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2"));
@@ -161,7 +163,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     () -> env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10))
                 );
 
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
 
             // can lock again?
@@ -584,7 +586,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             }
 
             Version oldVersion = Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
-            IndexVersion oldIndexVersion = IndexVersion.fromId(between(1, IndexVersion.MINIMUM_COMPATIBLE.id() - 1));
+            IndexVersion oldIndexVersion = IndexVersion.fromId(between(1, IndexVersions.MINIMUM_COMPATIBLE.id() - 1));
             Version previousNodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id - 1));
             overrideOldestIndexVersion(oldIndexVersion, previousNodeVersion, env.nodeDataPaths());
 
@@ -598,7 +600,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 ex.getMessage(),
                 allOf(
                     containsString("Cannot start this node"),
-                    containsString("it holds metadata for indices with version [" + oldIndexVersion + "]"),
+                    containsString("it holds metadata for indices with version [" + oldIndexVersion.toReleaseVersion() + "]"),
                     containsString(
                         "Revert this node to version ["
                             + (previousNodeVersion.major == Version.V_8_0_0.major ? Version.V_7_17_0 : previousNodeVersion)
@@ -608,7 +610,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             );
 
             // This should work
-            overrideOldestIndexVersion(IndexVersion.MINIMUM_COMPATIBLE, previousNodeVersion, env.nodeDataPaths());
+            overrideOldestIndexVersion(IndexVersions.MINIMUM_COMPATIBLE, previousNodeVersion, env.nodeDataPaths());
             checkForIndexCompatibility(logger, env.dataPaths());
 
             // Trying to boot with newer version should pass this check
@@ -639,7 +641,16 @@ public class NodeEnvironmentTests extends ESTestCase {
         Path dataPath = tempDir.resolve("data");
         Files.createDirectories(dataPath);
         Path symLinkPath = tempDir.resolve("data_symlink");
-        Files.createSymbolicLink(symLinkPath, dataPath);
+        try {
+            Files.createSymbolicLink(symLinkPath, dataPath);
+        } catch (FileSystemException e) {
+            if (IOUtils.WINDOWS && "A required privilege is not held by the client".equals(e.getReason())) {
+                throw new AssumptionViolatedException("Symlinks on Windows need admin privileges", e);
+            } else {
+                throw e;
+            }
+        }
+
         NodeEnvironment env = newNodeEnvironment(new String[] { symLinkPath.toString() }, "/tmp", Settings.EMPTY);
 
         assertTrue(Files.exists(symLinkPath));

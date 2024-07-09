@@ -11,12 +11,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -31,6 +31,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -50,28 +51,24 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
 
-    protected abstract Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode);
+    protected abstract Operator.OperatorFactory simpleWithMode(AggregatorMode mode);
 
     @Override
-    protected final Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return simpleWithMode(bigArrays, AggregatorMode.SINGLE);
+    protected final Operator.OperatorFactory simple() {
+        return simpleWithMode(AggregatorMode.SINGLE);
     }
 
     public final void testInitialFinal() {
-        BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
                 driverContext,
                 new CannedSourceOperator(input.iterator()),
-                List.of(
-                    simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext),
-                    simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
-                ),
-                new ResultPageSinkOperator(page -> results.add(page)),
+                List.of(simpleWithMode(AggregatorMode.INITIAL).get(driverContext), simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
+                new TestResultPageSinkOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
@@ -82,18 +79,17 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     }
 
     public final void testManyInitialFinal() {
-        BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
-        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
+        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(AggregatorMode.INITIAL).get(driverContext)));
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
                 driverContext,
                 new CannedSourceOperator(partials.iterator()),
-                List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
-                new ResultPageSinkOperator(results::add),
+                List.of(simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
@@ -104,10 +100,9 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     }
 
     public final void testInitialIntermediateFinal() {
-        BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
 
         try (
@@ -115,11 +110,11 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(input.iterator()),
                 List.of(
-                    simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext),
-                    simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driverContext),
-                    simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
+                    simpleWithMode(AggregatorMode.INITIAL).get(driverContext),
+                    simpleWithMode(AggregatorMode.INTERMEDIATE).get(driverContext),
+                    simpleWithMode(AggregatorMode.FINAL).get(driverContext)
                 ),
-                new ResultPageSinkOperator(page -> results.add(page)),
+                new TestResultPageSinkOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
@@ -130,16 +125,15 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     }
 
     public final void testManyInitialManyPartialFinal() {
-        BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
-        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
+        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(AggregatorMode.INITIAL).get(driverContext)));
         Collections.shuffle(partials, random());
         List<Page> intermediates = oneDriverPerPageList(
             randomSplits(partials).iterator(),
-            () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driverContext))
+            () -> List.of(simpleWithMode(AggregatorMode.INTERMEDIATE).get(driverContext))
         );
 
         List<Page> results = new ArrayList<>();
@@ -147,8 +141,8 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             Driver d = new Driver(
                 driverContext,
                 new CannedSourceOperator(intermediates.iterator()),
-                List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
-                new ResultPageSinkOperator(results::add),
+                List.of(simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
@@ -161,15 +155,14 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // Similar to testManyInitialManyPartialFinal, but uses with the DriverRunner infrastructure
     // to move the data through the pipeline.
     public final void testManyInitialManyPartialFinalRunner() {
-        BigArrays bigArrays = nonBreakingBigArrays();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 100_000)));
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
-        List<Driver> drivers = createDriversForInput(bigArrays, input, results, false /* no throwing ops */);
+        List<Driver> drivers = createDriversForInput(input, results, false /* no throwing ops */);
         var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -185,15 +178,14 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     public final void testManyInitialManyPartialFinalRunnerThrowing() throws Exception {
         DriverContext driverContext = driverContext();
-        BigArrays bigArrays = nonBreakingBigArrays();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
-        List<Driver> drivers = createDriversForInput(bigArrays, input, results, true /* one throwing op */);
+        List<Driver> drivers = createDriversForInput(input, results, true /* one throwing op */);
         var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -209,10 +201,10 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // intermediate results. The second is a single operator that consumes intermediate input and
     // produces the final results. The throwingOp param allows to construct a pipeline that will
     // fail by throwing an exception in one of the operators.
-    List<Driver> createDriversForInput(BigArrays bigArrays, List<Page> input, List<Page> results, boolean throwingOp) {
+    List<Driver> createDriversForInput(List<Page> input, List<Page> results, boolean throwingOp) {
         Collection<List<Page>> splitInput = randomSplits(input, randomIntBetween(2, 4));
-
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(randomIntBetween(2, 10), threadPool::relativeTimeInMillis);
+        BlockFactory factory = blockFactory();
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(factory, randomIntBetween(2, 10), threadPool::relativeTimeInMillis);
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(randomIntBetween(1, 4), threadPool.executor(ESQL_TEST_EXECUTOR));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
 
@@ -233,9 +225,9 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     new CannedSourceOperator(pages.iterator()),
                     List.of(
                         intermediateOperatorItr.next(),
-                        simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driver1Context),
+                        simpleWithMode(AggregatorMode.INITIAL).get(driver1Context),
                         intermediateOperatorItr.next(),
-                        simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driver1Context),
+                        simpleWithMode(AggregatorMode.INTERMEDIATE).get(driver1Context),
                         intermediateOperatorItr.next()
                     ),
                     new ExchangeSinkOperator(sinkExchanger.createExchangeSink(), Function.identity()),
@@ -250,12 +242,12 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 new ExchangeSourceOperator(sourceExchanger.createExchangeSource()),
                 List.of(
                     intermediateOperatorItr.next(),
-                    simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driver2Context),
+                    simpleWithMode(AggregatorMode.INTERMEDIATE).get(driver2Context),
                     intermediateOperatorItr.next(),
-                    simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driver2Context),
+                    simpleWithMode(AggregatorMode.FINAL).get(driver2Context),
                     intermediateOperatorItr.next()
                 ),
-                new ResultPageSinkOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         );
@@ -361,5 +353,27 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     @After
     public void shutdownThreadPool() {
         terminate(threadPool);
+    }
+
+    protected Comparator<Float> floatComparator() {
+        return FloatComparator.INSTANCE;
+    }
+
+    static final class FloatComparator implements Comparator<Float> {
+
+        static final FloatComparator INSTANCE = new FloatComparator();
+
+        @Override
+        public int compare(Float o1, Float o2) {
+            float first = o1;
+            float second = o2;
+            if (first < second) {
+                return -1;
+            } else if (first == second) {
+                return 0;
+            } else {
+                return 1;
+            }
+        }
     }
 }

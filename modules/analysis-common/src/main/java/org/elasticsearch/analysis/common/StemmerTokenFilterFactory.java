@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.es.SpanishLightStemFilter;
+import org.apache.lucene.analysis.es.SpanishPluralStemFilter;
 import org.apache.lucene.analysis.fa.PersianStemFilter;
 import org.apache.lucene.analysis.fi.FinnishLightStemFilter;
 import org.apache.lucene.analysis.fr.FrenchLightStemFilter;
@@ -70,6 +71,7 @@ import org.tartarus.snowball.ext.NorwegianStemmer;
 import org.tartarus.snowball.ext.PortugueseStemmer;
 import org.tartarus.snowball.ext.RomanianStemmer;
 import org.tartarus.snowball.ext.RussianStemmer;
+import org.tartarus.snowball.ext.SerbianStemmer;
 import org.tartarus.snowball.ext.SpanishStemmer;
 import org.tartarus.snowball.ext.SwedishStemmer;
 import org.tartarus.snowball.ext.TurkishStemmer;
@@ -237,11 +239,16 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if ("light_russian".equalsIgnoreCase(language) || "lightRussian".equalsIgnoreCase(language)) {
                 return new RussianLightStemFilter(tokenStream);
 
+            } else if ("serbian".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new SerbianStemmer());
+
                 // Spanish stemmers
             } else if ("spanish".equalsIgnoreCase(language)) {
                 return new SnowballFilter(tokenStream, new SpanishStemmer());
             } else if ("light_spanish".equalsIgnoreCase(language) || "lightSpanish".equalsIgnoreCase(language)) {
                 return new SpanishLightStemFilter(tokenStream);
+            } else if ("spanish_plural".equalsIgnoreCase(language)) {
+                return new SpanishPluralStemFilter(tokenStream);
 
                 // Sorani Kurdish stemmer
             } else if ("sorani".equalsIgnoreCase(language)) {

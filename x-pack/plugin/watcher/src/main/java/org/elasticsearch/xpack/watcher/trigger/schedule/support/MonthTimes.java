@@ -22,7 +22,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.support.Strings.join;
 
-public class MonthTimes implements Times {
+public final class MonthTimes implements Times {
 
     public static final String LAST = "last_day";
     public static final String FIRST = "first_day";
@@ -37,7 +37,6 @@ public class MonthTimes implements Times {
         this(DEFAULT_DAYS, DEFAULT_TIMES);
     }
 
-    @SuppressWarnings("this-escape")
     public MonthTimes(int[] days, DayTimes[] times) {
         this.days = days.length == 0 ? DEFAULT_DAYS : days;
         Arrays.sort(this.days);

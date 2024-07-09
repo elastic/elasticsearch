@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * Wrapper around everything that defines a mapping, without references to
@@ -51,11 +52,11 @@ public final class Mapping implements ToXContentFragment {
         for (int i = 0; i < metadataMappers.length; i++) {
             MetadataFieldMapper metadataMapper = metadataMappers[i];
             metadataMappersMap[i] = Map.entry(metadataMapper.getClass(), metadataMapper);
-            metadataMappersByName[i] = Map.entry(metadataMapper.name(), metadataMapper);
+            metadataMappersByName[i] = Map.entry(metadataMapper.fullPath(), metadataMapper);
         }
         this.root = rootObjectMapper;
         // keep root mappers sorted for consistent serialization
-        Arrays.sort(metadataMappers, Comparator.comparing(Mapper::name));
+        Arrays.sort(metadataMappers, Comparator.comparing(Mapper::fullPath));
         this.metadataMappersMap = Map.ofEntries(metadataMappersMap);
         this.metadataMappersByName = Map.ofEntries(metadataMappersByName);
         this.meta = meta;
@@ -69,7 +70,7 @@ public final class Mapping implements ToXContentFragment {
         try {
             return new CompressedXContent(this);
         } catch (Exception e) {
-            throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.name() + "]", e);
+            throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.fullPath() + "]", e);
         }
     }
 
@@ -125,7 +126,8 @@ public final class Mapping implements ToXContentFragment {
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return root.syntheticFieldLoader(Arrays.stream(metadataMappers));
+        var stream = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream());
+        return root.syntheticFieldLoader(stream);
     }
 
     /**
@@ -133,10 +135,12 @@ public final class Mapping implements ToXContentFragment {
      *
      * @param mergeWith the new mapping to merge into this one.
      * @param reason the reason this merge was initiated.
+     * @param newFieldsBudget how many new fields can be added during the merge process
      * @return the resulting merged mapping.
      */
-    Mapping merge(Mapping mergeWith, MergeReason reason) {
-        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, MapperBuilderContext.root(isSourceSynthetic(), false));
+    Mapping merge(Mapping mergeWith, MergeReason reason, long newFieldsBudget) {
+        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, reason, newFieldsBudget);
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root, mergeContext);
 
         // When merging metadata fields as part of applying an index template, new field definitions
         // completely overwrite existing ones instead of being merged. This behavior matches how we
@@ -148,7 +152,7 @@ public final class Mapping implements ToXContentFragment {
             if (mergeInto == null || reason == MergeReason.INDEX_TEMPLATE) {
                 merged = metaMergeWith;
             } else {
-                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, MapperBuilderContext.root(isSourceSynthetic(), false));
+                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, mergeContext);
             }
             mergedMetadataMappers.put(merged.getClass(), merged);
         }
@@ -167,6 +171,18 @@ public final class Mapping implements ToXContentFragment {
         }
 
         return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
+    }
+
+    /**
+     * Returns a copy of this mapper that ensures that the number of fields isn't greater than the provided fields budget.
+     * @param fieldsBudget the maximum number of fields this mapping may have
+     */
+    public Mapping withFieldsBudget(long fieldsBudget) {
+        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, MergeReason.MAPPING_RECOVERY, fieldsBudget);
+        // get a copy of the root mapper, without any fields
+        RootObjectMapper shallowRoot = root.withoutMappers();
+        // calling merge on the shallow root to ensure we're only adding as many fields as allowed by the fields budget
+        return new Mapping(shallowRoot.merge(root, mergeContext), metadataMappers, meta);
     }
 
     @Override

@@ -276,16 +276,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             this.certPath = certPath;
         }
 
-        private PrivateKey getKey() {
-            return key;
-        }
-
         private Path getKeyPath() {
             return keyPath;
-        }
-
-        private X509Certificate getCertificate() {
-            return certificate;
         }
 
         private Path getCertPath() {

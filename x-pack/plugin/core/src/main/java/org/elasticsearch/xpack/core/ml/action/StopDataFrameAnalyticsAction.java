@@ -42,10 +42,10 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopDataFrameAnalyticsAction() {
-        super(NAME, StopDataFrameAnalyticsAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
+    public static final class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
         public static final ParseField FORCE = new ParseField("force");
@@ -90,12 +90,11 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
             expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
         }
 
-        @SuppressWarnings("this-escape")
         public Request() {
             setTimeout(DEFAULT_TIMEOUT);
         }
 
-        public final Request setId(String id) {
+        public Request setId(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID);
             return this;
         }

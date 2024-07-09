@@ -19,15 +19,12 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation(testArtifact(project(xpackModule('ql'))))
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
 
   testImplementation 'io.ous:jtoml:2.0.0'
-
-  internalClusterTestImplementation project(":client:rest-high-level")
 }
 
 

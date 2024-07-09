@@ -198,6 +198,17 @@ The API returns the following result:
           },
           "children": [
             {
+              "type" : "FetchFieldsPhase",
+              "description" : "",
+              "time_in_nanos" : 238762,
+              "breakdown" : {
+                "process_count" : 5,
+                "process" : 227914,
+                "next_reader" : 10848,
+                "next_reader_count" : 1
+              }
+            },
+            {
               "type": "FetchSourcePhase",
               "description": "",
               "time_in_nanos": 20443,
@@ -1044,6 +1055,17 @@ And here is the fetch profile:
           },
           "children": [
             {
+              "type" : "FetchFieldsPhase",
+              "description" : "",
+              "time_in_nanos" : 238762,
+              "breakdown" : {
+                "process_count" : 5,
+                "process" : 227914,
+                "next_reader" : 10848,
+                "next_reader_count" : 1
+              }
+            },
+            {
               "type": "FetchSourcePhase",
               "description": "",
               "time_in_nanos": 20443,
@@ -1272,6 +1294,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
 "dfs" : {
     "knn" : [
         {
+        "vector_operations_count" : 4,
         "query" : [
             {
                 "type" : "DocAndScoreQuery",
@@ -1321,7 +1344,7 @@ In the `dfs.knn` portion of the response we can see the output
 the of timings for <<query-section, query>>, <<rewrite-section, rewrite>>,
 and <<collectors-section, collector>>. Unlike many other queries, kNN
 search does the bulk of the work during the query rewrite. This means
-`rewrite_time` represents the time spent on kNN search.
+`rewrite_time` represents the time spent on kNN search. The attribute `vector_operations_count` represents the overall count of vector operations performed during the kNN search.
 
 [[profiling-considerations]]
 ===== Profiling Considerations

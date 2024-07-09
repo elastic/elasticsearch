@@ -32,14 +32,17 @@ public class Sequence implements Comparable<Sequence>, Accountable {
 
     private final SequenceKey key;
     private final Match[] matches;
+    private int firstStage;
     private int currentStage = 0;
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public Sequence(SequenceKey key, int stages, Ordinal ordinal, HitReference firstHit) {
+    public Sequence(SequenceKey key, int stages, int firstStage, Ordinal ordinal, HitReference firstHit) {
         Check.isTrue(stages >= 2, "A sequence requires at least 2 criteria, given [{}]", stages);
         this.key = key;
         this.matches = new Match[stages];
-        this.matches[0] = new Match(ordinal, firstHit);
+        this.matches[firstStage] = new Match(ordinal, firstHit);
+        this.firstStage = firstStage;
+        this.currentStage = firstStage;
     }
 
     public void putMatch(int stage, Ordinal ordinal, HitReference hit) {
@@ -56,7 +59,7 @@ public class Sequence implements Comparable<Sequence>, Accountable {
     }
 
     public Ordinal startOrdinal() {
-        return matches[0].ordinal();
+        return matches[firstStage].ordinal();
     }
 
     public List<HitReference> hits() {

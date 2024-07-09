@@ -313,9 +313,9 @@ public class GeoContextMappingTests extends MapperServiceTestCase {
         locations.add("ezs42e");
         addNeighborsAtLevel("ezs42e", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, is(in(locations)));
-            assertThat(internalQueryContext.boost, equalTo(1));
-            assertThat(internalQueryContext.isPrefix, equalTo(false));
+            assertThat(internalQueryContext.context(), is(in(locations)));
+            assertThat(internalQueryContext.boost(), equalTo(1));
+            assertThat(internalQueryContext.isPrefix(), equalTo(false));
         }
     }
 
@@ -329,9 +329,9 @@ public class GeoContextMappingTests extends MapperServiceTestCase {
         locations.add("wh0n94");
         addNeighborsAtLevel("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, is(in(locations)));
-            assertThat(internalQueryContext.boost, equalTo(1));
-            assertThat(internalQueryContext.isPrefix, equalTo(false));
+            assertThat(internalQueryContext.context(), is(in(locations)));
+            assertThat(internalQueryContext.boost(), equalTo(1));
+            assertThat(internalQueryContext.isPrefix(), equalTo(false));
         }
     }
 
@@ -357,9 +357,12 @@ public class GeoContextMappingTests extends MapperServiceTestCase {
         locations.add("wh0");
         addNeighborsAtLevel("wh0", 3, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, is(in(locations)));
-            assertThat(internalQueryContext.boost, equalTo(10));
-            assertThat(internalQueryContext.isPrefix, equalTo(internalQueryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
+            assertThat(internalQueryContext.context(), is(in(locations)));
+            assertThat(internalQueryContext.boost(), equalTo(10));
+            assertThat(
+                internalQueryContext.isPrefix(),
+                equalTo(internalQueryContext.context().length() < GeoContextMapping.DEFAULT_PRECISION)
+            );
         }
     }
 
@@ -399,14 +402,17 @@ public class GeoContextMappingTests extends MapperServiceTestCase {
         secondLocations.add("w5cx0");
         addNeighborsAtLevel("w5cx0", 5, secondLocations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            if (firstLocations.contains(internalQueryContext.context)) {
-                assertThat(internalQueryContext.boost, equalTo(10));
-            } else if (secondLocations.contains(internalQueryContext.context)) {
-                assertThat(internalQueryContext.boost, equalTo(2));
+            if (firstLocations.contains(internalQueryContext.context())) {
+                assertThat(internalQueryContext.boost(), equalTo(10));
+            } else if (secondLocations.contains(internalQueryContext.context())) {
+                assertThat(internalQueryContext.boost(), equalTo(2));
             } else {
-                fail(internalQueryContext.context + " was not expected");
+                fail(internalQueryContext.context() + " was not expected");
             }
-            assertThat(internalQueryContext.isPrefix, equalTo(internalQueryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
+            assertThat(
+                internalQueryContext.isPrefix(),
+                equalTo(internalQueryContext.context().length() < GeoContextMapping.DEFAULT_PRECISION)
+            );
         }
     }
 
@@ -439,14 +445,17 @@ public class GeoContextMappingTests extends MapperServiceTestCase {
         secondLocations.add("w5cx04");
         addNeighborsAtLevel("w5cx04", 6, secondLocations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            if (firstLocations.contains(internalQueryContext.context)) {
-                assertThat(internalQueryContext.boost, equalTo(10));
-            } else if (secondLocations.contains(internalQueryContext.context)) {
-                assertThat(internalQueryContext.boost, equalTo(1));
+            if (firstLocations.contains(internalQueryContext.context())) {
+                assertThat(internalQueryContext.boost(), equalTo(10));
+            } else if (secondLocations.contains(internalQueryContext.context())) {
+                assertThat(internalQueryContext.boost(), equalTo(1));
             } else {
-                fail(internalQueryContext.context + " was not expected");
+                fail(internalQueryContext.context() + " was not expected");
             }
-            assertThat(internalQueryContext.isPrefix, equalTo(internalQueryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
+            assertThat(
+                internalQueryContext.isPrefix(),
+                equalTo(internalQueryContext.context().length() < GeoContextMapping.DEFAULT_PRECISION)
+            );
         }
     }
 }

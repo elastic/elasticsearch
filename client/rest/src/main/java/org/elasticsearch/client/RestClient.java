@@ -87,6 +87,7 @@ import javax.net.ssl.SSLHandshakeException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 
 /**
  * Client that connects to an Elasticsearch cluster through HTTP.
@@ -106,6 +107,9 @@ import static java.util.Collections.singletonList;
  * Requests can be traced by enabling trace logging for "tracer". The trace logger outputs requests and responses in curl format.
  */
 public class RestClient implements Closeable {
+
+    public static final String IGNORE_RESPONSE_CODES_PARAM = "ignore";
+
     private static final Log logger = LogFactory.getLog(RestClient.class);
 
     private final CloseableHttpAsyncClient client;
@@ -155,10 +159,10 @@ public class RestClient implements Closeable {
     public static RestClientBuilder builder(String cloudId) {
         // there is an optional first portion of the cloudId that is a human readable string, but it is not used.
         if (cloudId.contains(":")) {
-            if (cloudId.indexOf(":") == cloudId.length() - 1) {
+            if (cloudId.indexOf(':') == cloudId.length() - 1) {
                 throw new IllegalStateException("cloudId " + cloudId + " must begin with a human readable identifier followed by a colon");
             }
-            cloudId = cloudId.substring(cloudId.indexOf(":") + 1);
+            cloudId = cloudId.substring(cloudId.indexOf(':') + 1);
         }
 
         String decoded = new String(Base64.getDecoder().decode(cloudId), UTF_8);
@@ -780,8 +784,8 @@ public class RestClient implements Closeable {
             this.request = request;
             Map<String, String> params = new HashMap<>(request.getParameters());
             params.putAll(request.getOptions().getParameters());
-            // ignore is a special parameter supported by the clients, shouldn't be sent to es
-            String ignoreString = params.remove("ignore");
+            // IGNORE_RESPONSE_CODES_PARAM is a special parameter supported by the clients, shouldn't be sent to es
+            String ignoreString = params.remove(IGNORE_RESPONSE_CODES_PARAM);
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
             URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
             this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity(), compressionEnabled);

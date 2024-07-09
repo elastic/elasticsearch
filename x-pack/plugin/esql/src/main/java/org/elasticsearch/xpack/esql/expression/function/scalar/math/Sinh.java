@@ -7,27 +7,54 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
  * Sine hyperbolic function.
  */
 public class Sinh extends AbstractTrigonometricFunction {
-    public Sinh(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
-        super(source, n);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sinh", Sinh::new);
+
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle.",
+        examples = @Example(file = "floats", tag = "sinh")
+    )
+    public Sinh(
+        Source source,
+        @Param(
+            name = "angle",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "An angle, in radians. If `null`, the function returns `null`."
+        ) Expression angle
+    ) {
+        super(source, angle);
+    }
+
+    private Sinh(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext dvrCtx) {
-        return new SinhEvaluator(source(), field, dvrCtx);
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
+        return new SinhEvaluator.Factory(source(), field);
     }
 
     @Override

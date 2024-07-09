@@ -1,6 +1,0 @@
-pr: 100656
-summary: "ESQL: fix non-null value being returned for unsupported data types in `ValueSources`"
-area: ES|QL
-type: bug
-issues:
- - 100048

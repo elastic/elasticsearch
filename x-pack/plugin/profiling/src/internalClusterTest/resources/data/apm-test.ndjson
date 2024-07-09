@@ -1,0 +1,10 @@
+{"create": {"_index": "apm-test-001"}}
+{"@timestamp": "1698624000", "transaction.name":  "encodeSha1", "transaction.profiler_stack_trace_ids": ["Ce77w10WeIDow3kd1jowlA", "JvISdnJ47BQ01489cwF9DA", "JvISdnJ47BQ01489cwF9DA", "Ce77w10WeIDow3kd1jowlA", "Ce77w10WeIDow3kd1jowlA"]}
+{"create": {"_index": "apm-test-001"}}
+{"@timestamp": "1698624001", "transaction.name":  "encodeSha1", "transaction.profiler_stack_trace_ids": ["Ce77w10WeIDow3kd1jowlA", "JvISdnJ47BQ01489cwF9DA", "JvISdnJ47BQ01489cwF9DA", "Ce77w10WeIDow3kd1jowlA", "Ce77w10WeIDow3kd1jowlA"]}
+{"create": {"_index": "apm-test-001"}}
+{"@timestamp": "1698624002", "transaction.name":  "encodeSha1", "transaction.profiler_stack_trace_ids": ["Ce77w10WeIDow3kd1jowlA", "JvISdnJ47BQ01489cwF9DA", "JvISdnJ47BQ01489cwF9DA", "Ce77w10WeIDow3kd1jowlA", "Ce77w10WeIDow3kd1jowlA"]}
+{"create": {"_index": "apm-test-001"}}
+{"@timestamp": "1698624003", "transaction.name":  "encodeSha1", "transaction.profiler_stack_trace_ids": ["Ce77w10WeIDow3kd1jowlA", "JvISdnJ47BQ01489cwF9DA", "JvISdnJ47BQ01489cwF9DA", "Ce77w10WeIDow3kd1jowlA", "Ce77w10WeIDow3kd1jowlA"]}
+{"create": {"_index": "apm-test-001"}}
+{"@timestamp": "1698624004", "transaction.name":  "encodeSha1", "transaction.profiler_stack_trace_ids": ["Ce77w10WeIDow3kd1jowlA", "JvISdnJ47BQ01489cwF9DA", "JvISdnJ47BQ01489cwF9DA", "Ce77w10WeIDow3kd1jowlA", "Ce77w10WeIDow3kd1jowlA"]}

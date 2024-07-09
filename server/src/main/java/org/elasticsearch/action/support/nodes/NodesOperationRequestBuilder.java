@@ -25,20 +25,9 @@ public abstract class NodesOperationRequestBuilder<
     }
 
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setNodesIds(String... nodesIds) {
-        request.nodesIds(nodesIds);
-        return (RequestBuilder) this;
-    }
-
-    @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(TimeValue timeout) {
         request.timeout(timeout);
         return (RequestBuilder) this;
     }
 
-    @SuppressWarnings("unchecked")
-    public final RequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
-        return (RequestBuilder) this;
-    }
 }

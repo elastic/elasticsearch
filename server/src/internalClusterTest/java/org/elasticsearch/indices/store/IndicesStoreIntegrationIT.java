@@ -11,6 +11,7 @@ package org.elasticsearch.indices.store;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -42,7 +43,6 @@ import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportMessageListener;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -129,7 +129,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             logger.info("--> stopping disruption");
             disruption.stopDisrupting();
         } else {
-            internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
+            ClusterRerouteUtils.reroute(internalCluster().client(), new MoveAllocationCommand("test", 0, node_1, node_3));
         }
         clusterHealth = clusterAdmin().prepareHealth().setWaitForNoRelocatingShards(true).get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
@@ -155,11 +155,10 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     ) throws InterruptedException {
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodeTo, random());
         internalCluster().setDisruptionScheme(disruption);
-        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeTo);
         CountDownLatch beginRelocationLatch = new CountDownLatch(1);
         CountDownLatch receivedShardExistsRequestLatch = new CountDownLatch(1);
         // use a tracer on the target node to track relocation start and end
-        transportService.addMessageListener(new TransportMessageListener() {
+        MockTransportService.getInstance(nodeTo).addMessageListener(new TransportMessageListener() {
             @Override
             public void onRequestReceived(long requestId, String action) {
                 if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
@@ -174,7 +173,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 }
             }
         });
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(index, shard, nodeFrom, nodeTo)).get();
+        ClusterRerouteUtils.reroute(internalCluster().client(), new MoveAllocationCommand(index, shard, nodeFrom, nodeTo));
         logger.info("--> waiting for relocation to start");
         beginRelocationLatch.await();
         logger.info("--> starting disruption");
@@ -213,20 +212,19 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         // add a transport delegate that will prevent the shard active request to succeed the first time after relocation has finished.
         // node_1 will then wait for the next cluster state change before it tries a next attempt to delete the shard.
-        MockTransportService transportServiceNode_1 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_1);
-        TransportService transportServiceNode_2 = internalCluster().getInstance(TransportService.class, node_2);
         final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);
-        transportServiceNode_1.addSendBehavior(transportServiceNode_2, (connection, requestId, action, request, options) -> {
-            if (action.equals("internal:index/shard/exists") && shardActiveRequestSent.getCount() > 0) {
-                shardActiveRequestSent.countDown();
-                logger.info("prevent shard active request from being sent");
-                throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
+        MockTransportService.getInstance(node_1)
+            .addSendBehavior(MockTransportService.getInstance(node_2), (connection, requestId, action, request, options) -> {
+                if (action.equals("internal:index/shard/exists") && shardActiveRequestSent.getCount() > 0) {
+                    shardActiveRequestSent.countDown();
+                    logger.info("prevent shard active request from being sent");
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
 
         logger.info("--> move shard from {} to {}, and wait for relocation to finish", node_1, node_2);
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, node_1, node_2));
         shardActiveRequestSent.await();
         ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForNoRelocatingShards(true).get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
@@ -389,8 +387,8 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         final String masterNode = internalCluster().getMasterName();
         final String nonMasterNode = nodes.get(0).equals(masterNode) ? nodes.get(1) : nodes.get(0);
 
-        final String masterId = internalCluster().clusterService(masterNode).localNode().getId();
-        final String nonMasterId = internalCluster().clusterService(nonMasterNode).localNode().getId();
+        final String masterId = getNodeId(masterNode);
+        final String nonMasterId = getNodeId(nonMasterNode);
 
         final int numShards = scaledRandomIntBetween(2, 10);
         assertAcked(prepareCreate("test").setSettings(indexSettings(numShards, 0)));

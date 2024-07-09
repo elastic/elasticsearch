@@ -14,9 +14,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
@@ -63,7 +66,14 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
     protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings, String selfGeneratedType) {
         licenseType = selfGeneratedType;
         settings = Settings.builder().put(settings).put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
-        licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, clock, licenseState);
+        licenseService = new ClusterStateLicenseService(
+            settings,
+            threadPool,
+            clusterService,
+            clock,
+            licenseState,
+            new FeatureService(List.of())
+        );
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);
@@ -72,7 +82,8 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
         when(state.metadata()).thenReturn(metadata);
         final DiscoveryNode mockNode = getLocalNode();
         when(discoveryNodes.getMasterNode()).thenReturn(mockNode);
-        when(discoveryNodes.stream()).thenAnswer(invocation -> Stream.of(mockNode));
+        when(discoveryNodes.stream()).thenAnswer(i -> Stream.of(mockNode));
+        when(discoveryNodes.iterator()).thenAnswer(i -> Iterators.single(mockNode));
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(false);
         when(discoveryNodes.getMinNodeVersion()).thenReturn(mockNode.getVersion());
         when(state.nodes()).thenReturn(discoveryNodes);

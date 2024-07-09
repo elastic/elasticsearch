@@ -26,7 +26,11 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             mock(Transport.class),
             threadContext
         );
-        RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
+        RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+            "cluster-alias",
+            RemoteClusterCredentialsManager.EMPTY,
+            connectionManager
+        );
         FakeConnectionStrategy first = new FakeConnectionStrategy(
             "cluster-alias",
             mock(TransportService.class),
@@ -46,7 +50,11 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             mock(Transport.class),
             threadContext
         );
-        RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
+        RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+            "cluster-alias",
+            RemoteClusterCredentialsManager.EMPTY,
+            connectionManager
+        );
         FakeConnectionStrategy first = new FakeConnectionStrategy(
             "cluster-alias",
             mock(TransportService.class),
@@ -69,7 +77,11 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         assertEquals(TimeValue.MINUS_ONE, connectionManager.getConnectionProfile().getPingInterval());
         assertEquals(Compression.Enabled.INDEXING_DATA, connectionManager.getConnectionProfile().getCompressionEnabled());
         assertEquals(Compression.Scheme.LZ4, connectionManager.getConnectionProfile().getCompressionScheme());
-        RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
+        RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+            "cluster-alias",
+            RemoteClusterCredentialsManager.EMPTY,
+            connectionManager
+        );
         FakeConnectionStrategy first = new FakeConnectionStrategy(
             "cluster-alias",
             mock(TransportService.class),

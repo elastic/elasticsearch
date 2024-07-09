@@ -1,0 +1,14 @@
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Default settings for all APM data streams
+  managed: true
+template:
+  settings:
+    index:
+      sort:
+        field: "@timestamp"
+        order: desc
+    mapping:
+      ignore_malformed: true
+      total_fields:
+        ignore_dynamic_beyond_limit: true

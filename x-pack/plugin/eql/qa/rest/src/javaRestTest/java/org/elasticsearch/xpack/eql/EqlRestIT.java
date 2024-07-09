@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.eql;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.EqlRestTestCase;
 import org.junit.ClassRule;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EqlRestIT extends EqlRestTestCase {
 
     @ClassRule
-    public static final ElasticsearchCluster cluster = EqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = EqlTestCluster.CLUSTER;
 
     @Override
     protected String getTestRestCluster() {

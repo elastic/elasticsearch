@@ -9,7 +9,8 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -37,8 +38,16 @@ public class RestChunkedToXContentListener<Response extends ChunkedToXContent> e
     @Override
     protected void processResponse(Response response) throws IOException {
         channel.sendResponse(
-            RestResponse.chunked(getRestStatus(response), ChunkedRestResponseBody.fromXContent(response, params, channel, null))
+            RestResponse.chunked(
+                getRestStatus(response),
+                ChunkedRestResponseBodyPart.fromXContent(response, params, channel),
+                releasableFromResponse(response)
+            )
         );
+    }
+
+    protected Releasable releasableFromResponse(Response response) {
+        return null;
     }
 
     protected RestStatus getRestStatus(Response response) {

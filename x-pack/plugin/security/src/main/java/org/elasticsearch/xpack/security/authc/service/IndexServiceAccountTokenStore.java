@@ -14,14 +14,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -108,7 +107,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
             () -> executeAsyncWithOrigin(
                 client,
                 SECURITY_ORIGIN,
-                GetAction.INSTANCE,
+                TransportGetAction.TYPE,
                 getRequest,
                 ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
@@ -155,7 +154,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                 executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
-                    BulkAction.INSTANCE,
+                    TransportBulkAction.TYPE,
                     bulkRequest,
                     TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(response -> {
                         assert DocWriteResponse.Result.CREATED == response.getResult()
@@ -225,7 +224,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                 executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
-                    DeleteAction.INSTANCE,
+                    TransportDeleteAction.TYPE,
                     deleteRequest,
                     ActionListener.wrap(deleteResponse -> {
                         final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName(

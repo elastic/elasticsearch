@@ -8,7 +8,10 @@
 
 package org.elasticsearch.repositories;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
@@ -28,6 +31,8 @@ import java.util.stream.Collectors;
  * Represents the current {@link ShardGeneration} for each shard in a repository.
  */
 public final class ShardGenerations {
+
+    private static final Logger logger = LogManager.getLogger(ShardGenerations.class);
 
     public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
 
@@ -87,7 +92,7 @@ public final class ShardGenerations {
     }
 
     /**
-     * Computes the obsolete shard index generations that can be deleted once this instance was written to the repository.
+     * Computes the obsolete shard index generations that can be deleted once this instance is written to the repository.
      * Note: This method should only be used when finalizing a snapshot and we can safely assume that data has only been added but not
      *       removed from shard paths.
      *
@@ -108,6 +113,13 @@ public final class ShardGenerations {
                 // Since this method assumes only additions and no removals of shards, a null updated generation means no update
                 if (updatedGeneration != null && oldGeneration != null && oldGeneration.equals(updatedGeneration) == false) {
                     obsoleteShardIndices.put(i, oldGeneration);
+                    logger.debug(
+                        "Marking snapshot generation [{}] for cleanup. The new generation is [{}]. Index [{}], shard ID [{}]",
+                        oldGeneration,
+                        updatedGeneration,
+                        indexId,
+                        i
+                    );
                 }
             }
             result.put(indexId, Collections.unmodifiableMap(obsoleteShardIndices));
@@ -139,6 +151,11 @@ public final class ShardGenerations {
             return null;
         }
         return generations.get(shardId);
+    }
+
+    public boolean hasShardGen(RepositoryShardId repositoryShardId) {
+        final var indexShardGens = getGens(repositoryShardId.index());
+        return repositoryShardId.shardId() < indexShardGens.size() && indexShardGens.get(repositoryShardId.shardId()) != null;
     }
 
     public List<ShardGeneration> getGens(IndexId indexId) {
@@ -219,10 +236,20 @@ public final class ShardGenerations {
         }
 
         public Builder put(IndexId indexId, int shardId, ShardGeneration generation) {
+            assert noDuplicateIndicesWithSameName(indexId);
             ShardGeneration existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             assert generation != null || existingGeneration == null
                 : "must not overwrite existing generation with null generation [" + existingGeneration + "]";
             return this;
+        }
+
+        private boolean noDuplicateIndicesWithSameName(IndexId newId) {
+            for (IndexId id : generations.keySet()) {
+                if (id.getName().equals(newId.getName()) && id.equals(newId) == false) {
+                    assert false : Strings.format("Unable to add: %s. There's another index id with the same name: %s", newId, id);
+                }
+            }
+            return true;
         }
 
         public ShardGenerations build() {

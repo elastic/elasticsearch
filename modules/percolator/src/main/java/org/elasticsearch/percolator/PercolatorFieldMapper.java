@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
@@ -98,8 +100,9 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), searchExecutionContext, mapUnmappedFieldsAsText, indexCreatedVersion, clusterTransportVersion)
-            .init(this);
+        return new Builder(leafName(), searchExecutionContext, mapUnmappedFieldsAsText, indexCreatedVersion, clusterTransportVersion).init(
+            this
+        );
     }
 
     static class Builder extends FieldMapper.Builder {
@@ -133,10 +136,10 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         public PercolatorFieldMapper build(MapperBuilderContext context) {
-            PercolatorFieldType fieldType = new PercolatorFieldType(context.buildFullName(name), meta.getValue());
+            PercolatorFieldType fieldType = new PercolatorFieldType(context.buildFullName(leafName()), meta.getValue());
             // TODO should percolator even allow multifields?
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            context = context.createChildContext(name);
+            context = context.createChildContext(leafName(), null);
             KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(
                 EXTRACTED_TERMS_FIELD_NAME,
                 context,
@@ -160,7 +163,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             fieldType.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
 
             return new PercolatorFieldMapper(
-                name(),
+                leafName(),
                 fieldType,
                 multiFields,
                 copyTo,
@@ -187,7 +190,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         static BinaryFieldMapper createQueryBuilderFieldBuilder(MapperBuilderContext context) {
-            BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME, true);
+            BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME, context.isSourceSynthetic())
+                .docValues(true);
             return builder.build(context);
         }
 
@@ -403,7 +407,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     @Override
     public void parse(DocumentParserContext context) throws IOException {
         SearchExecutionContext executionContext = this.searchExecutionContext.get();
-        if (context.doc().getField(queryBuilderField.name()) != null) {
+        if (context.doc().getField(queryBuilderField.fullPath()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
             // could be provided. In order to prevent this we fail if we try to parse more than one query
             // for the current document.
@@ -437,6 +441,8 @@ public class PercolatorFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
                 } else if (queryName.equals("has_parent")) {
                     throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
+                } else if (queryName.equals(KnnVectorQueryBuilder.NAME)) {
+                    throw new IllegalArgumentException("the [knn] query is unsupported inside a percolator query");
                 }
             });
         } catch (IOException e) {
@@ -457,7 +463,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(stream)
         ) {
-            if (indexVersion.before(IndexVersion.V_8_8_0)) {
+            if (indexVersion.before(IndexVersions.V_8_8_0)) {
                 // just use the index version directly
                 // there's a direct mapping from IndexVersion to TransportVersion before 8.8.0
                 out.setTransportVersion(TransportVersion.fromId(indexVersion.id()));
@@ -487,27 +493,27 @@ public class PercolatorFieldMapper extends FieldMapper {
                 builder.append(new BytesRef(extraction.field()));
                 builder.append(FIELD_VALUE_SEPARATOR);
                 builder.append(extraction.bytes());
-                doc.add(new StringField(queryTermsField.name(), builder.toBytesRef(), Field.Store.NO));
+                doc.add(new StringField(queryTermsField.fullPath(), builder.toBytesRef(), Field.Store.NO));
             } else if (extraction.range != null) {
                 byte[] min = extraction.range.lowerPoint;
                 byte[] max = extraction.range.upperPoint;
-                doc.add(new BinaryRange(rangeFieldMapper.name(), encodeRange(extraction.range.fieldName, min, max)));
+                doc.add(new BinaryRange(rangeFieldMapper.fullPath(), encodeRange(extraction.range.fieldName, min, max)));
             }
         }
 
         if (result.matchAllDocs) {
-            doc.add(new StringField(extractionResultField.name(), EXTRACTION_FAILED, Field.Store.NO));
+            doc.add(new StringField(extractionResultField.fullPath(), EXTRACTION_FAILED, Field.Store.NO));
             if (result.verified) {
-                doc.add(new StringField(extractionResultField.name(), EXTRACTION_COMPLETE, Field.Store.NO));
+                doc.add(new StringField(extractionResultField.fullPath(), EXTRACTION_COMPLETE, Field.Store.NO));
             }
         } else if (result.verified) {
-            doc.add(new StringField(extractionResultField.name(), EXTRACTION_COMPLETE, Field.Store.NO));
+            doc.add(new StringField(extractionResultField.fullPath(), EXTRACTION_COMPLETE, Field.Store.NO));
         } else {
-            doc.add(new StringField(extractionResultField.name(), EXTRACTION_PARTIAL, Field.Store.NO));
+            doc.add(new StringField(extractionResultField.fullPath(), EXTRACTION_PARTIAL, Field.Store.NO));
         }
 
         context.addToFieldNames(fieldType().name());
-        doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
+        doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.fullPath(), result.minimumShouldMatch));
     }
 
     static SearchExecutionContext configureContext(SearchExecutionContext context, boolean mapUnmappedFieldsAsString) {
@@ -526,6 +532,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         // as an analyzed string.
         wrapped.setAllowUnmappedFields(false);
         wrapped.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
+        // We need to rewrite queries with name to Lucene NamedQuery to find matched sub-queries of percolator query
+        wrapped.setRewriteToNamedQueries();
         return wrapped;
     }
 

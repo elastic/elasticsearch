@@ -60,7 +60,10 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
         snapshotExecutor.execute(new BlockingTask());
         safeAwait(barrier); // wait for snapshot thread to be blocked
 
-        clusterAdmin().prepareCreateSnapshot(repoName, "snapshot-1").setWaitForCompletion(false).setPartial(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-1")
+            .setWaitForCompletion(false)
+            .setPartial(true)
+            .get();
         // resulting cluster state has been applied on all nodes, which means the first task for the SNAPSHOT pool is queued up
 
         final var snapshot = SnapshotsInProgress.get(clusterService.state()).forRepo(repoName).get(0).snapshot();
@@ -78,7 +81,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
 
             final var shardStatuses = snapshotShardsService.currentSnapshotShards(snapshot);
             assertEquals(1, shardStatuses.size());
-            final var shardStatus = shardStatuses.get(new ShardId(index, 0)).asCopy();
+            final var shardStatus = shardStatuses.get(new ShardId(index, 0));
             logger.info("--> {}", shardStatus);
 
             if (i == 0) {

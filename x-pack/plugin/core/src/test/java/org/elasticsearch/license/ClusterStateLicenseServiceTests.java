@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -95,7 +96,8 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             mock(ThreadPool.class),
             mockDefaultClusterService(),
             mock(Clock.class),
-            mock(XPackLicenseState.class)
+            mock(XPackLicenseState.class),
+            new FeatureService(List.of())
         );
         final String message = service.buildExpirationMessage(time, expired).toString();
         if (expired) {
@@ -190,7 +192,8 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             mock(ThreadPool.class),
             clusterService,
             clock,
-            mock(XPackLicenseState.class)
+            mock(XPackLicenseState.class),
+            new FeatureService(List.of())
         );
         verify(clusterService).createTaskQueue(eq("license-service-start-basic"), any(), taskExecutorCaptor.capture());
 
@@ -199,7 +202,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             assertThat(response.getStatus(), equalTo(PostStartBasicResponse.Status.GENERATED_BASIC));
         };
         final PlainActionFuture<PostStartBasicResponse> future = new PlainActionFuture<>();
-        service.startBasicLicense(new PostStartBasicRequest(), future);
+        service.startBasicLicense(new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT), future);
 
         if (future.isDone()) {
             // If validation failed, the future might be done without calling the updater task.
@@ -240,11 +243,6 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
         return clusterService;
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> newMockTaskQueue() {
-        return mock(MasterServiceTaskQueue.class);
-    }
-
     private void assertRegisterValidLicense(Settings baseSettings, License.LicenseType licenseType) throws IOException {
         tryRegisterLicense(baseSettings, licenseType, future -> assertThat(future.actionGet().status(), equalTo(LicensesStatus.VALID)));
     }
@@ -281,15 +279,17 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
+
         final ClusterStateLicenseService service = new ClusterStateLicenseService(
             settings,
             threadPool,
             clusterService,
             clock,
-            licenseState
+            licenseState,
+            new FeatureService(List.of())
         );
 
-        final PutLicenseRequest request = new PutLicenseRequest();
+        final PutLicenseRequest request = new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.license(toSpec(license), XContentType.JSON);
         final PlainActionFuture<PutLicenseResponse> future = new PlainActionFuture<>();
         service.registerLicense(request, future);

@@ -1,5 +1,0 @@
-pr: 98406
-summary: Safely drain deployment request queues before allowing node to shutdown
-area: Machine Learning
-type: bug
-issues: []

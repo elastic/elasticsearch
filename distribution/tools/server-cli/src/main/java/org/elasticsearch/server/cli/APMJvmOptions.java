@@ -45,12 +45,6 @@ class APMJvmOptions {
         // Identifies the version of Elasticsearch in the captured trace data.
         "service_version", Build.current().version(),
 
-        // Configures a log file to write to. `_AGENT_HOME_` is a placeholder used
-        // by the agent. Don't disable writing to a log file, as the agent will then
-        // require extra Security Manager permissions when it tries to do something
-        // else, and it's just painful.
-        "log_file", "_AGENT_HOME_/../../logs/apm.log",
-
         // ES does not use auto-instrumentation.
         "instrument", "false",
         "enable_experimental_instrumentations", "true"
@@ -80,11 +74,13 @@ class APMJvmOptions {
 
         // Logging configuration. Unless you need detailed logs about what the APM
         // is doing, leave this value alone.
-        "log_level", "error",
+        "log_level", "warn",
+        "log_format_file", "JSON",
         "application_packages", "org.elasticsearch,org.apache.lucene",
         "metrics_interval", "120s",
         "breakdown_metrics", "false",
-        "central_config", "false"
+        "central_config", "false",
+        "transaction_sample_rate", "0.2"
         );
     // end::noformat
 
@@ -134,9 +130,11 @@ class APMJvmOptions {
      *
      * @param settings the Elasticsearch settings to consider
      * @param secrets a wrapper to access the secrets, or null if there is no secrets
+     * @param logsDir the directory to write the apm log into
      * @param tmpdir Elasticsearch's temporary directory, where the config file will be written
      */
-    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path tmpdir) throws UserException, IOException {
+    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir) throws UserException,
+        IOException {
         final Path agentJar = findAgentJar();
 
         if (agentJar == null) {
@@ -144,6 +142,11 @@ class APMJvmOptions {
         }
 
         final Map<String, String> propertiesMap = extractApmSettings(settings);
+
+        // Configures a log file to write to. Don't disable writing to a log file,
+        // as the agent will then require extra Security Manager permissions when
+        // it tries to do something else, and it's just painful.
+        propertiesMap.put("log_file", logsDir.resolve("apm-agent.json").toString());
 
         // No point doing anything if we don't have a destination for the trace data, and it can't be configured dynamically
         if (propertiesMap.containsKey("server_url") == false && propertiesMap.containsKey("server_urls") == false) {
@@ -179,14 +182,24 @@ class APMJvmOptions {
         return "-javaagent:" + agentJar + "=c=" + tmpPropertiesFile;
     }
 
-    private static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
+    // package private for testing
+    static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
         final Set<String> settingNames = secrets.getSettingNames();
         for (String key : List.of("api_key", "secret_token")) {
-            if (settingNames.contains("tracing.apm." + key)) {
-                try (SecureString token = secrets.getString("tracing.apm." + key)) {
-                    propertiesMap.put(key, token.toString());
+            for (String prefix : List.of("telemetry.", "tracing.apm.")) {
+                if (settingNames.contains(prefix + key)) {
+                    if (propertiesMap.containsKey(key)) {
+                        throw new IllegalStateException(
+                            Strings.format("Duplicate telemetry setting: [telemetry.%s] and [tracing.apm.%s]", key, key)
+                        );
+                    }
+
+                    try (SecureString token = secrets.getString(prefix + key)) {
+                        propertiesMap.put(key, token.toString());
+                    }
                 }
             }
+
         }
     }
 
@@ -213,26 +226,44 @@ class APMJvmOptions {
     static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
-        final Settings agentSettings = settings.getByPrefix("tracing.apm.agent.");
-        agentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(agentSettings.get(key))));
+        // tracing.apm.agent. is deprecated by telemetry.agent.
+        final String telemetryAgentPrefix = "telemetry.agent.";
+        final String deprecatedTelemetryAgentPrefix = "tracing.apm.agent.";
 
-        // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
-        final Settings globalLabelsSettings = settings.getByPrefix("tracing.apm.agent.global_labels.");
-        final StringJoiner globalLabels = new StringJoiner(",");
+        final Settings telemetryAgentSettings = settings.getByPrefix(telemetryAgentPrefix);
+        telemetryAgentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(telemetryAgentSettings.get(key))));
 
-        for (var globalLabel : globalLabelsSettings.keySet()) {
-            // remove the individual label from the properties map, they are harmless, but we shouldn't be passing
-            // something to the agent it doesn't understand.
-            propertiesMap.remove("global_labels." + globalLabel);
-            var globalLabelValue = globalLabelsSettings.get(globalLabel);
-            if (Strings.isNullOrBlank(globalLabelValue) == false) {
-                // sanitize for the agent labels separators in case the global labels passed in have , or =
-                globalLabelValue = globalLabelValue.replaceAll("[,=]", "_");
-                // append to the global labels string
-                globalLabels.add(String.join("=", globalLabel, globalLabelValue));
+        final Settings apmAgentSettings = settings.getByPrefix(deprecatedTelemetryAgentPrefix);
+        for (String key : apmAgentSettings.keySet()) {
+            if (propertiesMap.containsKey(key)) {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "Duplicate telemetry setting: [%s%s] and [%s%s]",
+                        telemetryAgentPrefix,
+                        key,
+                        deprecatedTelemetryAgentPrefix,
+                        key
+                    )
+                );
             }
+            propertiesMap.put(key, String.valueOf(apmAgentSettings.get(key)));
         }
 
+        StringJoiner globalLabels = extractGlobalLabels(telemetryAgentPrefix, propertiesMap, settings);
+        if (globalLabels.length() == 0) {
+            globalLabels = extractGlobalLabels(deprecatedTelemetryAgentPrefix, propertiesMap, settings);
+        } else {
+            StringJoiner tracingGlobalLabels = extractGlobalLabels(deprecatedTelemetryAgentPrefix, propertiesMap, settings);
+            if (tracingGlobalLabels.length() != 0) {
+                throw new IllegalArgumentException(
+                    "Cannot have global labels with tracing.agent prefix ["
+                        + globalLabels
+                        + "] and telemetry.apm.agent prefix ["
+                        + tracingGlobalLabels
+                        + "]"
+                );
+            }
+        }
         if (globalLabels.length() > 0) {
             propertiesMap.put("global_labels", globalLabels.toString());
         }
@@ -251,6 +282,26 @@ class APMJvmOptions {
 
         propertiesMap.putAll(STATIC_CONFIG);
         return propertiesMap;
+    }
+
+    private static StringJoiner extractGlobalLabels(String prefix, Map<String, String> propertiesMap, Settings settings) {
+        // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
+        final Settings globalLabelsSettings = settings.getByPrefix(prefix + "global_labels.");
+        final StringJoiner globalLabels = new StringJoiner(",");
+
+        for (var globalLabel : globalLabelsSettings.keySet()) {
+            // remove the individual label from the properties map, they are harmless, but we shouldn't be passing
+            // something to the agent it doesn't understand.
+            propertiesMap.remove("global_labels." + globalLabel);
+            var globalLabelValue = globalLabelsSettings.get(globalLabel);
+            if (Strings.isNullOrBlank(globalLabelValue) == false) {
+                // sanitize for the agent labels separators in case the global labels passed in have , or =
+                globalLabelValue = globalLabelValue.replaceAll("[,=]", "_");
+                // append to the global labels string
+                globalLabels.add(String.join("=", globalLabel, globalLabelValue));
+            }
+        }
+        return globalLabels;
     }
 
     // package private for testing

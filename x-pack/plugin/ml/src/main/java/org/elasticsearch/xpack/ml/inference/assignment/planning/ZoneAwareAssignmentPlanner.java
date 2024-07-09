@@ -126,10 +126,13 @@ public class ZoneAwareAssignmentPlanner {
                     modelIdToTargetAllocations.get(m.id()),
                     m.threadsPerAllocation(),
                     m.currentAllocationsByNodeId(),
-                    // Only force assigning at least once previously assigned models that have not had any allocation yet
                     (tryAssigningPreviouslyAssignedModels && modelIdToRemainingAllocations.get(m.id()) == m.allocations())
                         ? m.maxAssignedAllocations()
-                        : 0
+                        : 0,
+                    m.getAdaptiveAllocationsSettings(),
+                    // Only force assigning at least once previously assigned models that have not had any allocation yet
+                    m.perDeploymentMemoryBytes(),
+                    m.perAllocationMemoryBytes()
                 )
             )
             .toList();
@@ -151,7 +154,10 @@ public class ZoneAwareAssignmentPlanner {
                     m.allocations(),
                     m.threadsPerAllocation(),
                     allocationsByNodeIdByModelId.get(m.id()),
-                    m.maxAssignedAllocations()
+                    m.maxAssignedAllocations(),
+                    m.getAdaptiveAllocationsSettings(),
+                    m.perDeploymentMemoryBytes(),
+                    m.perAllocationMemoryBytes()
                 )
             )
             .toList();
@@ -179,11 +185,9 @@ public class ZoneAwareAssignmentPlanner {
             for (Map.Entry<Node, Integer> assignment : nodeAssignments.entrySet()) {
                 Node originalNode = originalNodeById.get(assignment.getKey().id());
                 planBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
-                if (originalDeployment.currentAllocationsByNodeId().containsKey(originalNode.id())) {
-                    // As the node has all its available memory we need to manually account memory of models with
-                    // current allocations.
-                    planBuilder.accountMemory(m, originalNode);
-                }
+                // As the node has all its available memory we need to manually account memory of models with
+                // current allocations.
+                planBuilder.accountMemory(originalDeployment, originalNode);
             }
         }
         return planBuilder.build();

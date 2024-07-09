@@ -67,5 +67,13 @@ public interface LocalClusterSpecBuilder<T extends ElasticsearchCluster> extends
      */
     LocalClusterSpecBuilder<T> rolesFile(Resource rolesFile);
 
+    /**
+     * Configure whether this cluster should be shared across test suites (classes). If set to {@code true} then the cluster will not be
+     * shut down or recreated before the next test suite begins execution. This setting is {@code false} by default.
+     *
+     * @param isShared whether the cluster should be shared
+     */
+    LocalClusterSpecBuilder<T> shared(Boolean isShared);
+
     T build();
 }

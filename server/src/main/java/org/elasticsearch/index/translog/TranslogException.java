@@ -14,13 +14,12 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class TranslogException extends ElasticsearchException {
+public final class TranslogException extends ElasticsearchException {
 
     public TranslogException(ShardId shardId, String msg) {
         this(shardId, msg, null);
     }
 
-    @SuppressWarnings("this-escape")
     public TranslogException(ShardId shardId, String msg, Throwable cause) {
         super(msg, cause);
         setShard(shardId);

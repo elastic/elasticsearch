@@ -12,8 +12,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 
 import java.util.List;
 
@@ -36,6 +36,6 @@ public class RestSqlAsyncDeleteResultsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         DeleteAsyncResultRequest delete = new DeleteAsyncResultRequest(request.param(ID_NAME));
-        return channel -> client.execute(DeleteAsyncResultAction.INSTANCE, delete, new RestToXContentListener<>(channel));
+        return channel -> client.execute(TransportDeleteAsyncResultAction.TYPE, delete, new RestToXContentListener<>(channel));
     }
 }

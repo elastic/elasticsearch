@@ -357,7 +357,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertTrue(controlSources.isEmpty());
 
         controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"));
-        PendingClusterTasksResponse response = internalCluster().coordOnlyNodeClient().admin().cluster().preparePendingClusterTasks().get();
+        PendingClusterTasksResponse response = getClusterPendingTasks(internalCluster().coordOnlyNodeClient());
         assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(10));
         assertThat(response.pendingTasks().get(0).getSource().string(), equalTo("1"));
         assertThat(response.pendingTasks().get(0).isExecuting(), equalTo(true));
@@ -419,7 +419,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
             assertTrue(controlSources.isEmpty());
 
-            response = internalCluster().coordOnlyNodeClient().admin().cluster().preparePendingClusterTasks().get();
+            response = getClusterPendingTasks(internalCluster().coordOnlyNodeClient());
             assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(5));
             controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
             for (PendingClusterTask task : response.pendingTasks()) {

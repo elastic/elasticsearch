@@ -12,6 +12,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -40,10 +41,12 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -66,7 +69,14 @@ public abstract class SearchContext implements Releasable {
     public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
     protected final List<Releasable> releasables = new CopyOnWriteArrayList<>();
+
     private final AtomicBoolean closed = new AtomicBoolean(false);
+
+    {
+        if (Assertions.ENABLED) {
+            releasables.add(LeakTracker.wrap(() -> { assert closed.get(); }));
+        }
+    }
     private InnerHitsContext innerHitsContext;
 
     private Query rewriteQuery;
@@ -113,8 +123,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
 
-    public abstract void addSearchExt(SearchExtBuilder searchExtBuilder);
-
     public abstract SearchExtBuilder getSearchExt(String name);
 
     public abstract SearchHighlightContext highlight();
@@ -130,11 +138,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SuggestionSearchContext suggest();
 
-    public abstract void suggest(SuggestionSearchContext suggest);
+    public abstract QueryPhaseRankShardContext queryPhaseRankShardContext();
 
-    public abstract RankShardContext rankShardContext();
-
-    public abstract void rankShardContext(RankShardContext rankShardContext);
+    public abstract void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext);
 
     /**
      * @return list of all rescore contexts.  empty if there aren't any.
@@ -182,8 +188,6 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract boolean sourceRequested();
 
-    public abstract boolean hasFetchSourceContext();
-
     public abstract FetchSourceContext fetchSourceContext();
 
     public abstract SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext);
@@ -209,8 +213,6 @@ public abstract class SearchContext implements Releasable {
     public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract TimeValue timeout();
-
-    public abstract void timeout(TimeValue timeout);
 
     public abstract int terminateAfter();
 
@@ -247,8 +249,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchContext searchAfter(FieldDoc searchAfter);
 
     public abstract FieldDoc searchAfter();
-
-    public abstract SearchContext collapse(CollapseContext collapse);
 
     public abstract CollapseContext collapse();
 
@@ -303,8 +303,6 @@ public abstract class SearchContext implements Releasable {
     @Nullable
     public abstract List<String> groupStats();
 
-    public abstract void groupStats(List<String> groupStats);
-
     public abstract boolean version();
 
     public abstract void version(boolean version);
@@ -314,10 +312,6 @@ public abstract class SearchContext implements Releasable {
 
     /** controls whether the sequence number and primary term of the last modification to each hit should be returned */
     public abstract void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm);
-
-    public abstract int[] docIdsToLoad();
-
-    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad);
 
     public abstract DfsSearchResult dfsResult();
 
@@ -339,6 +333,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract float getMaxScore();
 
+    public abstract void addRankFeatureResult();
+
+    public abstract RankFeatureResult rankFeatureResult();
+
     public abstract FetchPhase fetchPhase();
 
     public abstract FetchSearchResult fetchResult();
@@ -358,6 +356,7 @@ public abstract class SearchContext implements Releasable {
      * Adds a releasable that will be freed when this context is closed.
      */
     public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.
+        assert closed.get() == false;
         releasables.add(releasable);
     }
 

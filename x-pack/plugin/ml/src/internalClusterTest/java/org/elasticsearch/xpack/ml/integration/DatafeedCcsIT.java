@@ -190,9 +190,12 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         try {
             SearchResponse response = client(LOCAL_CLUSTER).prepareSearch(".ml-notifications*")
                 .setQuery(new MatchPhraseQueryBuilder("message", message))
-                .execute()
-                .actionGet();
-            return response.getHits().getTotalHits().value > 0;
+                .get();
+            try {
+                return response.getHits().getTotalHits().value > 0;
+            } finally {
+                response.decRef();
+            }
         } catch (ElasticsearchException e) {
             return false;
         }

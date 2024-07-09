@@ -21,7 +21,16 @@ public class CopyOnFirstWriteMapTests extends ESTestCase {
     public void testShouldNotCopyIfThereWereNoUpdates() {
         var source = Map.of("key", "value");
         var copyOnFirstWrite = new CopyOnFirstWriteMap<>(source);
-        source.get("key");
+        var copy = copyOnFirstWrite.toImmutableMap();
+
+        assertThat(copy, sameInstance(source));
+        assertThat(copy, equalTo(source));
+    }
+
+    public void testShouldNotCopyWhenPuttingTheSameValue() {
+        var source = Map.of("key", "value");
+        var copyOnFirstWrite = new CopyOnFirstWriteMap<>(source);
+        copyOnFirstWrite.put("key", "value");
         var copy = copyOnFirstWrite.toImmutableMap();
 
         assertThat(copy, sameInstance(source));

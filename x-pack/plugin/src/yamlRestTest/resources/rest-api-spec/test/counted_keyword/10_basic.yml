@@ -1,0 +1,80 @@
+setup:
+
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "counted_keyword was added in 8.12"
+
+  - do:
+      indices.create:
+        index: test-events
+        body:
+          mappings:
+            properties:
+              events:
+                type: counted_keyword
+
+
+  - do:
+      index:
+        index: test-events
+        id: "1"
+        body: { "events": [ "a", "a", "b", "c" ] }
+
+  - do:
+      index:
+        index: test-events
+        id: "2"
+        body: { "events": [ "a", "b", "b", "b", "c" ] }
+
+  - do:
+      indices.refresh: { }
+
+---
+"Counted keyword is searchable by default":
+  - do:
+      field_caps:
+        index: test-events
+        fields: [ events ]
+
+  - match: { fields.events.counted_keyword.searchable: true }
+  - match: { fields.events.counted_keyword.aggregatable: true }
+
+---
+"Counted Terms agg":
+
+  - do:
+      search:
+        index: test-events
+        body:
+          size: 0
+          aggs:
+            event_terms:
+              counted_terms:
+                field: events
+
+  - match: { aggregations.event_terms.buckets.0.key: "b" }
+  - match: { aggregations.event_terms.buckets.0.doc_count: 4 }
+  - match: { aggregations.event_terms.buckets.1.key: "a" }
+  - match: { aggregations.event_terms.buckets.1.doc_count: 3 }
+  - match: { aggregations.event_terms.buckets.2.key: "c" }
+  - match: { aggregations.event_terms.buckets.2.doc_count: 2 }
+  - length: { aggregations.event_terms.buckets: 3 }
+
+---
+# Use a probability of 1.0 to ensure a consistent bucket count.
+"Sampled Counted Terms agg":
+  - do:
+      search:
+        index: test-events
+        body:
+          size: 0
+          aggs:
+            sample:
+              random_sampler:
+                probability: 1.0
+              aggs:
+                event_terms:
+                  counted_terms:
+                    field: events
+
+  - length: { aggregations.sample.event_terms.buckets: 3 }

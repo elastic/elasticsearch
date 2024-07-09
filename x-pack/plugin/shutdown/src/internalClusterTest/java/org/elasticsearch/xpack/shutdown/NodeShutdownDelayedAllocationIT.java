@@ -49,6 +49,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Mark the node for shutdown
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -85,6 +87,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Mark the node for shutdown
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -116,6 +120,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Mark the node for shutdown
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -143,6 +149,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Update the timeout on the shutdown request to something shorter
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -160,7 +168,11 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     public void testShardAllocationStartsImmediatelyIfShutdownDeleted() throws Exception {
         String nodeToRestartId = setupLongTimeoutTestCase();
 
-        DeleteShutdownNodeAction.Request deleteShutdownRequest = new DeleteShutdownNodeAction.Request(nodeToRestartId);
+        DeleteShutdownNodeAction.Request deleteShutdownRequest = new DeleteShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            nodeToRestartId
+        );
         AcknowledgedResponse deleteShutdownResponse = client().execute(DeleteShutdownNodeAction.INSTANCE, deleteShutdownRequest).get();
         assertTrue(deleteShutdownResponse.isAcknowledged());
 
@@ -189,6 +201,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         {
             // Mark the node for shutdown with a delay that we'll never reach in the test
             PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 nodeToRestartId,
                 SingleNodeShutdownMetadata.Type.RESTART,
                 this.getTestName(),
@@ -213,7 +227,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
     }

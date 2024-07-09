@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.slm;
 
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -60,8 +60,8 @@ public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
 
     public void testSLMIsInRunningModeWhenILMIsDisabled() throws Exception {
         client().execute(
-            PutRepositoryAction.INSTANCE,
-            new PutRepositoryRequest().name("repo")
+            TransportPutRepositoryAction.TYPE,
+            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).name("repo")
                 .type("fs")
                 .settings(Settings.builder().put("repositories.fs.location", repositoryLocation).build())
         ).get(10, TimeUnit.SECONDS);
@@ -69,6 +69,8 @@ public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
         client().execute(
             PutSnapshotLifecycleAction.INSTANCE,
             new Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 "snapshot-policy",
                 new SnapshotLifecyclePolicy(
                     "test-policy",

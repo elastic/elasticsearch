@@ -19,12 +19,11 @@ import java.io.IOException;
  * Thrown when some action cannot be performed because the primary shard of
  * some shard group in an index has not been allocated post api action.
  */
-public class IndexPrimaryShardNotAllocatedException extends ElasticsearchException {
+public final class IndexPrimaryShardNotAllocatedException extends ElasticsearchException {
     public IndexPrimaryShardNotAllocatedException(StreamInput in) throws IOException {
         super(in);
     }
 
-    @SuppressWarnings("this-escape")
     public IndexPrimaryShardNotAllocatedException(Index index) {
         super("primary not allocated post api");
         setIndex(index);

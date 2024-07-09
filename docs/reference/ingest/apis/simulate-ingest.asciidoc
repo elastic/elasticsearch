@@ -1,0 +1,361 @@
+
+[[simulate-ingest-api]]
+=== Simulate ingest API
+++++
+<titleabbrev>Simulate ingest</titleabbrev>
+++++
+
+Executes ingest pipelines against a set of provided documents, optionally
+with substitute pipeline definitions. This API is meant to be used for
+troubleshooting or pipeline development, as it does not actually index any
+data into {es}.
+
+////
+[source,console]
+----
+PUT /_ingest/pipeline/my-pipeline
+{
+  "description" : "example pipeline to simulate",
+      "processors": [
+      {
+        "set" : {
+          "field" : "field1",
+          "value" : "value1"
+        }
+      }
+    ]
+}
+
+PUT /_ingest/pipeline/my-final-pipeline
+{
+  "description" : "example final pipeline to simulate",
+      "processors": [
+      {
+        "set" : {
+          "field" : "field2",
+          "value" : "value2"
+        }
+      }
+    ]
+}
+
+PUT /my-index
+{
+  "settings": {
+    "index": {
+      "default_pipeline": "my-pipeline",
+      "final_pipeline": "my-final-pipeline"
+    }
+  }
+}
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+POST /_ingest/_simulate
+{
+  "docs": [
+    {
+      "_index": "my-index",
+      "_id": "id",
+      "_source": {
+        "foo": "bar"
+      }
+    },
+    {
+      "_index": "my-index",
+      "_id": "id",
+      "_source": {
+        "foo": "rab"
+      }
+    }
+  ],
+  "pipeline_substitutions": { <1>
+    "my-pipeline": {
+      "processors": [
+        {
+          "set": {
+            "field": "field3",
+            "value": "value3"
+          }
+        }
+      ]
+    }
+  }
+}
+----
+
+<1> This replaces the existing `my-pipeline` pipeline with the contents given here for the duration of this request.
+
+[[simulate-ingest-api-request]]
+==== {api-request-title}
+
+`POST /_ingest/_simulate`
+
+`GET /_ingest/_simulate`
+
+`POST /_ingest/<target>/_simulate`
+
+`GET /_ingest/<target>/_simulate`
+
+[[simulate-ingest-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`index` or `create` <<privileges-list-indices,index privileges>>
+to use this API.
+
+[[simulate-ingest-api-desc]]
+==== {api-description-title}
+
+The simulate ingest API simulates ingesting data into an index. It
+executes the default and final pipeline for that index against a set
+of documents provided in the body of the request. If a pipeline
+contains a <<reroute-processor,reroute processor>>, it follows that
+reroute processor to the new index, executing that index's pipelines
+as well the same way that a non-simulated ingest would. No data is
+indexed into {es}. Instead, the transformed document is returned,
+along with the list of pipelines that have been executed and the name
+of the index where the document would have been indexed if this were
+not a simulation. This differs from the
+<<simulate-pipeline-api,simulate pipeline API>> in that you specify a
+single pipeline for that API, and it only runs that one pipeline. The
+simulate pipeline API is more useful for developing a single pipeline,
+while the simulate ingest API is more useful for troubleshooting the
+interaction of the various pipelines that get applied when ingesting
+into an index.
+
+
+By default, the pipeline definitions that are currently in the system
+are used. However, you can supply substitute pipeline definitions in the
+body of the request. These will be used in place of the pipeline
+definitions that are already in the system. This can be used to replace
+existing pipeline definitions or to create new ones. The pipeline
+substitutions are only used within this request.
+
+[[simulate-ingest-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string)
+The index to simulate ingesting into. This can be overridden by specifying an index
+on each document. If you provide a <target> in the request path, it is used for any
+documents that don’t explicitly specify an index argument.
+
+[[simulate-ingest-api-query-params]]
+==== {api-query-parms-title}
+
+`pipeline`::
+(Optional, string)
+Pipeline to use as the default pipeline. This can be used to override the default pipeline
+of the index being ingested into.
+
+
+[role="child_attributes"]
+[[simulate-ingest-api-request-body]]
+==== {api-request-body-title}
+
+`docs`::
+(Required, array of objects)
+Sample documents to test in the pipeline.
++
+.Properties of `docs` objects
+[%collapsible%open]
+====
+`_id`::
+(Optional, string)
+Unique identifier for the document.
+
+`_index`::
+(Optional, string)
+Name of the index that the document will be ingested into.
+
+`_source`::
+(Required, object)
+JSON body for the document.
+====
+
+`pipeline_substitutions`::
+(Optional, map of strings to objects)
+Map of pipeline IDs to substitute pipeline definition objects.
++
+.Properties of pipeline definition objects
+[%collapsible%open]
+====
+include::put-pipeline.asciidoc[tag=pipeline-object]
+====
+
+[[simulate-ingest-api-example]]
+==== {api-examples-title}
+
+
+[[simulate-ingest-api-pre-existing-pipelines-ex]]
+===== Use pre-existing pipeline definitions
+In this example the index `index` has a default pipeline called `my-pipeline` and a final
+pipeline called `my-final-pipeline`. Since both documents are being ingested into `index`,
+both pipelines are executed using the pipeline definitions that are already in the system.
+
+[source,console]
+----
+POST /_ingest/_simulate
+{
+  "docs": [
+    {
+      "_index": "my-index",
+      "_id": "123",
+      "_source": {
+        "foo": "bar"
+      }
+    },
+    {
+      "_index": "my-index",
+      "_id": "456",
+      "_source": {
+        "foo": "rab"
+      }
+    }
+  ]
+}
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+   "docs": [
+      {
+         "doc": {
+            "_id": "123",
+            "_index": "my-index",
+            "_version": -3,
+            "_source": {
+               "field1": "value1",
+               "field2": "value2",
+               "foo": "bar"
+            },
+            "executed_pipelines": [
+               "my-pipeline",
+               "my-final-pipeline"
+            ]
+         }
+      },
+      {
+         "doc": {
+            "_id": "456",
+            "_index": "my-index",
+            "_version": -3,
+            "_source": {
+               "field1": "value1",
+               "field2": "value2",
+               "foo": "rab"
+            },
+            "executed_pipelines": [
+               "my-pipeline",
+               "my-final-pipeline"
+            ]
+         }
+      }
+   ]
+}
+----
+
+[[simulate-ingest-api-request-body-ex]]
+===== Specify a pipeline substitution in the request body
+In this example the index `index` has a default pipeline called `my-pipeline` and a final
+pipeline called `my-final-pipeline`. But a substitute definition of `my-pipeline` is
+provided in `pipeline_substitutions`. The substitute `my-pipeline` will be used in place of
+the `my-pipeline` that is in the system, and then the `my-final-pipeline` that is already
+defined in the system will be executed.
+
+[source,console]
+----
+POST /_ingest/_simulate
+{
+  "docs": [
+    {
+      "_index": "my-index",
+      "_id": "123",
+      "_source": {
+        "foo": "bar"
+      }
+    },
+    {
+      "_index": "my-index",
+      "_id": "456",
+      "_source": {
+        "foo": "rab"
+      }
+    }
+  ],
+  "pipeline_substitutions": {
+    "my-pipeline": {
+      "processors": [
+        {
+          "uppercase": {
+            "field": "foo"
+          }
+        }
+      ]
+    }
+  }
+}
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+   "docs": [
+      {
+         "doc": {
+            "_id": "123",
+            "_index": "my-index",
+            "_version": -3,
+            "_source": {
+               "field2": "value2",
+               "foo": "BAR"
+            },
+            "executed_pipelines": [
+               "my-pipeline",
+               "my-final-pipeline"
+            ]
+         }
+      },
+      {
+         "doc": {
+            "_id": "456",
+            "_index": "my-index",
+            "_version": -3,
+            "_source": {
+               "field2": "value2",
+               "foo": "RAB"
+            },
+            "executed_pipelines": [
+               "my-pipeline",
+               "my-final-pipeline"
+            ]
+         }
+      }
+   ]
+}
+----
+
+////
+[source,console]
+----
+DELETE /my-index
+
+DELETE /_ingest/pipeline/*
+----
+
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----
+////

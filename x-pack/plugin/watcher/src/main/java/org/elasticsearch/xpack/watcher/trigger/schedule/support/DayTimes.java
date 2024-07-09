@@ -19,7 +19,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.support.Strings.join;
 
-public class DayTimes implements Times {
+public final class DayTimes implements Times {
 
     public static final DayTimes NOON = new DayTimes("noon", new int[] { 12 }, new int[] { 0 });
     public static final DayTimes MIDNIGHT = new DayTimes("midnight", new int[] { 0 }, new int[] { 0 });
@@ -36,12 +36,10 @@ public class DayTimes implements Times {
         this(new int[] { hour }, new int[] { minute });
     }
 
-    @SuppressWarnings("this-escape")
     public DayTimes(int[] hour, int[] minute) {
         this(null, hour, minute);
     }
 
-    @SuppressWarnings("this-escape")
     DayTimes(String time, int[] hour, int[] minute) {
         this.time = time;
         this.hour = hour;
@@ -70,11 +68,11 @@ public class DayTimes implements Times {
         }
         int[] hour;
         int[] minute;
-        int i = time.indexOf(":");
+        int i = time.indexOf(':');
         if (i < 0) {
             throw new ElasticsearchParseException("could not parse time [{}]. time format must be in the form of hh:mm", time);
         }
-        if (i == time.length() - 1 || time.indexOf(":", i + 1) >= 0) {
+        if (i == time.length() - 1 || time.indexOf(':', i + 1) >= 0) {
             throw new ElasticsearchParseException("could not parse time [{}]. time format must be in the form of hh:mm", time);
         }
         String hrStr = time.substring(0, i);

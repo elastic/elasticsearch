@@ -218,7 +218,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             Object[] propertiesDocCounts = (Object[]) histogram.getProperty("_count");
             Object[] propertiesSumCounts = (Object[]) histogram.getProperty("sum.value");
 
-            Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
+            long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
             // overwritten
             for (int i = 0; i < numValueBuckets; ++i) {
                 Histogram.Bucket bucket = buckets.get(i);
@@ -270,7 +270,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             Object[] propertiesDocCounts = (Object[]) histogram.getProperty("_count");
             Object[] propertiesSumCounts = (Object[]) histogram.getProperty("stats.sum");
 
-            Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
+            long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
             // overwritten
             for (int i = 0; i < numValueBuckets; ++i) {
                 Histogram.Bucket bucket = buckets.get(i);
@@ -670,8 +670,8 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private Long getTotalDocCountAcrossBuckets(List<? extends Histogram.Bucket> buckets) {
-        Long count = 0L;
+    private long getTotalDocCountAcrossBuckets(List<? extends Histogram.Bucket> buckets) {
+        long count = 0L;
         for (Histogram.Bucket bucket : buckets) {
             count += bucket.getDocCount();
         }

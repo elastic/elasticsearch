@@ -7,11 +7,31 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
-import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.junit.ClassRule;
+
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlSpecIT extends EsqlSpecTestCase {
-    public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
-        super(fileName, groupName, testName, lineNumber, testCase);
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.testCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
+        super(fileName, groupName, testName, lineNumber, testCase, mode);
+    }
+
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        // This suite runs with more than one node and three shards in serverless
+        return cluster.getNumNodes() > 1;
     }
 }

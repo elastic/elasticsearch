@@ -9,6 +9,7 @@
 package org.elasticsearch.test.index;
 
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -19,7 +20,7 @@ import java.util.Set;
 
 public class IndexVersionUtilsTests extends ESTestCase {
     /**
-     * Tests that {@link IndexVersion#MINIMUM_COMPATIBLE} and {@link IndexVersionUtils#allReleasedVersions()}
+     * Tests that {@link IndexVersions#MINIMUM_COMPATIBLE} and {@link IndexVersionUtils#allReleasedVersions()}
      * agree with the list of index compatible versions we build in gradle.
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98054")
@@ -29,7 +30,7 @@ public class IndexVersionUtilsTests extends ESTestCase {
             .stream()
             /* Java lists all versions from the 5.x series onwards, but we only want to consider
              * ones that we're supposed to be compatible with. */
-            .filter(v -> v.onOrAfter(IndexVersion.MINIMUM_COMPATIBLE))
+            .filter(v -> v.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE))
             .toList();
 
         List<String> releasedIndexCompatible = released.stream()

@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class TransportLoadTrainedModelPackageTests extends ESTestCase {
@@ -53,7 +54,9 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         );
 
         var notificationArg = ArgumentCaptor.forClass(AuditMlNotificationAction.Request.class);
-        verify(client).execute(eq(AuditMlNotificationAction.INSTANCE), notificationArg.capture(), any());
+        // 2 notifications- the start and finish messages
+        verify(client, times(2)).execute(eq(AuditMlNotificationAction.INSTANCE), notificationArg.capture(), any());
+        // Only the last message is captured
         assertThat(notificationArg.getValue().getMessage(), CoreMatchers.containsString("finished model import after"));
     }
 
@@ -145,8 +148,9 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         TransportLoadTrainedModelPackage.importModel(client, taskManager, createRequestWithWaiting(), uploader, listener, task);
 
         var notificationArg = ArgumentCaptor.forClass(AuditMlNotificationAction.Request.class);
-        verify(client).execute(eq(AuditMlNotificationAction.INSTANCE), notificationArg.capture(), any());
-        assertThat(notificationArg.getValue().getMessage(), is(message));
+        // 2 notifications- the starting message and the failure
+        verify(client, times(2)).execute(eq(AuditMlNotificationAction.INSTANCE), notificationArg.capture(), any());
+        assertThat(notificationArg.getValue().getMessage(), is(message)); // the last message is captured
 
         var receivedException = (ElasticsearchStatusException) failureRef.get();
         assertThat(receivedException.toString(), is(onFailureException.toString()));

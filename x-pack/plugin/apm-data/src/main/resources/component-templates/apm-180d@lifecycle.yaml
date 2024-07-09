@@ -1,0 +1,8 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Data stream lifecycle for 180 days of retention
+  managed: true
+template:
+  lifecycle:
+    data_retention: "180d"

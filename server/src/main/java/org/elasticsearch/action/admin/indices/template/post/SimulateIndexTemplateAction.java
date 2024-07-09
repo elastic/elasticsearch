@@ -16,7 +16,7 @@ public class SimulateIndexTemplateAction extends ActionType<SimulateIndexTemplat
     public static final String NAME = "indices:admin/index_template/simulate_index";
 
     private SimulateIndexTemplateAction() {
-        super(NAME, SimulateIndexTemplateResponse::new);
+        super(NAME);
     }
 
 }

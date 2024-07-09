@@ -11,9 +11,11 @@ package org.elasticsearch.grok;
 import org.joni.Region;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
@@ -21,6 +23,8 @@ import static java.util.Collections.emptyMap;
  * How to extract matches.
  */
 public interface GrokCaptureExtracter {
+
+    record Range(Object match, int offset, int length) {}
 
     /**
      * Extract {@link Map} results. This implementation of {@link GrokCaptureExtracter}
@@ -31,11 +35,14 @@ public interface GrokCaptureExtracter {
         private final List<GrokCaptureExtracter> fieldExtracters;
 
         @SuppressWarnings("unchecked")
-        MapExtracter(List<GrokCaptureConfig> captureConfig) {
-            result = captureConfig.isEmpty() ? emptyMap() : new HashMap<>();
+        MapExtracter(
+            List<GrokCaptureConfig> captureConfig,
+            Function<GrokCaptureConfig, Function<Consumer<Object>, GrokCaptureExtracter>> getExtracter
+        ) {
+            result = captureConfig.isEmpty() ? emptyMap() : new LinkedHashMap<>();
             fieldExtracters = new ArrayList<>(captureConfig.size());
             for (GrokCaptureConfig config : captureConfig) {
-                fieldExtracters.add(config.objectExtracter(value -> {
+                fieldExtracters.add(getExtracter.apply(config).apply(value -> {
                     var key = config.name();
 
                     // Logstash's Grok processor flattens the list of values to a single value in case there's only 1 match,

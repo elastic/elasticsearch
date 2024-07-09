@@ -32,13 +32,13 @@ public class UntargettedBindingImpl<T> extends BindingImpl<T> implements Untarge
     }
 
     @Override
-    public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-        return visitor.visit(this);
+    public <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+        visitor.visit(this);
     }
 
     @Override
-    public BindingImpl<T> withScoping(Scoping scoping) {
-        return new UntargettedBindingImpl<>(getSource(), getKey(), scoping);
+    public BindingImpl<T> withEagerSingletonScoping() {
+        return new UntargettedBindingImpl<>(getSource(), getKey(), Scoping.EAGER_SINGLETON);
     }
 
     @Override

@@ -18,8 +18,8 @@ public class DeleteIndexRequestBuilder extends AcknowledgedRequestBuilder<
     AcknowledgedResponse,
     DeleteIndexRequestBuilder> {
 
-    public DeleteIndexRequestBuilder(ElasticsearchClient client, DeleteIndexAction action, String... indices) {
-        super(client, action, new DeleteIndexRequest(indices));
+    public DeleteIndexRequestBuilder(ElasticsearchClient client, String... indices) {
+        super(client, TransportDeleteIndexAction.TYPE, new DeleteIndexRequest(indices));
     }
 
     /**

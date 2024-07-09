@@ -9,10 +9,12 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 /**
@@ -30,9 +32,9 @@ public interface ByteArray extends BigArray, Writeable {
     byte get(long index);
 
     /**
-     * Set a value at the given index and return the previous value.
+     * Set a value at the given index.
      */
-    byte set(long index, byte value);
+    void set(long index, byte value);
 
     /**
      * Get a reference to a slice.
@@ -50,6 +52,17 @@ public interface ByteArray extends BigArray, Writeable {
      * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
      */
     void fill(long fromIndex, long toIndex, byte value);
+
+    /**
+     * Fills this ByteArray with bytes from the given input stream
+     */
+    void fillWith(InputStream in) throws IOException;
+
+    /**
+     * Returns a BytesRefIterator for this ByteArray. This method allows
+     * access to the internal pages of this reference without copying them.
+     */
+    BytesRefIterator iterator();
 
     /**
      * Checks if this instance is backed by a single byte array analogous to {@link ByteBuffer#hasArray()}.

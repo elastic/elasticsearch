@@ -8,7 +8,9 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -16,7 +18,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +28,7 @@ import java.util.Map;
 /**
  * A container to keep settings for disk thresholds up to date with cluster setting changes.
  */
-public class DiskThresholdSettings {
+public class DiskThresholdSettings implements Writeable {
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.disk.threshold_enabled",
         true,
@@ -152,7 +156,11 @@ public class DiskThresholdSettings {
     private volatile TimeValue rerouteInterval;
 
     static {
-        assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // this check is unnecessary in v9
+        checkAutoReleaseIndexEnabled();
+    }
+
+    @UpdateForV9 // this check is unnecessary in v9
+    private static void checkAutoReleaseIndexEnabled() {
         final String AUTO_RELEASE_INDEX_ENABLED_KEY = "es.disk.auto_release_flood_stage_block";
         final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);
         if (property != null) {
@@ -193,6 +201,60 @@ public class DiskThresholdSettings {
         );
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
+    }
+
+    public DiskThresholdSettings(
+        RelativeByteSizeValue lowStageWatermark,
+        ByteSizeValue lowStageMaxHeadroom,
+        RelativeByteSizeValue highStageWatermark,
+        ByteSizeValue highStageMaxHeadroom,
+        RelativeByteSizeValue floodStageWatermark,
+        ByteSizeValue floodStageMaxHeadroom,
+        RelativeByteSizeValue frozenFloodStageWatermark,
+        ByteSizeValue frozenFloodStageMaxHeadroom
+    ) {
+        this.lowStageWatermark = lowStageWatermark;
+        this.lowStageMaxHeadroom = lowStageMaxHeadroom;
+        this.highStageWatermark = highStageWatermark;
+        this.highStageMaxHeadroom = highStageMaxHeadroom;
+        this.floodStageWatermark = floodStageWatermark;
+        this.floodStageMaxHeadroom = floodStageMaxHeadroom;
+        this.frozenFloodStageWatermark = frozenFloodStageWatermark;
+        this.frozenFloodStageMaxHeadroom = frozenFloodStageMaxHeadroom;
+    }
+
+    public static DiskThresholdSettings readFrom(StreamInput in) throws IOException {
+        final var lowStageWatermark = RelativeByteSizeValue.readFrom(in);
+        final var lowStageMaxHeadroom = ByteSizeValue.readFrom(in);
+        final var highStageWatermark = RelativeByteSizeValue.readFrom(in);
+        final var highStageMaxHeadroom = ByteSizeValue.readFrom(in);
+        final var floodStageWatermark = RelativeByteSizeValue.readFrom(in);
+        final var floodStageMaxHeadroom = ByteSizeValue.readFrom(in);
+        final var frozenFloodStageWatermark = RelativeByteSizeValue.readFrom(in);
+        final var frozenFloodStageMaxHeadroom = ByteSizeValue.readFrom(in);
+
+        return new DiskThresholdSettings(
+            lowStageWatermark,
+            lowStageMaxHeadroom,
+            highStageWatermark,
+            highStageMaxHeadroom,
+            floodStageWatermark,
+            floodStageMaxHeadroom,
+            frozenFloodStageWatermark,
+            frozenFloodStageMaxHeadroom
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        lowStageWatermark.writeTo(out);
+        lowStageMaxHeadroom.writeTo(out);
+        highStageWatermark.writeTo(out);
+        highStageMaxHeadroom.writeTo(out);
+        floodStageWatermark.writeTo(out);
+        floodStageMaxHeadroom.writeTo(out);
+        frozenFloodStageWatermark.writeTo(out);
+        frozenFloodStageMaxHeadroom.writeTo(out);
     }
 
     /**

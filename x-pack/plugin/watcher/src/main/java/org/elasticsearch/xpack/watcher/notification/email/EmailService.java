@@ -248,7 +248,7 @@ public class EmailService extends NotificationService<Account> {
         )
             .map(InternetAddress::getAddress)
             // Pull out only the domain of the email address, so foo@bar.com -> bar.com
-            .map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf("@") + 1))
+            .map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf('@') + 1))
             .collect(Collectors.toSet());
     }
 

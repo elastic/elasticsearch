@@ -10,7 +10,7 @@
 ----
 PUT _data_stream/logs-generic-default
 ----
-// TESTSETUP 
+// TESTSETUP
 
 [source,console]
 ----
@@ -20,12 +20,12 @@ DELETE /_data_stream/*
 ////
 
 Learn how to set up disaster recovery between two clusters based on
-bi-directional {ccr}. The following tutorial is designed for data streams which support 
-<<update-docs-in-a-data-stream-by-query,update by query>> and <<delete-docs-in-a-data-stream-by-query,delete by query>>. You can only perform these actions on the leader index. 
+bi-directional {ccr}. The following tutorial is designed for data streams which support
+<<update-docs-in-a-data-stream-by-query,update by query>> and <<delete-docs-in-a-data-stream-by-query,delete by query>>. You can only perform these actions on the leader index.
 
-This tutorial works with {ls} as the source of ingestion. It takes advantage of a {ls} feature where {logstash-ref}/plugins-outputs-elasticsearch.html[the {ls} output to {es}] can be load balanced across an array of hosts specified. {beats} and {agents} currently do not 
-support multiple outputs. It should also be possible to set up a proxy 
-(load balancer) to redirect traffic without {ls} in this tutorial. 
+This tutorial works with {ls} as the source of ingestion. It takes advantage of a {ls} feature where {logstash-ref}/plugins-outputs-elasticsearch.html[the {ls} output to {es}] can be load balanced across an array of hosts specified. {beats} and {agents} currently do not
+support multiple outputs. It should also be possible to set up a proxy
+(load balancer) to redirect traffic without {ls} in this tutorial.
 
 * Setting up a remote cluster on `clusterA` and `clusterB`.
 * Setting up bi-directional cross-cluster replication with exclusion patterns.
@@ -92,7 +92,7 @@ PUT /_ccr/auto_follow/logs-generic-default
   "leader_index_patterns": [
     ".ds-logs-generic-default-20*"
   ],
-  "leader_index_exclusion_patterns":"{{leader_index}}-replicated_from_clustera",
+  "leader_index_exclusion_patterns":"*-replicated_from_clustera",
   "follow_index_pattern": "{{leader_index}}-replicated_from_clusterb"
 }
 
@@ -103,7 +103,7 @@ PUT /_ccr/auto_follow/logs-generic-default
   "leader_index_patterns": [
     ".ds-logs-generic-default-20*"
   ],
-  "leader_index_exclusion_patterns":"{{leader_index}}-replicated_from_clusterb",
+  "leader_index_exclusion_patterns":"*-replicated_from_clusterb",
   "follow_index_pattern": "{{leader_index}}-replicated_from_clustera"
 }
 ----
@@ -126,7 +126,7 @@ pattern in the UI. Use the API in this step.
 +
 This example uses the input generator to demonstrate the document
 count in the clusters. Reconfigure this section
-to suit your own use case. 
+to suit your own use case.
 +
 [source,logstash]
 ----
@@ -171,7 +171,7 @@ Bi-directional {ccr} will create one more data stream on each of the clusters
 with the `-replication_from_cluster{a|b}` suffix. At the end of this step:
 +
 * data streams on cluster A contain:
-** 50 documents in `logs-generic-default-replicated_from_clusterb` 
+** 50 documents in `logs-generic-default-replicated_from_clusterb`
 ** 50 documents in `logs-generic-default`
 * data streams on cluster B contain:
 ** 50 documents in `logs-generic-default-replicated_from_clustera`
@@ -179,7 +179,7 @@ with the `-replication_from_cluster{a|b}` suffix. At the end of this step:
 
 . Queries should be set up to search across both data streams.
 A query on `logs*`, on either of the clusters, returns 100
-hits in total. 
+hits in total.
 +
 [source,console]
 ----
@@ -199,27 +199,27 @@ use cases where {ls} ingests continuously.)
 bin/logstash -f multiple_hosts.conf
 ----
 
-. Observe all {ls} traffic will be redirected to `cluster B` automatically. 
+. Observe all {ls} traffic will be redirected to `cluster B` automatically.
 +
-TIP: You should also redirect all search traffic to the `clusterB` cluster during this time. 
+TIP: You should also redirect all search traffic to the `clusterB` cluster during this time.
 
-. The two data streams on `cluster B` now contain a different number of documents. 
+. The two data streams on `cluster B` now contain a different number of documents.
 +
-* data streams on cluster A (down) 
-** 50 documents in `logs-generic-default-replicated_from_clusterb` 
+* data streams on cluster A (down)
+** 50 documents in `logs-generic-default-replicated_from_clusterb`
 ** 50 documents in `logs-generic-default`
-* data streams On cluster B (up) 
+* data streams On cluster B (up)
 ** 50 documents in `logs-generic-default-replicated_from_clustera`
 ** 150 documents in `logs-generic-default`
 
 
 ==== Failback when `clusterA` comes back
-. You can simulate this by turning `cluster A` back on. 
+. You can simulate this by turning `cluster A` back on.
 . Data ingested to `cluster B` during `cluster A` 's downtime will be
-automatically replicated. 
+automatically replicated.
 +
 * data streams on cluster A
-** 150 documents in `logs-generic-default-replicated_from_clusterb` 
+** 150 documents in `logs-generic-default-replicated_from_clusterb`
 ** 50 documents in `logs-generic-default`
 * data streams on cluster B
 ** 50 documents in `logs-generic-default-replicated_from_clustera`
@@ -271,5 +271,5 @@ POST logs-generic-default/_update_by_query
   }
 }
 ----
-+ 
++
 TIP: If a soft delete is merged away before it can be replicated to a follower the following process will fail due to incomplete history on the leader, see <<ccr-index-soft-deletes-retention-period, index.soft_deletes.retention_lease.period>> for more details.

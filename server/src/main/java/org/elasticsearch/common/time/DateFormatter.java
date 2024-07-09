@@ -10,6 +10,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -119,7 +120,7 @@ public interface DateFormatter {
         List<DateFormatter> formatters = new ArrayList<>(patterns.length);
         for (String pattern : patterns) {
             // make sure we still support camel case for indices created before 8.0
-            if (supportedVersion.before(IndexVersion.V_8_0_0)) {
+            if (supportedVersion.before(IndexVersions.V_8_0_0)) {
                 pattern = LegacyFormatNames.camelCaseToSnakeCase(pattern);
             }
             formatters.add(DateFormatters.forPattern(pattern));

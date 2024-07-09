@@ -14,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.MlConfigVersionUtils;
 
@@ -35,8 +34,6 @@ import static org.mockito.Mockito.mock;
 
 public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdate> {
 
-    private boolean useInternalParser = randomBoolean();
-
     @Override
     protected JobUpdate createTestInstance() {
         return createRandom(randomAlphaOfLength(4), null);
@@ -49,7 +46,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
 
     /**
      * Creates a completely random update when the job is null
-     * or a random update that is is valid for the given job
+     * or a random update that is valid for the given job
      */
     public JobUpdate createRandom(String jobId, @Nullable Job job) {
         JobUpdate.Builder update = new JobUpdate.Builder(jobId);
@@ -126,23 +123,8 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         if (randomBoolean()) {
             update.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
-        if (useInternalParser && randomBoolean()) {
-            update.setModelSnapshotId(randomAlphaOfLength(10));
-        }
-        if (useInternalParser && randomBoolean()) {
-            update.setModelSnapshotMinVersion(MlConfigVersion.CURRENT);
-        }
-        if (useInternalParser && randomBoolean()) {
-            update.setJobVersion(MlConfigVersionUtils.randomCompatibleVersion(random()));
-        }
-        if (useInternalParser) {
-            update.setClearFinishTime(randomBoolean());
-        }
         if (randomBoolean()) {
             update.setAllowLazyOpen(randomBoolean());
-        }
-        if (useInternalParser && randomBoolean() && (job == null || job.isDeleting() == false)) {
-            update.setBlocked(BlockedTests.createRandom());
         }
         if (randomBoolean() && job != null) {
             update.setModelPruneWindow(
@@ -251,11 +233,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
 
     @Override
     protected JobUpdate doParseInstance(XContentParser parser) {
-        if (useInternalParser) {
-            return JobUpdate.INTERNAL_PARSER.apply(parser, null).build();
-        } else {
-            return JobUpdate.EXTERNAL_PARSER.apply(parser, null).build();
-        }
+        return JobUpdate.PARSER.apply(parser, null).build();
     }
 
     public void testMergeWithJob() {

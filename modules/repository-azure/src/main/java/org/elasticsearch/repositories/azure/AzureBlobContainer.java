@@ -35,7 +35,7 @@ import java.util.Map;
 
 public class AzureBlobContainer extends AbstractBlobContainer {
 
-    private final Logger logger = LogManager.getLogger(AzureBlobContainer.class);
+    private static final Logger logger = LogManager.getLogger(AzureBlobContainer.class);
     private final AzureBlobStore blobStore;
     private final String keyPath;
 

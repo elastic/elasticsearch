@@ -9,17 +9,61 @@ package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
 public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase<ClusterShardHealth> {
+
+    public static final ConstructingObjectParser<ClusterShardHealth, Integer> PARSER = new ConstructingObjectParser<>(
+        "cluster_shard_health",
+        true,
+        (parsedObjects, shardId) -> {
+            int i = 0;
+            boolean primaryActive = (boolean) parsedObjects[i++];
+            int activeShards = (int) parsedObjects[i++];
+            int relocatingShards = (int) parsedObjects[i++];
+            int initializingShards = (int) parsedObjects[i++];
+            int unassignedShards = (int) parsedObjects[i++];
+            String statusStr = (String) parsedObjects[i];
+            ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
+            return new ClusterShardHealth(
+                shardId,
+                status,
+                activeShards,
+                relocatingShards,
+                initializingShards,
+                unassignedShards,
+                primaryActive
+            );
+        }
+    );
+
+    static {
+        PARSER.declareBoolean(constructorArg(), new ParseField(ClusterShardHealth.PRIMARY_ACTIVE));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterShardHealth.ACTIVE_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterShardHealth.RELOCATING_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterShardHealth.INITIALIZING_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterShardHealth.UNASSIGNED_SHARDS));
+        PARSER.declareString(constructorArg(), new ParseField(ClusterShardHealth.STATUS));
+    }
 
     @Override
     protected ClusterShardHealth doParseInstance(XContentParser parser) throws IOException {
-        return ClusterShardHealth.fromXContent(parser);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+        String shardIdStr = parser.currentName();
+        ClusterShardHealth parsed = PARSER.apply(parser, Integer.valueOf(shardIdStr));
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        return parsed;
     }
 
     @Override

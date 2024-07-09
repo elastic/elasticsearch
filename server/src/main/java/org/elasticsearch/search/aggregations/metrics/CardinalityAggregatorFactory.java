@@ -111,7 +111,7 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
             }
         }
 
-        boolean isHeuristicBased;
+        final boolean isHeuristicBased;
 
         ExecutionMode(boolean isHeuristicBased) {
             this.isHeuristicBased = isHeuristicBased;

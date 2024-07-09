@@ -1,7 +1,0 @@
-pr: 100370
-summary: "ESQL: Page shouldn't close a block twice"
-area: ES|QL
-type: bug
-issues:
- - 100356
- - 100365

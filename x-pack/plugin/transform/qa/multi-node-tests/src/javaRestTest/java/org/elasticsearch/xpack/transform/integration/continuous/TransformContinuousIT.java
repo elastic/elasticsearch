@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TransformContinuousIT extends TransformRestTestCase {
 
-    public static final int MAX_WAIT_TIME_ONE_ITERATION_SECONDS = 60;
+    public static final int MAX_WAIT_TIME_ONE_ITERATION_SECONDS = 120;
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
 
     @Before
@@ -254,7 +254,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
                 source.append("\r\n");
                 doBulk(source.toString(), false);
             }
-            refreshIndex(sourceIndexName, RequestOptions.DEFAULT);
+            refreshIndex(sourceIndexName);
 
             // start all transforms, wait until the processed all data and stop them
             startTransforms();

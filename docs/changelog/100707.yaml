@@ -1,5 +1,0 @@
-pr: 100707
-summary: Allow `enrich_user` to read/view enrich indices
-area: Authorization
-type: bug
-issues: []

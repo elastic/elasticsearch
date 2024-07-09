@@ -51,7 +51,6 @@ public class CleanerService extends AbstractLifecycleComponent {
         clusterSettings.addSettingsUpdateConsumer(MonitoringField.HISTORY_DURATION, this::setGlobalRetention);
     }
 
-    @SuppressWarnings("this-escape")
     public CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this(settings, clusterSettings, threadPool, new DefaultExecutionScheduler());
     }

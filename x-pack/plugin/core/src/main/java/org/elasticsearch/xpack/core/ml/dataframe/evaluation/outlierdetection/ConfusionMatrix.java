@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -87,7 +87,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
     }
 
     @Override
-    public EvaluationMetricResult evaluate(Aggregations aggs) {
+    public EvaluationMetricResult evaluate(InternalAggregations aggs) {
         long[] tp = new long[thresholds.length];
         long[] fp = new long[thresholds.length];
         long[] tn = new long[thresholds.length];

@@ -11,7 +11,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
@@ -166,11 +166,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertThat("some shard sizes are populated", shardSizes.values().size(), greaterThan(0));
         for (DiskUsage usage : leastUsages.values()) {
             logger.info("--> usage: {}", usage);
-            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+            assertThat("usage has be retrieved", usage.freeBytes(), greaterThan(0L));
         }
         for (DiskUsage usage : mostUsages.values()) {
             logger.info("--> usage: {}", usage);
-            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+            assertThat("usage has be retrieved", usage.freeBytes(), greaterThan(0L));
         }
         for (Long size : shardSizes.values()) {
             logger.info("--> shard size: {}", size);
@@ -240,21 +240,18 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             );
         }
 
-        MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            internalTestCluster.getMasterName()
-        );
+        final var masterTransportService = MockTransportService.getInstance(internalTestCluster.getMasterName());
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
         final Set<String> blockedActions = newHashSet(
-            NodesStatsAction.NAME,
-            NodesStatsAction.NAME + "[n]",
+            TransportNodesStatsAction.TYPE.name(),
+            TransportNodesStatsAction.TYPE.name() + "[n]",
             IndicesStatsAction.NAME,
             IndicesStatsAction.NAME + "[n]"
         );
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
-            mockTransportService.addSendBehavior(
+            masterTransportService.addSendBehavior(
                 internalTestCluster.getInstance(TransportService.class, node.getName()),
                 (connection, requestId, action, request, options) -> {
                     if (blockedActions.contains(action)) {

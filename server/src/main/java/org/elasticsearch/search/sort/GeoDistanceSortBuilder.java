@@ -14,6 +14,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.DoubleComparator;
 import org.apache.lucene.util.BitSet;
@@ -651,20 +652,13 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);
                     final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
-                    return localSortMode.select(
-                        distanceValues,
-                        Double.POSITIVE_INFINITY,
-                        rootDocs,
-                        innerDocs,
-                        context.reader().maxDoc(),
-                        maxChildren
-                    );
+                    return localSortMode.select(distanceValues, Double.POSITIVE_INFINITY, rootDocs, innerDocs, maxChildren);
                 }
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
-                return new DoubleComparator(numHits, null, null, reversed, false) {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning enableSkipping, boolean reversed) {
+                return new DoubleComparator(numHits, null, null, reversed, Pruning.NONE) {
                     @Override
                     public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                         return new DoubleLeafComparator(context) {

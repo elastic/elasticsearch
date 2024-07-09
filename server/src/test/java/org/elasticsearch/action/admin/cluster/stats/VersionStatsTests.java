@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -53,7 +54,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         return new VersionStats(instance.versionStats().stream().map(svs -> {
             return switch (randomIntBetween(1, 4)) {
                 case 1 -> new VersionStats.SingleVersionStats(
-                    IndexVersion.V_7_3_0,
+                    IndexVersions.V_7_3_0,
                     svs.indexCount,
                     svs.primaryShardCount,
                     svs.totalPrimaryByteCount
@@ -88,12 +89,12 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
 
         metadata = new Metadata.Builder().put(indexMeta("foo", IndexVersion.current(), 4), true)
             .put(indexMeta("bar", IndexVersion.current(), 3), true)
-            .put(indexMeta("baz", IndexVersion.V_7_0_0, 2), true)
+            .put(indexMeta("baz", IndexVersions.V_7_0_0, 2), true)
             .build();
         stats = VersionStats.of(metadata, Collections.emptyList());
         assertThat(stats.versionStats().size(), equalTo(2));
         VersionStats.SingleVersionStats s1 = new VersionStats.SingleVersionStats(IndexVersion.current(), 2, 7, 0);
-        VersionStats.SingleVersionStats s2 = new VersionStats.SingleVersionStats(IndexVersion.V_7_0_0, 1, 2, 0);
+        VersionStats.SingleVersionStats s2 = new VersionStats.SingleVersionStats(IndexVersions.V_7_0_0, 1, 2, 0);
         assertThat(stats.versionStats(), containsInAnyOrder(s1, s2));
 
         ShardId shardId = new ShardId("bar", "uuid", 0);
@@ -132,7 +133,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         stats = VersionStats.of(metadata, Collections.singletonList(nodeResponse));
         assertThat(stats.versionStats().size(), equalTo(2));
         s1 = new VersionStats.SingleVersionStats(IndexVersion.current(), 2, 7, 100);
-        s2 = new VersionStats.SingleVersionStats(IndexVersion.V_7_0_0, 1, 2, 0);
+        s2 = new VersionStats.SingleVersionStats(IndexVersions.V_7_0_0, 1, 2, 0);
         assertThat(stats.versionStats(), containsInAnyOrder(s1, s2));
     }
 
@@ -141,7 +142,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
     }
 
     public static VersionStats randomInstance() {
-        List<IndexVersion> versions = List.of(IndexVersion.current(), IndexVersion.V_7_0_0, IndexVersion.V_7_1_0, IndexVersion.V_7_2_0);
+        List<IndexVersion> versions = List.of(IndexVersion.current(), IndexVersions.V_7_0_0, IndexVersions.V_7_1_0, IndexVersions.V_7_2_0);
         List<VersionStats.SingleVersionStats> stats = new ArrayList<>();
         for (IndexVersion v : versions) {
             VersionStats.SingleVersionStats s = new VersionStats.SingleVersionStats(

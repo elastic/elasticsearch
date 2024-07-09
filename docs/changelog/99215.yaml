@@ -1,6 +1,0 @@
-pr: 99215
-summary: Skip `DisiPriorityQueue` on single filter agg
-area: Aggregations
-type: enhancement
-issues:
- - 99202

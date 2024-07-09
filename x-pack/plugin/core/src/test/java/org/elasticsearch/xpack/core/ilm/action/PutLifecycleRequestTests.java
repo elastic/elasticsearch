@@ -31,14 +31,13 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCase<Request> {
+public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCase<PutLifecycleRequest> {
 
     private String lifecycleName;
 
@@ -48,18 +47,32 @@ public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCas
     }
 
     @Override
-    protected Request createTestInstance() {
-        return new Request(LifecyclePolicyTests.randomTimeseriesLifecyclePolicy(lifecycleName));
+    protected PutLifecycleRequest createTestInstance() {
+        return new PutLifecycleRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            LifecyclePolicyTests.randomTimeseriesLifecyclePolicy(lifecycleName)
+        );
     }
 
     @Override
-    protected Writeable.Reader<Request> instanceReader() {
-        return Request::new;
+    protected Writeable.Reader<PutLifecycleRequest> instanceReader() {
+        return PutLifecycleRequest::new;
     }
 
     @Override
-    protected Request doParseInstance(XContentParser parser) {
-        return PutLifecycleAction.Request.parseRequest(lifecycleName, parser);
+    protected PutLifecycleRequest doParseInstance(XContentParser parser) {
+        return PutLifecycleRequest.parseRequest(new PutLifecycleRequest.Factory() {
+            @Override
+            public PutLifecycleRequest create(LifecyclePolicy lifecyclePolicy) {
+                return new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
+            }
+
+            @Override
+            public String getPolicyName() {
+                return lifecycleName;
+            }
+        }, parser);
     }
 
     @Override
@@ -125,13 +138,13 @@ public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCas
     }
 
     @Override
-    protected Request mutateInstance(Request request) {
+    protected PutLifecycleRequest mutateInstance(PutLifecycleRequest request) {
         String name = randomBoolean() ? lifecycleName : randomAlphaOfLength(5);
         LifecyclePolicy policy = randomValueOtherThan(
             request.getPolicy(),
             () -> LifecyclePolicyTests.randomTimeseriesLifecyclePolicy(name)
         );
-        return new Request(policy);
+        return new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policy);
     }
 
 }

@@ -54,7 +54,7 @@ class TDigestPercentileRanksAggregator extends AbstractTDigestPercentilesAggrega
         if (state == null) {
             return Double.NaN;
         } else {
-            return InternalTDigestPercentileRanks.percentileRank(state, Double.valueOf(name));
+            return InternalTDigestPercentileRanks.percentileRank(state, Double.parseDouble(name));
         }
     }
 }

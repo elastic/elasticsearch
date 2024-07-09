@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.stream.StreamSupport;
 
 /**
- * A listener that allows to track progress of the {@link SearchAction}.
+ * A listener that allows to track progress of the {@link TransportSearchAction}.
  */
 public abstract class SearchProgressListener {
     private static final Logger logger = LogManager.getLogger(SearchProgressListener.class);
@@ -89,6 +89,22 @@ public abstract class SearchProgressListener {
     protected void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
 
     /**
+     * Executed when a shard returns a rank feature result.
+     *
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     */
+    protected void onRankFeatureResult(int shardIndex) {}
+
+    /**
+     * Executed when a shard reports a rank feature failure.
+     *
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     * @param shardTarget The last shard target that thrown an exception.
+     * @param exc The cause of the failure.
+     */
+    protected void onRankFeatureFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
+
+    /**
      * Executed when a shard returns a fetch result.
      *
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
@@ -103,6 +119,15 @@ public abstract class SearchProgressListener {
      * @param exc The cause of the failure.
      */
     protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
+
+    /**
+     * Indicates that a cluster has finished a search operation. Used for CCS minimize_roundtrips=true only.
+     *
+     * @param clusterAlias alias of cluster that has finished a search operation and returned a SearchResponse.
+     *                     The cluster alias for the local cluster is RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.
+     * @param searchResponse SearchResponse from cluster 'clusterAlias'
+     */
+    protected void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse searchResponse) {}
 
     final void notifyListShards(
         List<SearchShard> shards,
@@ -151,6 +176,22 @@ public abstract class SearchProgressListener {
         }
     }
 
+    final void notifyRankFeatureResult(int shardIndex) {
+        try {
+            onRankFeatureResult(shardIndex);
+        } catch (Exception e) {
+            logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on rank-feature result", e);
+        }
+    }
+
+    final void notifyRankFeatureFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+        try {
+            onRankFeatureFailure(shardIndex, shardTarget, exc);
+        } catch (Exception e) {
+            logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on rank-feature failure", e);
+        }
+    }
+
     final void notifyFetchResult(int shardIndex) {
         try {
             onFetchResult(shardIndex);
@@ -164,6 +205,14 @@ public abstract class SearchProgressListener {
             onFetchFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
             logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on fetch failure", e);
+        }
+    }
+
+    final void notifyClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse searchResponse) {
+        try {
+            onClusterResponseMinimizeRoundtrips(clusterAlias, searchResponse);
+        } catch (Exception e) {
+            logger.warn(() -> "[" + clusterAlias + "] Failed to execute progress listener onResponseMinimizeRoundtrips", e);
         }
     }
 

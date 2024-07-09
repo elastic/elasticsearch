@@ -12,6 +12,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionFeatureImportance;
@@ -33,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -303,14 +305,21 @@ public class InferenceProcessorTests extends ESTestCase {
         };
         IngestDocument document = TestIngestDocument.ofIngestWithNullableVersion(source, new HashMap<>());
 
-        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(source));
+        var request = processor.buildRequest(document);
+        assertThat(request.getObjectsToInfer().get(0), equalTo(source));
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
 
         Map<String, Object> ingestMetadata = Collections.singletonMap("_value", 3);
         document = TestIngestDocument.ofIngestWithNullableVersion(source, ingestMetadata);
 
         Map<String, Object> expected = new HashMap<>(source);
         expected.put("_ingest", ingestMetadata);
-        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expected));
+
+        request = processor.buildRequest(document);
+        assertThat(request.getObjectsToInfer().get(0), equalTo(expected));
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
     }
 
     public void testGenerateWithMapping() {
@@ -346,14 +355,20 @@ public class InferenceProcessorTests extends ESTestCase {
         expectedMap.put("categorical", "foo");
         expectedMap.put("new_categorical", "foo");
         expectedMap.put("un_touched", "bar");
-        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
+        var request = processor.buildRequest(document);
+        assertThat(request.getObjectsToInfer().get(0), equalTo(expectedMap));
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
 
         Map<String, Object> ingestMetadata = Collections.singletonMap("_value", "baz");
         document = TestIngestDocument.ofIngestWithNullableVersion(source, ingestMetadata);
         expectedMap = new HashMap<>(expectedMap);
         expectedMap.put("metafield", "baz");
         expectedMap.put("_ingest", ingestMetadata);
-        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
+        request = processor.buildRequest(document);
+        assertThat(request.getObjectsToInfer().get(0), equalTo(expectedMap));
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
     }
 
     public void testGenerateWithMappingNestedFields() {
@@ -406,7 +421,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
         IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
-        assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(false));
+        assertThat(inferenceProcessor.buildRequest(document).getPreviouslyLicensed(), is(false));
 
         InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
@@ -418,7 +433,7 @@ public class InferenceProcessorTests extends ESTestCase {
             assertThat(ex, is(nullValue()));
         });
 
-        assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(true));
+        assertThat(inferenceProcessor.buildRequest(document).getPreviouslyLicensed(), is(true));
 
         response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
@@ -431,7 +446,7 @@ public class InferenceProcessorTests extends ESTestCase {
             assertThat(ex, is(nullValue()));
         });
 
-        assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(true));
+        assertThat(inferenceProcessor.buildRequest(document).getPreviouslyLicensed(), is(true));
 
         inferenceProcessor.handleResponse(response, document, (doc, ex) -> {
             assertThat(doc, is(not(nullValue())));
@@ -594,9 +609,11 @@ public class InferenceProcessorTests extends ESTestCase {
         document.setFieldValue("unrelated", "text");
 
         var request = inferenceProcessor.buildRequest(document);
-        assertTrue(request.getObjectsToInfer().isEmpty());
-        var requestInputs = request.getTextInput();
+        assertNull(request.getObjectsToInfer());
+        var requestInputs = request.getInputs();
         assertThat(requestInputs, contains("body_text", "title_text"));
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
     }
 
     public void testBuildRequestWithInputFields_WrongType() {
@@ -667,8 +684,56 @@ public class InferenceProcessorTests extends ESTestCase {
             document.setFieldValue("unrelated", 1.0);
 
             var request = inferenceProcessor.buildRequest(document);
-            var requestInputs = request.getTextInput();
+            var requestInputs = request.getInputs();
             assertThat(requestInputs, contains("body_text", ""));
         }
+    }
+
+    public void testBuildRequestReturnsNullWhenAllFieldsMissing() {
+        List<InferenceProcessor.Factory.InputConfig> inputs = new ArrayList<>();
+        inputs.add(new InferenceProcessor.Factory.InputConfig("body.text", "ml.results", "body_tokens", Map.of()));
+        inputs.add(new InferenceProcessor.Factory.InputConfig("title.text", "ml.results", "title_tokens", Map.of()));
+
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromInputFieldConfiguration(
+            client,
+            auditor,
+            "my_processor_tag",
+            "description",
+            "elser",
+            new EmptyConfigUpdate(),
+            inputs,
+            true
+        );
+
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+        assertNull(inferenceProcessor.buildRequest(document));
+    }
+
+    public void testInferenceNotCalledWhenAllFieldsMissing() {
+        List<InferenceProcessor.Factory.InputConfig> inputs = new ArrayList<>();
+        inputs.add(new InferenceProcessor.Factory.InputConfig("body.text", "ml.results", "body_tokens", Map.of()));
+        inputs.add(new InferenceProcessor.Factory.InputConfig("title.text", "ml.results", "title_tokens", Map.of()));
+
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromInputFieldConfiguration(
+            client,
+            auditor,
+            "my_processor_tag",
+            "description",
+            "elser",
+            new EmptyConfigUpdate(),
+            inputs,
+            true
+        );
+
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+        var capturedDoc = new AtomicReference<IngestDocument>();
+        var capturedError = new AtomicReference<Exception>();
+        inferenceProcessor.execute(document, (d, e) -> {
+            capturedDoc.set(d);
+            capturedError.set(e);
+        });
+
+        assertSame(document, capturedDoc.get());
+        assertNull(capturedError.get());
     }
 }

@@ -53,7 +53,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class holds the configuration details of a data frame transform
  */
-public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeable, ToXContentObject {
+public final class TransformConfig implements SimpleDiffable<TransformConfig>, Writeable, ToXContentObject {
 
     /**
      * Version of the last time the config defaults have been changed.
@@ -209,7 +209,6 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         return NAME + "-" + transformId;
     }
 
-    @SuppressWarnings("this-escape")
     public TransformConfig(
         final String id,
         final SourceConfig source,
@@ -235,7 +234,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         this.pivotConfig = pivotConfig;
         this.latestConfig = latestConfig;
         this.description = description;
-        this.settings = settings == null ? new SettingsConfig() : settings;
+        this.settings = settings == null ? SettingsConfig.EMPTY : settings;
         this.metadata = metadata;
         this.retentionPolicyConfig = retentionPolicyConfig;
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
@@ -245,7 +244,6 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         this.transformVersion = version == null ? null : TransformConfigVersion.fromString(version);
     }
 
-    @SuppressWarnings("this-escape")
     public TransformConfig(final StreamInput in) throws IOException {
         id = in.readString();
         source = new SourceConfig(in);
@@ -259,7 +257,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         createTime = in.readOptionalInstant();
         transformVersion = in.readBoolean() ? TransformConfigVersion.readVersion(in) : null;
         settings = new SettingsConfig(in);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
         retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 

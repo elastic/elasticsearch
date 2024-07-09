@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 public abstract class ItemSetMapReduceAggregator<
@@ -76,7 +77,7 @@ public abstract class ItemSetMapReduceAggregator<
         List<ItemSetMapReduceValueSource> valueSources = new ArrayList<>();
         List<Field> fields = new ArrayList<>();
         IndexSearcher contextSearcher = context.searcher();
-        LeafReaderContext ctx = getLeafReaderForOrdinals(context);
+        Optional<LeafReaderContext> ctx = getLeafReaderForOrdinals(context);
 
         int id = 0;
         this.weightDocumentFilter = documentFilter != null
@@ -220,8 +221,8 @@ public abstract class ItemSetMapReduceAggregator<
         return new InternalItemSetMapReduceAggregation<>(name, metadata(), mapReducer, context, null, fields, profiling);
     }
 
-    private static LeafReaderContext getLeafReaderForOrdinals(AggregationContext context) {
+    private static Optional<LeafReaderContext> getLeafReaderForOrdinals(AggregationContext context) {
         IndexReader reader = context.searcher().getIndexReader();
-        return reader.leaves().get(0);
+        return reader.leaves().stream().findFirst();
     }
 }

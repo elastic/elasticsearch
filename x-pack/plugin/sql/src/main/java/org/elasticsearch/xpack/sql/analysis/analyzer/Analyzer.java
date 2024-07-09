@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -44,7 +43,6 @@ import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
@@ -56,7 +54,6 @@ import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.With;
-import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -74,11 +71,10 @@ import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
-import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgainstList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
-public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
+public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
 
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
@@ -97,7 +93,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new HavingOverProject(),
             new ResolveAggsInHaving(),
             new ResolveAggsInOrderBy()
-            // new ImplicitCasting()
         );
         var finish = new Batch<>(
             "Finish Analysis",
@@ -114,7 +109,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private final Verifier verifier;
 
-    @SuppressWarnings("this-escape")
     public Analyzer(AnalyzerContext context, Verifier verifier) {
         super(context);
         context.analyzeWithoutVerify().set(this::execute);
@@ -168,13 +162,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, boolean allowCompound) {
-        var matches = maybeResolveAgainstList(
-            u,
-            attrList,
-            allowCompound,
-            false,
-            (ua, na) -> AnalyzerRules.handleSpecialFields(ua, na, allowCompound)
-        );
+        var matches = AnalyzerRules.maybeResolveAgainstList(u, attrList, a -> AnalyzerRules.handleSpecialFields(u, a, allowCompound));
         return matches.isEmpty() ? null : matches.get(0);
     }
 
@@ -932,9 +920,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(Filter f) {
             if (f.child() instanceof Project p) {
                 for (Expression n : p.projections()) {
-                    if (n instanceof Alias) {
-                        n = ((Alias) n).child();
-                    }
+                    n = Alias.unwrap(n);
                     // no literal or aggregates - it's a 'regular' projection
                     if (n.foldable() == false && Functions.isAggregate(n) == false
                     // folding might not work (it might wait for the optimizer)
@@ -1019,12 +1005,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<NamedExpression> missing = new LinkedHashSet<>();
 
             for (Expression filterAgg : from.collect(Functions::isAggregate)) {
-                if (Expressions.anyMatch(target.aggregates(), a -> {
-                    if (a instanceof Alias) {
-                        a = ((Alias) a).child();
-                    }
-                    return a.equals(filterAgg);
-                }) == false) {
+                if (Expressions.anyMatch(target.aggregates(), a -> Alias.unwrap(a).equals(filterAgg)) == false) {
                     missing.add(Expressions.wrapAsNamed(filterAgg));
                 }
             }
@@ -1071,12 +1052,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     List<NamedExpression> missing = new ArrayList<>();
 
                     for (Expression orderedAgg : aggs) {
-                        if (Expressions.anyMatch(a.aggregates(), e -> {
-                            if (e instanceof Alias) {
-                                e = ((Alias) e).child();
-                            }
-                            return e.equals(orderedAgg);
-                        }) == false) {
+                        if (Expressions.anyMatch(a.aggregates(), e -> Alias.unwrap(e).equals(orderedAgg)) == false) {
                             missing.add(Expressions.wrapAsNamed(orderedAgg));
                         }
                     }
@@ -1094,51 +1070,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new Project(ob.source(), plan, ob.output());
             }
             return ob;
-        }
-    }
-
-    private static class ImplicitCasting extends AnalyzerRule<LogicalPlan> {
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            return plan.transformExpressionsDown(ImplicitCasting::implicitCast);
-        }
-
-        private static Expression implicitCast(Expression e) {
-            if (e.childrenResolved() == false) {
-                return e;
-            }
-
-            Expression left = null, right = null;
-
-            // BinaryOperations are ignored as they are pushed down to ES
-            // and casting (and thus Aliasing when folding) gets in the way
-
-            if (e instanceof ArithmeticOperation f) {
-                left = f.left();
-                right = f.right();
-            }
-
-            if (left != null) {
-                DataType l = left.dataType();
-                DataType r = right.dataType();
-                if (l != r) {
-                    DataType common = SqlDataTypeConverter.commonType(l, r);
-                    if (common == null) {
-                        return e;
-                    }
-                    left = l == common ? left : new Cast(left.source(), left, common);
-                    right = r == common ? right : new Cast(right.source(), right, common);
-                    return e.replaceChildrenSameSize(Arrays.asList(left, right));
-                }
-            }
-
-            return e;
         }
     }
 

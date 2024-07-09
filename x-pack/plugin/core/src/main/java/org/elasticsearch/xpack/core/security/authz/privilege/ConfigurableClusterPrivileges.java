@@ -166,7 +166,7 @@ public final class ConfigurableClusterPrivileges {
                 if (request instanceof final UpdateProfileDataRequest updateProfileRequest) {
                     assert null == updateProfileRequest.validate();
                     final Collection<String> requestApplicationNames = updateProfileRequest.getApplicationNames();
-                    return requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
+                    return requestApplicationNames.stream().allMatch(applicationPredicate);
                 }
                 return false;
             };
@@ -274,7 +274,7 @@ public final class ConfigurableClusterPrivileges {
                     final Collection<String> requestApplicationNames = privRequest.getApplicationNames();
                     return requestApplicationNames.isEmpty()
                         ? this.applicationNames.contains("*")
-                        : requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
+                        : requestApplicationNames.stream().allMatch(applicationPredicate);
                 }
                 return false;
             };

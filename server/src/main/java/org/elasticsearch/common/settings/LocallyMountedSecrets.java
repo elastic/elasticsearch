@@ -65,7 +65,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  *              }
  *         }
  */
-public class LocallyMountedSecrets implements SecureSettings {
+public final class LocallyMountedSecrets implements SecureSettings {
 
     public static final String SECRETS_FILE_NAME = "secrets.json";
     public static final String SECRETS_DIRECTORY = "secrets";
@@ -116,7 +116,6 @@ public class LocallyMountedSecrets implements SecureSettings {
     /**
      * Direct constructor to be used by the CLI
      */
-    @SuppressWarnings("this-escape")
     public LocallyMountedSecrets(Environment environment) {
         var secretsDirPath = resolveSecretsDir(environment);
         var secretsFilePath = resolveSecretsFile(environment);

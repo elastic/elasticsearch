@@ -325,9 +325,9 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
         // so we cannot access its fields directly to check and have to use toString() here instead.
         double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
         double qLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
-        assertEquals(
+        assertThat(
             parsedQuery.toString(),
-            "mapped_geo_point:" + qLat + "," + qLon + " +/- " + distanceUnit.toMeters(distance) + " meters"
+            containsString("mapped_geo_point:" + qLat + "," + qLon + " +/- " + distanceUnit.toMeters(distance) + " meters")
         );
     }
 

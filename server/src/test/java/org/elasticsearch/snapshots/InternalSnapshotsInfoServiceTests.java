@@ -114,7 +114,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.builder().put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), maxConcurrentFetches).build(),
             clusterService,
-            () -> repositoriesService,
+            repositoriesService,
             () -> rerouteService
         );
 
@@ -128,7 +128,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 assertThat(indexId.getName(), equalTo(indexName));
                 assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
                 safeAwait(latch);
@@ -185,14 +185,14 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.builder().put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), randomIntBetween(1, 10)).build(),
             clusterService,
-            () -> repositoriesService,
+            repositoriesService,
             () -> rerouteService
         );
 
         final Map<InternalSnapshotsInfoService.SnapshotShard, Long> results = new ConcurrentHashMap<>();
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 final InternalSnapshotsInfoService.SnapshotShard snapshotShard = new InternalSnapshotsInfoService.SnapshotShard(
                     new Snapshot("_repo", snapshotId),
                     indexId,
@@ -274,13 +274,13 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.EMPTY,
             clusterService,
-            () -> repositoriesService,
+            repositoriesService,
             () -> rerouteService
         );
 
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
             }
         };
@@ -316,7 +316,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     public void testCleanUpSnapshotShardSizes() throws Exception {
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 if (randomBoolean()) {
                     throw new SnapshotException(new Snapshot("_repo", snapshotId), "simulated");
                 } else {
@@ -329,7 +329,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.EMPTY,
             clusterService,
-            () -> repositoriesService,
+            repositoriesService,
             () -> rerouteService
         );
 

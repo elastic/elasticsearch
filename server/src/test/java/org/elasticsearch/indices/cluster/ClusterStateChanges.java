@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -72,9 +73,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
-import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -84,10 +83,12 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -134,6 +135,7 @@ public class ClusterStateChanges {
     private final TransportService transportService;
     private final AllocationService allocationService;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
     private final ShardStateAction.ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
 
@@ -216,6 +218,8 @@ public class ClusterStateChanges {
         }
 
         // services
+        featureService = new FeatureService(List.of());
+
         transportService = new TransportService(
             SETTINGS,
             transport,
@@ -242,7 +246,8 @@ public class ClusterStateChanges {
             xContentRegistry,
             null,
             null,
-            null
+            null,
+            MapperMetrics.NOOP
         ) {
             // metadata upgrader should do nothing
             @Override
@@ -265,14 +270,7 @@ public class ClusterStateChanges {
                 actionFilters
             )
         );
-        client.initialize(
-            actions,
-            transportService.getTaskManager(),
-            null,
-            transportService.getLocalNodeConnection(),
-            null,
-            new NamedWriteableRegistry(List.of())
-        );
+        client.initialize(actions, transportService.getTaskManager(), null, transportService.getLocalNodeConnection(), null);
 
         ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService);
         MetadataIndexStateService indexStateService = new MetadataIndexStateService(
@@ -406,19 +404,24 @@ public class ClusterStateChanges {
 
     public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode, TransportVersion transportVersion) {
         return runTasks(
-            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}, featureService),
             clusterState,
             List.of(
-                JoinTask.singleNode(discoveryNode, CompatibilityVersionsUtils.staticCurrent(), DUMMY_REASON, ActionListener.running(() -> {
-                    throw new AssertionError("should not complete publication");
-                }), clusterState.term())
+                JoinTask.singleNode(
+                    discoveryNode,
+                    new CompatibilityVersions(transportVersion, Map.of()),
+                    Set.of(),
+                    DUMMY_REASON,
+                    createTestListener(),
+                    clusterState.term()
+                )
             )
         );
     }
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes, TransportVersion transportVersion) {
         return runTasks(
-            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}, featureService),
             clusterState,
             List.of(
                 JoinTask.completingElection(
@@ -427,10 +430,9 @@ public class ClusterStateChanges {
                             node -> new JoinTask.NodeJoinTask(
                                 node,
                                 new CompatibilityVersions(transportVersion, Map.of()),
+                                Set.of(),
                                 DUMMY_REASON,
-                                ActionListener.running(() -> {
-                                    throw new AssertionError("should not complete publication");
-                                })
+                                createTestListener()
                             )
                         ),
                     clusterState.term() + between(1, 10)
@@ -487,6 +489,7 @@ public class ClusterStateChanges {
                             e.getKey().allocationId().getId(),
                             e.getValue(),
                             "shard started",
+                            ShardLongFieldRange.UNKNOWN,
                             ShardLongFieldRange.UNKNOWN
                         ),
                         createTestListener()
@@ -545,7 +548,7 @@ public class ClusterStateChanges {
         }
     }
 
-    private ActionListener<Void> createTestListener() {
-        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
+    private static ActionListener<Void> createTestListener() {
+        return ActionTestUtils.assertNoFailureListener(t -> {});
     }
 }

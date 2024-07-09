@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.repositories.delete;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -33,6 +34,7 @@ import java.util.Set;
  */
 public class TransportDeleteRepositoryAction extends AcknowledgedTransportMasterNodeAction<DeleteRepositoryRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/repository/delete");
     private final RepositoriesService repositoriesService;
 
     @Inject
@@ -45,7 +47,7 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DeleteRepositoryAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

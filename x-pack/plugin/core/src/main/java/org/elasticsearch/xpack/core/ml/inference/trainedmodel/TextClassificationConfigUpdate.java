@@ -112,54 +112,6 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof TextClassificationConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        TextClassificationConfig classificationConfig = (TextClassificationConfig) originalConfig;
-        if (isNoop(classificationConfig)) {
-            return originalConfig;
-        }
-
-        TextClassificationConfig.Builder builder = new TextClassificationConfig.Builder(classificationConfig);
-        if (numTopClasses != null) {
-            builder.setNumTopClasses(numTopClasses);
-        }
-        if (classificationLabels != null) {
-            if (classificationLabels.size() != classificationConfig.getClassificationLabels().size()) {
-                throw ExceptionsHelper.badRequestException(
-                    "The number of [{}] the model is defined with [{}] does not match the number in the update [{}]",
-                    CLASSIFICATION_LABELS,
-                    classificationConfig.getClassificationLabels().size(),
-                    classificationLabels.size()
-                );
-            }
-            builder.setClassificationLabels(classificationLabels);
-        }
-        if (resultsField != null) {
-            builder.setResultsField(resultsField);
-        }
-
-        if (tokenizationUpdate != null) {
-            builder.setTokenization(tokenizationUpdate.apply(classificationConfig.getTokenization()));
-        }
-
-        return builder.build();
-    }
-
-    boolean isNoop(TextClassificationConfig originalConfig) {
-        return (this.numTopClasses == null || this.numTopClasses == originalConfig.getNumTopClasses())
-            && (this.classificationLabels == null)
-            && (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField()))
-            && super.isNoop();
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig config) {
         return config instanceof TextClassificationConfig;
     }

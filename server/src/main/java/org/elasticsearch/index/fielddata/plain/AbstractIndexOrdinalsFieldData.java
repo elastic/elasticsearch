@@ -17,6 +17,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
@@ -28,6 +29,7 @@ import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(AbstractIndexOrdinalsFieldData.class);
@@ -82,6 +84,8 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
+            } else if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e.getCause();
             } else {
                 throw new ElasticsearchException(e);
             }
@@ -128,6 +132,8 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
+            } else if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e.getCause();
             } else {
                 throw new ElasticsearchException(e);
             }
@@ -136,7 +142,13 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
 
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, toScriptFieldFactory);
+        return GlobalOrdinalsBuilder.build(
+            indexReader,
+            this,
+            breakerService.getBreaker(CircuitBreaker.FIELDDATA),
+            logger,
+            toScriptFieldFactory
+        );
     }
 
     @Override

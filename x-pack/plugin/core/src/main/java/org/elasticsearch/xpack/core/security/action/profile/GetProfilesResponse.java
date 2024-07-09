@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.profile;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,12 +26,6 @@ public class GetProfilesResponse extends ActionResponse implements ToXContentObj
     public GetProfilesResponse(List<Profile> profiles, Map<String, Exception> errors) {
         this.profiles = Objects.requireNonNull(profiles);
         this.errors = Objects.requireNonNull(errors);
-    }
-
-    public GetProfilesResponse(StreamInput in) throws IOException {
-        super(in);
-        this.profiles = in.readCollectionAsImmutableList(Profile::new);
-        this.errors = in.readMap(StreamInput::readException);
     }
 
     public List<Profile> getProfiles() {

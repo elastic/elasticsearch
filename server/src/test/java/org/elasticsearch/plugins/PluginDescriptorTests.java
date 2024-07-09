@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -183,14 +184,14 @@ public class PluginDescriptorTests extends ESTestCase {
 
     public void testReadFromPropertiesModulenameFallback() throws Exception {
         PluginDescriptor info = mockInternalDescriptor("modulename", null);
-        assertThat(info.getModuleName().isPresent(), is(false));
+        assertThat(info.getModuleName(), isEmpty());
         assertThat(info.isModular(), is(false));
         assertThat(info.getExtendedPlugins(), empty());
     }
 
     public void testReadFromPropertiesModulenameEmpty() throws Exception {
         PluginDescriptor info = mockInternalDescriptor("modulename", " ");
-        assertThat(info.getModuleName().isPresent(), is(false));
+        assertThat(info.getModuleName(), isEmpty());
         assertThat(info.isModular(), is(false));
         assertThat(info.getExtendedPlugins(), empty());
     }
@@ -335,7 +336,7 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.getName(),
             randomValueOtherThan(descriptor1.getDescription(), () -> randomAlphaOfLengthBetween(4, 12)),
             randomValueOtherThan(descriptor1.getVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
-            descriptor1.getElasticsearchVersion().previousMajor().toString(),
+            "8.0.0",
             randomValueOtherThan(descriptor1.getJavaVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
             descriptor1.isStable() ? randomAlphaOfLengthBetween(4, 12) : null,
             descriptor1.isStable() ? randomAlphaOfLength(6) : null,
@@ -352,7 +353,7 @@ public class PluginDescriptorTests extends ESTestCase {
             randomValueOtherThan(descriptor1.getName(), () -> randomAlphaOfLengthBetween(4, 12)),
             descriptor1.getDescription(),
             descriptor1.getVersion(),
-            descriptor1.getElasticsearchVersion().toString(),
+            descriptor1.getElasticsearchVersion(),
             descriptor1.getJavaVersion(),
             classname,
             descriptor1.getModuleName().orElse(null),

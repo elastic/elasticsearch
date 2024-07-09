@@ -27,12 +27,14 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -46,11 +48,13 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -61,6 +65,12 @@ import java.util.function.ObjLongConsumer;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * Handler for cluster join commands. A master-eligible node running for election will
+ * send a {@link StartJoinRequest} to each voting node in the cluster. A node that becomes
+ * aware of a new term and master will send a {@link Join} request to the new master, to
+ * re-form the cluster around the new master node.
+ */
 public class JoinHelper {
 
     private static final Logger logger = LogManager.getLogger(JoinHelper.class);
@@ -78,6 +88,7 @@ public class JoinHelper {
     private final CircuitBreakerService circuitBreakerService;
     private final ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier;
     private final CompatibilityVersions compatibilityVersions;
+    private final Set<String> features;
 
     private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
@@ -97,12 +108,13 @@ public class JoinHelper {
         CircuitBreakerService circuitBreakerService,
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
         ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier,
-        CompatibilityVersions compatibilityVersions
+        CompatibilityVersions compatibilityVersions,
+        FeatureService featureService
     ) {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
             Priority.URGENT,
-            new NodeJoinExecutor(allocationService, rerouteService, maybeReconfigureAfterMasterElection)
+            new NodeJoinExecutor(allocationService, rerouteService, featureService, maybeReconfigureAfterMasterElection)
         );
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
@@ -112,6 +124,7 @@ public class JoinHelper {
         this.joinReasonService = joinReasonService;
         this.latestStoredStateSupplier = latestStoredStateSupplier;
         this.compatibilityVersions = compatibilityVersions;
+        this.features = featureService.getNodeFeatures().keySet();
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,
@@ -132,7 +145,7 @@ public class JoinHelper {
             false,
             StartJoinRequest::new,
             (request, channel, task) -> {
-                final DiscoveryNode destination = request.getSourceNode();
+                final DiscoveryNode destination = request.getMasterCandidateNode();
                 sendJoinRequest(destination, currentTermSupplier.getAsLong(), Optional.of(joinLeaderInTerm.apply(request)));
                 channel.sendResponse(Empty.INSTANCE);
             }
@@ -143,7 +156,7 @@ public class JoinHelper {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
-            TransportRequest.Empty::new,
+            JoinPingRequest::new,
             (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)
         );
     }
@@ -165,7 +178,7 @@ public class JoinHelper {
         }
 
         logger.debug("releasing [{}] connections on successful cluster state application", releasables.size());
-        releasables.forEach(Releasables::close);
+        Releasables.close(releasables);
     }
 
     private void registerConnection(DiscoveryNode destination, Releasable connectionReference) {
@@ -183,13 +196,23 @@ public class JoinHelper {
         Releasables.close(connectionReference);
     }
 
-    // package-private for testing
+    /**
+     * Saves information about a join failure. The failure information may be logged later via either {@link FailedJoinAttempt#logNow}
+     * or {@link FailedJoinAttempt#lastFailedJoinAttempt}.
+     *
+     * Package-private for testing.
+     */
     static class FailedJoinAttempt {
         private final DiscoveryNode destination;
         private final JoinRequest joinRequest;
         private final ElasticsearchException exception;
         private final long timestamp;
 
+        /**
+         * @param destination the master node targeted by the join request.
+         * @param joinRequest the join request that was sent to the perceived master node.
+         * @param exception the error response received in reply to the join request attempt.
+         */
         FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, ElasticsearchException exception) {
             this.destination = destination;
             this.joinRequest = joinRequest;
@@ -197,10 +220,18 @@ public class JoinHelper {
             this.timestamp = System.nanoTime();
         }
 
+        /**
+         * Logs the failed join attempt exception.
+         * {@link FailedJoinAttempt#getLogLevel(ElasticsearchException)} determines at what log-level the log is written.
+         */
         void logNow() {
             logger.log(getLogLevel(exception), () -> format("failed to join %s with %s", destination, joinRequest), exception);
         }
 
+        /**
+         * Returns the appropriate log level based on the given exception. Every error is at least DEBUG, but unexpected errors are INFO.
+         * For example, NotMasterException and CircuitBreakingExceptions are DEBUG logs.
+         */
         static Level getLogLevel(ElasticsearchException e) {
             Throwable cause = e.unwrapCause();
             if (cause instanceof CoordinationStateRejectedException
@@ -215,6 +246,10 @@ public class JoinHelper {
             logger.warn(
                 () -> format(
                     "last failed join attempt was %s ago, failed to join %s with %s",
+                    // 'timestamp' is when this error exception was received by the local node. If the time that has passed since the error
+                    // was originally received is quite large, it could indicate that this is a stale error exception from some prior
+                    // out-of-order request response (where a later sent request but earlier received response was successful); or
+                    // alternatively an old error could indicate that this node did not retry the join request for a very long time.
                     TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
                     destination,
                     joinRequest
@@ -224,6 +259,9 @@ public class JoinHelper {
         }
     }
 
+    /**
+     * Logs a warning message if {@link #lastFailedJoinAttempt} has been set with a failure.
+     */
     void logLastFailedJoinAttempt() {
         FailedJoinAttempt attempt = lastFailedJoinAttempt.get();
         if (attempt != null) {
@@ -236,10 +274,16 @@ public class JoinHelper {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
         final StatusInfo statusInfo = nodeHealthService.getHealth();
         if (statusInfo.getStatus() == UNHEALTHY) {
-            logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
+            logger.debug("dropping join request to [{}], unhealthy status: [{}]", destination, statusInfo.getInfo());
             return;
         }
-        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), compatibilityVersions, term, optionalJoin);
+        final JoinRequest joinRequest = new JoinRequest(
+            transportService.getLocalNode(),
+            compatibilityVersions,
+            features,
+            term,
+            optionalJoin
+        );
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         final var pendingJoinInfo = new PendingJoinInfo(transportService.getThreadPool().relativeTimeInMillis());
         if (pendingOutgoingJoins.putIfAbsent(dedupKey, pendingJoinInfo) == null) {
@@ -300,7 +344,7 @@ public class JoinHelper {
                                     TransportRequestOptions.of(null, TransportRequestOptions.Type.PING),
                                     new TransportResponseHandler.Empty() {
                                         @Override
-                                        public Executor executor(ThreadPool threadPool) {
+                                        public Executor executor() {
                                             return TransportResponseHandler.TRANSPORT_WORKER;
                                         }
 
@@ -358,11 +402,11 @@ public class JoinHelper {
     }
 
     void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
-        assert startJoinRequest.getSourceNode().isMasterNode()
-            : "sending start-join request for master-ineligible " + startJoinRequest.getSourceNode();
+        assert startJoinRequest.getMasterCandidateNode().isMasterNode()
+            : "sending start-join request for master-ineligible " + startJoinRequest.getMasterCandidateNode();
         transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler.Empty() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -405,7 +449,12 @@ public class JoinHelper {
     }
 
     interface JoinAccumulator {
-        void handleJoinRequest(DiscoveryNode sender, CompatibilityVersions compatibilityVersions, ActionListener<Void> joinListener);
+        void handleJoinRequest(
+            DiscoveryNode sender,
+            CompatibilityVersions compatibilityVersions,
+            Set<String> features,
+            ActionListener<Void> joinListener
+        );
 
         default void close(Mode newMode) {}
     }
@@ -415,11 +464,13 @@ public class JoinHelper {
         public void handleJoinRequest(
             DiscoveryNode sender,
             CompatibilityVersions compatibilityVersions,
+            Set<String> features,
             ActionListener<Void> joinListener
         ) {
             final JoinTask task = JoinTask.singleNode(
                 sender,
                 compatibilityVersions,
+                features,
                 joinReasonService.getJoinReason(sender, Mode.LEADER),
                 joinListener,
                 currentTermSupplier.getAsLong()
@@ -438,6 +489,7 @@ public class JoinHelper {
         public void handleJoinRequest(
             DiscoveryNode sender,
             CompatibilityVersions compatibilityVersions,
+            Set<String> features,
             ActionListener<Void> joinListener
         ) {
             assert false : "unexpected join from " + sender + " during initialisation";
@@ -455,6 +507,7 @@ public class JoinHelper {
         public void handleJoinRequest(
             DiscoveryNode sender,
             CompatibilityVersions compatibilityVersions,
+            Set<String> features,
             ActionListener<Void> joinListener
         ) {
             joinListener.onFailure(new CoordinationStateRejectedException("join target is a follower"));
@@ -468,19 +521,22 @@ public class JoinHelper {
 
     class CandidateJoinAccumulator implements JoinAccumulator {
 
-        private final Map<DiscoveryNode, Tuple<CompatibilityVersions, ActionListener<Void>>> joinRequestAccumulator = new HashMap<>();
+        private record JoinInformation(CompatibilityVersions compatibilityVersions, Set<String> features, ActionListener<Void> listener) {}
+
+        private final Map<DiscoveryNode, JoinInformation> joinRequestAccumulator = new HashMap<>();
         boolean closed;
 
         @Override
         public void handleJoinRequest(
             DiscoveryNode sender,
             CompatibilityVersions compatibilityVersions,
+            Set<String> features,
             ActionListener<Void> joinListener
         ) {
             assert closed == false : "CandidateJoinAccumulator closed";
-            var prev = joinRequestAccumulator.put(sender, Tuple.tuple(compatibilityVersions, joinListener));
+            var prev = joinRequestAccumulator.put(sender, new JoinInformation(compatibilityVersions, features, joinListener));
             if (prev != null) {
-                prev.v2().onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
+                prev.listener().onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
             }
         }
 
@@ -495,9 +551,10 @@ public class JoinHelper {
                     final var data = entry.getValue();
                     return new JoinTask.NodeJoinTask(
                         discoveryNode,
-                        data.v1(),
+                        data.compatibilityVersions(),
+                        data.features(),
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
-                        data.v2()
+                        data.listener()
                     );
                 }), joiningTerm);
                 latestStoredStateSupplier.accept(new ActionListener<>() {
@@ -516,13 +573,13 @@ public class JoinHelper {
                             Strings.format("failed to retrieve latest stored state after winning election in term [%d]", joiningTerm),
                             e
                         );
-                        joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.v2().onFailure(e));
+                        joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.listener().onFailure(e));
                     }
                 }, joiningTerm);
             } else {
                 assert newMode == Mode.FOLLOWER : newMode;
                 joinRequestAccumulator.values()
-                    .forEach(joinCallback -> joinCallback.v2().onFailure(new CoordinationStateRejectedException("became follower")));
+                    .forEach(joinCallback -> joinCallback.listener().onFailure(new CoordinationStateRejectedException("became follower")));
             }
 
             // CandidateJoinAccumulator is only closed when becoming leader or follower, otherwise it accumulates all joins received
@@ -551,4 +608,12 @@ public class JoinHelper {
     static final String PENDING_JOIN_WAITING_STATE = "waiting to receive cluster state";
     static final String PENDING_JOIN_CONNECT_FAILED = "failed to connect";
     static final String PENDING_JOIN_FAILED = "failed";
+
+    static class JoinPingRequest extends TransportRequest {
+        JoinPingRequest() {}
+
+        JoinPingRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
 }

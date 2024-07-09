@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
+
 /**
  * Holds the specification used to turn {@code do} actions in the YAML suite into REST api calls.
  */
@@ -69,7 +71,7 @@ public class ClientYamlSuiteRestSpec {
      * that they influence the client behaviour and don't get sent to Elasticsearch
      */
     public boolean isClientParameter(String name) {
-        return "ignore".equals(name);
+        return IGNORE_RESPONSE_CODES_PARAM.equals(name);
     }
 
     /**

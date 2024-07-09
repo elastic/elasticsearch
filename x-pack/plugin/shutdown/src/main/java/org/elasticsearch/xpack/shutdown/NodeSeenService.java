@@ -33,14 +33,13 @@ import static org.elasticsearch.core.Strings.format;
  *
  * Currently, this consists of keeping track of whether we've seen nodes which are marked for shutdown.
  */
-public class NodeSeenService implements ClusterStateListener {
+public final class NodeSeenService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(NodeSeenService.class);
 
     final ClusterService clusterService;
 
     private final MasterServiceTaskQueue<SetSeenNodesShutdownTask> setSeenTaskQueue;
 
-    @SuppressWarnings("this-escape")
     public NodeSeenService(ClusterService clusterService) {
         this.clusterService = clusterService;
         this.setSeenTaskQueue = clusterService.createTaskQueue(
@@ -102,6 +101,7 @@ public class NodeSeenService implements ClusterStateListener {
             var nodesNotPreviouslySeen = new HashSet<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 nodesNotPreviouslySeen.addAll(taskContext.getTask().nodesNotPreviouslySeen());
+                taskContext.success(() -> {});
             }
 
             var nodes = initialState.nodes();

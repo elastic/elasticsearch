@@ -9,8 +9,7 @@
 package org.elasticsearch.test.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -21,14 +20,14 @@ import org.junit.Assert;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.ESIntegTestCase.client;
+import static org.elasticsearch.test.ESIntegTestCase.prepareSearch;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SharedSignificantTermsTestMethods {
@@ -47,23 +46,25 @@ public class SharedSignificantTermsTestMethods {
     }
 
     private static void checkSignificantTermsAggregationCorrect(ESIntegTestCase testCase) {
-        SearchResponse response = client().prepareSearch(INDEX_NAME)
-            .addAggregation(terms("class").field(CLASS_FIELD).subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)))
-            .execute()
-            .actionGet();
-        assertSearchResponse(response);
-        StringTerms classes = response.getAggregations().get("class");
-        Assert.assertThat(classes.getBuckets().size(), equalTo(2));
-        for (Terms.Bucket classBucket : classes.getBuckets()) {
-            Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
-            Assert.assertTrue(aggs.containsKey("sig_terms"));
-            SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
-            Assert.assertThat(agg.getBuckets().size(), equalTo(1));
-            SignificantTerms.Bucket sigBucket = agg.iterator().next();
-            String term = sigBucket.getKeyAsString();
-            String classTerm = classBucket.getKeyAsString();
-            Assert.assertTrue(term.equals(classTerm));
-        }
+        assertNoFailuresAndResponse(
+            prepareSearch(INDEX_NAME).addAggregation(
+                terms("class").field(CLASS_FIELD).subAggregation(significantTerms("sig_terms").field(TEXT_FIELD))
+            ),
+            response -> {
+                StringTerms classes = response.getAggregations().get("class");
+                Assert.assertThat(classes.getBuckets().size(), equalTo(2));
+                for (Terms.Bucket classBucket : classes.getBuckets()) {
+                    InternalAggregations aggs = classBucket.getAggregations();
+                    Assert.assertNotNull(aggs.get("sig_terms"));
+                    SignificantTerms agg = aggs.get("sig_terms");
+                    Assert.assertThat(agg.getBuckets().size(), equalTo(1));
+                    SignificantTerms.Bucket sigBucket = agg.iterator().next();
+                    String term = sigBucket.getKeyAsString();
+                    String classTerm = classBucket.getKeyAsString();
+                    Assert.assertTrue(term.equals(classTerm));
+                }
+            }
+        );
     }
 
     public static void index01Docs(String type, String settings, ESIntegTestCase testCase) throws ExecutionException, InterruptedException {

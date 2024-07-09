@@ -7,12 +7,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 
-class BucketPriorityQueue<B extends InternalGeoGridBucket> extends PriorityQueue<B> {
+class BucketPriorityQueue<B extends InternalGeoGridBucket> extends ObjectArrayPriorityQueue<B> {
 
-    BucketPriorityQueue(int size) {
-        super(size);
+    BucketPriorityQueue(int size, BigArrays bigArrays) {
+        super(size, bigArrays);
     }
 
     @Override

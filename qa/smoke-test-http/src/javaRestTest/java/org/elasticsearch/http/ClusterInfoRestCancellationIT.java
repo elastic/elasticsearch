@@ -9,7 +9,7 @@
 package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -61,7 +61,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
         );
 
         assertFalse(future.isDone());
-        awaitTaskWithPrefix(NodesStatsAction.NAME);
+        awaitTaskWithPrefix(TransportNodesStatsAction.TYPE.name());
 
         logger.info("--> Checking that all the HttpTransport are waiting...");
         safeAwait(cyclicBarrier);
@@ -71,12 +71,12 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
 
         assertTrue(future.isDone());
         expectThrows(CancellationException.class, future::actionGet);
-        assertAllCancellableTasksAreCancelled(NodesStatsAction.NAME);
+        assertAllCancellableTasksAreCancelled(TransportNodesStatsAction.TYPE.name());
 
         logger.info("--> Releasing all the node requests :)");
         safeAwait(cyclicBarrier);
 
-        assertAllTasksHaveFinished(NodesStatsAction.NAME);
+        assertAllTasksHaveFinished(TransportNodesStatsAction.TYPE.name());
     }
 
     @Override

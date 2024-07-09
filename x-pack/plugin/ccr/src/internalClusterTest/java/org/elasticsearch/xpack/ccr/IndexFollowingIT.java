@@ -34,7 +34,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -109,7 +109,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -120,6 +119,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.containsString;
@@ -370,9 +370,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1").setId(Long.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
-        assertBusy(
-            () -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs))
-        );
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), firstBatchNumDocs));
         MappingMetadata mappingMetadata = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings().get("index2");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetadata.sourceAsMap()), equalTo("integer"));
         assertThat(XContentMapValues.extractValue("properties.k", mappingMetadata.sourceAsMap()), nullValue());
@@ -383,12 +381,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1").setId(Long.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
-        assertBusy(
-            () -> assertThat(
-                followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
-                equalTo(firstBatchNumDocs + secondBatchNumDocs)
-            )
-        );
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), firstBatchNumDocs + secondBatchNumDocs));
         mappingMetadata = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings().get("index2");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetadata.sourceAsMap()), equalTo("integer"));
         assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetadata.sourceAsMap()), equalTo("long"));
@@ -414,7 +407,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         leaderClient().prepareIndex("index1").setId("1").setSource("{\"f\":1}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(1L)));
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), 1));
         pauseFollow("index2");
 
         MappingMetadata mappingMetadata = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings().get("index2");
@@ -442,7 +435,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertThat(forbiddenException.status(), equalTo(RestStatus.FORBIDDEN));
         pauseFollow("index-2");
         followerClient().admin().indices().close(new CloseIndexRequest("index-2")).actionGet();
-        assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index-2")).actionGet());
+        assertAcked(
+            followerClient().execute(
+                UnfollowAction.INSTANCE,
+                new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index-2")
+            ).actionGet()
+        );
         followerClient().admin().indices().open(new OpenIndexRequest("index-2")).actionGet();
         assertAcked(followerClient().admin().indices().putMapping(putMappingRequest).actionGet());
     }
@@ -475,7 +473,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
         pauseFollow("follower");
         followerClient().admin().indices().close(new CloseIndexRequest("follower").masterNodeTimeout(TimeValue.MAX_VALUE)).actionGet();
-        assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("follower")).actionGet());
+        assertAcked(
+            followerClient().execute(
+                UnfollowAction.INSTANCE,
+                new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "follower")
+            ).actionGet()
+        );
         followerClient().admin().indices().open(new OpenIndexRequest("follower").masterNodeTimeout(TimeValue.MAX_VALUE)).actionGet();
         final IndicesAliasesRequest request = new IndicesAliasesRequest().masterNodeTimeout(TimeValue.MAX_VALUE)
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("follower").alias("follower_alias"));
@@ -596,7 +599,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     }
 
     public void testUnfollowNonExistingIndex() {
-        PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request("non-existing-index");
+        PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "non-existing-index");
         expectThrows(IndexNotFoundException.class, () -> followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).actionGet());
     }
 
@@ -609,7 +612,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 .prepareCreate("test-follower")
                 .setSource(indexSettings, XContentType.JSON)
                 .setMasterNodeTimeout(TimeValue.MAX_VALUE)
-                .get()
         );
         ensureLeaderGreen("test-leader");
         ensureFollowerGreen("test-follower");
@@ -713,7 +715,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         leaderClient().prepareIndex("index1").setId("1").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(1L)));
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), 1));
 
         leaderClient().admin().indices().close(new CloseIndexRequest("index1")).actionGet();
         assertBusy(() -> {
@@ -737,7 +739,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         leaderClient().admin().indices().open(new OpenIndexRequest("index1")).actionGet();
         leaderClient().prepareIndex("index1").setId("2").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(2L)));
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), 2));
 
         pauseFollow("index2");
     }
@@ -759,7 +761,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         leaderClient().prepareIndex("index1").setId("1").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(1L)));
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), 1));
 
         followerClient().admin().indices().close(new CloseIndexRequest("index2").masterNodeTimeout(TimeValue.MAX_VALUE)).actionGet();
         leaderClient().prepareIndex("index1").setId("2").setSource("{}", XContentType.JSON).get();
@@ -771,7 +773,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(response.getStatsResponses().get(0).status().failedWriteRequests(), greaterThanOrEqualTo(1L));
         });
         followerClient().admin().indices().open(new OpenIndexRequest("index2").masterNodeTimeout(TimeValue.MAX_VALUE)).actionGet();
-        assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(2L)));
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), 2));
 
         pauseFollow("index2");
     }
@@ -793,7 +795,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         leaderClient().prepareIndex("index1").setId("1").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(1L)));
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), 1));
 
         leaderClient().admin().indices().delete(new DeleteIndexRequest("index1")).actionGet();
         assertBusy(() -> {
@@ -874,7 +876,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         leaderClient().prepareIndex("index1").setId("1").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(1L)));
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), 1));
 
         followerClient().admin().indices().delete(new DeleteIndexRequest("index2").masterNodeTimeout(TimeValue.MAX_VALUE)).actionGet();
         leaderClient().prepareIndex("index1").setId("2").setSource("{}", XContentType.JSON).get();
@@ -907,25 +909,33 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         );
         followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
         assertAcked(followerClient().admin().indices().prepareCreate("regular-index").setMasterNodeTimeout(TimeValue.MAX_VALUE));
-        assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower")).actionGet());
+        assertAcked(
+            followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower"))
+                .actionGet()
+        );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower")).actionGet()
+                () -> followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower"))
+                    .actionGet()
             ).getMessage(),
             equalTo("no shard follow tasks for [follower]")
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("regular-index")).actionGet()
+                () -> followerClient().execute(
+                    PauseFollowAction.INSTANCE,
+                    new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "regular-index")
+                ).actionGet()
             ).getMessage(),
             equalTo("index [regular-index] is not a follower index")
         );
         assertThat(
             expectThrows(
                 IndexNotFoundException.class,
-                () -> followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("xyz")).actionGet()
+                () -> followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "xyz"))
+                    .actionGet()
             ).getMessage(),
             equalTo("no such index [xyz]")
         );
@@ -937,7 +947,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> { assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(1L)); });
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), 1));
 
         // Indexing directly into index2 would fail now, because index2 is a follow index.
         // We can't test this here because an assertion trips before an actual error is thrown and then index call hangs.
@@ -945,7 +955,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         // Turn follow index into a regular index by: pausing shard follow, close index, unfollow index and then open index:
         pauseFollow("index2");
         followerClient().admin().indices().close(new CloseIndexRequest("index2").masterNodeTimeout(TimeValue.MAX_VALUE)).actionGet();
-        assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index2")).actionGet());
+        assertAcked(
+            followerClient().execute(
+                UnfollowAction.INSTANCE,
+                new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index2")
+            ).actionGet()
+        );
         followerClient().admin().indices().open(new OpenIndexRequest("index2").masterNodeTimeout(TimeValue.MAX_VALUE)).actionGet();
         ensureFollowerGreen("index2");
 
@@ -954,7 +969,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             .setSource("{}", XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(2L));
+        assertHitCount(followerClient().prepareSearch("index2"), 2);
     }
 
     public void testUnknownClusterAlias() throws Exception {
@@ -968,7 +983,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet()
         );
         assertThat(e.getMessage(), equalTo("no such remote cluster: [another_cluster]"));
-        PutAutoFollowPatternAction.Request putAutoFollowRequest = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request putAutoFollowRequest = new PutAutoFollowPatternAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
         putAutoFollowRequest.setName("name");
         putAutoFollowRequest.setRemoteCluster("another_cluster");
         putAutoFollowRequest.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
@@ -1026,9 +1044,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         for (long i = 0; i < firstBatchNumDocs; i++) {
             leaderClient().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
-        assertBusy(
-            () -> assertThat(followerClient().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs))
-        );
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("follower"), firstBatchNumDocs));
 
         // Sanity check that the setting has not been set in follower index:
         {
@@ -1055,10 +1071,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(getFollowTaskSettingsVersion("follower"), equalTo(2L));
 
             try {
-                assertThat(
-                    followerClient().prepareSearch("follower").get().getHits().getTotalHits().value,
-                    equalTo(firstBatchNumDocs + secondBatchNumDocs)
-                );
+                assertHitCount(followerClient().prepareSearch("follower"), firstBatchNumDocs + secondBatchNumDocs);
             } catch (Exception e) {
                 throw new AssertionError("error while searching", e);
             }
@@ -1082,9 +1095,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         for (long i = 0; i < firstBatchNumDocs; i++) {
             leaderClient().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
-        assertBusy(
-            () -> assertThat(followerClient().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs))
-        );
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("follower"), firstBatchNumDocs));
 
         // Sanity check that the setting has not been set in follower index:
         {
@@ -1110,10 +1121,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(getFollowTaskSettingsVersion("follower"), equalTo(2L));
 
             try {
-                assertThat(
-                    followerClient().prepareSearch("follower").get().getHits().getTotalHits().value,
-                    equalTo(firstBatchNumDocs + secondBatchNumDocs)
-                );
+                assertHitCount(followerClient().prepareSearch("follower"), firstBatchNumDocs + secondBatchNumDocs);
             } catch (Exception e) {
                 throw new AssertionError("error while searching", e);
             }
@@ -1135,9 +1143,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
-        assertBusy(
-            () -> assertThat(followerClient().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs))
-        );
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("follower"), firstBatchNumDocs));
         assertThat(getFollowTaskSettingsVersion("follower"), equalTo(1L));
         assertThat(getFollowTaskMappingVersion("follower"), equalTo(1L));
 
@@ -1187,10 +1193,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             );
 
             try {
-                assertThat(
-                    followerClient().prepareSearch("follower").get().getHits().getTotalHits().value,
-                    equalTo(firstBatchNumDocs + secondBatchNumDocs)
-                );
+                assertHitCount(followerClient().prepareSearch("follower"), firstBatchNumDocs + secondBatchNumDocs);
             } catch (Exception e) {
                 throw new AssertionError("error while searching", e);
             }
@@ -1371,10 +1374,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             final IndexRoutingTable indexRoutingTable = leaderRoutingTable.index("index1");
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 final ShardId shardId = indexRoutingTable.shard(i).shardId();
-                leaderClient().execute(
-                    RetentionLeaseActions.Remove.INSTANCE,
-                    new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId)
-                ).get();
+                leaderClient().execute(RetentionLeaseActions.REMOVE, new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId))
+                    .get();
             }
         }, exceptions -> assertThat(exceptions.size(), greaterThan(0)));
     }
@@ -1472,7 +1473,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         followerClient().admin().indices().prepareClose("index2").setMasterNodeTimeout(TimeValue.MAX_VALUE).get();
         pauseFollow("index2");
         if (randomBoolean()) {
-            assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index2")).actionGet());
+            assertAcked(
+                followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index2")
+                ).actionGet()
+            );
         }
 
         final PutFollowAction.Request followRequest2 = putFollow("index1", "index2");
@@ -1576,7 +1582,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         leaderClient().prepareIndex("index1").setId("1").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(1L)));
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), 1));
 
         assertBusy(() -> {
             String action = ShardFollowTask.NAME + "[c]";
@@ -1754,14 +1760,14 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         return settings;
     }
 
-    private void putFollowerTemplate(String setting, String settingValue) throws InterruptedException, ExecutionException {
+    private void putFollowerTemplate(String setting, String settingValue) {
         Template template = new Template(Settings.builder().put(setting, settingValue).build(), null, null);
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(List.of("follower"), template, null, null, null, null);
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder().indexPatterns(List.of("follower")).template(template).build();
         assertAcked(
             followerClient().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)
-            ).get()
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)
+            )
         );
     }
 

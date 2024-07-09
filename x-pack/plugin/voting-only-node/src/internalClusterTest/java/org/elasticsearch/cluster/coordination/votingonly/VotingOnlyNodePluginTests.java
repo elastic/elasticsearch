@@ -18,6 +18,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
@@ -25,6 +26,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -152,7 +154,12 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         expectThrows(
             MasterNotDiscoveredException.class,
             () -> assertThat(
-                clusterAdmin().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().getMasterNodeId(),
+                clusterAdmin().prepareState()
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
+                    .getState()
+                    .nodes()
+                    .getMasterNodeId(),
                 nullValue()
             )
         );
@@ -179,7 +186,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         final String nonDedicatedVotingOnlyNode = internalCluster().startNode(dataContainingVotingOnlyNodeSettings);
 
         assertAcked(
-            clusterAdmin().preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo")
                 .setType("verifyaccess-fs")
                 .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
         );
@@ -188,7 +195,11 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         createIndex("test-idx-3");
         ensureGreen();
 
-        VerifyRepositoryResponse verifyResponse = clusterAdmin().prepareVerifyRepository("test-repo").get();
+        VerifyRepositoryResponse verifyResponse = clusterAdmin().prepareVerifyRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "test-repo"
+        ).get();
         // only the da
         assertEquals(3, verifyResponse.getNodes().size());
         assertTrue(verifyResponse.getNodes().stream().noneMatch(nw -> nw.getName().equals(dedicatedVotingOnlyNode)));
@@ -200,7 +211,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         Client client = client();
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
             .setWaitForCompletion(true)
             .setIndices(indicesToSnapshot)
             .get();
@@ -212,7 +223,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
         List<SnapshotInfo> snapshotInfos = client.admin()
             .cluster()
-            .prepareGetSnapshots("test-repo")
+            .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "test-repo")
             .setSnapshots(randomFrom("test-snap", "_all", "*", "*-snap", "test*"))
             .get()
             .getSnapshots();
@@ -227,10 +238,9 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         logger.info("--> restore all indices from the snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
             .cluster()
-            .prepareRestoreSnapshot("test-repo", "test-snap")
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
@@ -244,7 +254,8 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 "verifyaccess-fs",

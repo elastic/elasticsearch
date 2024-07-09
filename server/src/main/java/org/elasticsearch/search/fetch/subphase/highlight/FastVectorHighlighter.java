@@ -312,6 +312,6 @@ public class FastVectorHighlighter implements Highlighter {
 
     private static class HighlighterEntry {
         public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
-        public Map<MappedFieldType, FieldHighlightEntry> fields = new HashMap<>();
+        public final Map<MappedFieldType, FieldHighlightEntry> fields = new HashMap<>();
     }
 }

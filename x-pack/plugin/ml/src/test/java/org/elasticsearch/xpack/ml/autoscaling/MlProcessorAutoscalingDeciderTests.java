@@ -25,8 +25,8 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.junit.Before;
 
 import java.util.Map;
@@ -79,7 +79,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
                             .addNewAssignment(
@@ -96,7 +97,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                                     .addRoutingEntry(mlNodeId2, new RoutingInfo(8, 8, RoutingState.STARTED, ""))
@@ -153,7 +155,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 )
                             )
                             .addNewAssignment(
@@ -170,7 +173,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                                     .addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
@@ -227,7 +231,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.LOW,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 )
                             )
                             .addNewAssignment(
@@ -244,7 +249,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                                     .addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
@@ -301,7 +307,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
                             .addNewAssignment(
@@ -318,7 +325,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
                             .build()
@@ -386,7 +394,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
                             .addNewAssignment(
@@ -403,7 +412,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
                             .build()
@@ -459,7 +469,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
                             .addNewAssignment(
@@ -476,7 +487,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
                             .build()
@@ -536,7 +548,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.LOW,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
                             .addNewAssignment(
@@ -553,7 +566,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.LOW,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
                             .build()

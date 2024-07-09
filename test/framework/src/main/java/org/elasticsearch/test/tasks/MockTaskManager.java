@@ -39,6 +39,12 @@ public class MockTaskManager extends TaskManager {
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> SPY_TASK_MANAGER_SETTING = Setting.boolSetting(
+        "tests.spy.taskmanager.enabled",
+        false,
+        Property.NodeScope
+    );
+
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 
     public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
@@ -78,19 +84,23 @@ public class MockTaskManager extends TaskManager {
         return removedTask;
     }
 
-    @Override
-    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
-        for (MockTaskManagerListener listener : listeners) {
-            listener.subscribeForRemovedTasks(removedTaskListener);
-        }
-        super.registerRemovedTaskListener(removedTaskListener);
-    }
-
     public void addListener(MockTaskManagerListener listener) {
         listeners.add(listener);
     }
 
     public void removeListener(MockTaskManagerListener listener) {
         listeners.remove(listener);
+    }
+
+    @Override
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        super.registerRemovedTaskListener(removedTaskListener);
+        for (MockTaskManagerListener listener : listeners) {
+            try {
+                listener.onRemovedTaskListenerRegistered(removedTaskListener);
+            } catch (Exception e) {
+                logger.warn("failed to notify task manager listener about a registered removed task listener", e);
+            }
+        }
     }
 }

@@ -93,7 +93,7 @@ public final class TransportSearchHelper {
             if (in.available() > 0) {
                 throw new IllegalArgumentException("Not all bytes were read");
             }
-            return new ParsedScrollId(scrollId, type, context);
+            return new ParsedScrollId(type, context);
         } catch (Exception e) {
             throw new IllegalArgumentException("Cannot parse scroll id", e);
         }
@@ -139,7 +139,7 @@ public final class TransportSearchHelper {
                 "["
                     + writeableRequest.getClass()
                     + "] is not compatible with version "
-                    + TransportVersions.MINIMUM_CCS_VERSION
+                    + TransportVersions.MINIMUM_CCS_VERSION.toReleaseVersion()
                     + " and the '"
                     + SearchService.CCS_VERSION_CHECK_SETTING.getKey()
                     + "' setting is enabled.",

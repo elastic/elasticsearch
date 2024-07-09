@@ -9,12 +9,14 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -29,9 +31,9 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
  * {@link BootstrapInfo#SERVER_READY_MARKER} signals the server is ready and the cli may
  * detach if daemonizing. All other messages are passed through to stderr.
  */
-class ErrorPumpThread extends Thread {
+class ErrorPumpThread extends Thread implements Closeable {
     private final BufferedReader reader;
-    private final PrintWriter writer;
+    private final Terminal terminal;
 
     // a latch which changes state when the server is ready or has had a bootstrap error
     private final CountDownLatch readyOrDead = new CountDownLatch(1);
@@ -42,24 +44,36 @@ class ErrorPumpThread extends Thread {
     // an unexpected io failure that occurred while pumping stderr
     private volatile IOException ioFailure;
 
-    ErrorPumpThread(PrintWriter errOutput, InputStream errInput) {
+    ErrorPumpThread(Terminal terminal, InputStream errInput) {
         super("server-cli[stderr_pump]");
         this.reader = new BufferedReader(new InputStreamReader(errInput, StandardCharsets.UTF_8));
-        this.writer = errOutput;
+        this.terminal = terminal;
+    }
+
+    private void checkForIoFailure() throws IOException {
+        IOException failure = ioFailure;
+        ioFailure = null;
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        assert isAlive() == false : "Pump thread must be drained first";
+        checkForIoFailure();
     }
 
     /**
      * Waits until the server ready marker has been received.
      *
-     * @return a bootstrap exeption message if a bootstrap error occurred, or null otherwise
+     * {@code true} if successful, {@code false} if a startup error occurred
      * @throws IOException if there was a problem reading from stderr of the process
      */
-    String waitUntilReady() throws IOException {
+    boolean waitUntilReady() throws IOException {
         nonInterruptibleVoid(readyOrDead::await);
-        if (ioFailure != null) {
-            throw ioFailure;
-        }
-        return null;
+        checkForIoFailure();
+        return ready;
     }
 
     /**
@@ -81,13 +95,13 @@ class ErrorPumpThread extends Thread {
                     ready = true;
                     readyOrDead.countDown();
                 } else if (filter.contains(line) == false) {
-                    writer.println(line);
+                    terminal.errorPrintln(Verbosity.SILENT, line, false);
                 }
             }
         } catch (IOException e) {
             ioFailure = e;
         } finally {
-            writer.flush();
+            terminal.flush();
             readyOrDead.countDown();
         }
     }

@@ -614,7 +614,7 @@ public class ExecutionService {
     private GetResponse getWatch(String id) {
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             GetRequest getRequest = new GetRequest(Watch.INDEX, id).preference(Preference.LOCAL.type()).realtime(true);
-            PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<GetResponse> future = new PlainActionFuture<>();
             client.get(getRequest, future);
             return future.actionGet();
         }

@@ -20,7 +20,7 @@ import java.util.Objects;
  * Response for the sql action for translating SQL queries into ES requests
  */
 public class SqlTranslateResponse extends ActionResponse implements ToXContentObject {
-    private SearchSourceBuilder source;
+    private final SearchSourceBuilder source;
 
     public SqlTranslateResponse(StreamInput in) throws IOException {
         super(in);

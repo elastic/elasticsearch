@@ -151,7 +151,17 @@ public final class BlockUtils {
                     wrappers[j].append.accept(values.get(j));
                 }
             }
-            return Arrays.stream(wrappers).map(b -> b.builder.build()).toArray(Block[]::new);
+            final Block[] blocks = new Block[wrappers.length];
+            try {
+                for (int i = 0; i < blocks.length; i++) {
+                    blocks[i] = wrappers[i].builder.build();
+                }
+                return blocks;
+            } finally {
+                if (blocks[blocks.length - 1] == null) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+            }
         } finally {
             Releasables.closeExpectNoException(wrappers);
         }
@@ -161,6 +171,7 @@ public final class BlockUtils {
     public static Block deepCopyOf(Block block, BlockFactory blockFactory) {
         try (Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), blockFactory)) {
             builder.copyFrom(block, 0, block.getPositionCount());
+            builder.mvOrdering(block.mvOrdering());
             return builder.build();
         }
     }
@@ -197,6 +208,7 @@ public final class BlockUtils {
             case LONG -> ((LongBlock.Builder) builder).appendLong((Long) val);
             case INT -> ((IntBlock.Builder) builder).appendInt((Integer) val);
             case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(toBytesRef(val));
+            case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
@@ -205,7 +217,7 @@ public final class BlockUtils {
 
     public static Block constantBlock(BlockFactory blockFactory, Object val, int size) {
         if (val == null) {
-            return Block.constantNullBlock(size);
+            return blockFactory.newConstantNullBlock(size);
         }
         return constantBlock(blockFactory, fromJava(val.getClass()), val, size);
     }
@@ -213,12 +225,12 @@ public final class BlockUtils {
     // TODO: allow null values
     private static Block constantBlock(BlockFactory blockFactory, ElementType type, Object val, int size) {
         return switch (type) {
-            case NULL -> Block.constantNullBlock(size);
-            case LONG -> LongBlock.newConstantBlockWith((long) val, size, blockFactory);
-            case INT -> IntBlock.newConstantBlockWith((int) val, size, blockFactory);
-            case BYTES_REF -> BytesRefBlock.newConstantBlockWith(toBytesRef(val), size, blockFactory);
-            case DOUBLE -> DoubleBlock.newConstantBlockWith((double) val, size, blockFactory);
-            case BOOLEAN -> BooleanBlock.newConstantBlockWith((boolean) val, size, blockFactory);
+            case NULL -> blockFactory.newConstantNullBlock(size);
+            case LONG -> blockFactory.newConstantLongBlockWith((long) val, size);
+            case INT -> blockFactory.newConstantIntBlockWith((int) val, size);
+            case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(val), size);
+            case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
+            case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -254,6 +266,7 @@ public final class BlockUtils {
             case BOOLEAN -> ((BooleanBlock) block).getBoolean(offset);
             case BYTES_REF -> BytesRef.deepCopyOf(((BytesRefBlock) block).getBytesRef(offset, new BytesRef()));
             case DOUBLE -> ((DoubleBlock) block).getDouble(offset);
+            case FLOAT -> ((FloatBlock) block).getFloat(offset);
             case INT -> ((IntBlock) block).getInt(offset);
             case LONG -> ((LongBlock) block).getLong(offset);
             case NULL -> null;
@@ -261,6 +274,7 @@ public final class BlockUtils {
                 DocVector v = ((DocBlock) block).asVector();
                 yield new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset));
             }
+            case COMPOSITE -> throw new IllegalArgumentException("can't read values from composite blocks");
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }

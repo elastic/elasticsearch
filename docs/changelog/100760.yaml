@@ -1,5 +1,0 @@
-pr: 100760
-summary: Remove noisy 'Could not find trained model' message
-area: Machine Learning
-type: bug
-issues: []

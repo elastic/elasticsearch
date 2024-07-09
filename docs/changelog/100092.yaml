@@ -1,6 +1,0 @@
-pr: 100092
-summary: Compute SLM retention from `RepositoryData`
-area: ILM+SLM
-type: bug
-issues:
- - 99953

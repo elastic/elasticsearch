@@ -41,7 +41,7 @@ import java.util.TreeMap;
 /**
  * Same as {@link MatchQueryBuilder} but supports multiple fields.
  */
-public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
+public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
 
     public static final String NAME = "multi_match";
     private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "cutoff_freqency is not supported."
@@ -185,7 +185,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     /**
      * Constructs a new text query.
      */
-    @SuppressWarnings("this-escape")
     public MultiMatchQueryBuilder(Object value, String... fields) {
         if (value == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires query value");
@@ -203,7 +202,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     /**
      * Read from a stream.
      */
-    @SuppressWarnings("this-escape")
     public MultiMatchQueryBuilder(StreamInput in) throws IOException {
         super(in);
         value = in.readGenericValue();

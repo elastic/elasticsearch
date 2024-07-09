@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
@@ -32,6 +34,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.downsample.DownsampleConfig.generateDownsampleIndexName;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -39,6 +42,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * A {@link LifecycleAction} which calls {@link org.elasticsearch.action.downsample.DownsampleAction} on an index
  */
 public class DownsampleAction implements LifecycleAction {
+
+    private static final Logger logger = LogManager.getLogger(DownsampleAction.class);
 
     public static final String NAME = "downsample";
     public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
@@ -86,7 +91,7 @@ public class DownsampleAction implements LifecycleAction {
     public DownsampleAction(StreamInput in) throws IOException {
         this(
             new DateHistogramInterval(in),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_054)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)
                 ? TimeValue.parseTimeValue(in.readString(), WAIT_TIMEOUT_FIELD.getPreferredName())
                 : DEFAULT_WAIT_TIMEOUT
         );
@@ -95,7 +100,7 @@ public class DownsampleAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_054)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             out.writeString(waitTimeout.getStringRep());
         } else {
             out.writeString(DEFAULT_WAIT_TIMEOUT.getStringRep());
@@ -155,7 +160,30 @@ public class DownsampleAction implements LifecycleAction {
             (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 assert indexMetadata != null : "invalid cluster metadata. index [" + index.getName() + "] metadata not found";
-                return IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.TIME_SERIES;
+                if (IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+                    return false;
+                }
+
+                if (index.getName().equals(generateDownsampleIndexName(DOWNSAMPLED_INDEX_PREFIX, indexMetadata, fixedInterval))) {
+                    var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
+                    if (downsampleStatus == IndexMetadata.DownsampleTaskStatus.UNKNOWN) {
+                        // This isn't a downsample index, but it has the name of our target downsample index - very bad, we'll skip the
+                        // downsample action to avoid blocking the lifecycle of this index - if there
+                        // is another downsample action configured in the next phase, it'll be able to proceed successfully
+                        logger.warn(
+                            "index [{}] as part of policy [{}] cannot be downsampled at interval [{}] in phase [{}] because it has"
+                                + " the name of the target downsample index and is itself not a downsampled index. Skipping the downsample "
+                                + "action.",
+                            index.getName(),
+                            indexMetadata.getLifecyclePolicyName(),
+                            fixedInterval,
+                            phase
+                        );
+                    }
+                    return false;
+                }
+
+                return true;
             }
         );
 

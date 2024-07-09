@@ -7,15 +7,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalOrder;
-import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -31,7 +28,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     public static final ParseField DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = new ParseField("doc_count_error_upper_bound");
     public static final ParseField SUM_OF_OTHER_DOC_COUNTS = new ParseField("sum_other_doc_count");
 
-    public abstract static class Bucket<B extends Bucket<B>> extends AbstractTermsBucket implements Terms.Bucket, KeyComparable<B> {
+    public abstract static class Bucket<B extends Bucket<B>> extends AbstractTermsBucket<B> implements Terms.Bucket {
         /**
          * Reads a bucket. Should be a constructor reference.
          */
@@ -93,6 +90,18 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             return docCount;
         }
 
+        public void setDocCount(long docCount) {
+            this.docCount = docCount;
+        }
+
+        public long getBucketOrd() {
+            return bucketOrd;
+        }
+
+        public void setBucketOrd(long bucketOrd) {
+            this.bucketOrd = bucketOrd;
+        }
+
         @Override
         public long getDocCountError() {
             if (showDocCountError == false) {
@@ -102,7 +111,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
 
         @Override
-        protected void setDocCountError(long docCountError) {
+        public void setDocCountError(long docCountError) {
             this.docCountError = docCountError;
         }
 
@@ -117,8 +126,12 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
+        }
+
+        public void setAggregations(InternalAggregations aggregations) {
+            this.aggregations = aggregations;
         }
 
         @Override
@@ -197,20 +210,14 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected InternalTerms(StreamInput in) throws IOException {
         super(in);
         reduceOrder = InternalOrder.Streams.readOrder(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            order = InternalOrder.Streams.readOrder(in);
-        } else {
-            order = reduceOrder;
-        }
+        order = InternalOrder.Streams.readOrder(in);
         requiredSize = readSize(in);
         minDocCount = in.readVLong();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            reduceOrder.writeTo(out);
-        }
+        reduceOrder.writeTo(out);
         order.writeTo(out);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);

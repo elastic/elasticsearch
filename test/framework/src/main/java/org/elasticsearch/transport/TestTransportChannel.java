@@ -32,9 +32,4 @@ public class TestTransportChannel implements TransportChannel {
     public void sendResponse(Exception exception) {
         listener.onFailure(exception);
     }
-
-    @Override
-    public String getChannelType() {
-        return "test";
-    }
 }

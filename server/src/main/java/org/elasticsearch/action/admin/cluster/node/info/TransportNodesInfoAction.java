@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -26,7 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.TransportVersions.NODE_INFO_REQUEST_SIMPLIFIED;
+import static org.elasticsearch.TransportVersions.V_8_11_X;
 
 public class TransportNodesInfoAction extends TransportNodesAction<
     NodesInfoRequest,
@@ -34,6 +35,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
     TransportNodesInfoAction.NodeInfoRequest,
     NodeInfo> {
 
+    public static final ActionType<NodesInfoResponse> TYPE = new ActionType<>("cluster:monitor/nodes/info");
     private final NodeService nodeService;
 
     @Inject
@@ -45,7 +47,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         ActionFilters actionFilters
     ) {
         super(
-            NodesInfoAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
@@ -99,11 +101,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<
 
         public NodeInfoRequest(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(NODE_INFO_REQUEST_SIMPLIFIED)) {
-                this.nodesInfoMetrics = new NodesInfoMetrics(in);
-            } else {
-                this.nodesInfoMetrics = new NodesInfoRequest(in).getNodesInfoMetrics();
-            }
+            skipLegacyNodesRequestHeader(V_8_11_X, in);
+            this.nodesInfoMetrics = new NodesInfoMetrics(in);
         }
 
         public NodeInfoRequest(NodesInfoRequest request) {
@@ -113,11 +112,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(NODE_INFO_REQUEST_SIMPLIFIED)) {
-                this.nodesInfoMetrics.writeTo(out);
-            } else {
-                new NodesInfoRequest().clear().addMetrics(nodesInfoMetrics.requestedMetrics()).writeTo(out);
-            }
+            sendLegacyNodesRequestHeader(V_8_11_X, out);
+            nodesInfoMetrics.writeTo(out);
         }
 
         public Set<String> requestedMetrics() {

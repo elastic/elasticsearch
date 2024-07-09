@@ -9,16 +9,15 @@
 package org.elasticsearch.index.fieldstats;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -29,7 +28,6 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
             indicesAdmin().prepareCreate("index")
                 .setMapping("s", "type=text")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .get()
         );
 
         // Index some documents
@@ -43,23 +41,23 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
 
         // Search for a range and check that it missed the cache (since its the
         // first time it has run)
-        final SearchResponse r1 = client().prepareSearch("index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setSize(0)
-            .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
-            .get();
-        assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits().value, equalTo(3L));
+        assertNoFailuresAndResponse(
+            client().prepareSearch("index")
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSize(0)
+                .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")),
+            r1 -> assertThat(r1.getHits().getTotalHits().value, equalTo(3L))
+        );
         assertRequestCacheStats(0, 1);
 
         // Search again and check it hits the cache
-        final SearchResponse r2 = client().prepareSearch("index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setSize(0)
-            .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
-            .get();
-        assertSearchResponse(r2);
-        assertThat(r2.getHits().getTotalHits().value, equalTo(3L));
+        assertNoFailuresAndResponse(
+            client().prepareSearch("index")
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSize(0)
+                .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")),
+            r2 -> assertThat(r2.getHits().getTotalHits().value, equalTo(3L))
+        );
         assertRequestCacheStats(1, 1);
 
         // Index some more documents in the query range and refresh
@@ -68,13 +66,13 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
         refreshIndex();
 
         // Search again and check the request cache for another miss since request cache should be invalidated by refresh
-        final SearchResponse r3 = client().prepareSearch("index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setSize(0)
-            .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
-            .get();
-        assertSearchResponse(r3);
-        assertThat(r3.getHits().getTotalHits().value, equalTo(5L));
+        assertNoFailuresAndResponse(
+            client().prepareSearch("index")
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSize(0)
+                .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")),
+            r3 -> assertThat(r3.getHits().getTotalHits().value, equalTo(5L))
+        );
         assertRequestCacheStats(1, 2);
     }
 
@@ -90,12 +88,12 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
     }
 
     private void refreshIndex() {
-        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("index").get();
+        BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh("index").get();
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(refreshResponse.getSuccessfulShards()));
     }
 
     private void indexDocument(String id, String sValue) {
-        DocWriteResponse response = client().prepareIndex("index").setId(id).setSource("s", sValue).get();
+        DocWriteResponse response = prepareIndex("index").setId(id).setSource("s", sValue).get();
         assertThat(response.status(), anyOf(equalTo(RestStatus.OK), equalTo(RestStatus.CREATED)));
     }
 }

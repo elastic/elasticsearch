@@ -9,7 +9,6 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -19,8 +18,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 
 @ClusterScope(scope = SUITE)
 public class StressSearchServiceReaperIT extends ESIntegTestCase {
@@ -39,15 +37,13 @@ public class StressSearchServiceReaperIT extends ESIntegTestCase {
         int num = randomIntBetween(100, 150);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[num];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setId("" + i).setSource("f", English.intToEnglish(i));
+            builders[i] = prepareIndex("test").setId("" + i).setSource("f", English.intToEnglish(i));
         }
         createIndex("test");
         indexRandom(true, builders);
         final int iterations = scaledRandomIntBetween(500, 1000);
         for (int i = 0; i < iterations; i++) {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).setSize(num).get();
-            assertNoFailures(searchResponse);
-            assertHitCount(searchResponse, num);
+            assertHitCountAndNoFailures(prepareSearch("test").setQuery(matchAllQuery()).setSize(num), num);
         }
     }
 }

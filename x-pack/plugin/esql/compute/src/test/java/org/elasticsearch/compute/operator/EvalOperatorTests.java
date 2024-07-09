@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -16,6 +14,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.core.Tuple;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Set;
@@ -34,14 +33,14 @@ public class EvalOperatorTests extends OperatorTestCase {
 
     record Addition(DriverContext driverContext, int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block.Ref eval(Page page) {
+        public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
-            try (LongVector.FixedBuilder result = LongVector.newVectorFixedBuilder(page.getPositionCount(), driverContext.blockFactory())) {
+            try (LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(page.getPositionCount())) {
                 for (int p = 0; p < page.getPositionCount(); p++) {
                     result.appendLong(lhsVector.getLong(p) + rhsVector.getLong(p));
                 }
-                return Block.Ref.floating(result.build().asBlock());
+                return result.build().asBlock();
             }
         }
 
@@ -56,8 +55,10 @@ public class EvalOperatorTests extends OperatorTestCase {
 
     record LoadFromPage(int channel) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block.Ref eval(Page page) {
-            return new Block.Ref(page.getBlock(channel), page);
+        public Block eval(Page page) {
+            Block block = page.getBlock(channel);
+            block.incRef();
+            return block;
         }
 
         @Override
@@ -65,17 +66,27 @@ public class EvalOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return new EvalOperator.EvalOperatorFactory(dvrCtx -> new Addition(dvrCtx, 0, 1));
+    protected Operator.OperatorFactory simple() {
+        return new EvalOperator.EvalOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
+            @Override
+            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+                return new Addition(context, 0, 1);
+            }
+
+            @Override
+            public String toString() {
+                return "Addition[lhs=0, rhs=1]";
+            }
+        });
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "EvalOperator[evaluator=Addition[lhs=0, rhs=1]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("EvalOperator[evaluator=Addition[lhs=0, rhs=1]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 
@@ -102,15 +113,5 @@ public class EvalOperatorTests extends OperatorTestCase {
         assertThat(found, equalTo(LongStream.range(0, 10).mapToObj(Long::valueOf).collect(Collectors.toSet())));
         results.forEach(Page::releaseBlocks);
         assertThat(context.breaker().getUsed(), equalTo(0L));
-    }
-
-    @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(between(1, 8000));
-    }
-
-    @Override
-    protected DriverContext driverContext() { // TODO remove this when the parent uses a breaking block factory
-        return breakingDriverContext();
     }
 }

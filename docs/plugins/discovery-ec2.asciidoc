@@ -97,6 +97,11 @@ The available settings for the EC2 discovery plugin are as follows.
     this setting determines the port to use to connect to the proxy. Defaults to
     `80`.
 
+`discovery.ec2.proxy.scheme`::
+
+    The scheme to use when connecting to the EC2 service endpoint through proxy specified
+    in `discovery.ec2.proxy.host`. Valid values are `http` or `https`. Defaults to `http`.
+
 `discovery.ec2.proxy.username` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     When the address of an HTTP proxy is given in `discovery.ec2.proxy.host`,

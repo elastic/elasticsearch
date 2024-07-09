@@ -12,6 +12,7 @@ import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
@@ -23,19 +24,22 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     public abstract static class Builder {
 
-        protected final String name;
+        private String leafName;
 
-        protected Builder(String name) {
-            this.name = internFieldName(name);
+        protected Builder(String leafName) {
+            setLeafName(leafName);
         }
 
-        // TODO rename this to leafName?
-        public String name() {
-            return this.name;
+        public final String leafName() {
+            return this.leafName;
         }
 
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
+
+        void setLeafName(String leafName) {
+            this.leafName = internFieldName(leafName);
+        }
     }
 
     public interface TypeParser {
@@ -45,36 +49,39 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
          * Whether we can parse this type on indices with the given index created version.
          */
         default boolean supportsVersion(IndexVersion indexCreatedVersion) {
-            return indexCreatedVersion.onOrAfter(IndexVersion.MINIMUM_COMPATIBLE);
+            return indexCreatedVersion.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE);
         }
     }
 
-    private final String simpleName;
+    private final String leafName;
 
-    public Mapper(String simpleName) {
-        Objects.requireNonNull(simpleName);
-        this.simpleName = internFieldName(simpleName);
+    public Mapper(String leafName) {
+        Objects.requireNonNull(leafName);
+        this.leafName = internFieldName(leafName);
     }
 
-    /** Returns the simple name, which identifies this mapper against other mappers at the same level in the mappers hierarchy
-     * TODO: make this protected once Mapper and FieldMapper are merged together */
-    // TODO rename this to leafName?
-    public final String simpleName() {
-        return simpleName;
+    /**
+     * Returns the name of the field.
+     * When the field has a parent object, its leaf name won't include the entire path.
+     * When subobjects are disabled, its leaf name will be the same as {@link #fullPath()} in practice, because its parent is the root.
+     */
+    public final String leafName() {
+        return leafName;
     }
 
     /** Returns the canonical name which uniquely identifies the mapper against other mappers in a type. */
-    // TODO rename this to fullPath???
-    public abstract String name();
+    public abstract String fullPath();
 
     /**
      * Returns a name representing the type of this mapper.
      */
     public abstract String typeName();
 
-    /** Return the merge of {@code mergeWith} into this.
-     *  Both {@code this} and {@code mergeWith} will be left unmodified. */
-    public abstract Mapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext);
+    /**
+     * Return the merge of {@code mergeWith} into this.
+     * Both {@code this} and {@code mergeWith} will be left unmodified.
+     */
+    public abstract Mapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext);
 
     /**
      * Validate any cross-field references made by this mapper
@@ -91,7 +98,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      *         fields properly.
      */
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        throw new IllegalArgumentException("field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source");
+        throw new IllegalArgumentException("field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source");
     }
 
     @Override
@@ -132,4 +139,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
         return fieldTypeDeduplicator.computeIfAbsent(fieldType, Function.identity());
     }
+
+    /**
+     * The total number of fields as defined in the mapping.
+     * Defines how this mapper counts towards {@link MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING}.
+     */
+    public abstract int getTotalFieldsCount();
 }

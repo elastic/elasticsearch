@@ -90,3 +90,10 @@ accepts the following parameters:
             to the mapping, and new fields must be added explicitly.
 `strict`::  If new fields are detected, an exception is thrown and the document
             is rejected. New fields must be explicitly added to the mapping.
+
+[[dynamic-field-limit]]
+==== Behavior when reaching the field limit
+Setting `dynamic` to either `true` or `runtime` will only add dynamic fields until <<mapping-settings-limit,`index.mapping.total_fields.limit`>> is reached.
+By default, index requests for documents that would exceed the field limit will fail,
+unless <<mapping-settings-limit,`index.mapping.total_fields.ignore_dynamic_beyond_limit`>> is set to `true`.
+In that case, ignored fields are added to the <<mapping-ignored-field, `_ignored` metadata field>>.

@@ -14,9 +14,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -46,7 +46,6 @@ public class NodeClient extends AbstractClient {
     private Supplier<String> localNodeId;
     private Transport.Connection localConnection;
     private RemoteClusterService remoteClusterService;
-    private NamedWriteableRegistry namedWriteableRegistry;
 
     public NodeClient(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
@@ -57,15 +56,13 @@ public class NodeClient extends AbstractClient {
         TaskManager taskManager,
         Supplier<String> localNodeId,
         Transport.Connection localConnection,
-        RemoteClusterService remoteClusterService,
-        NamedWriteableRegistry namedWriteableRegistry
+        RemoteClusterService remoteClusterService
     ) {
         this.actions = actions;
         this.taskManager = taskManager;
         this.localNodeId = localNodeId;
         this.localConnection = localConnection;
         this.remoteClusterService = remoteClusterService;
-        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     /**
@@ -73,11 +70,6 @@ public class NodeClient extends AbstractClient {
      */
     public List<String> getActionNames() {
         return actions.keySet().stream().map(ActionType::name).toList();
-    }
-
-    @Override
-    public void close() {
-        // nothing really to do
     }
 
     @Override
@@ -115,7 +107,7 @@ public class NodeClient extends AbstractClient {
             transportAction(action),
             request,
             localConnection,
-            new SafelyWrappedActionListener<>(listener)
+            ActionListener.assertOnce(listener)
         );
     }
 
@@ -145,35 +137,11 @@ public class NodeClient extends AbstractClient {
     }
 
     @Override
-    public Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
-        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias, responseExecutor, true);
-    }
-
-    public NamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
-    }
-
-    private record SafelyWrappedActionListener<Response>(ActionListener<Response> listener) implements ActionListener<Response> {
-
-        @Override
-        public void onResponse(Response response) {
-            try {
-                listener.onResponse(response);
-            } catch (Exception e) {
-                assert false : new AssertionError("callback must handle its own exceptions", e);
-                throw e;
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            try {
-                listener.onFailure(e);
-            } catch (Exception ex) {
-                ex.addSuppressed(e);
-                assert false : new AssertionError("callback must handle its own exceptions", ex);
-                throw ex;
-            }
-        }
+    public RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+    ) {
+        return remoteClusterService.getRemoteClusterClient(clusterAlias, responseExecutor, disconnectedStrategy);
     }
 }

@@ -1,5 +1,0 @@
-pr: 99219
-summary: Reduce copying when creating scroll/PIT ids
-area: Search
-type: enhancement
-issues: []

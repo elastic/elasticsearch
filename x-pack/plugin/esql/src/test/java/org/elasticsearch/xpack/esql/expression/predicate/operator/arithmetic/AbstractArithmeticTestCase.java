@@ -7,20 +7,21 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.AbstractBinaryOperatorTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorTestCase {
     protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
@@ -30,7 +31,7 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
             return equalTo(expectedValue(lhs.doubleValue(), rhs.doubleValue()));
         }
         if (lhs instanceof Long || rhs instanceof Long) {
-            if (dataType == DataTypes.UNSIGNED_LONG) {
+            if (dataType == DataType.UNSIGNED_LONG) {
                 return equalTo(expectedUnsignedLongValue(lhs.longValue(), rhs.longValue()));
             }
             return equalTo(expectedValue(lhs.longValue(), rhs.longValue()));
@@ -45,16 +46,16 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
     protected Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         Number lhs = (Number) typedData.get(0).data();
         Number rhs = (Number) typedData.get(1).data();
-        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.DOUBLE))) {
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataType.DOUBLE))) {
             return equalTo(expectedValue(lhs.doubleValue(), rhs.doubleValue()));
         }
-        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.UNSIGNED_LONG))) {
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataType.UNSIGNED_LONG))) {
             return equalTo(expectedUnsignedLongValue(lhs.longValue(), rhs.longValue()));
         }
-        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.LONG))) {
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataType.LONG))) {
             return equalTo(expectedValue(lhs.longValue(), rhs.longValue()));
         }
-        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.INTEGER))) {
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataType.INTEGER))) {
             return equalTo(expectedValue(lhs.intValue(), rhs.intValue()));
         }
         throw new UnsupportedOperationException();
@@ -75,7 +76,7 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
 
     @Override
     protected void validateType(BinaryOperator<?, ?, ?, ?> op, DataType lhsType, DataType rhsType) {
-        if (DataTypes.isNullOrNumeric(lhsType) && DataTypes.isNullOrNumeric(rhsType)) {
+        if (DataType.isNullOrNumeric(lhsType) && DataType.isNullOrNumeric(rhsType)) {
             assertTrue(op.toString(), op.typeResolved().resolved());
             assertThat(op.toString(), op.dataType(), equalTo(expectedType(lhsType, rhsType)));
             return;
@@ -100,23 +101,46 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
     }
 
     protected DataType expectedType(DataType lhsType, DataType rhsType) {
-        if (lhsType == DataTypes.DOUBLE || rhsType == DataTypes.DOUBLE) {
-            return DataTypes.DOUBLE;
+        if (lhsType == DataType.DOUBLE || rhsType == DataType.DOUBLE) {
+            return DataType.DOUBLE;
         }
-        if (lhsType == DataTypes.UNSIGNED_LONG || rhsType == DataTypes.UNSIGNED_LONG) {
-            assertThat(lhsType, is(DataTypes.UNSIGNED_LONG));
-            assertThat(rhsType, is(DataTypes.UNSIGNED_LONG));
-            return DataTypes.UNSIGNED_LONG;
+        if (lhsType == DataType.UNSIGNED_LONG || rhsType == DataType.UNSIGNED_LONG) {
+            assertThat(lhsType, is(DataType.UNSIGNED_LONG));
+            assertThat(rhsType, is(DataType.UNSIGNED_LONG));
+            return DataType.UNSIGNED_LONG;
         }
-        if (lhsType == DataTypes.LONG || rhsType == DataTypes.LONG) {
-            return DataTypes.LONG;
+        if (lhsType == DataType.LONG || rhsType == DataType.LONG) {
+            return DataType.LONG;
         }
-        if (lhsType == DataTypes.INTEGER || rhsType == DataTypes.INTEGER) {
-            return DataTypes.INTEGER;
+        if (lhsType == DataType.INTEGER || rhsType == DataType.INTEGER) {
+            return DataType.INTEGER;
         }
-        if (lhsType == DataTypes.NULL || rhsType == DataTypes.NULL) {
-            return DataTypes.NULL;
+        if (lhsType == DataType.NULL || rhsType == DataType.NULL) {
+            return DataType.NULL;
         }
         throw new UnsupportedOperationException();
+    }
+
+    static TestCaseSupplier arithmeticExceptionOverflowCase(
+        DataType dataType,
+        Supplier<Object> lhsSupplier,
+        Supplier<Object> rhsSupplier,
+        String evaluator
+    ) {
+        String typeNameOverflow = dataType.typeName().toLowerCase(Locale.ROOT) + " overflow";
+        return new TestCaseSupplier(
+            "<" + typeNameOverflow + ">",
+            List.of(dataType),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhsSupplier.get(), dataType, "lhs"),
+                    new TestCaseSupplier.TypedData(rhsSupplier.get(), dataType, "rhs")
+                ),
+                evaluator + "[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                dataType,
+                is(nullValue())
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line -1:-1: java.lang.ArithmeticException: " + typeNameOverflow)
+        );
     }
 }

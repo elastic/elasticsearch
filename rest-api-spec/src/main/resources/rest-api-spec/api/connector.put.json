@@ -1,0 +1,44 @@
+{
+  "connector.put": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/create-connector-api.html",
+      "description": "Creates or updates a connector."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/{connector_id}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "connector_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector to be created or updated."
+            }
+          }
+        },
+        {
+          "path": "/_connector",
+          "methods": [
+            "PUT"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The connector configuration.",
+      "required": false
+    }
+  }
+}

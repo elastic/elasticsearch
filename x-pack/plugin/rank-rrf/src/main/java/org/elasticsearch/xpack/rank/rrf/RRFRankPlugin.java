@@ -11,14 +11,16 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.util.List;
 
-public class RRFRankPlugin extends Plugin {
+public class RRFRankPlugin extends Plugin implements SearchPlugin {
 
     public static final LicensedFeature.Momentary RANK_RRF_FEATURE = LicensedFeature.momentary(
         null,
@@ -32,12 +34,18 @@ public class RRFRankPlugin extends Plugin {
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(RankBuilder.class, NAME, RRFRankBuilder::new),
-            new NamedWriteableRegistry.Entry(RankShardResult.class, NAME, RRFRankShardResult::new)
+            new NamedWriteableRegistry.Entry(RankShardResult.class, NAME, RRFRankShardResult::new),
+            new NamedWriteableRegistry.Entry(RankDoc.class, RRFRankDoc.NAME, RRFRankDoc::new)
         );
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(NAME), RRFRankBuilder::fromXContent));
+    }
+
+    @Override
+    public List<RetrieverSpec<?>> getRetrievers() {
+        return List.of(new RetrieverSpec<>(new ParseField(NAME), RRFRetrieverBuilder::fromXContent));
     }
 }

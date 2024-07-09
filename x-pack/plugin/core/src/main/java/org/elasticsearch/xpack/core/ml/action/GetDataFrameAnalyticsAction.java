@@ -24,19 +24,17 @@ public class GetDataFrameAnalyticsAction extends ActionType<GetDataFrameAnalytic
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/analytics/get";
 
     private GetDataFrameAnalyticsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
-        @SuppressWarnings("this-escape")
         public Request() {
             setAllowNoResources(true);
         }
 
-        @SuppressWarnings("this-escape")
         public Request(String id) {
             setResourceId(id);
             setAllowNoResources(true);

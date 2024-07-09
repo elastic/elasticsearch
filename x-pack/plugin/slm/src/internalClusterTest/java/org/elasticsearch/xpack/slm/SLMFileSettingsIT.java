@@ -150,10 +150,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void assertMasterNode(Client client, String node) {
-        assertThat(
-            client.admin().cluster().prepareState().execute().actionGet().getState().nodes().getMasterNode().getName(),
-            equalTo(node)
-        );
+        assertThat(client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(), equalTo(node));
     }
 
     private void writeJSONFile(String node, String json) throws Exception {
@@ -250,7 +247,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         }
 
         logger.info("--> create snapshot manually");
-        var request = new CreateSnapshotRequest("repo", "file-snap").waitForCompletion(true);
+        var request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "file-snap").waitForCompletion(true);
         var response = clusterAdmin().createSnapshot(request).get();
         RestStatus status = response.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
@@ -262,7 +259,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             GetSnapshotLifecycleAction.Response getResp = client().execute(
                 GetSnapshotLifecycleAction.INSTANCE,
-                new GetSnapshotLifecycleAction.Request(policyName)
+                new GetSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policyName)
             ).get();
             logger.info("--> checking for snapshot complete...");
 
@@ -276,7 +273,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         // Cancel/delete the snapshot
         try {
-            clusterAdmin().prepareDeleteSnapshot(REPO, snapshotName).get();
+            clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, REPO, snapshotName).get();
         } catch (SnapshotMissingException e) {
             // ignore
         }
@@ -360,7 +357,11 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private String executePolicy(String policyId) {
-        ExecuteSnapshotLifecycleAction.Request executeReq = new ExecuteSnapshotLifecycleAction.Request(policyId);
+        ExecuteSnapshotLifecycleAction.Request executeReq = new ExecuteSnapshotLifecycleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            policyId
+        );
         ExecuteSnapshotLifecycleAction.Response resp = null;
         try {
             resp = client().execute(ExecuteSnapshotLifecycleAction.INSTANCE, executeReq).get();
@@ -395,7 +396,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
             var policy = SnapshotLifecyclePolicy.parse(parser, name);
-            return new PutSnapshotLifecycleAction.Request(name, policy);
+            return new PutSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name, policy);
         }
     }
 }

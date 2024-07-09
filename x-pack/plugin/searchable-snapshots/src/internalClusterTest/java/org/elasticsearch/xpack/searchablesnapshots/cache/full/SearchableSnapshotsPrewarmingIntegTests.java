@@ -41,6 +41,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -137,7 +138,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             if (nbDocs > 0) {
                 final BulkRequestBuilder bulkRequest = client().prepareBulk();
                 for (int i = 0; i < nbDocs; i++) {
-                    bulkRequest.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+                    bulkRequest.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
                 }
                 final BulkResponse bulkResponse = bulkRequest.get();
                 assertThat(bulkResponse.hasFailures(), is(false));
@@ -152,14 +153,18 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         }
 
         logger.debug("--> registering repository");
-        assertAcked(clusterAdmin().preparePutRepository("repository").setType(FsRepository.TYPE).setSettings(repositorySettings.build()));
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repository")
+                .setType(FsRepository.TYPE)
+                .setSettings(repositorySettings.build())
+        );
 
         logger.debug("--> snapshotting indices");
-        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("repository", "snapshot")
-            .setIncludeGlobalState(false)
-            .setIndices("index-*")
-            .setWaitForCompletion(true)
-            .get();
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "repository",
+            "snapshot"
+        ).setIncludeGlobalState(false).setIndices("index-*").setWaitForCompletion(true).get();
 
         final int totalShards = shardsPerIndex.values().stream().mapToInt(i -> i).sum();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(totalShards));
@@ -171,11 +176,14 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         assertAcked(indicesAdmin().prepareDelete("index-*"));
 
         logger.debug("--> deleting repository");
-        assertAcked(clusterAdmin().prepareDeleteRepository("repository"));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repository"));
 
         logger.debug("--> registering tracking repository");
         assertAcked(
-            clusterAdmin().preparePutRepository("repository").setType("tracking").setVerify(false).setSettings(repositorySettings.build())
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repository")
+                .setType("tracking")
+                .setVerify(false)
+                .setSettings(repositorySettings.build())
         );
 
         TrackingRepositoryPlugin tracker = getTrackingRepositoryPlugin();
@@ -214,6 +222,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(
                         MountSearchableSnapshotAction.INSTANCE,
                         new MountSearchableSnapshotRequest(
+                            TEST_REQUEST_TIMEOUT,
                             indexName,
                             "repository",
                             "snapshot",
@@ -251,11 +260,13 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         final CountDownLatch startPrewarmingLatch = new CountDownLatch(1);
         final var threadPool = getInstanceFromNode(ThreadPool.class);
         final int maxUploadTasks = threadPool.info(CACHE_PREWARMING_THREAD_POOL_NAME).getMax();
+        final CountDownLatch maxUploadTasksCreated = new CountDownLatch(maxUploadTasks);
         for (int i = 0; i < maxUploadTasks; i++) {
             threadPool.executor(CACHE_PREWARMING_THREAD_POOL_NAME).execute(new AbstractRunnable() {
 
                 @Override
                 protected void doRun() throws Exception {
+                    maxUploadTasksCreated.countDown();
                     startPrewarmingLatch.await();
                 }
 
@@ -265,7 +276,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                 }
             });
         }
-
+        safeAwait(maxUploadTasksCreated);
         var prewarmingExecutor = threadPool.executor(CACHE_PREWARMING_THREAD_POOL_NAME);
         assertThat(prewarmingExecutor, instanceOf(ThreadPoolExecutor.class));
         assertThat(((ThreadPoolExecutor) prewarmingExecutor).getActiveCount(), equalTo(maxUploadTasks));
@@ -399,12 +410,11 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
     }
 
     private TrackingRepositoryPlugin getTrackingRepositoryPlugin() {
-        for (RepositoryPlugin plugin : getInstanceFromNode(PluginsService.class).filterPlugins(RepositoryPlugin.class)) {
-            if (plugin instanceof TrackingRepositoryPlugin) {
-                return ((TrackingRepositoryPlugin) plugin);
-            }
-        }
-        throw new IllegalStateException("tracking repository missing");
+        return getInstanceFromNode(PluginsService.class).filterPlugins(RepositoryPlugin.class)
+            .filter(p -> p instanceof TrackingRepositoryPlugin)
+            .map(p -> (TrackingRepositoryPlugin) p)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("tracking repository missing"));
     }
 
     /**
@@ -439,18 +449,12 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 "tracking",
                 (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
-
-                    @Override
-                    protected void assertSnapshotOrGenericThread() {
-                        if (enabled.get()) {
-                            super.assertSnapshotOrGenericThread();
-                        }
-                    }
 
                     @Override
                     protected BlobStore createBlobStore() throws Exception {

@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      features: close_to
-      version: ' - 8.7.99'
+  - requires:
+      cluster_features: "gte_v8.8.0"
       reason: 'rank added in 8.8'
+      test_runner_features: "close_to"
 
   - do:
       indices.create:
@@ -49,7 +49,7 @@ setup:
       indices.refresh: {}
 
 ---
-"RRF Invalid License":
+"rrf invalid license":
 
   - do:
       catch: forbidden
@@ -76,3 +76,38 @@ setup:
   - match: { error.type: security_exception }
   - match: { error.reason: "current license is non-compliant for [Reciprocal Rank Fusion (RRF)]" }
 
+---
+"rrf retriever invalid license":
+
+  - do:
+      catch: forbidden
+      search:
+        index: test
+        body:
+          track_total_hits: false
+          fields: [ "text" ]
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  knn: {
+                    field: vector,
+                    query_vector: [ 0.0 ],
+                    k: 3,
+                    num_candidates: 3
+                  }
+                },
+                {
+                  standard: {
+                    query: {
+                      term: {
+                        text: term
+                      }
+                    }
+                  }
+                }
+              ]
+
+  - match: { status: 403 }
+  - match: { error.type: security_exception }
+  - match: { error.reason: "current license is non-compliant for [Reciprocal Rank Fusion (RRF)]" }

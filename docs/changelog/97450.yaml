@@ -1,5 +1,0 @@
-pr: 97450
-summary: Make `_index` optional for pinned query docs
-area: Search
-type: enhancement
-issues: []

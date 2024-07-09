@@ -64,6 +64,7 @@ public class AggregationPhase {
         try {
             searcher.search(context.rewrittenQuery(), collector);
         } catch (IOException e) {
+            // Seems like this should be 400 (non-retryable), but we clearly intentionally throw a 500 here. Why?
             throw new AggregationExecutionException("Could not perform time series aggregation", e);
         }
     }

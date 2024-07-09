@@ -9,7 +9,6 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -21,17 +20,17 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Optional;
-import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -102,32 +101,23 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         indexingResult = indexDocs(rejectedRequests, between(1, 8));
         assertThat(indexingResult.numFailures, equalTo(rejectedRequests));
         assertThat(indexingResult.numSuccess, equalTo(0));
-        final IllegalArgumentException deleteError = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().prepareDelete("test", "any-id").get()
-        );
-        assertThat(deleteError.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
+        final IllegalArgumentException deleteError = expectThrows(IllegalArgumentException.class, client().prepareDelete("test", "any-id"));
+        assertThat(deleteError.getMessage(), containsString("Number of documents in the shard cannot exceed [" + maxDocs.get() + "]"));
         indicesAdmin().prepareRefresh("test").get();
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(new MatchAllQueryBuilder())
-            .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
-            .setSize(0)
-            .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) maxDocs.get()));
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(new MatchAllQueryBuilder()).setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0),
+            response -> assertThat(response.getHits().getTotalHits().value, equalTo((long) maxDocs.get()))
+        );
         if (randomBoolean()) {
             indicesAdmin().prepareFlush("test").get();
         }
         internalCluster().fullRestart();
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen("test");
-        searchResponse = client().prepareSearch("test")
-            .setQuery(new MatchAllQueryBuilder())
-            .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
-            .setSize(0)
-            .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) maxDocs.get()));
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(new MatchAllQueryBuilder()).setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0),
+            response -> assertThat(response.getHits().getTotalHits().value, equalTo((long) maxDocs.get()))
+        );
     }
 
     public void testMaxDocsLimitConcurrently() throws Exception {
@@ -137,13 +127,10 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         assertThat(indexingResult.numFailures, greaterThan(0));
         assertThat(indexingResult.numSuccess, both(greaterThan(0)).and(lessThanOrEqualTo(maxDocs.get())));
         indicesAdmin().prepareRefresh("test").get();
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(new MatchAllQueryBuilder())
-            .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
-            .setSize(0)
-            .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) indexingResult.numSuccess));
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(new MatchAllQueryBuilder()).setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0),
+            indexingResult.numSuccess
+        );
         int totalSuccess = indexingResult.numSuccess;
         while (totalSuccess < maxDocs.get()) {
             indexingResult = indexDocs(between(1, 10), between(1, 8));
@@ -155,13 +142,10 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
             assertThat(indexingResult.numSuccess, equalTo(0));
         }
         indicesAdmin().prepareRefresh("test").get();
-        searchResponse = client().prepareSearch("test")
-            .setQuery(new MatchAllQueryBuilder())
-            .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
-            .setSize(0)
-            .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalSuccess));
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(new MatchAllQueryBuilder()).setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0),
+            totalSuccess
+        );
     }
 
     record IndexingResult(int numSuccess, int numFailures) {}
@@ -170,27 +154,18 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         final AtomicInteger completedRequests = new AtomicInteger();
         final AtomicInteger numSuccess = new AtomicInteger();
         final AtomicInteger numFailure = new AtomicInteger();
-        Thread[] indexers = new Thread[numThreads];
-        Phaser phaser = new Phaser(indexers.length);
-        for (int i = 0; i < indexers.length; i++) {
-            indexers[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                while (completedRequests.incrementAndGet() <= numRequests) {
-                    try {
-                        final DocWriteResponse resp = client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
-                        numSuccess.incrementAndGet();
-                        assertThat(resp.status(), equalTo(RestStatus.CREATED));
-                    } catch (IllegalArgumentException e) {
-                        numFailure.incrementAndGet();
-                        assertThat(e.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
-                    }
+        startInParallel(numThreads, i -> {
+            while (completedRequests.incrementAndGet() <= numRequests) {
+                try {
+                    final DocWriteResponse resp = prepareIndex("test").setSource("{}", XContentType.JSON).get();
+                    numSuccess.incrementAndGet();
+                    assertThat(resp.status(), equalTo(RestStatus.CREATED));
+                } catch (IllegalArgumentException e) {
+                    numFailure.incrementAndGet();
+                    assertThat(e.getMessage(), containsString("Number of documents in the shard cannot exceed [" + maxDocs.get() + "]"));
                 }
-            });
-            indexers[i].start();
-        }
-        for (Thread indexer : indexers) {
-            indexer.join();
-        }
+            }
+        });
         internalCluster().assertNoInFlightDocsInEngine();
         return new IndexingResult(numSuccess.get(), numFailure.get());
     }

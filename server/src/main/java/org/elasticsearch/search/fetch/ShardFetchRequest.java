@@ -19,6 +19,7 @@ import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -37,7 +38,8 @@ public class ShardFetchRequest extends TransportRequest {
 
     private final int[] docIds;
 
-    private ScoreDoc lastEmittedDoc;
+    @Nullable
+    private final ScoreDoc lastEmittedDoc;
 
     public ShardFetchRequest(ShardSearchContextId contextId, List<Integer> docIds, ScoreDoc lastEmittedDoc) {
         this.contextId = contextId;
@@ -60,6 +62,8 @@ public class ShardFetchRequest extends TransportRequest {
             lastEmittedDoc = Lucene.readScoreDoc(in);
         } else if (flag != 0) {
             throw new IOException("Unknown flag: " + flag);
+        } else {
+            lastEmittedDoc = null;
         }
     }
 
@@ -113,6 +117,11 @@ public class ShardFetchRequest extends TransportRequest {
 
     @Nullable
     public AggregatedDfs getAggregatedDfs() {
+        return null;
+    }
+
+    @Nullable
+    public RankDocShardInfo getRankDocks() {
         return null;
     }
 }

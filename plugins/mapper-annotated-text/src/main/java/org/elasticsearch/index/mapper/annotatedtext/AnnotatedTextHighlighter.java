@@ -56,7 +56,7 @@ public class AnnotatedTextHighlighter extends DefaultHighlighter {
     }
 
     @Override
-    protected PassageFormatter getPassageFormatter(HitContext hitContext, SearchHighlightContext.Field field, Encoder encoder) {
+    protected PassageFormatter getPassageFormatter(SearchHighlightContext.Field field, Encoder encoder) {
         return new AnnotatedPassageFormatter(encoder);
     }
 

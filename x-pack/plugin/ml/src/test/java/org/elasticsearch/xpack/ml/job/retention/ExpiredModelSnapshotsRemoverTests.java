@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -99,7 +99,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
-        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), any(), any());
     }
 
     public void testRemove_GivenJobsWithMixedRetentionPolicies() {
@@ -271,6 +271,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         long retentionDays = 3L;
         ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
+        when(cutoffListener.delegateFailureAndWrap(any())).thenCallRealMethod();
         createExpiredModelSnapshotsRemover(Collections.emptyIterator()).calcCutoffEpochMs("job-1", retentionDays, cutoffListener);
 
         long dayInMills = 60 * 60 * 24 * 1000;
@@ -351,7 +352,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                 }
                 return null;
             }
-        }).when(client).execute(same(SearchAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportSearchAction.TYPE), any(), any());
 
         doAnswer(invocationOnMock -> {
             capturedDeleteModelSnapshotRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);

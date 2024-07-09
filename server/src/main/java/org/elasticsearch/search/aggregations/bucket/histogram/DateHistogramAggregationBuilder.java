@@ -14,6 +14,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -36,6 +37,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SimpleTimeZone;
 import java.util.function.Consumer;
 
 import static java.util.Map.entry;
@@ -157,9 +159,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval = new DateIntervalWrapper(in);
         offset = in.readLong();
         extendedBounds = in.readOptionalWriteable(LongBounds::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            hardBounds = in.readOptionalWriteable(LongBounds::new);
-        }
+        hardBounds = in.readOptionalWriteable(LongBounds::new);
     }
 
     @Override
@@ -180,9 +180,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval.writeTo(out);
         out.writeLong(offset);
         out.writeOptionalWriteable(extendedBounds);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeOptionalWriteable(hardBounds);
-        }
+        out.writeOptionalWriteable(hardBounds);
     }
 
     /**
@@ -288,11 +286,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
         this.extendedBounds = extendedBounds;
         return this;
-    }
-
-    /** Return hard bounds for this histogram, or {@code null} if none are set. */
-    public LongBounds hardBounds() {
-        return hardBounds;
     }
 
     /** Set hard bounds on this histogram, specifying boundaries outside which buckets cannot be created. */
@@ -407,11 +400,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     protected ValuesSourceAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,
@@ -420,23 +408,46 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     ) throws IOException {
         final DateIntervalWrapper.IntervalTypeEnum dateHistogramIntervalType = dateHistogramInterval.getIntervalType();
 
-        if (context.getIndexSettings().getIndexMetadata().isDownsampledIndex()
-            && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramIntervalType)) {
-            throw new IllegalArgumentException(
-                config.getDescription()
-                    + " is not supported for aggregation ["
-                    + getName()
-                    + "] with interval type ["
-                    + dateHistogramIntervalType.getPreferredName()
-                    + "]"
-            );
-        }
-
+        boolean downsampledResultsOffset = false;
         final ZoneId tz = timeZone();
-        if (context.getIndexSettings().getIndexMetadata().isDownsampledIndex() && tz != null && ZoneId.of("UTC").equals(tz) == false) {
-            throw new IllegalArgumentException(
-                config.getDescription() + " is not supported for aggregation [" + getName() + "] with timezone [" + tz + "]"
-            );
+
+        String downsamplingInterval = context.getIndexSettings().getIndexMetadata().getDownsamplingInterval();
+        if (downsamplingInterval != null) {
+            if (DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramIntervalType)) {
+                throw new IllegalArgumentException(
+                    config.getDescription()
+                        + " is not supported for aggregation ["
+                        + getName()
+                        + "] with interval type ["
+                        + dateHistogramIntervalType.getPreferredName()
+                        + "]"
+                );
+            }
+
+            // Downsampled data in time-series indexes contain aggregated values that get calculated over UTC-based intervals.
+            // When they get aggregated using a different timezone, the resulting buckets may need to be offset to account for
+            // the difference between UTC (where stored data refers to) and the requested timezone. For instance:
+            // a. A TZ shifted by -01:15 over hourly downsampled data will lead to buckets with times XX:45, instead of XX:00
+            // b. A TZ shifted by +07:00 over daily downsampled data will lead to buckets with times 07:00, instead of 00:00
+            // c. Intervals over DST are approximate, not including gaps in time buckets. This applies to date histogram aggregation in
+            // general.
+            if (tz != null && ZoneId.of("UTC").equals(tz) == false && field().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)) {
+
+                // Get the downsampling interval.
+                DateHistogramInterval interval = new DateHistogramInterval(downsamplingInterval);
+                long downsamplingResolution = interval.estimateMillis();
+                long aggregationResolution = dateHistogramInterval.getAsFixedInterval().estimateMillis();
+
+                // If the aggregation resolution is not a multiple of the downsampling resolution, the reported time for each
+                // bucket needs to be shifted by the mod - in addition to rounding that's applied as usual.
+                // Note that the aggregation resolution gets shifted to match the specified timezone. Timezone.getOffset() normally expects
+                // a date but it can also process an offset (interval) in milliseconds as it uses the Unix epoch for reference.
+                long aggregationOffset = SimpleTimeZone.getTimeZone(tz).getOffset(aggregationResolution) % downsamplingResolution;
+                if (aggregationOffset != 0) {
+                    downsampledResultsOffset = true;
+                    offset += aggregationOffset;
+                }
+            }
         }
 
         DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
@@ -487,6 +498,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             rounding,
             roundedBounds,
             roundedHardBounds,

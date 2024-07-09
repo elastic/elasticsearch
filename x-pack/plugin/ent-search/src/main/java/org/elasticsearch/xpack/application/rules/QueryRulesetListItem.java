@@ -27,8 +27,7 @@ import java.util.Objects;
  */
 public class QueryRulesetListItem implements Writeable, ToXContentObject {
 
-    // TODO we need to actually bump transport version, but there's no point until main is merged. Placeholder for now.
-    public static final TransportVersion EXPANDED_RULESET_COUNT_TRANSPORT_VERSION = TransportVersions.V_8_500_052;
+    public static final TransportVersion EXPANDED_RULESET_COUNT_TRANSPORT_VERSION = TransportVersions.V_8_10_X;
 
     public static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
     public static final ParseField RULE_TOTAL_COUNT_FIELD = new ParseField("rule_total_count");

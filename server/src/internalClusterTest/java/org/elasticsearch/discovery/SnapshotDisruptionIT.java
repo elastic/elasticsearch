@@ -104,7 +104,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> starting snapshot");
         ActionFuture<CreateSnapshotResponse> future = client(masterNode1).admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", snapshot)
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", snapshot)
             .setWaitForCompletion(true)
             .setIndices(idxName)
             .execute();
@@ -163,7 +163,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> starting snapshot");
         ActionFuture<CreateSnapshotResponse> future = client(masterNode).admin()
             .cluster()
-            .prepareCreateSnapshot(repoName, snapshot)
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshot)
             .setWaitForCompletion(true)
             .execute();
 
@@ -193,7 +193,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = client(masterNode).admin()
             .cluster()
-            .prepareCreateSnapshot(repoName, "snapshot-2")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-2")
             .setWaitForCompletion(true)
             .execute();
         waitForBlock(masterNode, repoName);
@@ -203,14 +203,14 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> create a snapshot expected to be successful");
         final CreateSnapshotResponse successfulSnapshot = client(masterNode).admin()
             .cluster()
-            .prepareCreateSnapshot(repoName, "snapshot-2")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-2")
             .setWaitForCompletion(true)
             .get();
         final SnapshotInfo successfulSnapshotInfo = successfulSnapshot.getSnapshotInfo();
         assertThat(successfulSnapshotInfo.state(), is(SnapshotState.SUCCESS));
 
         logger.info("--> making sure snapshot delete works out cleanly");
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, "snapshot-2").get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-2").get());
     }
 
     public void testMasterFailOverDuringShardSnapshots() throws Exception {
@@ -222,7 +222,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         final String indexName = "index-one";
         createIndex(indexName);
-        client().prepareIndex(indexName).setSource("foo", "bar").get();
+        prepareIndex(indexName).setSource("foo", "bar").get();
 
         blockDataNode(repoName, dataNode);
 
@@ -230,7 +230,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> snapshotResponse = internalCluster().masterClient()
             .admin()
             .cluster()
-            .prepareCreateSnapshot(repoName, "test-snap")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "test-snap")
             .setWaitForCompletion(true)
             .execute();
 
@@ -256,7 +256,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
     private void assertSnapshotExists(String repository, String snapshot) {
         GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin()
             .cluster()
-            .prepareGetSnapshots(repository)
+            .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repository)
             .setSnapshots(snapshot)
             .get();
         SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
@@ -272,7 +272,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(idxName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = prepareIndex(idxName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
     }

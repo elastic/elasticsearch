@@ -39,23 +39,24 @@ public class DeviceTypeParser {
     private final HashMap<String, ArrayList<DeviceTypeSubPattern>> deviceTypePatterns = new HashMap<>();
 
     public void init(InputStream regexStream) throws IOException {
-        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
-            .createParser(XContentParserConfiguration.EMPTY, regexStream);
+        try (
+            XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
+                .createParser(XContentParserConfiguration.EMPTY, regexStream)
+        ) {
+            XContentParser.Token token = yamlParser.nextToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                token = yamlParser.nextToken();
 
-        XContentParser.Token token = yamlParser.nextToken();
-
-        if (token == XContentParser.Token.START_OBJECT) {
-            token = yamlParser.nextToken();
-
-            for (; token != null; token = yamlParser.nextToken()) {
-                String currentName = yamlParser.currentName();
-                if (token == XContentParser.Token.FIELD_NAME && patternListKeys.contains(currentName)) {
-                    List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
-                    ArrayList<DeviceTypeSubPattern> subPatterns = new ArrayList<>();
-                    for (Map<String, String> map : parserConfigurations) {
-                        subPatterns.add(new DeviceTypeSubPattern(Pattern.compile((map.get("regex"))), map.get("replacement")));
+                for (; token != null; token = yamlParser.nextToken()) {
+                    String currentName = yamlParser.currentName();
+                    if (token == XContentParser.Token.FIELD_NAME && patternListKeys.contains(currentName)) {
+                        List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
+                        ArrayList<DeviceTypeSubPattern> subPatterns = new ArrayList<>();
+                        for (Map<String, String> map : parserConfigurations) {
+                            subPatterns.add(new DeviceTypeSubPattern(Pattern.compile((map.get("regex"))), map.get("replacement")));
+                        }
+                        deviceTypePatterns.put(currentName, subPatterns);
                     }
-                    deviceTypePatterns.put(currentName, subPatterns);
                 }
             }
         }

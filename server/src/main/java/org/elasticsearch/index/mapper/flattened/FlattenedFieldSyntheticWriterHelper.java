@@ -188,10 +188,6 @@ class FlattenedFieldSyntheticWriterHelper {
             this(value, new Prefix(key), new Suffix(key));
         }
 
-        public Prefix prefix() {
-            return this.prefix;
-        }
-
         public Suffix suffix() {
             return this.suffix;
         }

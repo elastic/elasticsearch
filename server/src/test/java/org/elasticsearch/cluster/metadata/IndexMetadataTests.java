@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.OptimalShardCountCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
@@ -24,15 +25,23 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
@@ -50,6 +59,7 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_P
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -78,9 +88,12 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, String> customMap = new HashMap<>();
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
+        IndexVersion mappingsUpdatedVersion = IndexVersionUtils.randomVersion();
         IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
         Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
+        Map<String, InferenceFieldMetadata> inferenceFields = randomInferenceFields();
+
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
             .creationDate(randomLong())
@@ -96,14 +109,25 @@ public class IndexMetadataTests extends ESTestCase {
                         new MaxDocsCondition(randomNonNegativeLong()),
                         new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
                         new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-                        new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
+                        new MaxPrimaryShardDocsCondition(randomNonNegativeLong()),
+                        new OptimalShardCountCondition(3)
                     ),
                     randomNonNegativeLong()
                 )
             )
+            .mappingsUpdatedVersion(mappingsUpdatedVersion)
             .stats(indexStats)
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
+            .putInferenceFields(inferenceFields)
+            .eventIngestedRange(
+                randomFrom(
+                    IndexLongFieldRange.UNKNOWN,
+                    IndexLongFieldRange.EMPTY,
+                    IndexLongFieldRange.NO_SHARDS,
+                    IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(5000000, 5500000))
+                )
+            )
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -111,8 +135,10 @@ public class IndexMetadataTests extends ESTestCase {
         builder.startObject();
         IndexMetadata.FORMAT.toXContent(builder, metadata);
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        final IndexMetadata fromXContentMeta = IndexMetadata.fromXContent(parser);
+        final IndexMetadata fromXContentMeta;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            fromXContentMeta = IndexMetadata.fromXContent(parser);
+        }
         assertEquals(
             "expected: " + Strings.toString(metadata) + "\nactual  : " + Strings.toString(fromXContentMeta),
             metadata,
@@ -125,9 +151,11 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
         assertEquals(metadata.getCompatibilityVersion(), fromXContentMeta.getCompatibilityVersion());
         assertEquals(metadata.getRoutingNumShards(), fromXContentMeta.getRoutingNumShards());
+        assertEquals(metadata.getRolloverInfos(), fromXContentMeta.getRolloverInfos());
         assertEquals(metadata.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
+        assertEquals(metadata.getMappingsUpdatedVersion(), fromXContentMeta.getMappingsUpdatedVersion());
         assertEquals(metadata.isSystem(), fromXContentMeta.isSystem());
         Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
         assertEquals(metadata.getCustomData(), expectedCustom);
@@ -135,6 +163,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getStats(), fromXContentMeta.getStats());
         assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
         assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
+        assertEquals(metadata.getInferenceFields(), fromXContentMeta.getInferenceFields());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -154,11 +183,105 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getRolloverInfos(), deserialized.getRolloverInfos());
             assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
+            assertEquals(metadata.getMappingsUpdatedVersion(), deserialized.getMappingsUpdatedVersion());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
             assertEquals(metadata.getStats(), deserialized.getStats());
-            assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
-            assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
+            assertEquals(metadata.getForecastedWriteLoad(), deserialized.getForecastedWriteLoad());
+            assertEquals(metadata.getForecastedShardSizeInBytes(), deserialized.getForecastedShardSizeInBytes());
+            assertEquals(metadata.getInferenceFields(), deserialized.getInferenceFields());
+            assertEquals(metadata.getEventIngestedRange(), deserialized.getEventIngestedRange());
         }
+    }
+
+    public void testIndexMetadataFromXContentParsingWithoutEventIngestedField() throws IOException {
+        Integer numShard = randomFrom(1, 2, 4, 8, 16);
+        int numberOfReplicas = randomIntBetween(0, 10);
+        final boolean system = randomBoolean();
+        Map<String, String> customMap = new HashMap<>();
+        customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+        customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
+        IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
+        Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
+        Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
+        Map<String, InferenceFieldMetadata> inferenceFields = randomInferenceFields();
+
+        IndexMetadata metadata = IndexMetadata.builder("foo")
+            .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
+            .creationDate(randomLong())
+            .primaryTerm(0, 2)
+            .setRoutingNumShards(32)
+            .system(system)
+            .putCustom("my_custom", customMap)
+            .putRolloverInfo(
+                new RolloverInfo(
+                    randomAlphaOfLength(5),
+                    List.of(
+                        new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
+                        new MaxDocsCondition(randomNonNegativeLong()),
+                        new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+                        new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+                        new MaxPrimaryShardDocsCondition(randomNonNegativeLong()),
+                        new OptimalShardCountCondition(3)
+                    ),
+                    randomNonNegativeLong()
+                )
+            )
+            .stats(indexStats)
+            .indexWriteLoadForecast(indexWriteLoadForecast)
+            .shardSizeInBytesForecast(shardSizeInBytesForecast)
+            .putInferenceFields(inferenceFields)
+            .eventIngestedRange(
+                randomFrom(
+                    IndexLongFieldRange.UNKNOWN,
+                    IndexLongFieldRange.EMPTY,
+                    IndexLongFieldRange.NO_SHARDS,
+                    IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(5000000, 5500000))
+                )
+            )
+            .build();
+        assertEquals(system, metadata.isSystem());
+
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        IndexMetadata.FORMAT.toXContent(builder, metadata);
+        builder.endObject();
+
+        // convert XContent to a map and remove the IndexMetadata.KEY_EVENT_INGESTED_RANGE entry
+        // to simulate IndexMetadata from an older cluster version (before TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
+        Map<String, Object> indexMetadataMap = XContentHelper.convertToMap(BytesReference.bytes(builder), true, XContentType.JSON).v2();
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> inner = (Map<String, Object>) indexMetadataMap.get("foo");
+        assertTrue(inner.containsKey(IndexMetadata.KEY_EVENT_INGESTED_RANGE));
+        inner.remove(IndexMetadata.KEY_EVENT_INGESTED_RANGE);
+        // validate that the IndexMetadata.KEY_EVENT_INGESTED_RANGE has been removed before calling fromXContent
+        assertFalse(inner.containsKey(IndexMetadata.KEY_EVENT_INGESTED_RANGE));
+
+        IndexMetadata fromXContentMeta;
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry())
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        try (XContentParser xContentParser = XContentHelper.mapToXContentParser(config, indexMetadataMap);) {
+            fromXContentMeta = IndexMetadata.fromXContent(xContentParser);
+        }
+
+        assertEquals(IndexLongFieldRange.NO_SHARDS, fromXContentMeta.getTimestampRange());
+        // should come back as UNKNOWN when missing from IndexMetadata XContent
+        assertEquals(IndexLongFieldRange.UNKNOWN, fromXContentMeta.getEventIngestedRange());
+
+        // check a few other fields to ensure the parsing worked as expected
+        assertEquals(
+            "expected: " + Strings.toString(metadata) + "\nactual  : " + Strings.toString(fromXContentMeta),
+            metadata,
+            fromXContentMeta
+        );
+        assertEquals(metadata.hashCode(), fromXContentMeta.hashCode());
+        assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
+        assertEquals(metadata.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
+        assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
+        Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
+        assertEquals(metadata.getCustomData(), expectedCustom);
+        assertEquals(metadata.getCustomData(), fromXContentMeta.getCustomData());
+        assertEquals(metadata.getStats(), fromXContentMeta.getStats());
     }
 
     public void testGetRoutingFactor() {
@@ -475,7 +598,7 @@ public class IndexMetadataTests extends ESTestCase {
             final IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> IndexMetadata.builder("index")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.V_8_5_0))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_8_5_0))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder("index").build())
@@ -487,7 +610,7 @@ public class IndexMetadataTests extends ESTestCase {
 
     public void testRepairIndexAndAliasWithSameName() {
         final IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.V_8_5_0))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_8_5_0))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("index").build())
@@ -541,8 +664,32 @@ public class IndexMetadataTests extends ESTestCase {
         }
     }
 
+    public void testInferenceFieldMetadata() {
+        Settings.Builder settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
+        IndexMetadata idxMeta1 = IndexMetadata.builder("test").settings(settings).build();
+        assertTrue(idxMeta1.getInferenceFields().isEmpty());
+
+        Map<String, InferenceFieldMetadata> dynamicFields = randomInferenceFields();
+        IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).putInferenceFields(dynamicFields).build();
+        assertThat(idxMeta2.getInferenceFields(), equalTo(dynamicFields));
+    }
+
     private static Settings indexSettingsWithDataTier(String dataTier) {
         return indexSettings(IndexVersion.current(), 1, 0).put(DataTier.TIER_PREFERENCE, dataTier).build();
+    }
+
+    public static Map<String, InferenceFieldMetadata> randomInferenceFields() {
+        Map<String, InferenceFieldMetadata> map = new HashMap<>();
+        int numFields = randomIntBetween(0, 5);
+        for (int i = 0; i < numFields; i++) {
+            String field = randomAlphaOfLengthBetween(5, 10);
+            map.put(field, randomInferenceFieldMetadata(field));
+        }
+        return map;
+    }
+
+    private static InferenceFieldMetadata randomInferenceFieldMetadata(String name) {
+        return new InferenceFieldMetadata(name, randomIdentifier(), randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new));
     }
 
     private IndexMetadataStats randomIndexStats(int numberOfShards) {

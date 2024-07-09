@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 
 public interface MachineLearningExtension {
 
@@ -23,7 +25,15 @@ public interface MachineLearningExtension {
 
     boolean isNlpEnabled();
 
-    default String[] getAnalyticsDestIndexAllowedSettings() {
-        return DefaultMachineLearningExtension.ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
+    default boolean isLearningToRankEnabled() {
+        return false;
     }
+
+    default boolean disableInferenceProcessCache() {
+        return false;
+    }
+
+    String[] getAnalyticsDestIndexAllowedSettings();
+
+    AbstractNodeAvailabilityZoneMapper getNodeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings);
 }

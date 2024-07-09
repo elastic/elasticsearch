@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -70,7 +71,11 @@ public class CopyOnFirstWriteMap<K, V> implements Map<K, V> {
 
     @Override
     public V put(K key, V value) {
-        return getForUpdate().put(key, value);
+        if (Objects.equals(get(key), value)) {
+            return value;
+        } else {
+            return getForUpdate().put(key, value);
+        }
     }
 
     @Override

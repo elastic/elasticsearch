@@ -47,6 +47,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     private Settings settings = Settings.EMPTY;
     private boolean preserveExisting = false;
     private String origin = "";
+    private boolean reopen = false;
 
     public UpdateSettingsRequest(StreamInput in) throws IOException {
         super(in);
@@ -54,17 +55,21 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         settings = readSettingsFromStream(in);
         preserveExisting = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            origin = in.readString();
+        origin = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            reopen = in.readBoolean();
         }
     }
 
-    public UpdateSettingsRequest() {}
+    public UpdateSettingsRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Constructs a new request to update settings for one or more indices
      */
     public UpdateSettingsRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.indices = indices;
     }
 
@@ -72,6 +77,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
      * Constructs a new request to update settings for one or more indices
      */
     public UpdateSettingsRequest(Settings settings, String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.indices = indices;
         this.settings = settings;
     }
@@ -176,6 +182,19 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         return this;
     }
 
+    /**
+     * Returns <code>true</code> if non-dynamic setting updates should go through, by automatically unassigning shards in the same cluster
+     * state change as the setting update. The shards will be automatically reassigned after the cluster state update is made. The
+     * default is <code>false</code>.
+     */
+    public boolean reopen() {
+        return reopen;
+    }
+
+    public void reopen(boolean reopen) {
+        this.reopen = reopen;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -183,8 +202,9 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         indicesOptions.writeIndicesOptions(out);
         settings.writeTo(out);
         out.writeBoolean(preserveExisting);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            out.writeString(origin);
+        out.writeString(origin);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeBoolean(reopen);
         }
     }
 
@@ -238,17 +258,26 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             return false;
         }
         UpdateSettingsRequest that = (UpdateSettingsRequest) o;
-        return masterNodeTimeout.equals(that.masterNodeTimeout)
-            && timeout.equals(that.timeout)
+        return masterNodeTimeout().equals(that.masterNodeTimeout())
+            && ackTimeout().equals(that.ackTimeout())
             && Objects.equals(settings, that.settings)
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(preserveExisting, that.preserveExisting)
+            && Objects.equals(reopen, that.reopen)
             && Arrays.equals(indices, that.indices);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(masterNodeTimeout, timeout, settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
+        return Objects.hash(
+            masterNodeTimeout(),
+            ackTimeout(),
+            settings,
+            indicesOptions,
+            preserveExisting,
+            reopen,
+            Arrays.hashCode(indices)
+        );
     }
 
 }

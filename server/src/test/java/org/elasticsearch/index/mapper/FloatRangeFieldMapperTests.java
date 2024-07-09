@@ -14,7 +14,6 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 
 public class FloatRangeFieldMapperTests extends RangeFieldMapperTests {
-
     @Override
     protected XContentBuilder rangeSource(XContentBuilder in) throws IOException {
         return rangeSource(in, "0.5", "2.7");
@@ -41,8 +40,25 @@ public class FloatRangeFieldMapperTests extends RangeFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+    protected TestRange<Float> randomRangeForSyntheticSourceTest() {
+        var includeFrom = randomBoolean();
+        Float from = (float) randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE - Math.ulp(Float.MAX_VALUE), true);
+        var includeTo = randomBoolean();
+        Float to = (float) randomDoubleBetween(from + Math.ulp(from), Float.MAX_VALUE, true);
+
+        if (rarely()) {
+            from = null;
+        }
+        if (rarely()) {
+            to = null;
+        }
+
+        return new TestRange<>(rangeType(), from, to, includeFrom, includeTo);
+    }
+
+    @Override
+    protected RangeType rangeType() {
+        return RangeType.FLOAT;
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskP
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlController;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -147,7 +147,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             new OpenJobAction.JobParams("job-1"),
             new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
         );
-        tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing"));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing", Instant.now()));
         tasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
@@ -156,7 +156,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         );
         tasksBuilder.updateTaskState(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
-            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 2, "testing")
+            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 2, "testing", Instant.now())
         );
         tasksBuilder.addTask(
             MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),
@@ -191,7 +191,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
                                 "1",
-                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom(), null)
                                     .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                             )
                             .build()
@@ -215,12 +215,12 @@ public class MlLifeCycleServiceTests extends ESTestCase {
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
                                 "1",
-                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom(), null)
                                     .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
                             )
                             .addNewAssignment(
                                 "2",
-                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom(), null)
                                     .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
                             )
                             .build()
@@ -244,12 +244,12 @@ public class MlLifeCycleServiceTests extends ESTestCase {
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
                                 "1",
-                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom(), null)
                                     .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
                             )
                             .addNewAssignment(
                                 "2",
-                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom(), null)
                                     .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
                             )
                             .build()

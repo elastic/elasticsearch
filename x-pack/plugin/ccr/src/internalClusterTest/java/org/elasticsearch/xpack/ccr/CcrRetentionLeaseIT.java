@@ -151,7 +151,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        return new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indexSettings(settingsBuilder)
+        return new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, leaderClusterRepoName, CcrRepository.LATEST).indexSettings(settingsBuilder)
             .indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
@@ -438,8 +438,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Remove.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.REMOVE.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.REMOVE.name()).equals(action)) {
                         final RetentionLeaseActions.RemoveRequest removeRequest = (RetentionLeaseActions.RemoveRequest) request;
                         if (shardIds.contains(removeRequest.getShardId().id())) {
                             final String primaryShardNodeId = getLeaderCluster().clusterService()
@@ -472,7 +472,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             pauseFollow(followerIndex);
             assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
-            assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
+            assertAcked(
+                followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
+            );
 
             final IndicesStatsResponse afterUnfollowStats = leaderClient().admin()
                 .indices()
@@ -526,8 +531,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Remove.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.REMOVE.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.REMOVE.name()).equals(action)) {
                         final RetentionLeaseActions.RemoveRequest removeRequest = (RetentionLeaseActions.RemoveRequest) request;
                         if (shardIds.contains(removeRequest.getShardId().id())) {
                             throw randomBoolean()
@@ -541,7 +546,10 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             final ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
-                () -> followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet()
+                () -> followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
             );
 
             final ClusterStateResponse followerIndexClusterState = followerClient().admin()
@@ -847,8 +855,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.RENEW.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.RENEW.name()).equals(action)) {
                         final RetentionLeaseActions.RenewRequest renewRequest = (RetentionLeaseActions.RenewRequest) request;
                         final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
                         if (retentionLeaseId.equals(renewRequest.getId())) {
@@ -957,8 +965,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.RENEW.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.RENEW.name()).equals(action)) {
                         final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
                         logger.info("--> blocking renewal request for retention lease [{}] until unfollowed", retentionLeaseId);
                         try {
@@ -993,7 +1001,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             pauseFollow(followerIndex);
             assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
-            assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
+            assertAcked(
+                followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
+            );
 
             unfollowLatch.countDown();
 

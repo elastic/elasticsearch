@@ -98,7 +98,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                     MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );
@@ -310,37 +311,6 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                     equalTo("Configuration [" + name + "] requires minimum node version [7.6.0] (current minimum node version [7.5.0]")
                 );
             }
-        });
-    }
-
-    public void testCreateProcessorWithEmptyConfigNotSupportedOnOldNode() throws IOException {
-        Set<Boolean> includeNodeInfoValues = new HashSet<>(Arrays.asList(true, false));
-
-        includeNodeInfoValues.forEach(includeNodeInfo -> {
-            InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(
-                client,
-                clusterService,
-                Settings.EMPTY,
-                includeNodeInfo
-            );
-            try {
-                processorFactory.accept(builderClusterStateWithModelReferences(MlConfigVersion.V_7_5_0, "model1"));
-            } catch (IOException ioe) {
-                throw new AssertionError(ioe.getMessage());
-            }
-
-            Map<String, Object> minimalConfig = new HashMap<>() {
-                {
-                    put(InferenceProcessor.MODEL_ID, "my_model");
-                    put(InferenceProcessor.TARGET_FIELD, "result");
-                }
-            };
-
-            ElasticsearchException ex = expectThrows(
-                ElasticsearchException.class,
-                () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, minimalConfig)
-            );
-            assertThat(ex.getMessage(), equalTo("[inference_config] required property is missing"));
         });
     }
 
@@ -922,8 +892,22 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.DATA_ROLE)
                         )
                     )
-                    .add(DiscoveryNodeUtils.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
-                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))
+                    .add(
+                        DiscoveryNodeUtils.create(
+                            "current_node",
+                            new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
+                            Map.of(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.CURRENT.toString()),
+                            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.DATA_ROLE)
+                        )
+                    )
+                    .add(
+                        DiscoveryNodeUtils.create(
+                            "_node_id",
+                            new TransportAddress(InetAddress.getLoopbackAddress(), 9304),
+                            Map.of(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.CURRENT.toString()),
+                            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.DATA_ROLE)
+                        )
+                    )
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )

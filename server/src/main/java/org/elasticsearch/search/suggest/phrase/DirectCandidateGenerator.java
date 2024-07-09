@@ -98,14 +98,6 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.search.suggest.phrase.CandidateGenerator#isKnownWord(org.apache.lucene.util.BytesRef)
-     */
-    @Override
-    public boolean isKnownWord(BytesRef term) throws IOException {
-        return termStats(term).docFreq > 0;
-    }
-
-    /* (non-Javadoc)
      * @see org.elasticsearch.search.suggest.phrase.CandidateGenerator#frequency(org.apache.lucene.util.BytesRef)
      */
     @Override
@@ -126,10 +118,6 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             );
         }
         return new TermStats(0, 0);
-    }
-
-    public String getField() {
-        return field;
     }
 
     @Override
@@ -181,15 +169,14 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         if (preFilter == null) {
             return term;
         }
-        final BytesRefBuilder result = byteSpare;
         analyze(preFilter, term, field, new TokenConsumer() {
 
             @Override
-            public void nextToken() throws IOException {
-                this.fillBytesRef(result);
+            public void nextToken() {
+                this.fillBytesRef(byteSpare);
             }
         }, spare);
-        return result.get();
+        return byteSpare.get();
     }
 
     protected void postFilter(
@@ -344,11 +331,10 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             if (getClass() != obj.getClass()) return false;
             Candidate other = (Candidate) obj;
             if (term == null) {
-                if (other.term != null) return false;
+                return other.term == null;
             } else {
-                if (term.equals(other.term) == false) return false;
+                return term.equals(other.term) != false;
             }
-            return true;
         }
 
         /** Lower scores sort first; if scores are equal, then later (zzz) terms sort first */
@@ -364,7 +350,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     @Override
-    public Candidate createCandidate(BytesRef term, TermStats termStats, double channelScore, boolean userInput) throws IOException {
+    public Candidate createCandidate(BytesRef term, TermStats termStats, double channelScore, boolean userInput) {
         return new Candidate(term, termStats, channelScore, score(termStats, channelScore, sumTotalTermFreq), userInput);
     }
 

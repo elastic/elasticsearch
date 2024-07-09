@@ -235,8 +235,9 @@ class ItemSetBitSet implements Cloneable {
         if (wordsInUse != set.wordsInUse) return false;
 
         // Check words in use by both BitSets
-        for (int i = 0; i < wordsInUse; i++)
+        for (int i = 0; i < wordsInUse; i++) {
             if (words[i] != set.words[i]) return false;
+        }
 
         return true;
     }
@@ -266,8 +267,9 @@ class ItemSetBitSet implements Cloneable {
     private void recalculateWordsInUse() {
         // Traverse the bitset until a used word is found
         int i;
-        for (i = wordsInUse - 1; i >= 0; i--)
+        for (i = wordsInUse - 1; i >= 0; i--) {
             if (words[i] != 0) break;
+        }
 
         wordsInUse = i + 1; // The new logical size
     }

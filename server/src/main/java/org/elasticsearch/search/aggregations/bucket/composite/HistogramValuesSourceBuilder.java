@@ -148,13 +148,6 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     }
 
     /**
-     * Returns the interval that is set on this source
-     **/
-    public double interval() {
-        return interval;
-    }
-
-    /**
      * Sets the interval on this source.
      **/
     public HistogramValuesSourceBuilder interval(double interval) {

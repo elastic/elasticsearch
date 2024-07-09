@@ -83,6 +83,63 @@ public class S3HttpHandlerTests extends ESTestCase {
         );
     }
 
+    public void testGetWithBytesRange() {
+        final var handler = new S3HttpHandler("bucket", "path");
+        final var blobName = "blob_name_" + randomIdentifier();
+        final var blobPath = "/bucket/path/" + blobName;
+        final var blobBytes = randomBytesReference(256);
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", blobPath, blobBytes).status());
+
+        assertEquals(
+            "No Range",
+            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            handleRequest(handler, "GET", blobPath)
+        );
+
+        var end = blobBytes.length() - 1;
+        assertEquals(
+            "Exact Range: bytes=0-" + end,
+            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, contentRangeHeader(0, end, blobBytes.length())),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(0, end))
+        );
+
+        end = randomIntBetween(blobBytes.length() - 1, Integer.MAX_VALUE);
+        assertEquals(
+            "Larger Range: bytes=0-" + end,
+            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, contentRangeHeader(0, blobBytes.length() - 1, blobBytes.length())),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(0, end))
+        );
+
+        var start = randomIntBetween(blobBytes.length(), Integer.MAX_VALUE - 1);
+        end = randomIntBetween(start, Integer.MAX_VALUE);
+        assertEquals(
+            "Invalid Range: bytes=" + start + '-' + end,
+            new TestHttpResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, BytesArray.EMPTY, TestHttpExchange.EMPTY_HEADERS),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
+        );
+
+        start = randomIntBetween(2, Integer.MAX_VALUE - 1);
+        end = randomIntBetween(0, start - 1);
+        assertEquals(
+            "Weird Valid Range: bytes=" + start + '-' + end,
+            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
+        );
+
+        start = randomIntBetween(0, blobBytes.length() - 1);
+        var length = randomIntBetween(1, blobBytes.length() - start);
+        end = start + length - 1;
+        assertEquals(
+            "Range: bytes=" + start + '-' + end,
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes.slice(start, length),
+                contentRangeHeader(start, end, blobBytes.length())
+            ),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
+        );
+    }
+
     public void testSingleMultipartUpload() {
         final var handler = new S3HttpHandler("bucket", "path");
 
@@ -99,12 +156,12 @@ public class S3HttpHandlerTests extends ESTestCase {
         final var part1 = randomAlphaOfLength(50);
         final var uploadPart1Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=1", part1);
         final var part1Etag = Objects.requireNonNull(uploadPart1Response.etag());
-        assertEquals(new TestHttpResponse(RestStatus.OK, "", part1Etag), uploadPart1Response);
+        assertEquals(new TestHttpResponse(RestStatus.OK, etagHeader(part1Etag)), uploadPart1Response);
 
         final var part2 = randomAlphaOfLength(50);
         final var uploadPart2Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=2", part2);
         final var part2Etag = Objects.requireNonNull(uploadPart2Response.etag());
-        assertEquals(new TestHttpResponse(RestStatus.OK, "", part2Etag), uploadPart2Response);
+        assertEquals(new TestHttpResponse(RestStatus.OK, etagHeader(part2Etag)), uploadPart2Response);
 
         assertEquals(
             new TestHttpResponse(RestStatus.OK, Strings.format("""
@@ -176,12 +233,12 @@ public class S3HttpHandlerTests extends ESTestCase {
         final var part1 = randomAlphaOfLength(50);
         final var uploadPart1Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=1", part1);
         final var part1Etag = Objects.requireNonNull(uploadPart1Response.etag());
-        assertEquals(new TestHttpResponse(RestStatus.OK, "", part1Etag), uploadPart1Response);
+        assertEquals(new TestHttpResponse(RestStatus.OK, etagHeader(part1Etag)), uploadPart1Response);
 
         final var part2 = randomAlphaOfLength(50);
         final var uploadPart2Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=2", part2);
         final var part2Etag = Objects.requireNonNull(uploadPart2Response.etag());
-        assertEquals(new TestHttpResponse(RestStatus.OK, "", part2Etag), uploadPart2Response);
+        assertEquals(new TestHttpResponse(RestStatus.OK, etagHeader(part2Etag)), uploadPart2Response);
 
         assertEquals(
             new TestHttpResponse(RestStatus.OK, Strings.format("""
@@ -215,6 +272,10 @@ public class S3HttpHandlerTests extends ESTestCase {
                   <PartNumber>2</PartNumber>
                </Part>
             </CompleteMultipartUpload>""", part1Etag, part2Etag)).status());
+    }
+
+    private static String getUploadId(BytesReference createUploadResponseBody) {
+        return getUploadId(createUploadResponseBody.utf8ToString());
     }
 
     private static String getUploadId(String createUploadResponseBody) {
@@ -279,9 +340,17 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertEquals(List.of(expectedTags), S3HttpHandler.extractPartEtags(new BytesArray(body.getBytes(StandardCharsets.UTF_8))));
     }
 
-    private record TestHttpResponse(RestStatus status, String body, @Nullable String etag) {
+    private record TestHttpResponse(RestStatus status, BytesReference body, Headers headers) {
         TestHttpResponse(RestStatus status, String body) {
-            this(status, body, null);
+            this(status, new BytesArray(body.getBytes(StandardCharsets.UTF_8)), TestHttpExchange.EMPTY_HEADERS);
+        }
+
+        TestHttpResponse(RestStatus status, Headers headers) {
+            this(status, BytesArray.EMPTY, headers);
+        }
+
+        String etag() {
+            return headers.getFirst("ETag");
         }
     }
 
@@ -290,18 +359,65 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     private static TestHttpResponse handleRequest(S3HttpHandler handler, String method, String uri, String requestBody) {
-        final var httpExchange = new TestHttpExchange(method, uri, new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)));
+        return handleRequest(handler, method, uri, new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static TestHttpResponse handleRequest(S3HttpHandler handler, String method, String uri, BytesReference requestBody) {
+        return handleRequest(handler, method, uri, requestBody, TestHttpExchange.EMPTY_HEADERS);
+    }
+
+    private static TestHttpResponse handleRequest(
+        S3HttpHandler handler,
+        String method,
+        String uri,
+        BytesReference requestBody,
+        Headers requestHeaders
+    ) {
+        final var httpExchange = new TestHttpExchange(method, uri, requestBody, requestHeaders);
         try {
             handler.handle(httpExchange);
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
         assertNotEquals(0, httpExchange.getResponseCode());
+        var responseHeaders = new Headers();
+        httpExchange.getResponseHeaders().forEach((header, values) -> {
+            // com.sun.net.httpserver.Headers.Headers() normalize keys
+            if ("Etag".equals(header) || "Content-range".equals(header)) {
+                responseHeaders.put(header, List.copyOf(values));
+            }
+        });
         return new TestHttpResponse(
             RestStatus.fromCode(httpExchange.getResponseCode()),
-            httpExchange.getResponseBodyContents().utf8ToString(),
-            httpExchange.getResponseHeaders().getFirst("ETag")
+            httpExchange.getResponseBodyContents(),
+            responseHeaders
         );
+    }
+
+    private static Headers bytesRangeHeader(@Nullable Integer startInclusive, @Nullable Integer endInclusive) {
+        StringBuilder range = new StringBuilder("bytes=");
+        if (startInclusive != null) {
+            range.append(startInclusive);
+        }
+        range.append('-');
+        if (endInclusive != null) {
+            range.append(endInclusive);
+        }
+        var headers = new Headers();
+        headers.put("Range", List.of(range.toString()));
+        return headers;
+    }
+
+    private static Headers etagHeader(String etag) {
+        var headers = new Headers();
+        headers.put("ETag", List.of(Objects.requireNonNull(etag)));
+        return headers;
+    }
+
+    private static Headers contentRangeHeader(long start, long end, long length) {
+        var headers = new Headers();
+        headers.put("Content-Range", List.of(Strings.format("bytes %d-%d/%d", start, end, length)));
+        return headers;
     }
 
     private static class TestHttpExchange extends HttpExchange {
@@ -311,20 +427,22 @@ public class S3HttpHandlerTests extends ESTestCase {
         private final String method;
         private final URI uri;
         private final BytesReference requestBody;
+        private final Headers requestHeaders;
 
         private final Headers responseHeaders = new Headers();
         private final BytesStreamOutput responseBody = new BytesStreamOutput();
         private int responseCode;
 
-        TestHttpExchange(String method, String uri, BytesReference requestBody) {
+        TestHttpExchange(String method, String uri, BytesReference requestBody, Headers requestHeaders) {
             this.method = method;
             this.uri = URI.create(uri);
             this.requestBody = requestBody;
+            this.requestHeaders = requestHeaders;
         }
 
         @Override
         public Headers getRequestHeaders() {
-            return EMPTY_HEADERS;
+            return requestHeaders;
         }
 
         @Override

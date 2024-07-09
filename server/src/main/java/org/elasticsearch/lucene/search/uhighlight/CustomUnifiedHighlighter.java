@@ -22,6 +22,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.uhighlight.FieldHighlighter;
 import org.apache.lucene.search.uhighlight.FieldOffsetStrategy;
 import org.apache.lucene.search.uhighlight.NoOpOffsetStrategy;
+import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.PassageScorer;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
@@ -32,11 +33,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.runtime.AbstractScriptFieldQuery;
+import org.elasticsearch.search.vectors.KnnScoreDocQuery;
 
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.function.Supplier;
 
@@ -50,7 +53,7 @@ import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighligh
  * value as a discrete passage for highlighting (unless the whole content needs to be highlighted).
  * Supports both returning empty snippets and non highlighted snippets when no highlighting can be performed.
  */
-public class CustomUnifiedHighlighter extends UnifiedHighlighter {
+public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     public static final char MULTIVAL_SEP_CHAR = (char) 0;
     private static final Snippet[] EMPTY_SNIPPET = new Snippet[0];
 
@@ -79,7 +82,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      *                          offset source for it because it'd be super slow
      * @param weightMatchesEnabled whether the {@link HighlightFlag#WEIGHT_MATCHES} should be enabled
      */
-    @SuppressWarnings("this-escape")
     public CustomUnifiedHighlighter(
         Builder builder,
         OffsetSource offsetSource,
@@ -161,7 +163,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         PassageScorer passageScorer,
         int maxPassages,
         int maxNoHighlightPassages,
-        PassageFormatter passageFormatter
+        PassageFormatter passageFormatter,
+        Comparator<Passage> passageSortComparator
     ) {
         return new CustomFieldHighlighter(
             field,
@@ -172,6 +175,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             maxPassages,
             (noMatchSize > 0 ? 1 : 0),
             getFormatter(field),
+            passageSortComparator,
             noMatchSize,
             queryMaxAnalyzedOffset
         );
@@ -250,6 +254,13 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 if (leafQuery.getClass().getSimpleName().equals("LateParsingQuery")) {
                     hasUnknownLeaf[0] = true;
                 }
+                /**
+                 * KnnScoreDocQuery requires the same reader that built the docs
+                 * When using {@link HighlightFlag#WEIGHT_MATCHES} different readers are used and isn't supported by this query
+                 */
+                if (leafQuery instanceof KnnScoreDocQuery) {
+                    hasUnknownLeaf[0] = true;
+                }
                 super.visitLeaf(query);
             }
 
@@ -286,7 +297,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 if (parent instanceof ESToParentBlockJoinQuery) {
                     hasUnknownLeaf[0] = true;
                 }
-                return super.getSubVisitor(occur, parent);
+                // we want to visit all queries, including those within the must_not clauses.
+                return this;
             }
         });
         return hasUnknownLeaf[0];

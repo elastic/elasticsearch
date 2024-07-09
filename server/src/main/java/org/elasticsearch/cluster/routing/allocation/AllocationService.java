@@ -36,6 +36,8 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
@@ -53,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -215,11 +218,11 @@ public class AllocationService {
                         failedShard
                     );
                 }
-                int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
+                int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().failedAllocations() : 0;
                 final Set<String> failedNodeIds;
                 if (failedShard.unassignedInfo() != null) {
-                    failedNodeIds = Sets.newHashSetWithExpectedSize(failedShard.unassignedInfo().getFailedNodeIds().size() + 1);
-                    failedNodeIds.addAll(failedShard.unassignedInfo().getFailedNodeIds());
+                    failedNodeIds = Sets.newHashSetWithExpectedSize(failedShard.unassignedInfo().failedNodeIds().size() + 1);
+                    failedNodeIds.addAll(failedShard.unassignedInfo().failedNodeIds());
                     failedNodeIds.add(failedShard.currentNodeId());
                 } else {
                     failedNodeIds = Collections.emptySet();
@@ -241,7 +244,7 @@ public class AllocationService {
                     allocation.removeAllocationId(failedShard);
                 }
                 logger.warn(() -> "failing shard [" + failedShardEntry + "]", failedShardEntry.failure());
-                allocation.routingNodes().failShard(logger, failedShard, unassignedInfo, allocation.changes());
+                allocation.routingNodes().failShard(failedShard, unassignedInfo, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
             }
@@ -382,8 +385,7 @@ public class AllocationService {
      * state. Should be called after every change to the cluster that affects the routing table and/or the balance of shards.
      * <p>
      * This method is expensive in larger clusters. Wherever possible you should invoke this method asynchronously using
-     * {@link RerouteService#reroute} to batch up invocations rather than calling the method directly. The node's reroute service is
-     * typically obtained from {@link ClusterService#getRerouteService}.
+     * {@link RerouteService#reroute} to batch up invocations rather than calling the method directly.
      *
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
@@ -400,8 +402,7 @@ public class AllocationService {
      * state. Should be called after every change to the cluster that affects the routing table and/or the balance of shards.
      * <p>
      * This method is expensive in larger clusters. Wherever possible you should invoke this method asynchronously using
-     * {@link RerouteService#reroute} to batch up invocations rather than calling the method directly. The node's reroute service is
-     * typically obtained from {@link ClusterService#getRerouteService}.
+     * {@link RerouteService#reroute} to batch up invocations rather than calling the method directly.
      *
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
@@ -427,8 +428,8 @@ public class AllocationService {
             while (unassignedIterator.hasNext()) {
                 ShardRouting shardRouting = unassignedIterator.next();
                 UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-                if (unassignedInfo.isDelayed()) {
-                    final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
+                if (unassignedInfo.delayed()) {
+                    final long newComputedLeftDelayNanos = unassignedInfo.remainingDelay(
                         allocation.getCurrentNanoTime(),
                         metadata.getIndexSafe(shardRouting.index()).getSettings(),
                         metadata.nodeShutdowns()
@@ -436,16 +437,16 @@ public class AllocationService {
                     if (newComputedLeftDelayNanos == 0) {
                         unassignedIterator.updateUnassigned(
                             new UnassignedInfo(
-                                unassignedInfo.getReason(),
-                                unassignedInfo.getMessage(),
-                                unassignedInfo.getFailure(),
-                                unassignedInfo.getNumFailedAllocations(),
-                                unassignedInfo.getUnassignedTimeInNanos(),
-                                unassignedInfo.getUnassignedTimeInMillis(),
+                                unassignedInfo.reason(),
+                                unassignedInfo.message(),
+                                unassignedInfo.failure(),
+                                unassignedInfo.failedAllocations(),
+                                unassignedInfo.unassignedTimeNanos(),
+                                unassignedInfo.unassignedTimeMillis(),
                                 false,
-                                unassignedInfo.getLastAllocationStatus(),
-                                unassignedInfo.getFailedNodeIds(),
-                                unassignedInfo.getLastAllocatedNodeId()
+                                unassignedInfo.lastAllocationStatus(),
+                                unassignedInfo.failedNodeIds(),
+                                unassignedInfo.lastAllocatedNodeId()
                             ),
                             shardRouting.recoverySource(),
                             allocation.changes()
@@ -546,7 +547,10 @@ public class AllocationService {
         }
 
         for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators.values()) {
-            existingShardsAllocator.afterPrimariesBeforeReplicas(allocation);
+            existingShardsAllocator.afterPrimariesBeforeReplicas(
+                allocation,
+                shardRouting -> getAllocatorForShard(shardRouting, allocation) == existingShardsAllocator
+            );
         }
 
         final RoutingNodes.UnassignedShards.UnassignedIterator replicaIterator = allocation.routingNodes().unassigned().iterator();
@@ -556,6 +560,25 @@ public class AllocationService {
                 getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, replicaIterator);
             }
         }
+    }
+
+    /**
+     * Creates a cluster state listener that resets allocation failures. For example, reset when a new node joins a cluster. Resetting
+     * counter on new node join covers a variety of use cases, such as rolling update, version change, node restarts.
+     */
+    public void addAllocFailuresResetListenerTo(ClusterService clusterService) {
+        // batched cluster update executor, runs reroute once per batch
+        // set retryFailed=true to trigger failures reset during reroute
+        var taskQueue = clusterService.createTaskQueue("reset-allocation-failures", Priority.NORMAL, (batchCtx) -> {
+            batchCtx.taskContexts().forEach((taskCtx) -> taskCtx.success(() -> {}));
+            return reroute(batchCtx.initialState(), new AllocationCommands(), false, true, false, ActionListener.noop()).clusterState();
+        });
+
+        clusterService.addListener((changeEvent) -> {
+            if (changeEvent.nodesAdded() && changeEvent.state().getRoutingNodes().hasAllocationFailures()) {
+                taskQueue.submitTask("reset-allocation-failures", (e) -> { assert MasterService.isPublishFailureException(e); }, null);
+            }
+        });
     }
 
     private static void disassociateDeadNodes(RoutingAllocation allocation) {
@@ -588,7 +611,7 @@ public class AllocationService {
                     Collections.emptySet(),
                     shardRouting.currentNodeId()
                 );
-                allocation.routingNodes().failShard(logger, shardRouting, unassignedInfo, allocation.changes());
+                allocation.routingNodes().failShard(shardRouting, unassignedInfo, allocation.changes());
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
             // since it relies on the fact that the RoutingNode exists in the list of nodes
@@ -611,7 +634,7 @@ public class AllocationService {
             long expectedShardSize = routingAllocation.metadata().getIndexSafe(startedShard.index()).isSearchableSnapshot()
                 ? startedShard.getExpectedShardSize()
                 : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
-            routingNodes.startShard(logger, startedShard, routingAllocation.changes(), expectedShardSize);
+            routingNodes.startShard(startedShard, routingAllocation.changes(), expectedShardSize);
         }
     }
 
@@ -698,7 +721,7 @@ public class AllocationService {
         public void beforeAllocation(RoutingAllocation allocation) {}
 
         @Override
-        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
 
         @Override
         public void allocateUnassigned(

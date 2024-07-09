@@ -12,7 +12,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
@@ -41,14 +40,15 @@ public class RestClearScrollActionTests extends ESTestCase {
 
     public void testBodyParamsOverrideQueryStringParams() throws Exception {
         SetOnce<Boolean> scrollCalled = new SetOnce<>();
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
-            @Override
-            public void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener) {
-                scrollCalled.set(true);
-                assertThat(request.getScrollIds(), hasSize(1));
-                assertThat(request.getScrollIds().get(0), equalTo("BODY"));
-            }
-        }) {
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = new NoOpNodeClient(threadPool) {
+                @Override
+                public void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener) {
+                    scrollCalled.set(true);
+                    assertThat(request.getScrollIds(), hasSize(1));
+                    assertThat(request.getScrollIds().get(0), equalTo("BODY"));
+                }
+            };
             RestClearScrollAction action = new RestClearScrollAction();
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
                 Collections.singletonMap("scroll_id", "QUERY_STRING")

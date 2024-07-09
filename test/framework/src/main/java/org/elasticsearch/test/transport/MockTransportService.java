@@ -11,8 +11,8 @@ package org.elasticsearch.test.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -30,15 +30,20 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,6 +51,7 @@ import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
@@ -74,6 +80,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.junit.Assert.assertNotNull;
+import static org.mockito.Mockito.spy;
+
 /**
  * A mock delegate service that allows to simulate different network topology failures.
  * Internally it maps TransportAddress objects to rules that inject failures.
@@ -95,7 +104,7 @@ public class MockTransportService extends TransportService {
     public static class TestPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
+            return List.of(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING, MockTaskManager.SPY_TASK_MANAGER_SETTING);
         }
     }
 
@@ -185,6 +194,14 @@ public class MockTransportService extends TransportService {
                 .build(),
             clusterSettings,
             createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP)
+        );
+    }
+
+    public static MockTransportService getInstance(String nodeName) {
+        assertNotNull("nodeName must not be null", nodeName);
+        return ESTestCase.asInstanceOf(
+            MockTransportService.class,
+            ESIntegTestCase.internalCluster().getInstance(TransportService.class, nodeName)
         );
     }
 
@@ -295,7 +312,15 @@ public class MockTransportService extends TransportService {
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
     }
 
-    private static TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
+    public static TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
+        if (MockTaskManager.SPY_TASK_MANAGER_SETTING.get(settings)) {
+            return spy(createMockTaskManager(settings, threadPool, taskHeaders, tracer));
+        } else {
+            return createMockTaskManager(settings, threadPool, taskHeaders, tracer);
+        }
+    }
+
+    private static TaskManager createMockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
             return new MockTaskManager(settings, threadPool, taskHeaders);
         } else {
@@ -416,7 +441,9 @@ public class MockTransportService extends TransportService {
         );
 
         transport().addSendBehavior(transportAddress, new StubbableTransport.SendRequestBehavior() {
+
             private final Set<Transport.Connection> toClose = ConcurrentHashMap.newKeySet();
+            private final RefCounted refs = AbstractRefCounted.of(this::closeConnections);
 
             @Override
             public void sendRequest(
@@ -425,19 +452,32 @@ public class MockTransportService extends TransportService {
                 String action,
                 TransportRequest request,
                 TransportRequestOptions options
-            ) {
-                // don't send anything, the receiving node is unresponsive
-                toClose.add(connection);
+            ) throws IOException {
+                if (connection.isClosed()) {
+                    throw new NodeNotConnectedException(connection.getNode(), "connection already closed");
+                } else if (refs.tryIncRef()) {
+                    // don't send anything, the receiving node is unresponsive
+                    toClose.add(connection);
+                    refs.decRef();
+                } else {
+                    connection.sendRequest(requestId, action, request, options);
+                }
             }
 
             @Override
             public void clearCallback() {
                 // close to simulate that tcp-ip eventually times out and closes connection (necessary to ensure transport eventually
                 // responds).
+                refs.decRef();
+            }
+
+            private void closeConnections() {
+                // close to simulate that tcp-ip eventually times out and closes connection (necessary to ensure transport eventually
+                // responds).
                 try {
                     IOUtils.close(toClose);
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new AssertionError(e);
                 }
             }
         });
@@ -530,26 +570,34 @@ public class MockTransportService extends TransportService {
                 request.writeTo(bStream);
                 final TransportRequest clonedRequest;
                 if (request instanceof BytesTransportRequest) {
-                    // Some request handlers read back a BytesTransportRequest
-                    // into a different class that cannot be re-serialized (i.e. JOIN_VALIDATE_ACTION_NAME),
-                    // in those cases we just copy the raw bytes back to a BytesTransportRequest.
-                    // This is only needed for the BwC for JOIN_VALIDATE_ACTION_NAME and can be removed in the next major
-                    assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
-                    clonedRequest = new BytesTransportRequest(bStream.bytes().streamInput());
+                    clonedRequest = copyRawBytesForBwC(bStream);
                 } else {
                     RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
                     clonedRequest = reg.newRequest(bStream.bytes().streamInput());
                 }
-                assert clonedRequest.getClass().equals(request.getClass()) : clonedRequest + " vs " + request;
+                assert clonedRequest.getClass().equals(MasterNodeRequestHelper.unwrapTermOverride(request).getClass())
+                    : clonedRequest + " vs " + request;
 
                 final RunOnce runnable = new RunOnce(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug("failed to send delayed request", e);
+                        logger.debug(
+                            () -> Strings.format(
+                                "[%d][%s] failed to send delayed request to node [%s]",
+                                requestId,
+                                action,
+                                connection.getNode()
+                            ),
+                            e
+                        );
+                        handleInternalSendException(action, connection.getNode(), requestId, null, e);
                     }
 
                     @Override
                     protected void doRun() throws IOException {
+                        logger.debug(
+                            () -> Strings.format("[%d][%s] sending delayed request to node [%s]", requestId, action, connection.getNode())
+                        );
                         connection.sendRequest(requestId, action, clonedRequest, options);
                     }
                 });
@@ -560,9 +608,27 @@ public class MockTransportService extends TransportService {
                         runnable.run();
                     } else {
                         requestsToSendWhenCleared.add(runnable);
+                        logger.debug(
+                            () -> Strings.format(
+                                "[%d][%s] delaying sending request to node [%s] by [%s]",
+                                requestId,
+                                action,
+                                connection.getNode(),
+                                delay
+                            )
+                        );
                         threadPool.schedule(runnable, delay, threadPool.generic());
                     }
                 }
+            }
+
+            // Some request handlers read back a BytesTransportRequest
+            // into a different class that cannot be re-serialized (i.e. JOIN_VALIDATE_ACTION_NAME),
+            // in those cases we just copy the raw bytes back to a BytesTransportRequest.
+            // This is only needed for the BwC for JOIN_VALIDATE_ACTION_NAME and can be removed in the next major
+            @UpdateForV9
+            private static TransportRequest copyRawBytesForBwC(BytesStreamOutput bStream) throws IOException {
+                return new BytesTransportRequest(bStream.bytes().streamInput());
             }
 
             @Override

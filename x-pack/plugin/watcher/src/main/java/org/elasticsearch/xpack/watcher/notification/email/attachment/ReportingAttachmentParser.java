@@ -17,12 +17,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,7 +49,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class ReportingAttachmentParser implements EmailAttachmentParser<ReportingAttachment> {
+public final class ReportingAttachmentParser implements EmailAttachmentParser<ReportingAttachment> {
 
     public static final String TYPE = "reporting";
 
@@ -137,7 +136,6 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     private boolean warningEnabled = REPORT_WARNING_ENABLED_SETTING.getDefault(Settings.EMPTY);
     private final Map<String, String> customWarnings = new ConcurrentHashMap<>(1);
 
-    @SuppressWarnings("this-escape")
     public ReportingAttachmentParser(
         Settings settings,
         WebhookService webhookService,
@@ -359,11 +357,10 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     private static String extractIdFromJson(String watchId, String attachmentId, BytesReference body) throws IOException {
         // EMPTY is safe here becaus we never call namedObject
         try (
-            InputStream stream = body.streamInput();
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE,
-                stream
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                body,
+                XContentType.JSON
             )
         ) {
             KibanaReportingPayload payload = new KibanaReportingPayload();

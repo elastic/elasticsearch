@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -26,9 +25,7 @@ import java.util.Set;
 /**
  * Implementation of the action needed to create an API key
  */
-public final class TransportCreateCrossClusterApiKeyAction extends HandledTransportAction<
-    CreateCrossClusterApiKeyRequest,
-    CreateApiKeyResponse> {
+public final class TransportCreateCrossClusterApiKeyAction extends TransportAction<CreateCrossClusterApiKeyRequest, CreateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
@@ -40,13 +37,7 @@ public final class TransportCreateCrossClusterApiKeyAction extends HandledTransp
         ApiKeyService apiKeyService,
         SecurityContext context
     ) {
-        super(
-            CreateCrossClusterApiKeyAction.NAME,
-            transportService,
-            actionFilters,
-            CreateCrossClusterApiKeyRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(CreateCrossClusterApiKeyAction.NAME, actionFilters, transportService.getTaskManager());
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }

@@ -33,7 +33,6 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
 
     static final ParseField PATH_FIELD = new ParseField("path");
 
-    private final Query parentFilter;
     private final BitSetProducer parentBitsetProducer;
 
     public ReverseNestedAggregator(
@@ -46,6 +45,7 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
+        Query parentFilter;
         if (objectMapper == null) {
             parentFilter = Queries.newNonNestedFilter(context.getIndexSettings().getIndexVersionCreated());
         } else {
@@ -102,7 +102,4 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
         return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metadata());
     }
 
-    Query getParentFilter() {
-        return parentFilter;
-    }
 }

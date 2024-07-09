@@ -72,18 +72,19 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             createClone.commandLine("git", "clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get());
         });
 
-        ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
         TaskProvider<LoggedExec> findRemoteTaskProvider = tasks.register("findRemote", LoggedExec.class, findRemote -> {
             findRemote.dependsOn(createCloneTaskProvider);
             findRemote.getWorkingDir().set(gitExtension.getCheckoutDir());
             findRemote.commandLine("git", "remote", "-v");
             findRemote.getCaptureOutput().set(true);
-            findRemote.doLast(t -> { extraProperties.set("remoteExists", isRemoteAvailable(remote, findRemote.getOutput())); });
+            findRemote.doLast(t -> System.setProperty("remoteExists", String.valueOf(isRemoteAvailable(remote, findRemote.getOutput()))));
         });
 
         TaskProvider<Task> addRemoteTaskProvider = tasks.register("addRemote", addRemote -> {
+            String rootProjectName = project.getRootProject().getName();
+
             addRemote.dependsOn(findRemoteTaskProvider);
-            addRemote.onlyIf("remote exists", task -> ((boolean) extraProperties.get("remoteExists")) == false);
+            addRemote.onlyIf("remote exists", task -> (Boolean.valueOf(providerFactory.systemProperty("remoteExists").get()) == false));
             addRemote.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
@@ -92,14 +93,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                         String remoteRepo = remote.get();
                         // for testing only we can override the base remote url
                         String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
-                            .orElse(
-                                providerFactory.provider(
-                                    () -> addRemote.getExtensions().getExtraProperties().has("remote")
-                                        ? addRemote.getExtensions().getExtraProperties().get("remote").toString()
-                                        : null
-                                )
-                            )
-                            .getOrElse("https://github.com/" + remoteRepo + "/" + project.getRootProject().getName());
+                            .getOrElse("https://github.com/" + remoteRepo + "/" + rootProjectName);
                         spec.commandLine("git", "remote", "add", remoteRepo, remoteRepoUrl);
                     });
                 }
@@ -127,6 +121,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         String projectPath = project.getPath();
         TaskProvider<Task> checkoutBwcBranchTaskProvider = tasks.register("checkoutBwcBranch", checkoutBwcBranch -> {
             checkoutBwcBranch.dependsOn(fetchLatestTaskProvider);
+            ExtraPropertiesExtension taskExtensionsProperties = checkoutBwcBranch.getExtensions().getExtraProperties();
             checkoutBwcBranch.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
@@ -136,9 +131,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                         .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
                         .orElse(
                             providerFactory.provider(
-                                () -> task.getExtensions().getExtraProperties().has("refspec")
-                                    ? task.getExtensions().getExtraProperties().get("refspec").toString()
-                                    : null
+                                () -> taskExtensionsProperties.has("refspec") ? taskExtensionsProperties.get("refspec").toString() : null
                             )
                         )
                         .getOrElse(remote.get() + "/" + bwcBranch);
@@ -213,6 +206,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
 
     private void writeFile(File file, String content) {
         try {
+            file.getParentFile().mkdirs();
             Files.writeString(file.toPath(), content, CREATE, TRUNCATE_EXISTING);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

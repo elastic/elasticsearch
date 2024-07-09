@@ -232,7 +232,8 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testNullAllowAutoCreateInTemplateDoesNotOverrideMatchingAutoCreateIndexSetting() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
             .componentTemplates(List.of())
             .metadata(Map.of())
             .build();
@@ -252,7 +253,8 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testCanHandleNullAutoCreateSettingInTemplate() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
             .componentTemplates(List.of())
             .metadata(Map.of())
             .build();
@@ -275,7 +277,8 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testDisabledAutoCreateTemplateSettingDoesNotOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
             .componentTemplates(List.of())
             .metadata(Map.of())
             .allowAutoCreate(false)
@@ -299,7 +302,8 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testEnabledAutoCreateTemplateSettingDoesOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
             .componentTemplates(List.of())
             .metadata(Map.of())
             .allowAutoCreate(true)

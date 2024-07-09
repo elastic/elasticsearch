@@ -37,7 +37,7 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
         IndexStats indexStats = indicesStats.getIndex("test-idx");
         long totalSizeInBytes = 0;
         for (ShardStats shard : indexStats.getShards()) {
-            totalSizeInBytes += shard.getStats().getStore().getSizeInBytes();
+            totalSizeInBytes += shard.getStats().getStore().sizeInBytes();
         }
         logger.info("--> total shards size: {} bytes", totalSizeInBytes);
 
@@ -57,12 +57,11 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
         createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
         logger.info("--> restore from snapshot");
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
-            .setRenamePattern("test-")
-            .setRenameReplacement("test2-")
-            .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            "test-snap"
+        ).setRenamePattern("test-").setRenameReplacement("test2-").setWaitForCompletion(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertDocCount("test-idx", 100);
 

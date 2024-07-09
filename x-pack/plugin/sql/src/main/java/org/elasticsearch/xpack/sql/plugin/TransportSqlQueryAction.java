@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
-public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse>
+public final class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse>
     implements
         AsyncTaskManagementService.AsyncOperation<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> {
 
@@ -74,7 +74,6 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     private final TransportService transportService;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
 
-    @SuppressWarnings("this-escape")
     @Inject
     public TransportSqlQueryAction(
         Settings settings,

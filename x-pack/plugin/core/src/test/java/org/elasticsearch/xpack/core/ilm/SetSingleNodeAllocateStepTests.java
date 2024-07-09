@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.VersionUtils;
@@ -402,7 +403,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
                 VersionUtils.getPreviousVersion()
             ),
-            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
@@ -471,7 +472,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
                 VersionUtils.getPreviousVersion()
             ),
-            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
@@ -548,7 +549,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
                 VersionUtils.getPreviousVersion()
             ),
-            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version

@@ -15,7 +15,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -85,8 +86,13 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
         }
 
-        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger, handler);
-        requestFilterChain.proceed(task, actionName, request, listener);
+        // Note on request refcounting: we can be sure that either we get to the end of the chain (and execute the actual action) or
+        // we complete the response listener and short-circuit the outer chain, so we release our request ref on both paths, using
+        // Releasables#releaseOnce to avoid a double-release.
+        request.mustIncRef();
+        final var releaseRef = Releasables.releaseOnce(request::decRef);
+        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger, handler, releaseRef);
+        requestFilterChain.proceed(task, actionName, request, ActionListener.runBefore(listener, releaseRef::close));
     }
 
     private void doExecuteForking(Task task, Request request, ActionListener<Response> listener) {
@@ -103,15 +109,18 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         private final TransportActionHandler<Request, Response> handler;
         private final AtomicInteger index = new AtomicInteger();
         private final Logger logger;
+        private final Releasable releaseRef;
 
         private RequestFilterChain(
             TransportAction<Request, Response> action,
             Logger logger,
-            TransportActionHandler<Request, Response> handler
+            TransportActionHandler<Request, Response> handler,
+            Releasable releaseRef
         ) {
             this.action = action;
             this.logger = logger;
             this.handler = handler;
+            this.releaseRef = releaseRef;
         }
 
         @Override
@@ -121,7 +130,9 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 if (i < this.action.filters.length) {
                     this.action.filters[i].apply(task, actionName, request, listener, this);
                 } else if (i == this.action.filters.length) {
-                    handler.execute(task, request, listener);
+                    try (releaseRef) {
+                        handler.execute(task, request, listener);
+                    }
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
                 }
@@ -164,7 +175,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
     /**
      * A method to use as a placeholder in implementations of {@link TransportAction} which only ever run on the local node, and therefore
-     * do not need to serialize or deserialize any messages. See also {@link Writeable.Reader#localOnly()}.
+     * do not need to serialize or deserialize any messages.
      */
     // TODO remove this when https://github.com/elastic/elasticsearch/issues/100111 is resolved
     public static <T> T localOnly() {

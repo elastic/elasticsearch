@@ -1,42 +1,96 @@
 [[esql-functions-operators]]
-== {esql} functions and operators
-
+=== {esql} functions and operators
 ++++
 <titleabbrev>Functions and operators</titleabbrev>
 ++++
 
-{esql} provides a comprehensive set of functions and operators:
+{esql} provides a comprehensive set of functions and operators for working with data.
+The reference documentation is divided into the following categories:
 
 [[esql-functions]]
-<<esql-agg-functions>>::
-include::functions/aggregation-functions.asciidoc[tag=list]
+==== Functions overview
 
-<<esql-math-functions>>::
-include::functions/math-functions.asciidoc[tag=list]
+.*Aggregate functions*
+[%collapsible]
+====
+include::functions/aggregation-functions.asciidoc[tag=agg_list]
+====
 
-<<esql-string-functions>>::
-include::functions/string-functions.asciidoc[tag=list]
+.*Grouping functions*
+[%collapsible]
+====
+include::functions/grouping-functions.asciidoc[tag=group_list]
+====
 
-<<esql-date-time-functions>>::
-include::functions/date-time-functions.asciidoc[tag=list]
+.*Conditional functions and expressions*
+[%collapsible]
+====
+include::functions/conditional-functions-and-expressions.asciidoc[tag=cond_list]
+====
 
-<<esql-type-conversion-functions>>::
-include::functions/type-conversion-functions.asciidoc[tag=list]
+// <Type-specific functions alphabetically ordered>
 
-<<esql-conditional-functions-and-expressions>>::
-include::functions/conditional-functions-and-expressions.asciidoc[tag=list]
+.*Date and time functions*
+[%collapsible]
+====
+include::functions/date-time-functions.asciidoc[tag=date_list]
+====
 
-<<esql-mv-functions>>::
-include::functions/mv-functions.asciidoc[tag=list]
+.*IP functions*
+[%collapsible]
+====
+include::functions/ip-functions.asciidoc[tag=ip_list]
+====
 
-<<esql-operators>>::
-include::functions/operators.asciidoc[tag=list]
+.*Math functions*
+[%collapsible]
+====
+include::functions/math-functions.asciidoc[tag=math_list]
+====
+
+.*Spatial functions*
+[%collapsible]
+====
+include::functions/spatial-functions.asciidoc[tag=spatial_list]
+====
+
+.*String functions*
+[%collapsible]
+====
+include::functions/string-functions.asciidoc[tag=string_list]
+====
+
+// </Type-specific functions alphabetically ordered>
+
+.*Type conversion functions*
+[%collapsible]
+====
+include::functions/type-conversion-functions.asciidoc[tag=type_list]
+====
+
+.*Multi value functions*
+[%collapsible]
+====
+include::functions/mv-functions.asciidoc[tag=mv_list]
+====
+
+[[esql-operators-overview]]
+==== Operators overview
+
+.*Operators*
+[%collapsible]
+====
+include::functions/operators.asciidoc[tag=op_list]
+====
 
 include::functions/aggregation-functions.asciidoc[]
-include::functions/math-functions.asciidoc[]
-include::functions/string-functions.asciidoc[]
-include::functions/date-time-functions.asciidoc[]
-include::functions/type-conversion-functions.asciidoc[]
+include::functions/grouping-functions.asciidoc[]
 include::functions/conditional-functions-and-expressions.asciidoc[]
+include::functions/date-time-functions.asciidoc[]
+include::functions/ip-functions.asciidoc[]
+include::functions/math-functions.asciidoc[]
+include::functions/spatial-functions.asciidoc[]
+include::functions/string-functions.asciidoc[]
+include::functions/type-conversion-functions.asciidoc[]
 include::functions/mv-functions.asciidoc[]
 include::functions/operators.asciidoc[]

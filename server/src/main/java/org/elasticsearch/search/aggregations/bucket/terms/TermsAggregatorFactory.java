@@ -45,6 +45,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongPredicate;
 
+import static org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory.matchNoDocs;
+
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 
@@ -100,14 +102,15 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             subAggCollectMode,
             showTermDocCountError,
             cardinality,
-            metadata) -> {
+            metadata,
+            excludeDeletedDocs) -> {
             ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
             ExecutionMode execution = null;
             if (executionHint != null) {
                 execution = ExecutionMode.fromString(executionHint);
             }
             // In some cases, using ordinals is just not supported: override it
-            if (valuesSource.hasOrdinals() == false) {
+            if (valuesSource.hasOrdinals() == false || matchNoDocs(context, parent)) {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
@@ -143,7 +146,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 subAggCollectMode,
                 showTermDocCountError,
                 cardinality,
-                metadata
+                metadata,
+                excludeDeletedDocs
             );
         };
     }
@@ -166,7 +170,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             subAggCollectMode,
             showTermDocCountError,
             cardinality,
-            metadata) -> {
+            metadata,
+            excludeDeletedDocs) -> {
 
             if ((includeExclude != null) && (includeExclude.isRegexBased())) {
                 throw new IllegalArgumentException(
@@ -209,7 +214,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 subAggCollectMode,
                 longFilter,
                 cardinality,
-                metadata
+                metadata,
+                excludeDeletedDocs
             );
         };
     }
@@ -221,6 +227,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final SubAggCollectionMode collectMode;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
+    private final boolean excludeDeletedDocs;
 
     TermsAggregatorFactory(
         String name,
@@ -235,7 +242,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata,
-        TermsAggregatorSupplier aggregatorSupplier
+        TermsAggregatorSupplier aggregatorSupplier,
+        boolean excludeDeletedDocs
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
@@ -245,6 +253,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.collectMode = collectMode;
         this.bucketCountThresholds = bucketCountThresholds;
         this.showTermDocCountError = showTermDocCountError;
+        this.excludeDeletedDocs = excludeDeletedDocs;
     }
 
     @Override
@@ -277,39 +286,45 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
-    @Override
-    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
-        throws IOException {
-        BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
+    public static BucketCountThresholds adjustBucketCountThresholds(BucketCountThresholds bucketCountThresholds, BucketOrder order) {
+        BucketCountThresholds newBucketCountThresholds = new BucketCountThresholds(bucketCountThresholds);
         if (InternalOrder.isKeyOrder(order) == false
-            && bucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.shardSize()) {
+            && newBucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.shardSize()) {
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
-            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
+            newBucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(newBucketCountThresholds.getRequiredSize()));
         }
+        newBucketCountThresholds.ensureValidity();
+        return newBucketCountThresholds;
+    }
+
+    @Override
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+
+        BucketCountThresholds adjusted = adjustBucketCountThresholds(this.bucketCountThresholds, order);
         // If min_doc_count and shard_min_doc_count is provided, we do not support them being larger than 1
         // This is because we cannot be sure about their relative scale when sampled
         if (getSamplingContext().map(SamplingContext::isSampled).orElse(false)) {
-            if (bucketCountThresholds.getMinDocCount() > 1 || bucketCountThresholds.getShardMinDocCount() > 1) {
+            if (adjusted.getMinDocCount() > 1 || adjusted.getShardMinDocCount() > 1) {
                 throw new ElasticsearchStatusException(
                     "aggregation [{}] is within a sampling context; "
                         + "min_doc_count, provided [{}], and min_shard_doc_count, provided [{}], cannot be greater than 1",
                     RestStatus.BAD_REQUEST,
                     name(),
-                    bucketCountThresholds.getMinDocCount(),
-                    bucketCountThresholds.getShardMinDocCount()
+                    adjusted.getMinDocCount(),
+                    adjusted.getShardMinDocCount()
                 );
             }
         }
-        bucketCountThresholds.ensureValidity();
 
         return aggregatorSupplier.build(
             name,
             factories,
             config,
             order,
-            bucketCountThresholds,
+            adjusted,
             includeExclude,
             executionHint,
             context,
@@ -317,7 +332,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             collectMode,
             showTermDocCountError,
             cardinality,
-            metadata
+            metadata,
+            excludeDeletedDocs
         );
     }
 
@@ -376,7 +392,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
             ) throws IOException {
                 IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
@@ -395,7 +412,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    excludeDeletedDocs
                 );
             }
         },
@@ -414,7 +432,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
             ) throws IOException {
 
                 assert valuesSourceConfig.getValuesSource() instanceof ValuesSource.Bytes.WithOrdinals;
@@ -425,7 +444,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 if (maxOrd > 0
                     && maxOrd <= MAX_ORDS_TO_TRY_FILTERS
                     && context.enableRewriteToFilterByFilter()
-                    && false == context.isInSortOrderExecutionRequired()) {
+                    && false == context.isInSortOrderExecutionRequired()
+                    && false == excludeDeletedDocs) {
                     StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
                         name,
                         factories,
@@ -468,7 +488,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     && ordinalsValuesSource.supportsGlobalOrdinalsMapping()
                     &&
                 // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
-                    (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
+                    (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS : ratio <= 0.5 && maxOrd <= 2048)) {
                     /*
                      * We can use the low cardinality execution mode iff this aggregator:
                      *  - has no sub-aggregator AND
@@ -493,7 +513,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         false,
                         subAggCollectMode,
                         showTermDocCountError,
-                        metadata
+                        metadata,
+                        excludeDeletedDocs
                     );
 
                 }
@@ -505,7 +526,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                      * is only possible if we're collecting from a single
                      * bucket.
                      */
-                    remapGlobalOrds = REMAP_GLOBAL_ORDS.booleanValue();
+                    remapGlobalOrds = REMAP_GLOBAL_ORDS;
                 } else {
                     remapGlobalOrds = true;
                     if (includeExclude == null
@@ -539,7 +560,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    excludeDeletedDocs
                 );
             }
         };
@@ -572,7 +594,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             SubAggCollectionMode subAggCollectMode,
             boolean showTermDocCountError,
             CardinalityUpperBound cardinality,
-            Map<String, Object> metadata
+            Map<String, Object> metadata,
+            boolean excludeDeletedDocs
         ) throws IOException;
 
         @Override

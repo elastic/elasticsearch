@@ -45,7 +45,7 @@ To re-enable a disabled user profile, use the
 [[security-api-disable-user-profile-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 
 

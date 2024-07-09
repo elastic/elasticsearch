@@ -7,17 +7,19 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.UnaryExpression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.UnaryExpression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.io.IOException;
 import java.util.function.Function;
 
 /**
@@ -29,6 +31,16 @@ public class DeepCopy extends UnaryExpression implements EvaluatorMapper {
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
@@ -37,9 +49,9 @@ public class DeepCopy extends UnaryExpression implements EvaluatorMapper {
             private final EvalOperator.ExpressionEvaluator child = childEval.get(ctx);
 
             @Override
-            public Block.Ref eval(Page page) {
-                try (Block.Ref ref = child.eval(page)) {
-                    return Block.Ref.floating(BlockUtils.deepCopyOf(ref.block(), ctx.blockFactory()));
+            public Block eval(Page page) {
+                try (Block block = child.eval(page)) {
+                    return BlockUtils.deepCopyOf(block, ctx.blockFactory());
                 }
             }
 

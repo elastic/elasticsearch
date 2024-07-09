@@ -26,8 +26,8 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
     AcknowledgedResponse,
     PutMappingRequestBuilder> {
 
-    public PutMappingRequestBuilder(ElasticsearchClient client, PutMappingAction action) {
-        super(client, action, new PutMappingRequest());
+    public PutMappingRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportPutMappingAction.TYPE, new PutMappingRequest());
     }
 
     public PutMappingRequestBuilder setIndices(String... indices) {

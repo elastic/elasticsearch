@@ -21,11 +21,8 @@ import java.util.Properties;
 public class VersionPropertiesLoader {
     static Properties loadBuildSrcVersion(File input, ProviderFactory providerFactory) throws IOException {
         Properties props = new Properties();
-        InputStream is = new FileInputStream(input);
-        try {
+        try (InputStream is = new FileInputStream(input)) {
             props.load(is);
-        } finally {
-            is.close();
         }
         loadBuildSrcVersion(props, providerFactory);
         return props;

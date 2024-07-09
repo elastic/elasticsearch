@@ -227,13 +227,9 @@ public class PluginsUtilsTests extends ESTestCase {
         transitiveDeps.put("dep2", Collections.singleton(dupJar.toUri().toURL()));
         PluginDescriptor info1 = newTestDescriptor("myplugin", List.of("dep1", "dep2"));
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
-        );
-        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
-        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
-        assertThat(e.getCause().getMessage(), containsString("duplicate codebases"));
+        PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps);
+        Set<URL> transitive = transitiveDeps.get("myplugin");
+        assertThat(transitive, containsInAnyOrder(pluginJar.toUri().toURL(), dupJar.toUri().toURL()));
     }
 
     // Note: testing dup codebase with core is difficult because it requires a symlink, but we have mock filesystems and security manager
@@ -380,6 +376,18 @@ public class PluginsUtilsTests extends ESTestCase {
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
+    }
+
+    public void testInternalNonSemanticVersions() throws Exception {
+        PluginDescriptor info = getPluginDescriptorForVersion(randomAlphaOfLengthBetween(6, 32), "1.8", false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("Plugin [my_plugin] was built for Elasticsearch version"));
+    }
+
+    public void testStableNonSemanticVersions() throws Exception {
+        PluginDescriptor info = getPluginDescriptorForVersion(randomAlphaOfLengthBetween(6, 32), "1.8", true);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("Expected semantic version for plugin [my_plugin] but was"));
     }
 
     public void testStableEarlierElasticsearchVersion() throws Exception {

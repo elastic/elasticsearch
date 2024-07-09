@@ -507,8 +507,10 @@ public class SettingsTests extends ESTestCase {
         builder.startObject();
         settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(Settings.FLAT_SETTINGS_PARAM, "" + flatSettings)));
         builder.endObject();
-        XContentParser parser = createParser(builder);
-        Settings build = Settings.fromXContent(parser);
+        Settings build;
+        try (XContentParser parser = createParser(builder)) {
+            build = Settings.fromXContent(parser);
+        }
         assertEquals(5, build.size());
         assertEquals(Arrays.asList("1", "2", "3"), build.getAsList("foo.bar.baz"));
         assertEquals(2, build.getAsInt("foo.foobar", 0).intValue());
@@ -644,11 +646,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testFractionalTimeValue() {
-        final Setting<TimeValue> setting = Setting.timeSetting(
-            "key",
-            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
-            TimeValue.ZERO
-        );
+        final Setting<TimeValue> setting = Setting.timeSetting("key", randomTimeValue(0, 24, TimeUnit.HOURS), TimeValue.ZERO);
         final TimeValue expected = TimeValue.timeValueMillis(randomNonNegativeLong());
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
@@ -681,11 +679,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testSetByTimeUnit() {
-        final Setting<TimeValue> setting = Setting.timeSetting(
-            "key",
-            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
-            TimeValue.ZERO
-        );
+        final Setting<TimeValue> setting = Setting.timeSetting("key", randomTimeValue(0, 24, TimeUnit.HOURS), TimeValue.ZERO);
         final TimeValue expected = new TimeValue(1500, TimeUnit.MICROSECONDS);
         final Settings settings = Settings.builder().put("key", expected.getMicros(), TimeUnit.MICROSECONDS).build();
         /*

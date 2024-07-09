@@ -50,6 +50,8 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         public Token nextToken() throws IOException {
             Token token;
             XContentParser delegate;
+            // cache object field (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+            var parsers = this.parsers;
             while ((token = (delegate = parsers.peek()).nextToken()) == null) {
                 parsers.pop();
                 if (parsers.isEmpty()) {
@@ -172,34 +174,60 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             return parsers.peek();
         }
 
+        /*
+        The following methods (map* and list*) are known not be called by DocumentParser when parsing documents, but we support indexing
+        percolator queries which are also parsed through DocumentParser, and their parsing code is completely up to each query, which are
+        also pluggable. That means that this parser needs to fully support parsing arbitrary content, when dots expansion is turned off.
+        We do throw UnsupportedOperationException when dots expansion is enabled as we don't expect such methods to be ever called in
+        those circumstances.
+         */
+
         @Override
         public Map<String, Object> map() throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.map();
+            }
             throw new UnsupportedOperationException();
         }
 
         @Override
         public Map<String, Object> mapOrdered() throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.mapOrdered();
+            }
             throw new UnsupportedOperationException();
         }
 
         @Override
         public Map<String, String> mapStrings() throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.mapStrings();
+            }
             throw new UnsupportedOperationException();
         }
 
         @Override
         public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
             throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.map(mapFactory, mapValueParser);
+            }
             throw new UnsupportedOperationException();
         }
 
         @Override
         public List<Object> list() throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.list();
+            }
             throw new UnsupportedOperationException();
         }
 
         @Override
         public List<Object> listOrderedMap() throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.listOrderedMap();
+            }
             throw new UnsupportedOperationException();
         }
     }

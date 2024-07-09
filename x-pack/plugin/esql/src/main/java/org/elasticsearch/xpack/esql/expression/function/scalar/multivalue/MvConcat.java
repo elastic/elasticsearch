@@ -9,31 +9,62 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
+import java.io.IOException;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
  * Reduce a multivalued string field to a single valued field by concatenating all values.
  */
 public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
-    public MvConcat(Source source, Expression field, Expression delim) {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvConcat", MvConcat::new);
+
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Converts a multivalued string expression into a single valued column "
+            + "containing the concatenation of all values separated by a delimiter.",
+        examples = {
+            @Example(file = "string", tag = "mv_concat"),
+            @Example(
+                description = "To concat non-string columns, call <<esql-to_string>> first:",
+                file = "string",
+                tag = "mv_concat-to_string"
+            ) }
+    )
+    public MvConcat(
+        Source source,
+        @Param(name = "string", type = { "text", "keyword" }, description = "Multivalue expression.") Expression field,
+        @Param(name = "delim", type = { "text", "keyword" }, description = "Delimiter.") Expression delim
+    ) {
         super(source, field, delim);
+    }
+
+    private MvConcat(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -52,14 +83,12 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public DataType dataType() {
-        return DataTypes.KEYWORD;
+        return DataType.KEYWORD;
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var fieldEval = toEvaluator.apply(left());
-        var delimEval = toEvaluator.apply(right());
-        return dvrCtx -> new MvConcatEvaluator(dvrCtx, fieldEval.get(dvrCtx), delimEval.get(dvrCtx));
+        return new EvaluatorFactory(toEvaluator.apply(left()), toEvaluator.apply(right()));
     }
 
     @Override
@@ -77,6 +106,20 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
         return NodeInfo.create(this, MvConcat::new, left(), right());
     }
 
+    private record EvaluatorFactory(ExpressionEvaluator.Factory field, ExpressionEvaluator.Factory delim)
+        implements
+            ExpressionEvaluator.Factory {
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            return new Evaluator(context, field.get(context), delim.get(context));
+        }
+
+        @Override
+        public String toString() {
+            return "MvConcat[field=" + field + ", delim=" + delim + "]";
+        }
+    }
+
     /**
      * Evaluator for {@link MvConcat}. Not generated and doesn't extend from
      * {@link AbstractMultivalueFunction.AbstractEvaluator} because it's just
@@ -87,28 +130,22 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
      *     <li>The actual joining process needs init step per row - {@link BytesRefBuilder#clear()}</li>
      * </ul>
      */
-    private class MvConcatEvaluator implements EvalOperator.ExpressionEvaluator {
+    private static class Evaluator implements ExpressionEvaluator {
         private final DriverContext context;
-        private final EvalOperator.ExpressionEvaluator field;
-        private final EvalOperator.ExpressionEvaluator delim;
+        private final ExpressionEvaluator field;
+        private final ExpressionEvaluator delim;
 
-        MvConcatEvaluator(DriverContext context, EvalOperator.ExpressionEvaluator field, EvalOperator.ExpressionEvaluator delim) {
+        Evaluator(DriverContext context, ExpressionEvaluator field, ExpressionEvaluator delim) {
             this.context = context;
             this.field = field;
             this.delim = delim;
         }
 
         @Override
-        public final Block.Ref eval(Page page) {
-            try (Block.Ref fieldRef = field.eval(page); Block.Ref delimRef = delim.eval(page)) {
-                if (fieldRef.block().areAllValuesNull() || delimRef.block().areAllValuesNull()) {
-                    return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), context.blockFactory()));
-                }
-                BytesRefBlock fieldVal = (BytesRefBlock) fieldRef.block();
-                BytesRefBlock delimVal = (BytesRefBlock) delimRef.block();
-
+        public final Block eval(Page page) {
+            try (BytesRefBlock fieldVal = (BytesRefBlock) field.eval(page); BytesRefBlock delimVal = (BytesRefBlock) delim.eval(page)) {
                 int positionCount = page.getPositionCount();
-                try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, context.blockFactory())) {
+                try (BytesRefBlock.Builder builder = context.blockFactory().newBytesRefBlockBuilder(positionCount)) {
                     BytesRefBuilder work = new BytesRefBuilder(); // TODO BreakingBytesRefBuilder so we don't blow past circuit breakers
                     BytesRef fieldScratch = new BytesRef();
                     BytesRef delimScratch = new BytesRef();
@@ -137,7 +174,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
                         }
                         builder.appendBytesRef(work.get());
                     }
-                    return Block.Ref.floating(builder.build());
+                    return builder.build();
                 }
             }
         }

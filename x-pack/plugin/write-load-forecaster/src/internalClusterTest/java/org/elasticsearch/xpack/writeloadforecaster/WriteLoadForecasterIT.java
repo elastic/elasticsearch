@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -151,20 +151,15 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("my-template").indexTemplate(
-                    new ComposableIndexTemplate(
-                        List.of("logs-*"),
-                        new Template(indexSettings, null, null),
-                        null,
-                        null,
-                        null,
-                        null,
-                        new ComposableIndexTemplate.DataStreamTemplate(),
-                        null
-                    )
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("my-template").indexTemplate(
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("logs-*"))
+                        .template(new Template(indexSettings, null, null))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
                 )
-            ).actionGet()
+            )
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet());
 
@@ -208,9 +203,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
     private void setHasValidLicense(boolean hasValidLicense) {
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            for (var writeLoadForecasterPlugin : pluginsService.filterPlugins(FakeLicenseWriteLoadForecasterPlugin.class)) {
-                writeLoadForecasterPlugin.setHasValidLicense(hasValidLicense);
-            }
+            pluginsService.filterPlugins(FakeLicenseWriteLoadForecasterPlugin.class).forEach(p -> p.setHasValidLicense(hasValidLicense));
         }
     }
 

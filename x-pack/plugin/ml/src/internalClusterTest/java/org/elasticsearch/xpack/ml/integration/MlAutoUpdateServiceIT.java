@@ -74,8 +74,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
     public void testAutomaticModelUpdate() throws Exception {
         ensureGreen("_all");
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
-        client().prepareIndex(MlConfigIndex.indexName())
-            .setId(DatafeedConfig.documentId("farequote-datafeed-with-old-agg"))
+        prepareIndex(MlConfigIndex.indexName()).setId(DatafeedConfig.documentId("farequote-datafeed-with-old-agg"))
             .setSource(AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL, XContentType.JSON)
             .get();
         AtomicReference<DatafeedConfig.Builder> getConfigHolder = new AtomicReference<>();

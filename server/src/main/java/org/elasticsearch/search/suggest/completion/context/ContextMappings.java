@@ -142,7 +142,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
             if (typedContexts.isEmpty()) {
                 throw new IllegalArgumentException("Contexts are mandatory in context enabled completion field [" + name + "]");
             }
-            return new ArrayList<CharSequence>(typedContexts);
+            return new ArrayList<>(typedContexts);
         }
     }
 
@@ -166,8 +166,8 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
                 List<ContextMapping.InternalQueryContext> internalQueryContext = queryContexts.get(mapping.name());
                 if (internalQueryContext != null) {
                     for (ContextMapping.InternalQueryContext context : internalQueryContext) {
-                        scratch.append(context.context);
-                        typedContextQuery.addContext(scratch.toCharsRef(), context.boost, context.isPrefix == false);
+                        scratch.append(context.context());
+                        typedContextQuery.addContext(scratch.toCharsRef(), context.boost(), context.isPrefix() == false);
                         scratch.setLength(1);
                         hasContext = true;
                     }
@@ -193,12 +193,8 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
             int typeId = typedContext.charAt(0);
             assert typeId < contextMappings.size() : "Returned context has invalid type";
             ContextMapping<?> mapping = contextMappings.get(typeId);
-            Set<String> contextEntries = contextMap.get(mapping.name());
-            if (contextEntries == null) {
-                contextEntries = new HashSet<>();
-                contextMap.put(mapping.name(), contextEntries);
-            }
-            contextEntries.add(typedContext.subSequence(1, typedContext.length()).toString());
+            contextMap.computeIfAbsent(mapping.name(), k -> new HashSet<>())
+                .add(typedContext.subSequence(1, typedContext.length()).toString());
         }
         return contextMap;
     }
@@ -273,7 +269,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || (obj instanceof ContextMappings) == false) {
+        if ((obj instanceof ContextMappings) == false) {
             return false;
         }
         ContextMappings other = ((ContextMappings) obj);

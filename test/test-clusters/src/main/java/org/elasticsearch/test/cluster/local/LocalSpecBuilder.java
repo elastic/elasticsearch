@@ -11,6 +11,7 @@ package org.elasticsearch.test.cluster.local;
 import org.elasticsearch.test.cluster.EnvironmentProvider;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
+import org.elasticsearch.test.cluster.SystemPropertyProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
@@ -120,6 +121,22 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Adds a system property to node JVM arguments.
      */
     T systemProperty(String property, String value);
+
+    /**
+     * Adds a system property to node JVM arguments computed by the given supplier
+     */
+    T systemProperty(String property, Supplier<String> supplier);
+
+    /**
+     * Adds a system property to node JVM arguments computed by the given supplier
+     * when the given predicate evaluates to {@code true}.
+     */
+    T systemProperty(String setting, Supplier<String> value, Predicate<LocalNodeSpec> predicate);
+
+    /**
+     * Register a {@link SystemPropertyProvider}.
+     */
+    T systemProperty(SystemPropertyProvider systemPropertyProvider);
 
     /**
      * Adds an additional command line argument to node JVM arguments.

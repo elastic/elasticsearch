@@ -53,7 +53,7 @@ public class FlushJobActionRequestTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_500_020)) {
+        if (version.before(TransportVersions.V_8_9_X)) {
             instance.setRefreshRequired(true);
         }
         return instance;

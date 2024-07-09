@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.sort.SortOrder;
 
 /**
@@ -25,8 +26,8 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     /**
      * Constructs the new get snapshot request with specified repositories
      */
-    public GetSnapshotsRequestBuilder(ElasticsearchClient client, GetSnapshotsAction action, String... repositories) {
-        super(client, action, new GetSnapshotsRequest(repositories));
+    public GetSnapshotsRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout, String... repositories) {
+        super(client, TransportGetSnapshotsAction.TYPE, new GetSnapshotsRequest(masterNodeTimeout, repositories));
     }
 
     /**
@@ -109,10 +110,10 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     public GetSnapshotsRequestBuilder setAfter(String after) {
-        return setAfter(after == null ? null : GetSnapshotsRequest.After.fromQueryParam(after));
+        return setAfter(after == null ? null : SnapshotSortKey.decodeAfterQueryParam(after));
     }
 
-    public GetSnapshotsRequestBuilder setAfter(@Nullable GetSnapshotsRequest.After after) {
+    public GetSnapshotsRequestBuilder setAfter(@Nullable SnapshotSortKey.After after) {
         request.after(after);
         return this;
     }
@@ -122,7 +123,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
-    public GetSnapshotsRequestBuilder setSort(GetSnapshotsRequest.SortBy sort) {
+    public GetSnapshotsRequestBuilder setSort(SnapshotSortKey sort) {
         request.sort(sort);
         return this;
     }

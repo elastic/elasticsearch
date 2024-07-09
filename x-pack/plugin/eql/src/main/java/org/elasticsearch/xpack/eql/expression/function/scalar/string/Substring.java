@@ -38,11 +38,10 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * EQL specific substring function - similar to the one in Python.
  * Note this is different than the one in SQL.
  */
-public class Substring extends ScalarFunction implements OptionalArgument {
+public final class Substring extends ScalarFunction implements OptionalArgument {
 
     private final Expression input, start, end;
 
-    @SuppressWarnings("this-escape")
     public Substring(Source source, Expression input, Expression start, Expression end) {
         super(source, Arrays.asList(input, start, end != null ? end : new Literal(source, null, DataTypes.NULL)));
         this.input = input;
@@ -98,7 +97,7 @@ public class Substring extends ScalarFunction implements OptionalArgument {
         return asScriptFrom(inputScript, startScript, endScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript, ScriptTemplate endScript) {
+    private ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript, ScriptTemplate endScript) {
         return new ScriptTemplate(
             format(
                 Locale.ROOT,

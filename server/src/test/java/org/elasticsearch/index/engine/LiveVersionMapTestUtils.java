@@ -61,11 +61,19 @@ public class LiveVersionMapTestUtils {
         map.pruneTombstones(maxTimestampToPrune, maxSeqNoToPrune);
     }
 
-    static IndexVersionValue randomIndexVersionValue() {
+    public static long reclaimableRefreshRamBytes(LiveVersionMap map) {
+        return map.reclaimableRefreshRamBytes();
+    }
+
+    public static long refreshingBytes(LiveVersionMap map) {
+        return map.getRefreshingBytes();
+    }
+
+    public static IndexVersionValue randomIndexVersionValue() {
         return new IndexVersionValue(randomTranslogLocation(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    static Translog.Location randomTranslogLocation() {
+    public static Translog.Location randomTranslogLocation() {
         if (randomBoolean()) {
             return null;
         } else {
@@ -91,5 +99,13 @@ public class LiveVersionMapTestUtils {
 
     public static boolean isSafeAccessRequired(LiveVersionMap map) {
         return map.isSafeAccessRequired();
+    }
+
+    public static void enforceSafeAccess(LiveVersionMap map) {
+        map.enforceSafeAccess();
+    }
+
+    public static LiveVersionMapArchive getArchive(LiveVersionMap map) {
+        return map.getArchive();
     }
 }

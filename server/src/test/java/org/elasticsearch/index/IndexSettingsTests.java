@@ -385,7 +385,7 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "2s")
-                .put(SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.V_8_10_0.id() + 1)
+                .put(SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.V_8_10_0.id() + 1)
                 .build()
         );
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));

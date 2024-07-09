@@ -197,9 +197,6 @@ public final class QueryRescorer implements Rescorer {
             this.scoreMode = scoreMode;
         }
 
-        public void setScoreMode(String scoreMode) {
-            setScoreMode(QueryRescoreMode.fromString(scoreMode));
-        }
     }
 
 }

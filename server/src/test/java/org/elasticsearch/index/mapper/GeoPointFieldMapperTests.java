@@ -17,9 +17,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -35,7 +37,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -532,6 +536,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             ),
             exampleMalformedValue("-,1.3").errorMatches("latitude must be a number"),
             exampleMalformedValue("1.3,-").errorMatches("longitude must be a number"),
+            exampleMalformedValue(b -> b.startObject().field("lat", 1.3).endObject()).errorMatches("Required [lon]"),
+            exampleMalformedValue(b -> b.startObject().field("lon", 1.3).endObject()).errorMatches("Required [lat]"),
             exampleMalformedValue(b -> b.startObject().field("lat", "NaN").field("lon", 1.2).endObject()).errorMatches("Required [lat]"),
             exampleMalformedValue(b -> b.startObject().field("lat", 1.2).field("lon", "NaN").endObject()).errorMatches("Required [lon]"),
             exampleMalformedValue("NaN,1.3").errorMatches("invalid latitude NaN; must be between -90.0 and 90.0"),
@@ -595,7 +601,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("synthetic _source for geo_point doesn't support ignore_malformed", ignoreMalformed);
+        return syntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
             private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
@@ -603,50 +613,96 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             @Override
             public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
-                    Tuple<Object, GeoPoint> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), this::mapping);
+                    Value v = generateValue();
+                    if (v.malformedOutput != null) {
+                        return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                    }
+
+                    if (columnReader) {
+                        return new SyntheticSourceExample(v.input, decode(encode(v.output)), encode(v.output), this::mapping);
+                    }
+                    return new SyntheticSourceExample(v.input, v.output, v.output.toWKT(), this::mapping);
+
                 }
-                List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
-                List<Object> in = values.stream().map(Tuple::v1).toList();
-                List<Map<String, Object>> outList = values.stream().map(t -> encode(t.v2())).sorted().map(this::decode).toList();
+                List<Value> values = randomList(1, maxVals, this::generateValue);
+                List<Object> in = values.stream().map(Value::input).toList();
+
+                List<GeoPoint> outputFromDocValues = values.stream()
+                    .filter(v -> v.malformedOutput == null)
+                    .sorted((a, b) -> Long.compare(encode(a.output), encode(b.output)))
+                    .map(Value::output)
+                    .toList();
+
+                // Malformed values always come last in synthetic source
+                Stream<Object> malformedValues = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+
+                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedValues).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
-                return new SyntheticSourceExample(in, out, this::mapping);
+
+                if (columnReader) {
+                    // When reading doc-values, the block is a list of encoded longs
+                    List<Long> outBlockList = outputFromDocValues.stream().map(this::encode).toList();
+                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+                } else {
+                    // When reading row-stride, the block is a list of WKT encoded BytesRefs.
+                    // Values are ordered in order of input.
+                    List<String> outBlockList = values.stream().filter(v -> v.malformedOutput == null).map(v -> v.output.toWKT()).toList();
+                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+                }
             }
 
-            private Tuple<Object, GeoPoint> generateValue() {
+            private record Value(Object input, GeoPoint output, Object malformedOutput) {}
+
+            private Value generateValue() {
                 if (nullValue != null && randomBoolean()) {
-                    return Tuple.tuple(null, nullValue);
+                    return new Value(null, nullValue, null);
+                }
+                if (ignoreMalformed && randomBoolean()) {
+                    // Different malformed values are tested in #exampleMalformedValues().
+                    // Here the goal is to test inputs that contain mixed valid and malformed values.
+                    List<Supplier<Object>> choices = List.of(
+                        () -> "not a valid geohash " + randomAlphaOfLength(3),
+                        () -> Map.of("one", 1, "two", List.of(2, 22, 222), "three", Map.of("three", 33))
+                    );
+                    Object v = randomFrom(choices).get();
+                    return new Value(v, null, v);
                 }
                 GeoPoint point = randomGeoPoint();
-                return Tuple.tuple(randomGeoPointInput(point), point);
+                return new Value(randomGeoPointInput(point), point, null);
             }
 
             private GeoPoint randomGeoPoint() {
                 Point point = GeometryTestUtils.randomPoint(false);
-                return new GeoPoint(point.getLat(), point.getLon());
+                return decode(encode(new GeoPoint(point.getLat(), point.getLon())));
             }
 
             private Object randomGeoPointInput(GeoPoint point) {
-                if (randomBoolean()) {
-                    return Map.of("lat", point.lat(), "lon", point.lon());
-                }
-                List<Double> coords = new ArrayList<>();
-                coords.add(point.lon());
-                coords.add(point.lat());
-                if (ignoreZValue) {
-                    coords.add(randomDouble());
-                }
-                return Map.of("coordinates", coords, "type", "point");
+                return switch (randomInt(4)) {
+                    case 0 -> Map.of("lat", point.lat(), "lon", point.lon());
+                    case 1 -> new double[] { point.lon(), point.lat() };
+                    case 2 -> "POINT( " + point.lon() + " " + point.lat() + " )";
+                    default -> {
+                        List<Double> coords = new ArrayList<>();
+                        coords.add(point.lon());
+                        coords.add(point.lat());
+                        if (ignoreZValue) {
+                            coords.add(randomDouble());
+                        }
+                        yield Map.of("coordinates", coords, "type", "point");
+                    }
+                };
             }
 
             private long encode(GeoPoint point) {
                 return new LatLonDocValuesField("f", point.lat(), point.lon()).numericValue().longValue();
             }
 
-            private Map<String, Object> decode(long point) {
+            private GeoPoint decode(long point) {
                 double lat = GeoEncodingUtils.decodeLatitude((int) (point >> 32));
                 double lon = GeoEncodingUtils.decodeLongitude((int) (point & 0xFFFFFFFF));
-                return new TreeMap<>(Map.of("lat", lat, "lon", lon));
+                return new GeoPoint(lat, lon);
             }
 
             private void mapping(XContentBuilder b) throws IOException {
@@ -663,6 +719,9 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 if (rarely()) {
                     b.field("store", false);
                 }
+                if (ignoreMalformed) {
+                    b.field("ignore_malformed", true);
+                }
             }
 
             @Override
@@ -675,10 +734,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                     new SyntheticSourceInvalidExample(
                         equalTo("field [field] of type [geo_point] doesn't support synthetic source because it declares copy_to"),
                         b -> b.field("type", "geo_point").field("copy_to", "foo")
-                    ),
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it ignores malformed points"),
-                        b -> b.field("type", "geo_point").field("ignore_malformed", true)
                     )
                 );
             }
@@ -688,5 +743,42 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        throw new IllegalStateException("Should never reach here, call loadBlockExpected(BlockReaderSupport, boolean) instead");
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        if (columnReader) {
+            // When using column reader, we expect the output to be doc-values (which means encoded longs)
+            return v -> asJacksonNumberOutput(((Number) v).longValue());
+        } else {
+            // When using row-stride reader, we expect the output to be WKT encoded BytesRef
+            return v -> asWKT((BytesRef) v);
+        }
+    }
+
+    protected static Object asJacksonNumberOutput(long l) {
+        // Cast to int to mimic jackson-core behaviour in NumberOutput.outputLong()
+        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
+            return (int) l;
+        } else {
+            return l;
+        }
+    }
+
+    protected static Object asWKT(BytesRef value) {
+        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
+        return WellKnownText.toWKT(geometry);
+    }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
+        return new BlockReaderSupport(ft.hasDocValues(), false, mapper, loaderFieldName);
     }
 }

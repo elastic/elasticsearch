@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams.lifecycle.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,14 +24,11 @@ import java.util.Objects;
 /**
  * Removes the data stream lifecycle configuration from the requested data streams.
  */
-public class DeleteDataStreamLifecycleAction extends ActionType<AcknowledgedResponse> {
+public class DeleteDataStreamLifecycleAction {
 
-    public static final DeleteDataStreamLifecycleAction INSTANCE = new DeleteDataStreamLifecycleAction();
-    public static final String NAME = "indices:admin/data_stream/lifecycle/delete";
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("indices:admin/data_stream/lifecycle/delete");
 
-    private DeleteDataStreamLifecycleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
-    }
+    private DeleteDataStreamLifecycleAction() {/* no instances */}
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
 
@@ -51,17 +48,13 @@ public class DeleteDataStreamLifecycleAction extends ActionType<AcknowledgedResp
             indicesOptions.writeIndicesOptions(out);
         }
 
-        public Request(String[] names) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names) {
+            super(masterNodeTimeout, ackTimeout);
             this.names = names;
         }
 
         public String[] getNames() {
             return names;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

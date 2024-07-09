@@ -192,7 +192,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
         CachedItem(Key key) {
             this.key = key;
-            incRef(); // start with a refcount of 2 so we're not closed while adding the first listener
+            mustIncRef(); // start with a refcount of 2 so we're not closed while adding the first listener
             this.future.addListener(new ActionListener<>() {
                 @Override
                 public void onResponse(Value value) {

@@ -27,6 +27,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -49,6 +50,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,7 +73,8 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 TYPE,
@@ -104,12 +107,12 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
             if (failGetRepositoryData) {
                 listener.onFailure(new IOException("Failure getting repository data"));
                 return;
             }
-            super.getRepositoryData(listener);
+            super.getRepositoryData(responseExecutor, listener);
         }
 
         @Override
@@ -240,7 +243,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             );
 
             assertAcked(
-                clusterAdmin().preparePutRepository(failingRepo.v1())
+                clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, failingRepo.v1())
                     .setType(FailingRepoPlugin.TYPE)
                     .setVerify(false)
                     .setSettings(Settings.builder().put(repoFailureType, true).put("location", failingRepo.v2()))
@@ -265,39 +268,10 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         }
     }
 
-    public void testFetchingInformationFromAnIncompatibleMasterNodeReturnsAnEmptyList() {
-        String indexName = "test";
-        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
-        ShardId shardId = getShardIdForIndex(indexName);
-
-        for (int i = 0; i < randomIntBetween(1, 50); i++) {
-            index(indexName, Integer.toString(i), Collections.singletonMap("foo", "bar"));
-        }
-
-        String snapshotName = "snap";
-        String repositoryName = "repo";
-        createRepository(repositoryName, "fs", randomRepoPath(), true);
-        createSnapshot(repositoryName, snapshotName, indexName);
-
-        RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
-        ThreadPool threadPool = internalCluster().getAnyMasterNodeInstance(ThreadPool.class);
-        ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
-        ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client(), repositoriesService, threadPool, clusterService) {
-            @Override
-            protected boolean masterSupportsFetchingLatestSnapshots() {
-                return false;
-            }
-        };
-
-        PlainActionFuture<Optional<ShardSnapshot>> latestSnapshots = PlainActionFuture.newFuture();
-        shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, latestSnapshots);
-        assertThat(latestSnapshots.actionGet().isPresent(), is(equalTo(false)));
-    }
-
     private Optional<ShardSnapshot> getLatestShardSnapshot(ShardId shardId) throws Exception {
         ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
 
-        PlainActionFuture<Optional<ShardSnapshot>> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Optional<ShardSnapshot>> future = new PlainActionFuture<>();
         shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, future);
         return future.get();
     }
@@ -316,7 +290,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
 
     private void createRepository(String repositoryName, String type, Path location, boolean recoveryEnabledRepo) {
         assertAcked(
-            clusterAdmin().preparePutRepository(repositoryName)
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName)
                 .setType(type)
                 .setVerify(false)
                 .setSettings(
@@ -328,6 +302,9 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     }
 
     private void createSnapshot(String repoName, String snapshotName, String index) {
-        clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).setIndices(index).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(index)
+            .get();
     }
 }

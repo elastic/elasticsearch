@@ -11,10 +11,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
-import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
-
-import java.util.List;
 
 /**
  * Context used for field collapsing
@@ -22,12 +19,10 @@ import java.util.List;
 public class CollapseContext {
     private final String fieldName;
     private final MappedFieldType fieldType;
-    private final List<InnerHitBuilder> innerHits;
 
-    public CollapseContext(String fieldName, MappedFieldType fieldType, List<InnerHitBuilder> innerHits) {
+    public CollapseContext(String fieldName, MappedFieldType fieldType) {
         this.fieldName = fieldName;
         this.fieldType = fieldType;
-        this.innerHits = innerHits;
     }
 
     /**
@@ -40,11 +35,6 @@ public class CollapseContext {
     /** The field type used for collapsing **/
     public MappedFieldType getFieldType() {
         return fieldType;
-    }
-
-    /** The inner hit options to expand the collapsed results **/
-    public List<InnerHitBuilder> getInnerHit() {
-        return innerHits;
     }
 
     public SinglePassGroupingCollector<?> createTopDocs(Sort sort, int topN, FieldDoc after) {

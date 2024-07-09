@@ -19,7 +19,13 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
@@ -31,6 +37,8 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,10 +46,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
 public class EnrichQuerySourceOperatorTests extends ESTestCase {
+
+    private BlockFactory blockFactory;
+
+    @Before
+    public void setupBlockFactory() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        this.blockFactory = new BlockFactory(breaker, bigArrays);
+    }
+
+    @After
+    public void allBreakersEmpty() throws Exception {
+        MockBigArrays.ensureAllArraysAreReleased();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
 
     public void testQueries() throws Exception {
         MockDirectoryWrapper dir = newMockDirectory();
@@ -66,20 +91,21 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         writer.close();
 
-        BytesRefBlock inputTerms = BytesRefBlock.newBlockBuilder(6)
-            .appendBytesRef(new BytesRef("b2"))
-            .beginPositionEntry()
-            .appendBytesRef(new BytesRef("c1"))
-            .appendBytesRef(new BytesRef("a2"))
-            .endPositionEntry()
-            .appendBytesRef(new BytesRef("z2"))
-            .appendNull()
-            .appendBytesRef(new BytesRef("a3"))
-            .appendNull()
-            .build();
-
+        final BytesRefBlock inputTerms;
+        try (BytesRefBlock.Builder termBuilder = blockFactory.newBytesRefBlockBuilder(6)) {
+            termBuilder.appendBytesRef(new BytesRef("b2"))
+                .beginPositionEntry()
+                .appendBytesRef(new BytesRef("c1"))
+                .appendBytesRef(new BytesRef("a2"))
+                .endPositionEntry()
+                .appendBytesRef(new BytesRef("z2"))
+                .appendNull()
+                .appendBytesRef(new BytesRef("a3"))
+                .appendNull();
+            inputTerms = termBuilder.build();
+        }
         MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
-        QueryList queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms);
+        QueryList queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms, KEYWORD);
         assertThat(queryList.getPositionCount(), equalTo(6));
         assertThat(queryList.getQuery(0), equalTo(new TermQuery(new Term("uid", new BytesRef("b2")))));
         assertThat(queryList.getQuery(1), equalTo(new TermInSetQuery("uid", new BytesRef("c1"), new BytesRef("a2"))));
@@ -95,59 +121,28 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         // 3 -> [] -> []
         // 4 -> [a1] -> [3]
         // 5 -> [] -> []
-        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(queryList, reader);
-        {
-            Page p0 = queryOperator.getOutput();
-            assertNotNull(p0);
-            assertThat(p0.getPositionCount(), equalTo(2));
-            IntVector docs = getDocVector(p0, 0);
-            assertThat(docs.getInt(0), equalTo(1));
-            assertThat(docs.getInt(1), equalTo(4));
-            Block positions = p0.getBlock(1);
-            assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(0));
-            assertThat(BlockUtils.toJavaObject(positions, 1), equalTo(0));
-        }
-        {
-            Page p1 = queryOperator.getOutput();
-            assertNotNull(p1);
-            assertThat(p1.getPositionCount(), equalTo(3));
-            IntVector docs = getDocVector(p1, 0);
-            assertThat(docs.getInt(0), equalTo(0));
-            assertThat(docs.getInt(1), equalTo(1));
-            assertThat(docs.getInt(2), equalTo(2));
-            Block positions = p1.getBlock(1);
-            assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(1));
-            assertThat(BlockUtils.toJavaObject(positions, 1), equalTo(1));
-            assertThat(BlockUtils.toJavaObject(positions, 2), equalTo(1));
-        }
-        {
-            Page p2 = queryOperator.getOutput();
-            assertNull(p2);
-        }
-        {
-            Page p3 = queryOperator.getOutput();
-            assertNull(p3);
-        }
-        {
-            Page p4 = queryOperator.getOutput();
-            assertNotNull(p4);
-            assertThat(p4.getPositionCount(), equalTo(1));
-            IntVector docs = getDocVector(p4, 0);
-            assertThat(docs.getInt(0), equalTo(3));
-            Block positions = p4.getBlock(1);
-            assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(4));
-        }
-        {
-            Page p5 = queryOperator.getOutput();
-            assertNull(p5);
-        }
-        {
-            assertFalse(queryOperator.isFinished());
-            Page p6 = queryOperator.getOutput();
-            assertNull(p6);
-        }
+        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, 128, queryList, reader);
+        Page p0 = queryOperator.getOutput();
+        assertNotNull(p0);
+        assertThat(p0.getPositionCount(), equalTo(6));
+        IntVector docs = getDocVector(p0, 0);
+        assertThat(docs.getInt(0), equalTo(1));
+        assertThat(docs.getInt(1), equalTo(4));
+        assertThat(docs.getInt(2), equalTo(0));
+        assertThat(docs.getInt(3), equalTo(1));
+        assertThat(docs.getInt(4), equalTo(2));
+        assertThat(docs.getInt(5), equalTo(3));
+
+        Block positions = p0.getBlock(1);
+        assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(0));
+        assertThat(BlockUtils.toJavaObject(positions, 1), equalTo(0));
+        assertThat(BlockUtils.toJavaObject(positions, 2), equalTo(1));
+        assertThat(BlockUtils.toJavaObject(positions, 3), equalTo(1));
+        assertThat(BlockUtils.toJavaObject(positions, 4), equalTo(1));
+        assertThat(BlockUtils.toJavaObject(positions, 5), equalTo(4));
+        p0.releaseBlocks();
         assertTrue(queryOperator.isFinished());
-        IOUtils.close(reader, dir);
+        IOUtils.close(reader, dir, inputTerms);
     }
 
     public void testRandomMatchQueries() throws Exception {
@@ -171,40 +166,46 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
 
         Map<Integer, Set<Integer>> expectedPositions = new HashMap<>();
         int numPositions = randomIntBetween(1, 1000);
-        BytesRefBlock.Builder inputTerms = BytesRefBlock.newBlockBuilder(numPositions);
-        for (int i = 0; i < numPositions; i++) {
-            if (randomBoolean()) {
-                String term = randomFrom(terms.keySet());
-                inputTerms.appendBytesRef(new BytesRef(term));
-                Integer position = terms.get(term);
-                expectedPositions.put(i, Set.of(position));
-            } else {
+        final BytesRefBlock inputTerms;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(numPositions)) {
+            for (int i = 0; i < numPositions; i++) {
                 if (randomBoolean()) {
-                    inputTerms.appendNull();
+                    String term = randomFrom(terms.keySet());
+                    builder.appendBytesRef(new BytesRef(term));
+                    Integer position = terms.get(term);
+                    expectedPositions.put(i, Set.of(position));
                 } else {
-                    String term = "other-" + randomIntBetween(1, 100);
-                    inputTerms.appendBytesRef(new BytesRef(term));
+                    if (randomBoolean()) {
+                        builder.appendNull();
+                    } else {
+                        String term = "other-" + randomIntBetween(1, 100);
+                        builder.appendBytesRef(new BytesRef(term));
+                    }
                 }
             }
+            inputTerms = builder.build();
         }
         MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
-        QueryList queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms.build());
-        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(queryList, reader);
+        var queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms, KEYWORD);
+        int maxPageSize = between(1, 256);
+        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, maxPageSize, queryList, reader);
         Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
         while (queryOperator.isFinished() == false) {
             Page page = queryOperator.getOutput();
             if (page != null) {
                 IntVector docs = getDocVector(page, 0);
                 IntBlock positions = page.getBlock(1);
+                assertThat(positions.getPositionCount(), lessThanOrEqualTo(maxPageSize));
                 for (int i = 0; i < page.getPositionCount(); i++) {
                     int doc = docs.getInt(i);
                     int position = positions.getInt(i);
                     actualPositions.computeIfAbsent(position, k -> new HashSet<>()).add(doc);
                 }
+                page.releaseBlocks();
             }
         }
         assertThat(actualPositions, equalTo(expectedPositions));
-        IOUtils.close(reader, dir);
+        IOUtils.close(reader, dir, inputTerms);
     }
 
     private static IntVector getDocVector(Page page, int blockIndex) {

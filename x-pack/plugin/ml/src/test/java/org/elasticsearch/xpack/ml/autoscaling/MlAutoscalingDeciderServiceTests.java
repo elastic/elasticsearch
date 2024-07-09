@@ -102,7 +102,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     private static final long TEST_JOB_SIZE = ByteSizeValue.ofMb(200).getBytes();
 
     private NodeLoadDetector nodeLoadDetector;
-    private NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
+    private NodeRealAvailabilityZoneMapper nodeRealAvailabilityZoneMapper;
     private ClusterService clusterService;
     private Settings settings;
     private TimeMachine timeSupplier;
@@ -122,7 +122,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         when(nodeLoadDetector.detectNodeLoad(any(), any(), anyInt(), anyInt(), anyBoolean())).thenReturn(
             NodeLoad.builder("any").setUseMemory(true).incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes()).build()
         );
-        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        nodeRealAvailabilityZoneMapper = mock(NodeRealAvailabilityZoneMapper.class);
         clusterService = mock(ClusterService.class);
         settings = Settings.EMPTY;
         timeSupplier = new TimeMachine();
@@ -279,7 +279,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     }
 
     private MlAutoscalingDeciderService buildService() {
-        return new MlAutoscalingDeciderService(nodeLoadDetector, settings, nodeAvailabilityZoneMapper, clusterService, timeSupplier);
+        return new MlAutoscalingDeciderService(nodeLoadDetector, settings, nodeRealAvailabilityZoneMapper, clusterService, timeSupplier);
     }
 
     static class DeciderContext implements AutoscalingDeciderContext {

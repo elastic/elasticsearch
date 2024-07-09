@@ -44,7 +44,7 @@ public class SequenceDoubleBlockSourceOperator extends AbstractBlockSourceOperat
 
     @Override
     protected Page createPage(int positionOffset, int length) {
-        DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(length, blockFactory);
+        DoubleVector.FixedBuilder builder = blockFactory.newDoubleVectorFixedBuilder(length);
         for (int i = 0; i < length; i++) {
             builder.appendDouble(values[positionOffset + i]);
         }

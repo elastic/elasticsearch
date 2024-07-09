@@ -300,7 +300,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                 DiskUsage mostAvailable = clusterInfo.getNodeMostAvailableDiskUsages().get(node.getId());
                 DiskUsage leastAvailable = clusterInfo.getNodeLeastAvailableDiskUsages().get(node.getId());
                 if (mostAvailable == null
-                    || mostAvailable.getPath().equals(leastAvailable.getPath()) == false
+                    || mostAvailable.path().equals(leastAvailable.path()) == false
                     || totalStorage(clusterInfo.getNodeMostAvailableDiskUsages(), node) < 0) {
                     return false;
                 }
@@ -340,7 +340,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
         private static long totalStorage(Map<String, DiskUsage> diskUsages, DiscoveryNode node) {
             DiskUsage diskUsage = diskUsages.get(node.getId());
-            return diskUsage != null ? diskUsage.getTotalBytes() : -1;
+            return diskUsage != null ? diskUsage.totalBytes() : -1;
         }
 
         private boolean rolesFilter(DiscoveryNode discoveryNode) {

@@ -24,17 +24,15 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/filters/get";
 
     private GetFiltersAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
-        @SuppressWarnings("this-escape")
         public Request() {
             setAllowNoResources(true);
         }
 
-        @SuppressWarnings("this-escape")
         public Request(String filterId) {
             setResourceId(filterId);
             setAllowNoResources(true);

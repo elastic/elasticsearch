@@ -149,8 +149,10 @@ killed by firewalls or load balancers in-between.
                     means, by default watcher tries to download a dashboard for 10 minutes,
                     forty times fifteen seconds). The setting `xpack.notification.reporting.interval`
                     can be configured globally to change the default.
-| `request.auth`  | Additional auth configuration for the request
-| `request.proxy` | Additional proxy configuration for the request
+| `auth`          | Additional auth configuration for the request, see 
+                    {kibana-ref}/automating-report-generation.html#use-watcher[use watcher] for details
+| `proxy`         | Additional proxy configuration for the request. See <<http-input-attributes>> 
+                    on how to configure the values.
 |======
 
 

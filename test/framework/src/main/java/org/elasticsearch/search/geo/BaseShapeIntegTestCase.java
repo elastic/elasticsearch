@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -52,6 +51,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -184,8 +185,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         );
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", polygonGeoJson));
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(client().prepareSearch("test").setQuery(matchAllQuery()), 1L);
     }
 
     /**
@@ -216,12 +216,11 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
             }""";
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(queryBuilder().shapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC"))
-            .get();
-
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(
+            client().prepareSearch("test")
+                .setQuery(queryBuilder().shapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC")),
+            1L
+        );
     }
 
     public void testDisallowExpensiveQueries() throws InterruptedException, IOException {
@@ -241,7 +240,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
                 }
             }""";
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
         refresh();
 
         try {
@@ -251,7 +250,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
             SearchRequestBuilder builder = client().prepareSearch("test")
                 .setQuery(queryBuilder().shapeQuery("shape", new Circle(0, 0, 77000)));
             if (allowExpensiveQueries()) {
-                assertThat(builder.get().getHits().getTotalHits().value, equalTo(1L));
+                assertHitCount(builder, 1L);
             } else {
                 ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::get);
                 assertEquals(
@@ -263,11 +262,11 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
 
             // Set search.allow_expensive_queries to "null"
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
-            assertThat(builder.get().getHits().getTotalHits().value, equalTo(1L));
+            assertHitCount(builder, 1);
 
             // Set search.allow_expensive_queries to "true"
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", true));
-            assertThat(builder.get().getHits().getTotalHits().value, equalTo(1L));
+            assertHitCount(builder, 1L);
         } finally {
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
         }
@@ -300,16 +299,17 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
             jsonBuilder().startObject().field("area", WellKnownText.toWKT(new MultiPolygon(polygons))).endObject()
         );
 
-        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
+        prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // Point in polygon
-        SearchResponse result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(3, 3)))
-            .get();
-        assertHitCount(result, 1);
-        assertFirstHit(result, hasId("1"));
+        assertResponse(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(3, 3))),
+            response -> {
+                assertHitCount(response, 1L);
+                assertFirstHit(response, hasId("1"));
+            }
+        );
 
         // Point in polygon hole
         assertHitCount(
@@ -322,20 +322,24 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         // of the polygon NOT the hole
 
         // Point on polygon border
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(10.0, 5.0)))
-            .get();
-        assertHitCount(result, 1);
-        assertFirstHit(result, hasId("1"));
+        assertResponse(
+            client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setPostFilter(queryBuilder().intersectionQuery("area", new Point(10.0, 5.0))),
+            response -> {
+                assertHitCount(response, 1L);
+                assertFirstHit(response, hasId("1"));
+            }
+        );
 
         // Point on hole border
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(5.0, 2.0)))
-            .get();
-        assertHitCount(result, 1);
-        assertFirstHit(result, hasId("1"));
+        assertResponse(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(5.0, 2.0))),
+            response -> {
+                assertHitCount(response, 1L);
+                assertFirstHit(response, hasId("1"));
+            }
+        );
 
         // Point not in polygon
         assertHitCount(
@@ -344,12 +348,13 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         );
 
         // Point in polygon hole
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().disjointQuery("area", new Point(4.5, 4.5)))
-            .get();
-        assertHitCount(result, 1);
-        assertFirstHit(result, hasId("1"));
+        assertResponse(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().disjointQuery("area", new Point(4.5, 4.5))),
+            response -> {
+                assertHitCount(response, 1L);
+                assertFirstHit(response, hasId("1"));
+            }
+        );
 
         // Create a polygon that fills the empty area of the polygon defined above
         Polygon inverse = new Polygon(
@@ -358,16 +363,17 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(inverse)).endObject());
-        client().prepareIndex("shapes").setId("2").setSource(data, XContentType.JSON).get();
+        prepareIndex("shapes").setId("2").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // re-check point on polygon hole
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(4.5, 4.5)))
-            .get();
-        assertHitCount(result, 1);
-        assertFirstHit(result, hasId("2"));
+        assertResponse(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(4.5, 4.5))),
+            response -> {
+                assertHitCount(response, 1L);
+                assertFirstHit(response, hasId("2"));
+            }
+        );
 
         // Polygon WithIn Polygon
         Polygon WithIn = new Polygon(new LinearRing(new double[] { -30, -30, 30, 30, -30 }, new double[] { -30, 30, 30, -30, -30 }));
@@ -378,7 +384,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         Polygon crossing = new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }));
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(crossing)).endObject());
-        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
+        prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // Create a polygon crossing longitude 180 with hole.
@@ -388,12 +394,12 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(crossing)).endObject());
-        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
+        prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         assertHitCount(
             client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(174, -4))),
-            1
+            1L
         );
 
         // In geo coordinates the polygon wraps the dateline, so we need to search within valid longitude ranges
@@ -402,15 +408,15 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
             client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setPostFilter(queryBuilder().intersectionQuery("area", new Point(xWrapped, -4))),
-            1
+            1L
         );
         assertHitCount(
             client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(180, -4))),
-            0
+            0L
         );
         assertHitCount(
             client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(180, -6))),
-            1
+            1L
         );
     }
 
@@ -435,16 +441,15 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
             assertFalse("unable to index data: " + item.getFailureMessage(), item.isFailed());
         }
 
-        client().admin().indices().prepareRefresh().get();
+        assertNoFailures(client().admin().indices().prepareRefresh().get());
         String key = "DE";
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("_id", key)).get();
-
-        assertHitCount(searchResponse, 1);
-
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.getId(), equalTo(key));
-        }
+        assertResponse(client().prepareSearch().setQuery(matchQuery("_id", key)), response -> {
+            assertHitCount(response, 1);
+            for (SearchHit hit : response.getHits()) {
+                assertThat(hit.getId(), equalTo(key));
+            }
+        });
 
         // We extract this to another method to allow some tests to ignore this part
         doDistanceAndBoundingBoxTest(key);

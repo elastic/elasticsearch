@@ -367,7 +367,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             snapshot,
             randomBoolean(),
             false,
-            SnapshotsInProgress.State.INIT,
+            SnapshotsInProgress.State.STARTED,
             Collections.singletonMap(index, new IndexId(index, index)),
             Collections.emptyList(),
             Collections.emptyList(),
@@ -457,7 +457,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             assertThat(
                 RoutingNodesHelper.asStream(shardRoutingTable)
                     .map(ShardRouting::unassignedInfo)
-                    .map(UnassignedInfo::getReason)
+                    .map(UnassignedInfo::reason)
                     .allMatch(info -> info == UnassignedInfo.Reason.INDEX_CLOSED),
                 is(true)
             );

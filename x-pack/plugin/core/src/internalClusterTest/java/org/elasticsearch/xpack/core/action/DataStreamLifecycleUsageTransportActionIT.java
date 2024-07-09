@@ -71,7 +71,8 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testAction() throws Exception {
         assertUsageResults(0, 0, 0, 0.0, true);
-        AtomicLong count = new AtomicLong(0);
+        AtomicLong totalCount = new AtomicLong(0);
+        AtomicLong countLifecycleWithRetention = new AtomicLong(0);
         AtomicLong totalRetentionTimes = new AtomicLong(0);
         AtomicLong minRetention = new AtomicLong(Long.MAX_VALUE);
         AtomicLong maxRetention = new AtomicLong(Long.MIN_VALUE);
@@ -94,11 +95,13 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                 if (hasLifecycle) {
                     if (randomBoolean()) {
                         lifecycle = new DataStreamLifecycle(null, null, null);
+                        totalCount.incrementAndGet();
                     } else {
                         long retentionMillis = randomLongBetween(1000, 100000);
                         boolean isEnabled = randomBoolean();
                         if (isEnabled) {
-                            count.incrementAndGet();
+                            totalCount.incrementAndGet();
+                            countLifecycleWithRetention.incrementAndGet();
                             totalRetentionTimes.addAndGet(retentionMillis);
 
                             if (retentionMillis < minRetention.get()) {
@@ -119,17 +122,22 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     indices.add(index);
                 }
                 boolean systemDataStream = randomBoolean();
+                boolean replicated = randomBoolean();
                 DataStream dataStream = new DataStream(
                     randomAlphaOfLength(50),
                     indices,
                     randomLongBetween(0, 1000),
                     Map.of(),
                     systemDataStream || randomBoolean(),
-                    randomBoolean(),
+                    replicated,
                     systemDataStream,
                     randomBoolean(),
                     IndexMode.STANDARD,
-                    lifecycle
+                    lifecycle,
+                    false,
+                    List.of(),
+                    replicated == false && randomBoolean(),
+                    null
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }
@@ -141,9 +149,11 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         });
         int expectedMinimumRetention = minRetention.get() == Long.MAX_VALUE ? 0 : minRetention.intValue();
         int expectedMaximumRetention = maxRetention.get() == Long.MIN_VALUE ? 0 : maxRetention.intValue();
-        double expectedAverageRetention = count.get() == 0 ? 0.0 : totalRetentionTimes.doubleValue() / count.get();
+        double expectedAverageRetention = countLifecycleWithRetention.get() == 0
+            ? 0.0
+            : totalRetentionTimes.doubleValue() / countLifecycleWithRetention.get();
         assertUsageResults(
-            count.intValue(),
+            totalCount.intValue(),
             expectedMinimumRetention,
             expectedMaximumRetention,
             expectedAverageRetention,
@@ -159,7 +169,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         double averageRetention,
         boolean defaultRolloverUsed
     ) throws Exception {
-        XPackUsageFeatureResponse response = client().execute(DATA_STREAM_LIFECYCLE, new XPackUsageRequest()).get();
+        XPackUsageFeatureResponse response = safeGet(client().execute(DATA_STREAM_LIFECYCLE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT)));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder = response.getUsage().toXContent(builder, ToXContent.EMPTY_PARAMS);
         Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
@@ -184,7 +194,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
      * Updates the cluster state in the internal cluster using the provided function
      */
     protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override

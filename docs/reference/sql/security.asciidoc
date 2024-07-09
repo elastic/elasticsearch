@@ -44,7 +44,7 @@ APIs to view or edit a role defined in `roles.yml`.
 This example configures a role that can run SQL in JDBC querying the `test`
 index:
 
-include::{es-repo-dir}/rest-api/security/create-roles.asciidoc[tag=sql-queries-permission]
+include::{es-ref-dir}/rest-api/security/create-roles.asciidoc[tag=sql-queries-permission]
 
 [discrete]
 [[sql-role-file-example]]

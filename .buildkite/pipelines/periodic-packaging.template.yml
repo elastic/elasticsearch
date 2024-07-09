@@ -19,6 +19,7 @@ steps:
               - ubuntu-2004
               - ubuntu-2204
               - rocky-8
+              - rocky-9
               - rhel-7
               - rhel-8
               - rhel-9
@@ -27,7 +28,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
-          machineType: custom-16-32768
+          machineType: n1-standard-8
         env: {}
   - group: packaging-tests-upgrade
     steps: $BWC_STEPS

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,6 +31,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
      * Create a new pipeline request with the id and source along with the content type of the source
      */
     public PutPipelineRequest(String id, BytesReference source, XContentType xContentType, Integer version) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.id = Objects.requireNonNull(id);
         this.source = Objects.requireNonNull(source);
         this.xContentType = Objects.requireNonNull(xContentType);
@@ -48,15 +48,6 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         source = in.readBytesReference();
         xContentType = in.readEnum(XContentType.class);
         version = in.readOptionalInt();
-    }
-
-    PutPipelineRequest() {
-        this(null, null, null, null);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     public String getId() {

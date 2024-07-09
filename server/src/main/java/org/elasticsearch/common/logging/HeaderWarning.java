@@ -263,8 +263,8 @@ public class HeaderWarning {
     }
 
     private static boolean matchesQuotedString(String qdtext) {
-        qdtext = qdtext.replaceAll("\\\\\"", "");
-        qdtext = qdtext.replaceAll("\\\\", "");
+        qdtext = qdtext.replace("\"", "");
+        qdtext = qdtext.replace("\\", "");
         return qdtext.chars().allMatch(c -> qdTextChars.get(c));
     }
 

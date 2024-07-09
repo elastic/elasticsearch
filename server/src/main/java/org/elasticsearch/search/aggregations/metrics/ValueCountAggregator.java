@@ -31,14 +31,13 @@ import java.util.Map;
  * This aggregator works in a multi-bucket mode, that is, when serves as a sub-aggregator, a single aggregator instance aggregates the
  * counts for all buckets owned by the parent aggregator)
  */
-public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
+public final class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource valuesSource;
 
     // a count per bucket
     LongArray counts;
 
-    @SuppressWarnings("this-escape")
     public ValueCountAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
@@ -60,8 +59,8 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    counts = bigArrays().grow(counts, bucket + 1);
                     if (values.advanceExact(doc)) {
+                        counts = bigArrays().grow(counts, bucket + 1);
                         counts.increment(bucket, values.docValueCount());
                     }
                 }
@@ -73,8 +72,8 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    counts = bigArrays().grow(counts, bucket + 1);
                     if (values.advanceExact(doc)) {
+                        counts = bigArrays().grow(counts, bucket + 1);
                         counts.increment(bucket, values.docValueCount());
                     }
                 }
@@ -86,8 +85,8 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays().grow(counts, bucket + 1);
                 if (values.advanceExact(doc)) {
+                    counts = bigArrays().grow(counts, bucket + 1);
                     counts.increment(bucket, values.docValueCount());
                 }
             }

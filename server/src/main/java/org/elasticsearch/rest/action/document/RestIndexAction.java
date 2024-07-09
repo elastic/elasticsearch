@@ -8,13 +8,11 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -27,7 +25,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -88,11 +85,7 @@ public class RestIndexAction extends BaseRestHandler {
     @ServerlessScope(Scope.PUBLIC)
     public static final class AutoIdHandler extends RestIndexAction {
 
-        private final Supplier<DiscoveryNodes> nodesInCluster;
-
-        public AutoIdHandler(Supplier<DiscoveryNodes> nodesInCluster) {
-            this.nodesInCluster = nodesInCluster;
-        }
+        public AutoIdHandler() {}
 
         @Override
         public String getName() {
@@ -110,10 +103,8 @@ public class RestIndexAction extends BaseRestHandler {
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
             assert request.params().get("id") == null : "non-null id: " + request.params().get("id");
-            if (request.params().get("op_type") == null && nodesInCluster.get().getMinNodeVersion().onOrAfter(Version.V_7_5_0)) {
-                // default to op_type create
-                request.params().put("op_type", "create");
-            }
+            // default to op_type create
+            request.params().putIfAbsent("op_type", "create");
             return super.prepareRequest(request, client);
         }
     }
@@ -136,6 +127,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.setIfSeqNo(request.paramAsLong("if_seq_no", indexRequest.ifSeqNo()));
         indexRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", indexRequest.ifPrimaryTerm()));
         indexRequest.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, indexRequest.isRequireAlias()));
+        indexRequest.setRequireDataStream(request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, indexRequest.isRequireDataStream()));
         String sOpType = request.param("op_type");
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

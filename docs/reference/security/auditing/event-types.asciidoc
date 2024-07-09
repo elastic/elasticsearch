@@ -255,7 +255,7 @@ event action.
 "applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":
 ["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}],
 "metadata":{"application":"my-application","environment":{"level": 1,
-"tags":["dev","staging"]}}}}}
+"tags":["dev","staging"]}},"expiration":"10d"}}}
 ====
 
 [[event-change-apikeys]]
@@ -281,7 +281,7 @@ event action.
 "applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":
 ["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}],
 "metadata":{"application":"my-application","environment":{"level":1,
-"tags":["dev","staging"]}}}}}
+"tags":["dev","staging"]}},"expiration":"10d"}}}
 ====
 
 [[event-delete-privileges]]
@@ -797,7 +797,7 @@ The `role_descriptors` objects have the same schema as the `role_descriptor`
 object that is part of the above `role` config object.
 
 The object for an API key update will differ in that it will not include
-a `name` or `expiration`.
+a `name`.
 
 `grant`               ::     An object like:
 +

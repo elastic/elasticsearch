@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -105,18 +104,14 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         super(in);
         dateHistogramInterval = new DateIntervalWrapper(in);
         timeZone = in.readOptionalZoneId();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            offset = in.readLong();
-        }
+        offset = in.readLong();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         dateHistogramInterval.writeTo(out);
         out.writeOptionalZoneId(timeZone);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            out.writeLong(offset);
-        }
+        out.writeLong(offset);
     }
 
     @Override
@@ -210,13 +205,6 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     @Override
     public ZoneId timeZone() {
         return timeZone;
-    }
-
-    /**
-     * Get the offset to use when rounding, which is a number of milliseconds.
-     */
-    public long offset() {
-        return offset;
     }
 
     /**

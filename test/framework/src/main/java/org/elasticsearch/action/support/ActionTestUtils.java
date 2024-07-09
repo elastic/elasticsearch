@@ -22,6 +22,9 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
+import static org.elasticsearch.test.ESTestCase.fail;
 
 public class ActionTestUtils {
 
@@ -65,8 +68,37 @@ public class ActionTestUtils {
         action.execute(task, request, listener);
     }
 
+    public static <Request extends ActionRequest, Response extends ActionResponse> void execute(
+        TransportAction<Request, Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        action.execute(request.createTask(1L, "direct", action.actionName, TaskId.EMPTY_TASK_ID, Map.of()), request, listener);
+    }
+
     public static <T> ActionListener<T> assertNoFailureListener(CheckedConsumer<T, Exception> consumer) {
         return ActionListener.wrap(consumer, ESTestCase::fail);
+    }
+
+    public static <T> ActionListener<T> assertNoSuccessListener(Consumer<Exception> consumer) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T result) {
+                fail(null, "unexpected success with result [%s] while expecting to handle failure with [%s]", result, consumer);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    consumer.accept(e);
+                } catch (Exception e2) {
+                    if (e2 != e) {
+                        e2.addSuppressed(e);
+                    }
+                    fail(e2, "unexpected failure in onFailure handler for [%s]", consumer);
+                }
+            }
+        };
     }
 
     public static ResponseListener wrapAsRestResponseListener(ActionListener<Response> listener) {

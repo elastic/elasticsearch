@@ -5,7 +5,26 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.cache-test-fixtures'
 
 description = 'Fixture for MinIO Storage service'
 
+configurations.all {
+  exclude group: 'org.hamcrest', module: 'hamcrest-core'
+}
+dependencies {
+  testImplementation (project(':test:framework'))
+  api "junit:junit:${versions.junit}"
+  api project(':test:fixtures:testcontainer-utils')
+  api("org.testcontainers:testcontainers:${versions.testcontainer}") {
+    transitive = false
+  }
+  api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"){
+    transitive = false
+  }
+
+  // ensure we have proper logging during when used in tests
+  runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+  runtimeOnly("org.hamcrest:hamcrest:${versions.hamcrest}")
+}

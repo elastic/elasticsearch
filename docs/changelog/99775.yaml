@@ -1,6 +1,0 @@
-pr: 99775
-summary: Adding support for exist queries to `sparse_vector` fields
-area: Search
-type: enhancement
-issues:
- - 99319

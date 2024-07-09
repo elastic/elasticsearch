@@ -61,16 +61,6 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     public AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page) {
         Block valuesBlock = page.getBlock(blockIndex());
         if (countAll == false) {
-            if (valuesBlock.areAllValuesNull()) {
-                state.enableGroupIdTracking(seenGroupIds);
-                return new AddInput() { // TODO return null meaning "don't collect me" and skip those
-                    @Override
-                    public void add(int positionOffset, IntBlock groupIds) {}
-
-                    @Override
-                    public void add(int positionOffset, IntVector groupIds) {}
-                };
-            }
             Vector valuesVector = valuesBlock.asVector();
             if (valuesVector == null) {
                 if (valuesBlock.mayHaveNulls()) {
@@ -191,7 +181,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void evaluateFinal(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-        try (LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+        try (LongVector.Builder builder = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 builder.appendLong(state.hasValue(si) ? state.get(si) : 0);

@@ -38,7 +38,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     /**
      * Information about snapshotted file
      */
-    public static class FileInfo implements Writeable {
+    public static final class FileInfo implements Writeable {
         public static final String SERIALIZE_WRITER_UUID = "serialize_writer_uuid";
 
         private final String name;
@@ -55,7 +55,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          * @param metadata  the files meta data
          * @param partSize     size of the single chunk
          */
-        @SuppressWarnings("this-escape")
         public FileInfo(String name, StoreFileMetadata metadata, @Nullable ByteSizeValue partSize) {
             this.name = Objects.requireNonNull(name);
             this.metadata = metadata;

@@ -25,8 +25,8 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
     IndicesStatsResponse,
     IndicesStatsRequestBuilder> {
 
-    public IndicesStatsRequestBuilder(ElasticsearchClient client, IndicesStatsAction action) {
-        super(client, action, new IndicesStatsRequest());
+    public IndicesStatsRequestBuilder(ElasticsearchClient client) {
+        super(client, IndicesStatsAction.INSTANCE, new IndicesStatsRequest());
     }
 
     /**
@@ -157,6 +157,11 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
 
     public IndicesStatsRequestBuilder setDenseVector(boolean denseVector) {
         request.denseVector(denseVector);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setSparseVector(boolean sparseVector) {
+        request.sparseVector(sparseVector);
         return this;
     }
 }

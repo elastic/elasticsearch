@@ -66,6 +66,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     @Override
+    public int getNumNodes() {
+        return nodes.size();
+    }
+
+    @Override
     public void start() {
         if (started.getAndSet(true) == false) {
             LOGGER.info("Starting Elasticsearch test cluster '{}'", name);
@@ -177,6 +182,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     @Override
     public InputStream getNodeLog(int index, LogType logType) {
         return nodes.get(index).getLog(logType);
+    }
+
+    @Override
+    public void updateStoredSecureSettings() {
+        execute(() -> nodes.parallelStream().forEach(Node::updateStoredSecureSettings));
     }
 
     protected void waitUntilReady() {

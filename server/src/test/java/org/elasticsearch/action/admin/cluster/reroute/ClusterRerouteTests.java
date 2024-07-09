@@ -51,12 +51,12 @@ import static org.hamcrest.Matchers.not;
 public class ClusterRerouteTests extends ESAllocationTestCase {
 
     public void testSerializeRequest() throws IOException {
-        ClusterRerouteRequest req = new ClusterRerouteRequest();
+        ClusterRerouteRequest req = new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         req.setRetryFailed(randomBoolean());
         req.dryRun(randomBoolean());
         req.explain(randomBoolean());
         req.add(new AllocateEmptyPrimaryAllocationCommand("foo", 1, "bar", randomBoolean()));
-        req.timeout(TimeValue.timeValueMillis(randomIntBetween(0, 100)));
+        req.ackTimeout(TimeValue.timeValueMillis(randomIntBetween(0, 100)));
         BytesStreamOutput out = new BytesStreamOutput();
         req.writeTo(out);
         BytesReference bytes = out.bytes();
@@ -67,7 +67,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         assertEquals(req.isRetryFailed(), deserializedReq.isRetryFailed());
         assertEquals(req.dryRun(), deserializedReq.dryRun());
         assertEquals(req.explain(), deserializedReq.explain());
-        assertEquals(req.timeout(), deserializedReq.timeout());
+        assertEquals(req.ackTimeout(), deserializedReq.ackTimeout());
         assertEquals(1, deserializedReq.getCommands().commands().size()); // allocation commands have their own tests
         assertEquals(req.getCommands().commands().size(), deserializedReq.getCommands().commands().size());
     }
@@ -86,7 +86,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         var responseRef = new AtomicReference<ClusterRerouteResponse>();
         var responseActionListener = ActionTestUtils.assertNoFailureListener(responseRef::set);
 
-        var request = new ClusterRerouteRequest().dryRun(true);
+        var request = new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).dryRun(true);
         var task = new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(
             logger,
             allocationService,
@@ -112,7 +112,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         );
         ClusterState clusterState = createInitialClusterState(allocationService);
 
-        var req = new ClusterRerouteRequest().dryRun(false);
+        var req = new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).dryRun(false);
         var task = new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(
             logger,
             allocationService,
@@ -162,7 +162,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
     private void assertStateAndFailedAllocations(IndexRoutingTable indexRoutingTable, ShardRoutingState state, int failedAllocations) {
         assertThat(indexRoutingTable.size(), equalTo(1));
         assertThat(indexRoutingTable.shard(0).shard(0).state(), equalTo(state));
-        assertThat(indexRoutingTable.shard(0).shard(0).unassignedInfo().getNumFailedAllocations(), equalTo(failedAllocations));
+        assertThat(indexRoutingTable.shard(0).shard(0).unassignedInfo().failedAllocations(), equalTo(failedAllocations));
     }
 
     private ClusterState createInitialClusterState(AllocationService service) {

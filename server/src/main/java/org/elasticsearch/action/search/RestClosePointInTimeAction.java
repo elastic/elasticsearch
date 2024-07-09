@@ -41,7 +41,7 @@ public class RestClosePointInTimeAction extends BaseRestHandler {
             clearRequest = ClosePointInTimeRequest.fromXContent(parser);
         }
         return channel -> client.execute(
-            ClosePointInTimeAction.INSTANCE,
+            TransportClosePointInTimeAction.TYPE,
             clearRequest,
             new RestToXContentListener<>(channel, ClosePointInTimeResponse::status)
         );

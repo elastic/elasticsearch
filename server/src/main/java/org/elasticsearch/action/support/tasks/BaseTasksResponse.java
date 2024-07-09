@@ -32,11 +32,11 @@ import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
  * Base class for responses of task-related operations
  */
 public class BaseTasksResponse extends ActionResponse {
-    protected static final String TASK_FAILURES = "task_failures";
-    protected static final String NODE_FAILURES = "node_failures";
+    public static final String TASK_FAILURES = "task_failures";
+    public static final String NODE_FAILURES = "node_failures";
 
-    private List<TaskOperationFailure> taskFailures;
-    private List<ElasticsearchException> nodeFailures;
+    private final List<TaskOperationFailure> taskFailures;
+    private final List<ElasticsearchException> nodeFailures;
 
     public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures) {
         this.taskFailures = taskFailures == null ? Collections.emptyList() : List.copyOf(taskFailures);

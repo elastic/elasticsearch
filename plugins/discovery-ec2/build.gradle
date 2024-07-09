@@ -72,7 +72,10 @@ tasks.register("writeTestJavaPolicy") {
           "permission org.bouncycastle.crypto.CryptoServicesPermission \"exportSecretKey\";",
           "permission org.bouncycastle.crypto.CryptoServicesPermission \"exportPrivateKey\";",
           "permission java.io.FilePermission \"\${javax.net.ssl.trustStore}\", \"read\";",
-          "  permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
+          "permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
+          "permission java.security.SecurityPermission \"getProperty.jdk.tls.disabledAlgorithms\";",
+          "permission java.security.SecurityPermission \"getProperty.jdk.certpath.disabledAlgorithms\";",
+          "permission java.security.SecurityPermission \"getProperty.keystore.type.compat\";",
           "};"
         ].join("\n")
       )
@@ -95,9 +98,9 @@ tasks.named("test").configure {
   // this is needed to manipulate com.amazonaws.sdk.ec2MetadataServiceEndpointOverride system property
   // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
   if (BuildParams.inFipsJvm){
-    systemProperty 'java.security.policy', "=file://${buildDir}/tmp/java.policy"
+    nonInputProperties.systemProperty 'java.security.policy', "=file://${buildDir}/tmp/java.policy"
   } else {
-    systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
+    nonInputProperties.systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
   }
 }
 

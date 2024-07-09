@@ -156,6 +156,11 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
         assertThat(e.getMessage(), containsString("[" + ParentIdQueryBuilder.NAME + "] no relation found for child [unmapped]"));
     }
 
+    public void testThrowsOnNullTypeOrId() {
+        expectThrows(IllegalArgumentException.class, () -> new ParentIdQueryBuilder(null, randomAlphaOfLength(5)));
+        expectThrows(IllegalArgumentException.class, () -> new ParentIdQueryBuilder(randomAlphaOfLength(5), null));
+    }
+
     public void testDisallowExpensiveQueries() {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(false);

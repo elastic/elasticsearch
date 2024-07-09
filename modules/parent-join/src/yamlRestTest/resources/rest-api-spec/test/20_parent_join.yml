@@ -30,8 +30,8 @@ setup:
 
 ---
 teardown:
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   - do:
@@ -100,8 +100,8 @@ teardown:
 
 ---
 "Test field retrieval":
-  - skip:
-      version: " - 7.13.1"
+  - requires:
+      cluster_features: ["gte_v7.13.2"]
       reason: bugfix was introduced in 7.13.2
   - do:
       search:
@@ -121,8 +121,8 @@ teardown:
 
 ---
 "HasChild disallow expensive queries":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   ### Update setting to false
@@ -144,3 +144,20 @@ teardown:
             parent_id:
               type: child
               id: "1"
+
+---
+"deprecated use of multi-fields":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "deprecation added in 8.14"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Adding multifields to [join] mappers has no effect and will be forbidden in future"
+      indices.create:
+        index: join-multi-field
+        body:
+          mappings:
+            properties:
+              join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" }, "fields": {"keyword": {"type": "keyword"}} }

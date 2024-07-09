@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.LongAdder;
 public final class SearchUsageHolder {
     private final LongAdder totalSearchCount = new LongAdder();
     private final Map<String, LongAdder> queriesUsage = new ConcurrentHashMap<>();
+    private final Map<String, LongAdder> rescorersUsage = new ConcurrentHashMap<>();
     private final Map<String, LongAdder> sectionsUsage = new ConcurrentHashMap<>();
 
     SearchUsageHolder() {}
@@ -39,6 +40,9 @@ public final class SearchUsageHolder {
         for (String query : searchUsage.getQueryUsage()) {
             queriesUsage.computeIfAbsent(query, q -> new LongAdder()).increment();
         }
+        for (String rescorer : searchUsage.getRescorerUsage()) {
+            rescorersUsage.computeIfAbsent(rescorer, q -> new LongAdder()).increment();
+        }
     }
 
     /**
@@ -49,8 +53,11 @@ public final class SearchUsageHolder {
         queriesUsage.forEach((query, adder) -> queriesUsageMap.put(query, adder.longValue()));
         Map<String, Long> sectionsUsageMap = Maps.newMapWithExpectedSize(sectionsUsage.size());
         sectionsUsage.forEach((query, adder) -> sectionsUsageMap.put(query, adder.longValue()));
+        Map<String, Long> rescorersUsageMap = Maps.newMapWithExpectedSize(rescorersUsage.size());
+        rescorersUsage.forEach((query, adder) -> rescorersUsageMap.put(query, adder.longValue()));
         return new SearchUsageStats(
             Collections.unmodifiableMap(queriesUsageMap),
+            Collections.unmodifiableMap(rescorersUsageMap),
             Collections.unmodifiableMap(sectionsUsageMap),
             totalSearchCount.longValue()
         );

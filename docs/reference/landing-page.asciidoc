@@ -62,7 +62,7 @@
       Elasticsearch is the search and analytics engine that powers the Elastic Stack.
     </p>
     <p>
-      <a href="https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/getting-started-guides.html">
+      <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/getting-started.html">
         <button class="btn btn-primary">Get started</button>
       </a>
     </p>
@@ -78,6 +78,11 @@
 </div>
 
 <h3 class="gtk">Get to know Elasticsearch</h3>
+
+<p>
+  <em>New webinar:</em>
+  <a href="https://www.elastic.co/virtual-events/architecting-search-apps-on-google-cloud">Architect search apps with Google Cloud</a>
+</p>
 
 <div class="my-5">
   <div class="d-flex align-items-center mb-3">
@@ -105,6 +110,9 @@
     <li>
       <a href="troubleshooting.html">Troubleshooting</a>
     </li>
+    <li>
+      <a href="https://www.elastic.co/guide/en/enterprise-search/current/start.html">Enterprise Search server</a>
+    </li>
   </ul>
 </div>
 
@@ -118,6 +126,12 @@
   <ul class="ul-col-md-2 ul-col-1">
     <li>
       <a href="https://www.elastic.co/guide/en/cloud/current/ec-cloud-ingest-data.html">Adding data to Elasticsearch</a>
+    </li>
+    <li>
+      <a href="https://www.elastic.co/guide/en/enterprise-search/current/connectors.html">Connectors</a>
+    </li>
+    <li>
+      <a href="https://www.elastic.co/guide/en/enterprise-search/current/crawler.html">Web crawler</a>
     </li>
     <li>
       <a href="data-streams.html">Data streams</a>
@@ -146,6 +160,12 @@
       Query data with <a href="query-dsl.html">the Query DSL</a>, <a href="esql.html">ES|QL</a>, <a href="eql.html">EQL</a>, or <a href="xpack-sql.html">SQL</a>
     </li>
     <li>
+      <a href="search-application-overview.html">Search applications</a>
+    </li>
+    <li>
+      <a href="behavioral-analytics-overview.html">Search analytics</a>
+    </li>
+    <li>
       <a href="search-aggregations.html">Aggregations</a>
     </li>
     <li>
@@ -172,7 +192,7 @@
       <a href="data-management.html">Data management</a>
     </li>
     <li>
-      <a href="data-rollup-transform.html">Roll up or transform your data</a>
+      <a href="downsampling.html">Downsampling</a>
     </li>
     <li>
       <a href="snapshot-restore.html">Snapshot and restore</a>
@@ -200,6 +220,12 @@
     <li>
       <a href="https://www.elastic.co/guide/en/elasticsearch/plugins/current/index.html">Plugins and integrations</a>
     </li>
+     <li>
+      <a href="https://www.elastic.co/search-labs">Search Labs</a>
+    </li>
+    <li>
+      <a href="https://www.elastic.co/search-labs/tutorials/examples">Notebook examples</a>
+    </li>
   </ul>
 </div>
 
@@ -207,7 +233,7 @@
 
 <div class="row my-4">
   <div class="col-md-4 col-12 mb-2">
-    <a class="no-text-decoration" href="https://www.elastic.co/guide/en/enterprise-search/current/start.html">
+    <a class="no-text-decoration" href="https://www.elastic.co/search-labs">
       <div class="card h-100">
         <h4 class="mt-3">
           <span class="inline-block float-left icon mr-2" style="background-image: url('https://images.contentstack.io/v3/assets/bltefdd0b53724fa2ce/blt11200907c1c033aa/634d9da119d8652169cf9b2b/enterprise-search-logo-color-32px.png');"></span>

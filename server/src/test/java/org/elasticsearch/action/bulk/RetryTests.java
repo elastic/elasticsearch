@@ -18,6 +18,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -36,6 +38,7 @@ public class RetryTests extends ESTestCase {
     private static final TimeValue DELAY = TimeValue.timeValueMillis(1L);
     private static final int CALLS_TO_FAIL = 5;
 
+    private TestThreadPool threadPool;
     private MockBulkClient bulkClient;
     /**
      * Headers that are expected to be sent with all bulk requests.
@@ -46,7 +49,8 @@ public class RetryTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        this.bulkClient = new MockBulkClient(getTestName(), CALLS_TO_FAIL);
+        this.threadPool = createThreadPool();
+        this.bulkClient = new MockBulkClient(threadPool, CALLS_TO_FAIL);
         // Stash some random headers so we can assert that we preserve them
         bulkClient.threadPool().getThreadContext().stashContext();
         expectedHeaders.clear();
@@ -57,8 +61,8 @@ public class RetryTests extends ESTestCase {
     @Override
     @After
     public void tearDown() throws Exception {
+        this.threadPool.close();
         super.tearDown();
-        this.bulkClient.close();
     }
 
     private BulkRequest createBulkRequest() {
@@ -195,8 +199,8 @@ public class RetryTests extends ESTestCase {
     private class MockBulkClient extends NoOpClient {
         private int numberOfCallsToFail;
 
-        private MockBulkClient(String testName, int numberOfCallsToFail) {
-            super(testName);
+        private MockBulkClient(ThreadPool threadPool, int numberOfCallsToFail) {
+            super(threadPool);
             this.numberOfCallsToFail = numberOfCallsToFail;
         }
 

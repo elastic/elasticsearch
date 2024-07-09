@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -41,20 +41,20 @@ public class MlPlatformArchitecturesUtil {
         );
 
         NodesInfoRequest request = MlPlatformArchitecturesUtil.getNodesInfoBuilderWithMlNodeArchitectureInfo(client).request();
-        executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, listener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportNodesInfoAction.TYPE, request, listener);
     }
 
     static ActionListener<NodesInfoResponse> getArchitecturesSetFromNodesInfoResponseListener(
         ExecutorService executor,
         ActionListener<Set<String>> architecturesListener
     ) {
-        return ActionListener.wrap(nodesInfoResponse -> {
-            executor.execute(() -> { architecturesListener.onResponse(getArchitecturesSetFromNodesInfoResponse(nodesInfoResponse)); });
-        }, architecturesListener::onFailure);
+        return architecturesListener.delegateFailureAndWrap(
+            (l, nodesInfoResponse) -> executor.execute(() -> l.onResponse(getArchitecturesSetFromNodesInfoResponse(nodesInfoResponse)))
+        );
     }
 
     static NodesInfoRequestBuilder getNodesInfoBuilderWithMlNodeArchitectureInfo(Client client) {
-        return client.admin().cluster().prepareNodesInfo().clear().setNodesIds("ml:true").setOs(true).setPlugins(true);
+        return client.admin().cluster().prepareNodesInfo("ml:true").clear().setOs(true).setPlugins(true);
     }
 
     private static Set<String> getArchitecturesSetFromNodesInfoResponse(NodesInfoResponse nodesInfoResponse) {
@@ -77,10 +77,10 @@ public class MlPlatformArchitecturesUtil {
         String modelID = configToReturn.getModelId();
         String modelPlatformArchitecture = configToReturn.getPlatformArchitecture();
 
-        ActionListener<Set<String>> architecturesListener = ActionListener.wrap((architectures) -> {
+        ActionListener<Set<String>> architecturesListener = successOrFailureListener.delegateFailureAndWrap((l, architectures) -> {
             verifyMlNodesAndModelArchitectures(architectures, modelPlatformArchitecture, modelID);
-            successOrFailureListener.onResponse(configToReturn);
-        }, successOrFailureListener::onFailure);
+            l.onResponse(configToReturn);
+        });
 
         getMlNodesArchitecturesSet(architecturesListener, client, executor);
     }

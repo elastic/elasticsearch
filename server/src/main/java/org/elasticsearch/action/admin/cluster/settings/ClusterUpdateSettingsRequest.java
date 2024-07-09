@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -54,13 +55,22 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         persistentSettings = readSettingsFromStream(in);
     }
 
-    public ClusterUpdateSettingsRequest() {}
+    public ClusterUpdateSettingsRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (transientSettings.isEmpty() && persistentSettings.isEmpty()) {
             validationException = addValidationError("no settings to update", validationException);
+        }
+        // for bwc we have to reject logger settings on the REST level instead of using a validator
+        for (String error : Loggers.checkRestrictedLoggers(transientSettings)) {
+            validationException = addValidationError(error, validationException);
+        }
+        for (String error : Loggers.checkRestrictedLoggers(persistentSettings)) {
+            validationException = addValidationError(error, validationException);
         }
         return validationException;
     }

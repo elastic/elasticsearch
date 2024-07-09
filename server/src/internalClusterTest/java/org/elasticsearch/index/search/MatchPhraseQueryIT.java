@@ -47,16 +47,16 @@ public class MatchPhraseQueryIT extends ESIntegTestCase {
         MatchPhraseQueryBuilder baseQuery = matchPhraseQuery("name", "the who").analyzer("standard_stopwords");
 
         MatchPhraseQueryBuilder matchNoneQuery = baseQuery.zeroTermsQuery(ZeroTermsQueryOption.NONE);
-        assertHitCount(client().prepareSearch(INDEX).setQuery(matchNoneQuery), 0L);
+        assertHitCount(prepareSearch(INDEX).setQuery(matchNoneQuery), 0L);
 
         MatchPhraseQueryBuilder matchAllQuery = baseQuery.zeroTermsQuery(ZeroTermsQueryOption.ALL);
-        assertHitCount(client().prepareSearch(INDEX).setQuery(matchAllQuery), 2L);
+        assertHitCount(prepareSearch(INDEX).setQuery(matchAllQuery), 2L);
     }
 
     private List<IndexRequestBuilder> getIndexRequests() {
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex(INDEX).setSource("name", "the beatles"));
-        requests.add(client().prepareIndex(INDEX).setSource("name", "led zeppelin"));
+        requests.add(prepareIndex(INDEX).setSource("name", "the beatles"));
+        requests.add(prepareIndex(INDEX).setSource("name", "led zeppelin"));
         return requests;
     }
 }

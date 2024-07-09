@@ -35,7 +35,7 @@ import java.util.Objects;
  * so the field is visible.
  */
 
-public class DataCounts implements ToXContentObject, Writeable {
+public final class DataCounts implements ToXContentObject, Writeable {
 
     private static final String DOCUMENT_SUFFIX = "_data_counts";
 
@@ -161,7 +161,6 @@ public class DataCounts implements ToXContentObject, Writeable {
     private Date latestSparseBucketTimeStamp;
     private Instant logTime;
 
-    @SuppressWarnings("this-escape")
     public DataCounts(
         String jobId,
         long processedRecordCount,

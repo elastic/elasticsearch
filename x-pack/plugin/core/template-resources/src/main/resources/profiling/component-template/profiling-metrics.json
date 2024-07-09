@@ -2,7 +2,6 @@
   "template": {
     "settings": {
       "index": {
-        "number_of_replicas": 0,
         "auto_expand_replicas": "0-1",
         "refresh_interval": "10s",
         "sort": {
@@ -17,11 +16,12 @@
     },
     "mappings": {
       "_source": {
-        "enabled": false
+        "mode": "synthetic"
       },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
-        "index-version": ${xpack.profiling.index.metrics.version}
+        "index-version": ${xpack.profiling.index.metrics.version},
+        "managed": true
       },
       /*
        We intentionally allow dynamic mappings for metrics. Which metrics are added is guarded by

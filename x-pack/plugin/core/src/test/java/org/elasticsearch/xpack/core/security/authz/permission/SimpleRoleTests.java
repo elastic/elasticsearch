@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -150,7 +151,7 @@ public class SimpleRoleTests extends ESTestCase {
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() {
         SimpleRole role = Role.builder(RESTRICTED_INDICES, randomAlphaOfLength(6))
-            .addRemoteGroup(
+            .addRemoteIndicesGroup(
                 Set.of("remote-cluster-a"),
                 FieldPermissions.DEFAULT,
                 null,
@@ -159,9 +160,9 @@ public class SimpleRoleTests extends ESTestCase {
                 "remote-index-a-1",
                 "remote-index-a-2"
             )
-            .addRemoteGroup(Set.of("remote-*-a"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-a-3")
-            // This privilege should be ignored
-            .addRemoteGroup(
+            .addRemoteIndicesGroup(Set.of("remote-*-a"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-a-3")
+            // This privilege should be ignored (wrong alias)
+            .addRemoteIndicesGroup(
                 Set.of("remote-cluster-b"),
                 FieldPermissions.DEFAULT,
                 null,
@@ -170,8 +171,8 @@ public class SimpleRoleTests extends ESTestCase {
                 "remote-index-b-1",
                 "remote-index-b-2"
             )
-            // This privilege should be ignored
-            .addRemoteGroup(
+            // This privilege should be ignored (wrong alias)
+            .addRemoteIndicesGroup(
                 Set.of(randomAlphaOfLength(8)),
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { randomAlphaOfLength(5) }, null)),
                 null,
@@ -179,9 +180,27 @@ public class SimpleRoleTests extends ESTestCase {
                 randomBoolean(),
                 randomAlphaOfLength(9)
             )
+            .addRemoteClusterPermissions(
+                new RemoteClusterPermissions().addGroup(
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                        new String[] { "remote-cluster-a" }
+                    )
+                )
+                    // this group should be ignored (wrong alias)
+                    .addGroup(
+                        new RemoteClusterPermissionGroup(
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                            new String[] { randomAlphaOfLength(3) }
+                        )
+                    )
+            )
             .build();
 
-        RoleDescriptorsIntersection intersection = role.getRoleDescriptorsIntersectionForRemoteCluster("remote-cluster-a");
+        RoleDescriptorsIntersection intersection = role.getRoleDescriptorsIntersectionForRemoteCluster(
+            "remote-cluster-a",
+            TransportVersion.current()
+        );
 
         assertThat(intersection.roleDescriptorsList().isEmpty(), equalTo(false));
         assertThat(
@@ -190,7 +209,7 @@ public class SimpleRoleTests extends ESTestCase {
                 new RoleDescriptorsIntersection(
                     new RoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
-                        null,
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .privileges(IndexPrivilege.READ.name())
@@ -215,7 +234,7 @@ public class SimpleRoleTests extends ESTestCase {
         // Requesting role descriptors intersection for a cluster alias
         // that has no cross cluster access defined should result in an empty intersection.
         assertThat(
-            role.getRoleDescriptorsIntersectionForRemoteCluster("non-existing-cluster-alias"),
+            role.getRoleDescriptorsIntersectionForRemoteCluster("non-existing-cluster-alias", TransportVersion.current()),
             equalTo(RoleDescriptorsIntersection.EMPTY)
         );
     }
@@ -238,7 +257,10 @@ public class SimpleRoleTests extends ESTestCase {
             RESTRICTED_INDICES
         );
 
-        assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLength(8)), equalTo(RoleDescriptorsIntersection.EMPTY));
+        assertThat(
+            role.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLength(8), TransportVersion.current()),
+            equalTo(RoleDescriptorsIntersection.EMPTY)
+        );
     }
 
     public void testForWorkflowWithRestriction() {
@@ -253,7 +275,9 @@ public class SimpleRoleTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new RoleDescriptor.Restriction(new String[] { WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name() })
+                null,
+                new RoleDescriptor.Restriction(new String[] { WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name() }),
+                null
             ),
             new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES,
@@ -267,7 +291,7 @@ public class SimpleRoleTests extends ESTestCase {
 
     public void testForWorkflowWithoutRestriction() {
         final SimpleRole role = Role.buildFromRoleDescriptor(
-            new RoleDescriptor("r1", null, null, null, null, null, null, null, null, null),
+            new RoleDescriptor("r1", null, null, null, null, null, null, null, null, null, null, null),
             new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES,
             List.of()

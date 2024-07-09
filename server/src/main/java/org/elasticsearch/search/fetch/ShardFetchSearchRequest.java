@@ -19,6 +19,7 @@ import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankDocShardInfo;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,12 +34,14 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     private final ShardSearchRequest shardSearchRequest;
     private final RescoreDocIds rescoreDocIds;
     private final AggregatedDfs aggregatedDfs;
+    private final RankDocShardInfo rankDocs;
 
     public ShardFetchSearchRequest(
         OriginalIndices originalIndices,
         ShardSearchContextId id,
         ShardSearchRequest shardSearchRequest,
         List<Integer> docIds,
+        RankDocShardInfo rankDocs,
         ScoreDoc lastEmittedDoc,
         RescoreDocIds rescoreDocIds,
         AggregatedDfs aggregatedDfs
@@ -48,19 +51,19 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         this.shardSearchRequest = shardSearchRequest;
         this.rescoreDocIds = rescoreDocIds;
         this.aggregatedDfs = aggregatedDfs;
+        this.rankDocs = rankDocs;
     }
 
     public ShardFetchSearchRequest(StreamInput in) throws IOException {
         super(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            shardSearchRequest = in.readOptionalWriteable(ShardSearchRequest::new);
-            rescoreDocIds = new RescoreDocIds(in);
-            aggregatedDfs = in.readOptionalWriteable(AggregatedDfs::new);
+        shardSearchRequest = in.readOptionalWriteable(ShardSearchRequest::new);
+        rescoreDocIds = new RescoreDocIds(in);
+        aggregatedDfs = in.readOptionalWriteable(AggregatedDfs::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_IN_SHARD_FETCH_REQUEST)) {
+            this.rankDocs = in.readOptionalWriteable(RankDocShardInfo::new);
         } else {
-            shardSearchRequest = null;
-            rescoreDocIds = RescoreDocIds.EMPTY;
-            aggregatedDfs = null;
+            this.rankDocs = null;
         }
     }
 
@@ -68,10 +71,11 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeOptionalWriteable(shardSearchRequest);
-            rescoreDocIds.writeTo(out);
-            out.writeOptionalWriteable(aggregatedDfs);
+        out.writeOptionalWriteable(shardSearchRequest);
+        rescoreDocIds.writeTo(out);
+        out.writeOptionalWriteable(aggregatedDfs);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_IN_SHARD_FETCH_REQUEST)) {
+            out.writeOptionalWriteable(rankDocs);
         }
     }
 
@@ -104,5 +108,10 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     @Override
     public AggregatedDfs getAggregatedDfs() {
         return aggregatedDfs;
+    }
+
+    @Override
+    public RankDocShardInfo getRankDocks() {
+        return this.rankDocs;
     }
 }

@@ -25,7 +25,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import java.io.IOException;
 import java.util.Map;
 
-public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
+public final class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geotile_grid";
     public static final int DEFAULT_PRECISION = 7;
     private static final int DEFAULT_MAX_NUM_CELLS = 10000;
@@ -40,7 +40,6 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
         GeoTileGridAggregationBuilder::new
     );
 
-    @SuppressWarnings("this-escape")
     public GeoTileGridAggregationBuilder(String name) {
         super(name);
         precision(DEFAULT_PRECISION);
@@ -105,11 +104,6 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override

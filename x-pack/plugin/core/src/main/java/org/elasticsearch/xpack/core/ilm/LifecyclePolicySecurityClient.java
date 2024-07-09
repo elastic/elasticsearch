@@ -40,12 +40,6 @@ public class LifecyclePolicySecurityClient extends AbstractClient {
     }
 
     @Override
-    public void close() {
-        // Doesn't close the wrapped client since this client object is shared
-        // among multiple instances
-    }
-
-    @Override
     protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
         ActionType<Response> action,
         Request request,

@@ -74,10 +74,9 @@ public abstract class PipelineAggregationBuilder
          */
         public static ValidationContext forTreeRoot(
             Collection<AggregationBuilder> siblingAggregations,
-            Collection<PipelineAggregationBuilder> siblingPipelineAggregations,
             ActionRequestValidationException validationFailuresSoFar
         ) {
-            return new ForTreeRoot(siblingAggregations, siblingPipelineAggregations, validationFailuresSoFar);
+            return new ForTreeRoot(siblingAggregations, validationFailuresSoFar);
         }
 
         /**
@@ -95,26 +94,15 @@ public abstract class PipelineAggregationBuilder
 
         private static class ForTreeRoot extends ValidationContext {
             private final Collection<AggregationBuilder> siblingAggregations;
-            private final Collection<PipelineAggregationBuilder> siblingPipelineAggregations;
 
-            ForTreeRoot(
-                Collection<AggregationBuilder> siblingAggregations,
-                Collection<PipelineAggregationBuilder> siblingPipelineAggregations,
-                ActionRequestValidationException validationFailuresSoFar
-            ) {
+            ForTreeRoot(Collection<AggregationBuilder> siblingAggregations, ActionRequestValidationException validationFailuresSoFar) {
                 super(validationFailuresSoFar);
                 this.siblingAggregations = Objects.requireNonNull(siblingAggregations);
-                this.siblingPipelineAggregations = Objects.requireNonNull(siblingPipelineAggregations);
             }
 
             @Override
             public Collection<AggregationBuilder> getSiblingAggregations() {
                 return siblingAggregations;
-            }
-
-            @Override
-            public Collection<PipelineAggregationBuilder> getSiblingPipelineAggregations() {
-                return siblingPipelineAggregations;
             }
 
             @Override
@@ -156,11 +144,6 @@ public abstract class PipelineAggregationBuilder
             }
 
             @Override
-            public Collection<PipelineAggregationBuilder> getSiblingPipelineAggregations() {
-                return parent.getPipelineAggregations();
-            }
-
-            @Override
             public void validateHasParent(String type, String name) {
                 // There is a parent inside the tree.
             }
@@ -180,11 +163,6 @@ public abstract class PipelineAggregationBuilder
          * Aggregations that are siblings to the aggregation being validated.
          */
         public abstract Collection<AggregationBuilder> getSiblingAggregations();
-
-        /**
-         * Pipeline aggregations that are siblings to the aggregation being validated.
-         */
-        public abstract Collection<PipelineAggregationBuilder> getSiblingPipelineAggregations();
 
         /**
          * Add a validation error to this context. All validation errors

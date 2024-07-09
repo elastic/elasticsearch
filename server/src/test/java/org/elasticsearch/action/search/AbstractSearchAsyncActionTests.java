@@ -21,7 +21,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -75,6 +74,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         return new AbstractSearchAsyncAction<SearchPhaseResult>(
             "test",
             logger,
+            null,
             null,
             nodeIdToConnection,
             Collections.singletonMap("foo", AliasFilter.of(new MatchAllQueryBuilder())),
@@ -134,47 +134,39 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
     private void runTestTook(final boolean controlled) {
         final AtomicLong expected = new AtomicLong();
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
-            new SearchRequest(),
-            new ArraySearchPhaseResults<>(10),
-            null,
-            controlled,
-            expected
-        );
-        final long actual = action.buildTookInMillis();
-        if (controlled) {
-            // with a controlled clock, we can assert the exact took time
-            assertThat(actual, equalTo(TimeUnit.NANOSECONDS.toMillis(expected.get())));
-        } else {
-            // with a real clock, the best we can say is that it took as long as we spun for
-            assertThat(actual, greaterThanOrEqualTo(TimeUnit.NANOSECONDS.toMillis(expected.get())));
+        try (var result = new ArraySearchPhaseResults<>(10)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(new SearchRequest(), result, null, controlled, expected);
+            final long actual = action.buildTookInMillis();
+            if (controlled) {
+                // with a controlled clock, we can assert the exact took time
+                assertThat(actual, equalTo(TimeUnit.NANOSECONDS.toMillis(expected.get())));
+            } else {
+                // with a real clock, the best we can say is that it took as long as we spun for
+                assertThat(actual, greaterThanOrEqualTo(TimeUnit.NANOSECONDS.toMillis(expected.get())));
+            }
         }
     }
 
     public void testBuildShardSearchTransportRequest() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         final AtomicLong expected = new AtomicLong();
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
-            searchRequest,
-            new ArraySearchPhaseResults<>(10),
-            null,
-            false,
-            expected
-        );
-        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
-        SearchShardIterator iterator = new SearchShardIterator(
-            clusterAlias,
-            new ShardId(new Index("name", "foo"), 1),
-            Collections.emptyList(),
-            new OriginalIndices(new String[] { "name", "name1" }, IndicesOptions.strictExpand())
-        );
-        ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator, 10);
-        assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
-        assertArrayEquals(new String[] { "name", "name1" }, shardSearchTransportRequest.indices());
-        assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());
-        assertEquals(2.0f, shardSearchTransportRequest.indexBoost(), 0.0f);
-        assertArrayEquals(new String[] { "name", "name1" }, shardSearchTransportRequest.indices());
-        assertEquals(clusterAlias, shardSearchTransportRequest.getClusterAlias());
+        try (var result = new ArraySearchPhaseResults<>(10)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, result, null, false, expected);
+            String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
+            SearchShardIterator iterator = new SearchShardIterator(
+                clusterAlias,
+                new ShardId(new Index("name", "foo"), 1),
+                Collections.emptyList(),
+                new OriginalIndices(new String[] { "name", "name1" }, IndicesOptions.strictExpand())
+            );
+            ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator, 10);
+            assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
+            assertArrayEquals(new String[] { "name", "name1" }, shardSearchTransportRequest.indices());
+            assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());
+            assertEquals(2.0f, shardSearchTransportRequest.indexBoost(), 0.0f);
+            assertArrayEquals(new String[] { "name", "name1" }, shardSearchTransportRequest.indices());
+            assertEquals(clusterAlias, shardSearchTransportRequest.getClusterAlias());
+        }
     }
 
     public void testSendSearchResponseDisallowPartialFailures() {
@@ -196,7 +188,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 new IllegalArgumentException()
             );
         }
-        action.sendSearchResponse(InternalSearchResponse.EMPTY_WITH_TOTAL_HITS, phaseResults.results);
+        action.sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, phaseResults.results);
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);

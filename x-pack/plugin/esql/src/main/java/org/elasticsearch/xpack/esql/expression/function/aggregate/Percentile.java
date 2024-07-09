@@ -7,28 +7,67 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class Percentile extends NumericAggregate {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "Percentile",
+        Percentile::new
+    );
+
     private final Expression percentile;
 
-    public Percentile(Source source, Expression field, Expression percentile) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long" },
+        description = "The value at which a certain percentage of observed values occur.",
+        isAggregation = true
+    )
+    public Percentile(
+        Source source,
+        @Param(name = "number", type = { "double", "integer", "long" }) Expression field,
+        @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
+    ) {
         super(source, field, List.of(percentile));
         this.percentile = percentile;
+    }
+
+    private Percentile(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(children().get(0));
+        out.writeNamedWriteable(children().get(1));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -51,7 +90,13 @@ public class Percentile extends NumericAggregate {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isNumeric(field(), sourceText(), FIRST);
+        TypeResolution resolution = isType(
+            field(),
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            sourceText(),
+            FIRST,
+            "numeric except unsigned_long"
+        );
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -60,18 +105,18 @@ public class Percentile extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
+        return new PercentileLongAggregatorFunctionSupplier(inputChannels, percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
+        return new PercentileIntAggregatorFunctionSupplier(inputChannels, percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
+        return new PercentileDoubleAggregatorFunctionSupplier(inputChannels, percentileValue());
     }
 
     private int percentileValue() {

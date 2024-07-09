@@ -11,8 +11,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.ExtendedStats.Bounds;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -99,73 +97,6 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         assertEquals(sampled.getMax(), reduced.getMax(), 0d);
         assertEquals(sampled.getMin(), reduced.getMin(), 0d);
         assertEquals(sampled.getSumOfSquares(), samplingContext.scaleUp(reduced.getSumOfSquares()), 0);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalExtendedStats aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedExtendedStats);
-        ParsedExtendedStats parsed = (ParsedExtendedStats) parsedAggregation;
-        InternalStatsTests.assertStats(aggregation, parsed);
-
-        long count = aggregation.getCount();
-        // for count == 0, fields are rendered as `null`, so we test that we parse to default values used also in the reduce phase
-        assertEquals(count > 0 ? aggregation.getSumOfSquares() : 0, parsed.getSumOfSquares(), 0);
-        assertEquals(count > 0 ? aggregation.getVariance() : 0, parsed.getVariance(), 0);
-        assertEquals(count > 0 ? aggregation.getVariancePopulation() : 0, parsed.getVariancePopulation(), 0);
-        assertEquals(count > 0 ? aggregation.getVarianceSampling() : 0, parsed.getVarianceSampling(), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviation() : 0, parsed.getStdDeviation(), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationPopulation() : 0, parsed.getStdDeviationPopulation(), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationSampling() : 0, parsed.getStdDeviationSampling(), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER) : 0, parsed.getStdDeviationBound(Bounds.LOWER), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER) : 0, parsed.getStdDeviationBound(Bounds.UPPER), 0);
-        assertEquals(
-            count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER_POPULATION) : 0,
-            parsed.getStdDeviationBound(Bounds.LOWER_POPULATION),
-            0
-        );
-        assertEquals(
-            count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER_POPULATION) : 0,
-            parsed.getStdDeviationBound(Bounds.UPPER_POPULATION),
-            0
-        );
-        assertEquals(
-            count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER_SAMPLING) : 0,
-            parsed.getStdDeviationBound(Bounds.LOWER_SAMPLING),
-            0
-        );
-        assertEquals(
-            count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER_SAMPLING) : 0,
-            parsed.getStdDeviationBound(Bounds.UPPER_SAMPLING),
-            0
-        );
-        // also as_string values are only rendered for count != 0
-        if (count > 0) {
-            assertEquals(aggregation.getSumOfSquaresAsString(), parsed.getSumOfSquaresAsString());
-            assertEquals(aggregation.getVarianceAsString(), parsed.getVarianceAsString());
-            assertEquals(aggregation.getVariancePopulationAsString(), parsed.getVariancePopulationAsString());
-            assertEquals(aggregation.getVarianceSamplingAsString(), parsed.getVarianceSamplingAsString());
-            assertEquals(aggregation.getStdDeviationAsString(), parsed.getStdDeviationAsString());
-            assertEquals(aggregation.getStdDeviationPopulationAsString(), parsed.getStdDeviationPopulationAsString());
-            assertEquals(aggregation.getStdDeviationSamplingAsString(), parsed.getStdDeviationSamplingAsString());
-            assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.LOWER), parsed.getStdDeviationBoundAsString(Bounds.LOWER));
-            assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.UPPER), parsed.getStdDeviationBoundAsString(Bounds.UPPER));
-            assertEquals(
-                aggregation.getStdDeviationBoundAsString(Bounds.LOWER_POPULATION),
-                parsed.getStdDeviationBoundAsString(Bounds.LOWER_POPULATION)
-            );
-            assertEquals(
-                aggregation.getStdDeviationBoundAsString(Bounds.UPPER_POPULATION),
-                parsed.getStdDeviationBoundAsString(Bounds.UPPER_POPULATION)
-            );
-            assertEquals(
-                aggregation.getStdDeviationBoundAsString(Bounds.LOWER_SAMPLING),
-                parsed.getStdDeviationBoundAsString(Bounds.LOWER_SAMPLING)
-            );
-            assertEquals(
-                aggregation.getStdDeviationBoundAsString(Bounds.UPPER_SAMPLING),
-                parsed.getStdDeviationBoundAsString(Bounds.UPPER_SAMPLING)
-            );
-        }
     }
 
     @Override
@@ -274,8 +205,7 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         for (double sumOfSqrs : values) {
             aggregations.add(new InternalExtendedStats("dummy1", 1, 0.0, 0.0, 0.0, sumOfSqrs, sigma, null, null));
         }
-        InternalExtendedStats stats = new InternalExtendedStats("dummy", 1, 0.0, 0.0, 0.0, 0.0, sigma, null, null);
-        InternalExtendedStats reduced = stats.reduce(aggregations, null);
+        InternalExtendedStats reduced = (InternalExtendedStats) InternalAggregationTestCase.reduce(aggregations, null);
         assertEquals(expectedSumOfSqrs, reduced.getSumOfSquares(), delta);
     }
 }

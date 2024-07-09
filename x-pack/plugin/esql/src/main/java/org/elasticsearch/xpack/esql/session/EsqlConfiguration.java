@@ -7,19 +7,23 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.ql.session.Configuration;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
@@ -37,6 +41,10 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     private final String query;
 
+    private final boolean profile;
+
+    private final Map<String, Map<String, Column>> tables;
+
     public EsqlConfiguration(
         ZoneId zi,
         Locale locale,
@@ -45,7 +53,9 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         QueryPragmas pragmas,
         int resultTruncationMaxSize,
         int resultTruncationDefaultSize,
-        String query
+        String query,
+        boolean profile,
+        Map<String, Map<String, Column>> tables
     ) {
         super(zi, username, clusterName);
         this.locale = locale;
@@ -53,15 +63,28 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         this.resultTruncationMaxSize = resultTruncationMaxSize;
         this.resultTruncationDefaultSize = resultTruncationDefaultSize;
         this.query = query;
+        this.profile = profile;
+        this.tables = tables;
+        assert tables != null;
     }
 
-    public EsqlConfiguration(StreamInput in) throws IOException {
+    public EsqlConfiguration(BlockStreamInput in) throws IOException {
         super(in.readZoneId(), Instant.ofEpochSecond(in.readVLong(), in.readVInt()), in.readOptionalString(), in.readOptionalString());
         locale = Locale.forLanguageTag(in.readString());
         this.pragmas = new QueryPragmas(in);
         this.resultTruncationMaxSize = in.readVInt();
         this.resultTruncationDefaultSize = in.readVInt();
         this.query = readQuery(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            this.profile = in.readBoolean();
+        } else {
+            this.profile = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REQUEST_TABLES)) {
+            this.tables = in.readImmutableMap(i1 -> i1.readImmutableMap(i2 -> new Column((BlockStreamInput) i2)));
+        } else {
+            this.tables = Map.of();
+        }
     }
 
     @Override
@@ -77,6 +100,12 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         out.writeVInt(resultTruncationMaxSize);
         out.writeVInt(resultTruncationDefaultSize);
         writeQuery(out, query);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeBoolean(profile);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REQUEST_TABLES)) {
+            out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, (o2, column) -> column.writeTo(o2)));
+        }
     }
 
     public QueryPragmas pragmas() {
@@ -97,6 +126,30 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     public String query() {
         return query;
+    }
+
+    /**
+     * Returns the current time in milliseconds from the time epoch for the execution of this request.
+     * It ensures consistency by using the same value on all nodes involved in the search request.
+     * Note: Currently, it returns {@link System#currentTimeMillis()}, but this value will be serialized between nodes.
+     */
+    public long absoluteStartedTimeInMillis() {
+        return System.currentTimeMillis();
+    }
+
+    /**
+     * Tables specified in the request.
+     */
+    public Map<String, Map<String, Column>> tables() {
+        return tables;
+    }
+
+    /**
+     * Enable profiling, sacrificing performance to return information about
+     * what operations are taking the most time.
+     */
+    public boolean profile() {
+        return profile;
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {
@@ -130,13 +183,45 @@ public class EsqlConfiguration extends Configuration implements Writeable {
                 && resultTruncationDefaultSize == that.resultTruncationDefaultSize
                 && Objects.equals(pragmas, that.pragmas)
                 && Objects.equals(locale, that.locale)
-                && Objects.equals(that.query, query);
+                && Objects.equals(that.query, query)
+                && profile == that.profile
+                && tables.equals(that.tables);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), pragmas, resultTruncationMaxSize, resultTruncationDefaultSize, locale, query);
+        return Objects.hash(
+            super.hashCode(),
+            pragmas,
+            resultTruncationMaxSize,
+            resultTruncationDefaultSize,
+            locale,
+            query,
+            profile,
+            tables
+        );
+    }
+
+    @Override
+    public String toString() {
+        return "EsqlConfiguration{"
+            + "pragmas="
+            + pragmas
+            + ", resultTruncationMaxSize="
+            + resultTruncationMaxSize
+            + ", resultTruncationDefaultSize="
+            + resultTruncationDefaultSize
+            + ", locale="
+            + locale
+            + ", query='"
+            + query
+            + '\''
+            + ", profile="
+            + profile
+            + ", tables="
+            + tables
+            + '}';
     }
 }

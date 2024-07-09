@@ -42,7 +42,7 @@ import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 /**
  * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the path as unhealthy.
  */
-public class FsHealthService extends AbstractLifecycleComponent implements NodeHealthService {
+public final class FsHealthService extends AbstractLifecycleComponent implements NodeHealthService {
 
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
 
@@ -82,7 +82,6 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         Setting.Property.Dynamic
     );
 
-    @SuppressWarnings("this-escape")
     public FsHealthService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, NodeEnvironment nodeEnv) {
         this.threadPool = threadPool;
         this.enabled = ENABLED_SETTING.get(settings);

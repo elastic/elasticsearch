@@ -246,7 +246,7 @@ public final class RandomObjects {
     public static Tuple<ShardInfo, ShardInfo> randomShardInfo(Random random, boolean withShardFailures) {
         int total = randomIntBetween(random, 1, 10);
         if (withShardFailures == false) {
-            return Tuple.tuple(new ShardInfo(total, total), new ShardInfo(total, total));
+            return Tuple.tuple(ShardInfo.allSuccessful(total), ShardInfo.allSuccessful(total));
         }
 
         int successful = randomIntBetween(random, 1, Math.max(1, (total - 1)));
@@ -260,7 +260,7 @@ public final class RandomObjects {
             actualFailures[i] = failure.v1();
             expectedFailures[i] = failure.v2();
         }
-        return Tuple.tuple(new ShardInfo(total, successful, actualFailures), new ShardInfo(total, successful, expectedFailures));
+        return Tuple.tuple(ShardInfo.of(total, successful, actualFailures), ShardInfo.of(total, successful, expectedFailures));
     }
 
     /**

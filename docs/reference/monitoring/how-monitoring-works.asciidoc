@@ -34,7 +34,6 @@ collection methods, you should migrate to using {agent} or {metricbeat}.
 * Monitoring {beats}:
 ** {auditbeat-ref}/monitoring.html[{auditbeat}]
 ** {filebeat-ref}/monitoring.html[{filebeat}]
-** {functionbeat-ref}/monitoring.html[{functionbeat}]
 ** {heartbeat-ref}/monitoring.html[{heartbeat}]
 ** {metricbeat-ref}/monitoring.html[{metricbeat}]
 ** {packetbeat-ref}/monitoring.html[{packetbeat}]

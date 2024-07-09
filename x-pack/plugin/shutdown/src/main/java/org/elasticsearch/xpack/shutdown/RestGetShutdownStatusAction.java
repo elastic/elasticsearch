@@ -11,10 +11,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.util.List;
 
@@ -36,11 +37,14 @@ public class RestGetShutdownStatusAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        String[] nodeIds = Strings.commaDelimitedListToStringArray(request.param("nodeId"));
+        final var actionRequest = new GetShutdownStatusAction.Request(
+            RestUtils.getMasterNodeTimeout(request),
+            Strings.commaDelimitedListToStringArray(request.param("nodeId"))
+        );
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeIds),
-            new RestChunkedToXContentListener<>(channel)
+            actionRequest,
+            new RestRefCountedChunkedToXContentListener<>(channel)
         );
     }
 }

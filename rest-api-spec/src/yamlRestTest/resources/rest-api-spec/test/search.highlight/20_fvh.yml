@@ -69,8 +69,8 @@ setup:
 
 ---
 "Highlight multiple documents":
-  - skip:
-      version: " - 7.10.1"
+  - requires:
+      cluster_features: ["gte_v7.10.2"]
       reason: Bug fixed in 7.10.2
   - do:
       search:
@@ -93,8 +93,8 @@ setup:
 
 ---
 "Highlight multiple nested documents":
-  - skip:
-      version: " - 7.10.1"
+  - requires:
+      cluster_features: ["gte_v7.10.2"]
       reason: Bug fixed in 7.10.2
   - do:
       search:

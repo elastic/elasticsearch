@@ -5,7 +5,7 @@ You can use {es}'s application logs to monitor your cluster and diagnose issues.
 If you run {es} as a service, the default location of the logs varies based on
 your platform and installation method:
 
-include::{es-repo-dir}/tab-widgets/logging-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/logging-widget.asciidoc[]
 
 If you run {es} from the command line, {es} prints logs to the standard output
 (`stdout`).
@@ -150,7 +150,9 @@ update settings API>> to change the related logger's log level. Each logger
 accepts Log4j 2's built-in log levels, from least to most verbose: `OFF`,
 `FATAL`, `ERROR`, `WARN`, `INFO`, `DEBUG`, and `TRACE`. The default log level is
 `INFO`. Messages logged at higher verbosity levels (`DEBUG` and `TRACE`) are
-only intended for expert use.
+only intended for expert use. To prevent leaking sensitive information in logs,
+{es} will reject setting certain loggers to higher verbosity levels unless
+<<http-rest-request-tracer,insecure network trace logging>> is enabled.
 
 [source,console]
 ----
@@ -202,6 +204,13 @@ configuration for other reasons. For example, you may want to send logs for a
 particular logger to another file. However, these use cases are rare.
 --
 
+IMPORTANT: {es}'s application logs are intended for humans to read and
+interpret. Different versions of {es} may report information in these logs in
+different ways, perhaps adding extra detail, removing unnecessary information,
+formatting the same information in different ways, renaming the logger or
+adjusting the log level for specific messages. Do not rely on the contents of
+the application logs remaining precisely the same between versions.
+
 [discrete]
 [[deprecation-logging]]
 === Deprecation logging
@@ -227,7 +236,7 @@ to `OFF` in `log4j2.properties` :
 ----
 logger.deprecation.level = OFF
 ----
-Alternatively, you can change the logging level dynamically: 
+Alternatively, you can change the logging level dynamically:
 
 [source,console]
 ----

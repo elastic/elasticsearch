@@ -993,6 +993,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             hasDiscoveredAllNodes
                 ? allMasterEligibleNodes
                 : randomSubsetOf(randomInt(allMasterEligibleNodes.size() - 1), allMasterEligibleNodes),
+            Collections.emptySet(),
             randomLong(),
             hasDiscoveredQuorum,
             new StatusInfo(randomFrom(StatusInfo.Status.HEALTHY, StatusInfo.Status.UNHEALTHY), randomAlphaOfLength(20)),

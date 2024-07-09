@@ -35,7 +35,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         prepareCreate(indexName, indexSettings(1, 0)).get();
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
+        prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
 
         ensureGreen();
 
@@ -81,7 +81,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         internalCluster().startCoordinatingOnlyNode(dataNodeDataPathSettings);
 
         assertTrue(indexExists(indexName));
-        expectThrows(NoShardAvailableActionException.class, () -> client().prepareGet(indexName, "1").get());
+        expectThrows(NoShardAvailableActionException.class, client().prepareGet(indexName, "1"));
 
         logger.info("--> Restarting and repurposing other node");
 

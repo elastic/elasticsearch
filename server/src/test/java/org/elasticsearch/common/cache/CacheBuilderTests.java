@@ -23,7 +23,7 @@ public class CacheBuilderTests extends ESTestCase {
         assertThat(iae.getMessage(), containsString("expireAfterAccess <="));
         iae = expectThrows(IllegalArgumentException.class, () -> CacheBuilder.builder().setExpireAfterAccess(TimeValue.ZERO));
         assertThat(iae.getMessage(), containsString("expireAfterAccess <="));
-        final TimeValue timeValue = TimeValue.parseTimeValue(randomPositiveTimeValue(), "");
+        final TimeValue timeValue = randomPositiveTimeValue();
         Cache<Object, Object> cache = CacheBuilder.builder().setExpireAfterAccess(timeValue).build();
         assertEquals(timeValue.getNanos(), cache.getExpireAfterAccessNanos());
     }
@@ -36,7 +36,7 @@ public class CacheBuilderTests extends ESTestCase {
         assertThat(iae.getMessage(), containsString("expireAfterWrite <="));
         iae = expectThrows(IllegalArgumentException.class, () -> CacheBuilder.builder().setExpireAfterWrite(TimeValue.ZERO));
         assertThat(iae.getMessage(), containsString("expireAfterWrite <="));
-        final TimeValue timeValue = TimeValue.parseTimeValue(randomPositiveTimeValue(), "");
+        final TimeValue timeValue = randomPositiveTimeValue();
         Cache<Object, Object> cache = CacheBuilder.builder().setExpireAfterWrite(timeValue).build();
         assertEquals(timeValue.getNanos(), cache.getExpireAfterWriteNanos());
     }

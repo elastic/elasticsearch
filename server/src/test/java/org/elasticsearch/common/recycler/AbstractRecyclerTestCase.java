@@ -26,7 +26,7 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
 
         @Override
         public byte[] newInstance() {
-            byte[] value = new byte[10];
+            byte[] value = new byte[pageSize()];
             // "fresh" is intentionally not 0 to ensure we covered this code path
             Arrays.fill(value, FRESH);
             return value;
@@ -41,6 +41,11 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
         public void destroy(byte[] value) {
             // we cannot really free the internals of a byte[], so mark it for verification
             Arrays.fill(value, DEAD);
+        }
+
+        @Override
+        public int pageSize() {
+            return 10;
         }
 
     };

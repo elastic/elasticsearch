@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 
@@ -183,7 +184,7 @@ class Retry2 {
                     bulkItemResponses.getItems().length
                 );
                 // we're done here, include all responses
-                addResponses(bulkItemResponses, (r -> true));
+                addResponses(bulkItemResponses, Predicates.always());
                 listener.onResponse(getAccumulatedResponse());
             } else {
                 if (canRetry(bulkItemResponses)) {
@@ -201,7 +202,7 @@ class Retry2 {
                         bulkItemResponses.getTook(),
                         bulkItemResponses.getItems().length
                     );
-                    addResponses(bulkItemResponses, (r -> true));
+                    addResponses(bulkItemResponses, Predicates.always());
                     listener.onResponse(getAccumulatedResponse());
                 }
             }

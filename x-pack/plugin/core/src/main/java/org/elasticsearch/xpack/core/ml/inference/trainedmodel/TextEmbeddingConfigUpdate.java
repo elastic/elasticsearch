@@ -105,29 +105,6 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if ((resultsField == null || resultsField.equals(originalConfig.getResultsField())) && super.isNoop()) {
-            return originalConfig;
-        }
-
-        if (originalConfig instanceof TextEmbeddingConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        TextEmbeddingConfig embeddingConfig = (TextEmbeddingConfig) originalConfig;
-        return new TextEmbeddingConfig(
-            embeddingConfig.getVocabularyConfig(),
-            tokenizationUpdate == null ? embeddingConfig.getTokenization() : tokenizationUpdate.apply(embeddingConfig.getTokenization()),
-            resultsField == null ? embeddingConfig.getResultsField() : resultsField,
-            embeddingConfig.getEmbeddingSize()
-        );
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig config) {
         return config instanceof TextEmbeddingConfig;
     }

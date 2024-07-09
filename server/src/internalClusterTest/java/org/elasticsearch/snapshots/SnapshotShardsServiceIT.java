@@ -48,7 +48,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         String blockedNode = blockNodeWithIndex("test-repo", "test-index");
         dataNodeClient().admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
             .setWaitForCompletion(false)
             .setIndices("test-index")
             .get();
@@ -71,7 +71,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
             List<IndexShardSnapshotStatus.Stage> stages = snapshotShardsService.currentSnapshotShards(snapshot)
                 .values()
                 .stream()
-                .map(status -> status.asCopy().getStage())
+                .map(IndexShardSnapshotStatus.Copy::getStage)
                 .toList();
             assertThat(stages, hasSize(shards));
             assertThat(stages, everyItem(equalTo(IndexShardSnapshotStatus.Stage.DONE)));

@@ -25,6 +25,8 @@ first. If you cannot repair the repository in this way, first delete all the
 snapshots in the repository taken with version 8.10.0 or later using a cluster
 running version 8.10.4.
 
+include::8.10.3.asciidoc[tag=no-preventive-gc-issue]
+
 Also see <<breaking-changes-8.10,Breaking changes in 8.10>>.
 
 [[bug-8.10.4]]

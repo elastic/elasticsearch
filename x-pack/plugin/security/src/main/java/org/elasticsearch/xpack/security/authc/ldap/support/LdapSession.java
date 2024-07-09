@@ -102,7 +102,7 @@ public class LdapSession implements Releasable {
         groupsResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
     }
 
-    public void metadata(ActionListener<Map<String, Object>> listener) {
+    public void metadata(ActionListener<LdapMetadataResolver.LdapMetadataResult> listener) {
         metadataResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
     }
 
@@ -111,17 +111,28 @@ public class LdapSession implements Releasable {
         groups(ActionListener.wrap(groups -> {
             logger.debug("Resolved {} LDAP groups [{}] for user [{}]", groups.size(), groups, userDn);
             metadata(ActionListener.wrap(meta -> {
-                logger.debug("Resolved {} meta-data fields [{}] for user [{}]", meta.size(), meta, userDn);
-                listener.onResponse(new LdapUserData(groups, meta));
+                logger.debug(
+                    "Resolved full name [{}], email [{}] and {} meta-data [{}] for user [{}]",
+                    meta.getFullName(),
+                    meta.getEmail(),
+                    meta.getMetaData().size(),
+                    meta,
+                    userDn
+                );
+                listener.onResponse(new LdapUserData(meta.getFullName(), meta.getEmail(), groups, meta.getMetaData()));
             }, listener::onFailure));
         }, listener::onFailure));
     }
 
     public static class LdapUserData {
+        public final String fullName;
+        public final String email;
         public final List<String> groups;
         public final Map<String, Object> metadata;
 
-        public LdapUserData(List<String> groups, Map<String, Object> metadata) {
+        public LdapUserData(String fullName, String email, List<String> groups, Map<String, Object> metadata) {
+            this.fullName = fullName;
+            this.email = email;
             this.groups = groups;
             this.metadata = metadata;
         }

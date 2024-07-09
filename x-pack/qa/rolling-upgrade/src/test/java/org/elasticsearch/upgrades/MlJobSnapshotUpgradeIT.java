@@ -7,7 +7,6 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -39,7 +38,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-@SuppressWarnings("removal")
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
@@ -76,7 +74,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         switch (CLUSTER_TYPE) {
             case OLD -> createJobAndSnapshots();
             case MIXED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
+                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");
@@ -85,7 +83,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 testSnapshotUpgradeFailsOnMixedCluster();
             }
             case UPGRADED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
+                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");

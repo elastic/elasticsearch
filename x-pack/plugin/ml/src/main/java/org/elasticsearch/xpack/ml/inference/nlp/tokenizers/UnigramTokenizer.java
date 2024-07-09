@@ -30,7 +30,6 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.numUtf8Bytes;
 import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.splitOutNeverSplit;
 
 /**
@@ -256,9 +255,14 @@ public final class UnigramTokenizer extends Tokenizer {
         BestPathNode[] bestPathNodes = new BestPathNode[numBytes + 1];
         int bytePos = 0;
         int charPos = 0;
-        while (bytePos < numBytes) {
+        while (charPos < inputSequence.length()) {
             double bestScoreTillHere = bestPathNodes[bytePos] == null ? 0 : bestPathNodes[bytePos].score;
-            int mblen = numUtf8Bytes(inputSequence.charAt(charPos));
+
+            boolean isSurrogatePair = (charPos + 1 < inputSequence.length()
+                && Character.isSurrogatePair(inputSequence.charAt(charPos), inputSequence.charAt(charPos + 1)));
+            int numUtf16Chars = isSurrogatePair ? 2 : 1;
+            int mblen = UnicodeUtil.calcUTF16toUTF8Length(inputSequence, charPos, numUtf16Chars);
+
             boolean hasSingleNode = false;
             // Find the matching prefixes, incrementing by the chars, each time
             for (BytesRef prefix : vocabTrie.matchingPrefixes(new BytesRef(normalizedByteBuffer, bytePos, numBytes - bytePos))) {
@@ -295,7 +299,7 @@ public final class UnigramTokenizer extends Tokenizer {
             }
             // Move our prefix search to the next char
             bytePos += mblen;
-            ++charPos;
+            charPos = charPos + numUtf16Chars;
         }
         int endsAtBytes = numBytes;
         int endsAtChars = inputSequence.length();

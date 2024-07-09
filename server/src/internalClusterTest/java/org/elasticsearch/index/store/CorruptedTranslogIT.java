@@ -9,7 +9,6 @@
 package org.elasticsearch.index.store;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -32,6 +31,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils.getClusterAllocationExplanation;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -59,7 +59,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[scaledRandomIntBetween(100, 1000)];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("foo", "bar");
+            builders[i] = prepareIndex("test").setSource("foo", "bar");
         }
 
         indexRandom(false, false, false, Arrays.asList(builders));
@@ -79,16 +79,12 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             // assertBusy since the shard starts out unassigned with reason CLUSTER_RECOVERED, then it's assigned, and then it fails.
-            final ClusterAllocationExplainResponse allocationExplainResponse = clusterAdmin().prepareAllocationExplain()
-                .setIndex("test")
-                .setShard(0)
-                .setPrimary(true)
-                .get();
-            final String description = Strings.toString(allocationExplainResponse.getExplanation());
-            final UnassignedInfo unassignedInfo = allocationExplainResponse.getExplanation().getUnassignedInfo();
+            final var allocationExplainResponse = getClusterAllocationExplanation(client(), "test", 0, true);
+            final var description = Strings.toString(allocationExplainResponse);
+            final var unassignedInfo = allocationExplainResponse.getUnassignedInfo();
             assertThat(description, unassignedInfo, not(nullValue()));
-            assertThat(description, unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-            var failure = unassignedInfo.getFailure();
+            assertThat(description, unassignedInfo.reason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+            var failure = unassignedInfo.failure();
             assertNotNull(failure);
             final Throwable cause = ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class);
             if (cause != null) {
@@ -97,8 +93,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         });
 
         assertThat(
-            expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test").setQuery(matchAllQuery()).get())
-                .getMessage(),
+            expectThrows(SearchPhaseExecutionException.class, prepareSearch("test").setQuery(matchAllQuery())).getMessage(),
             containsString("all shards failed")
         );
 

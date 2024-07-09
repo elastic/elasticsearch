@@ -1,6 +1,0 @@
-pr: 100846
-summary: Consistent scores for multi-term `SourceConfirmedTestQuery`
-area: Search
-type: bug
-issues:
- - 98712

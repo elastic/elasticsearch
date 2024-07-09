@@ -471,5 +471,10 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         public void session(String user, SecureString password, ActionListener<LdapSession> listener) {
             listener.onResponse(null);
         }
+
+        @Override
+        public void reload(Settings settings) {
+            // no-op
+        }
     }
 }

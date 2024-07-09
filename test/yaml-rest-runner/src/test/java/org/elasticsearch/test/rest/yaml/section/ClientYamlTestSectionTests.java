@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
@@ -27,14 +26,14 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
             XContentParser parser = createParser(YamlXContent.yamlXContent, """
                 "First test section":\s
                   - skip:
-                    version:  "2.0.0 - 2.2.0"
+                    cluster_features:  "feature"
                     reason:   "Update doesn't return metadata fields, waiting for #3259\"""");
 
             ParsingException e = expectThrows(ParsingException.class, () -> ClientYamlTestSection.parse(parser));
             assertEquals("Error parsing test named [First test section]", e.getMessage());
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
             assertEquals(
-                "Expected [START_OBJECT, found [VALUE_NULL], the skip section is not properly indented",
+                "Expected [START_OBJECT], found [VALUE_NULL], the skip section is not properly indented",
                 e.getCause().getMessage()
             );
         }
@@ -70,7 +69,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("First test section"));
-        assertThat(testSection.getSkipSection(), equalTo(SkipSection.EMPTY));
+        assertThat(testSection.getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(testSection.getExecutableSections().size(), equalTo(1));
         DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);
         assertThat(doSection.getCatch(), equalTo("missing"));
@@ -80,11 +79,11 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
     }
 
-    public void testParseTestSectionWithDoSetAndSkipSectionsNoSkip() throws Exception {
+    public void testParseTestSectionWithDoSetAndSkipSections() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
             "First test section":\s
               - skip:
-                  version:  "6.0.0 - 6.2.0"
+                  cluster_features:  "feature"
                   reason:   "Update doesn't return metadata fields, waiting for #3259"
               - do :
                   catch: missing
@@ -97,10 +96,8 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("First test section"));
-        assertThat(testSection.getSkipSection(), notNullValue());
-        assertThat(testSection.getSkipSection().getLowerVersion(), equalTo(Version.fromString("6.0.0")));
-        assertThat(testSection.getSkipSection().getUpperVersion(), equalTo(Version.fromString("6.2.0")));
-        assertThat(testSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
+        assertThat(testSection.getPrerequisiteSection(), notNullValue());
+        assertThat(testSection.getPrerequisiteSection().skipReason, equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
         DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);
         assertThat(doSection.getCatch(), equalTo("missing"));
@@ -133,7 +130,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("Basic"));
-        assertThat(testSection.getSkipSection(), equalTo(SkipSection.EMPTY));
+        assertThat(testSection.getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
         DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);
         assertThat(doSection.getCatch(), nullValue());
@@ -184,7 +181,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("Basic"));
-        assertThat(testSection.getSkipSection(), equalTo(SkipSection.EMPTY));
+        assertThat(testSection.getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(testSection.getExecutableSections().size(), equalTo(10));
 
         DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);

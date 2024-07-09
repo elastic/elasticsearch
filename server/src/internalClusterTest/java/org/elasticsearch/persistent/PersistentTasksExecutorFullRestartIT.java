@@ -34,10 +34,6 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         return Collections.singletonList(TestPersistentTasksPlugin.class);
     }
 
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     public void testFullClusterRestart() throws Exception {
         PersistentTasksService service = internalCluster().getInstance(PersistentTasksService.class);
         int numberOfTasks = randomIntBetween(1, 10);
@@ -48,7 +44,7 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
             PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
             futures.add(future);
             taskIds[i] = UUIDs.base64UUID();
-            service.sendStartRequest(taskIds[i], TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
+            service.sendStartRequest(taskIds[i], TestPersistentTasksExecutor.NAME, new TestParams("Blah"), null, future);
         }
 
         for (int i = 0; i < numberOfTasks; i++) {

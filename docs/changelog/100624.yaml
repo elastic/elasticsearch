@@ -1,5 +1,0 @@
-pr: 100624
-summary: Make Transform Feature Reset really wait for all the tasks
-area: Transform
-type: bug
-issues: []

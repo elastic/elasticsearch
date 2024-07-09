@@ -42,7 +42,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GetTransformAction.class);
 
     private GetTransformAction() {
-        super(NAME, GetTransformAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AbstractGetResourcesRequest {

@@ -1,8 +1,6 @@
 [[get-synonym-rule]]
 === Get synonym rule
 
-beta::[]
-
 ++++
 <titleabbrev>Get synonym rule</titleabbrev>
 ++++

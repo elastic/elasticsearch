@@ -127,10 +127,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
      * Intercepts and blocks the {@link TransportVerifyShardBeforeCloseAction} executed for the given index pattern.
      */
     private Releasable interceptVerifyShardBeforeCloseActions(final String indexPattern, final Runnable onIntercept) {
-        final MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            internalCluster().getMasterName()
-        );
+        final var mockTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         final ListenableFuture<Void> release = new ListenableFuture<>();
         for (DiscoveryNode node : internalCluster().clusterService().state().getNodes()) {
             mockTransportService.addSendBehavior(

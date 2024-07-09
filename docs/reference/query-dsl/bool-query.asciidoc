@@ -149,6 +149,9 @@ Each query accepts a `_name` in its top level definition. You can use named
 queries to track which queries matched returned documents. If named queries are
 used, the response includes a `matched_queries` property for each hit.
 
+NOTE: Supplying duplicate `_name` values in the same request results in undefined behavior. Queries with duplicate names may overwrite
+each other. Query names are assumed to be unique within a single request.
+
 [source,console]
 ----
 GET /_search

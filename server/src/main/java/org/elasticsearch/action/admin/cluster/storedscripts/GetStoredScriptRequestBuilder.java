@@ -16,8 +16,8 @@ public class GetStoredScriptRequestBuilder extends MasterNodeReadOperationReques
     GetStoredScriptResponse,
     GetStoredScriptRequestBuilder> {
 
-    public GetStoredScriptRequestBuilder(ElasticsearchClient client, GetStoredScriptAction action) {
-        super(client, action, new GetStoredScriptRequest());
+    public GetStoredScriptRequestBuilder(ElasticsearchClient client) {
+        super(client, GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest());
     }
 
     public GetStoredScriptRequestBuilder setId(String id) {

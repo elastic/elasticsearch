@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
@@ -114,7 +113,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats),
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats)
         );
-        long[] expectedStats = new long[12];
+        long[] expectedStats = new long[13];
         for (NodeStats nodeStat : nodeStats) {
             IndexingPressureStats indexingPressureStats = nodeStat.getIndexingPressureStats();
             if (indexingPressureStats != null) {
@@ -131,8 +130,9 @@ public class ClusterStatsNodesTests extends ESTestCase {
                 expectedStats[8] += indexingPressureStats.getCoordinatingRejections();
                 expectedStats[9] += indexingPressureStats.getPrimaryRejections();
                 expectedStats[10] += indexingPressureStats.getReplicaRejections();
+                expectedStats[11] += indexingPressureStats.getPrimaryDocumentRejections();
 
-                expectedStats[11] += indexingPressureStats.getMemoryLimit();
+                expectedStats[12] += indexingPressureStats.getMemoryLimit();
             }
         }
 
@@ -182,9 +182,12 @@ public class ClusterStatsNodesTests extends ESTestCase {
                     + ","
                     + "\"replica_rejections\":"
                     + expectedStats[10]
+                    + ","
+                    + "\"primary_document_rejections\":"
+                    + expectedStats[11]
                     + "},"
                     + "\"limit_in_bytes\":"
-                    + expectedStats[11]
+                    + expectedStats[12]
                     + "}"
                     + "}}"
             )
@@ -322,7 +325,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             settings.put(randomFrom(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_TYPE_DEFAULT_KEY), httpType);
         }
         return new NodeInfo(
-            Version.CURRENT,
+            Build.current().version(),
             TransportVersion.current(),
             IndexVersion.current(),
             Map.of(),

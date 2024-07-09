@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -20,6 +22,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.is;
 
 public class RolloverConditionsTests extends AbstractXContentSerializingTestCase<RolloverConditions> {
 
@@ -47,7 +51,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
 
         return RolloverConditions.newBuilder()
@@ -85,10 +89,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
                 ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
             });
-            case 2 -> maxAge = randomValueOtherThan(
-                maxAge,
-                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            );
+            case 2 -> maxAge = randomValueOtherThan(maxAge, () -> randomPositiveTimeValue());
             case 3 -> maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
             case 4 -> maxPrimaryShardDocs = maxPrimaryShardDocs == null ? randomNonNegativeLong() : maxPrimaryShardDocs + 1;
             case 5 -> minSize = randomValueOtherThan(minSize, () -> {
@@ -99,10 +100,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
                 ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
             });
-            case 7 -> minAge = randomValueOtherThan(
-                minAge,
-                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            );
+            case 7 -> minAge = randomValueOtherThan(minAge, () -> randomPositiveTimeValue());
             case 8 -> minDocs = minDocs == null ? randomNonNegativeLong() : minDocs + 1;
             case 9 -> minPrimaryShardDocs = minPrimaryShardDocs == null ? randomNonNegativeLong() : minPrimaryShardDocs + 1;
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -157,5 +155,35 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         String minAgeCondition = new MinAgeCondition(age).toString();
         assertFalse(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true)));
         assertTrue(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true, minAgeCondition, true)));
+
+        OptimalShardCountCondition optimalShardCountCondition = new OptimalShardCountCondition(3);
+        rolloverConditions = RolloverConditions.newBuilder()
+            .addOptimalShardCountCondition(
+                randomBoolean()
+                    ? new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
+                    : new AutoShardingResult(AutoShardingType.DECREASE_SHARDS, 7, 3, TimeValue.ZERO, 0.8)
+            )
+            .build();
+        assertThat(rolloverConditions.areConditionsMet(Map.of(optimalShardCountCondition.toString(), true)), is(true));
+        assertThat(rolloverConditions.areConditionsMet(Map.of(optimalShardCountCondition.toString(), false)), is(false));
+
+        // the rollover condition must be INCREASE or DECREASE_SHARDS, any other type should be ignored
+        rolloverConditions = RolloverConditions.newBuilder()
+            .addOptimalShardCountCondition(
+                new AutoShardingResult(
+                    randomFrom(
+                        AutoShardingType.COOLDOWN_PREVENTED_INCREASE,
+                        AutoShardingType.COOLDOWN_PREVENTED_DECREASE,
+                        AutoShardingType.NO_CHANGE_REQUIRED,
+                        AutoShardingType.NOT_APPLICABLE
+                    ),
+                    1,
+                    3,
+                    TimeValue.ZERO,
+                    3.0
+                )
+            )
+            .build();
+        assertThat(rolloverConditions.getConditions().size(), is(0));
     }
 }

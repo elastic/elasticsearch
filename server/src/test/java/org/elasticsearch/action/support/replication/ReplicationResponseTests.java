@@ -35,34 +35,35 @@ public class ReplicationResponseTests extends ESTestCase {
     public void testShardInfoToString() {
         final int total = 5;
         final int successful = randomIntBetween(1, total);
-        final ShardInfo shardInfo = new ShardInfo(total, successful);
+        final ShardInfo shardInfo = ShardInfo.of(total, successful);
         assertEquals(Strings.format("ShardInfo{total=5, successful=%d, failures=[]}", successful), shardInfo.toString());
     }
 
     public void testShardInfoToXContent() throws IOException {
         {
-            ShardInfo shardInfo = new ShardInfo(5, 3);
+            ShardInfo shardInfo = ShardInfo.of(5, 3);
             String output = Strings.toString(shardInfo);
             assertEquals("{\"total\":5,\"successful\":3,\"failed\":0}", output);
         }
         {
-            ShardInfo shardInfo = new ShardInfo(
+            ShardInfo shardInfo = ShardInfo.of(
                 6,
                 4,
-                new ShardInfo.Failure(
-                    new ShardId("index", "_uuid", 3),
-                    "_node_id",
-                    new IllegalArgumentException("Wrong"),
-                    RestStatus.BAD_REQUEST,
-                    false
-                ),
-                new ShardInfo.Failure(
-                    new ShardId("index", "_uuid", 1),
-                    "_node_id",
-                    new CircuitBreakingException("Wrong", 12, 21, CircuitBreaker.Durability.PERMANENT),
-                    RestStatus.NOT_ACCEPTABLE,
-                    true
-                )
+                new ShardInfo.Failure[] {
+                    new ShardInfo.Failure(
+                        new ShardId("index", "_uuid", 3),
+                        "_node_id",
+                        new IllegalArgumentException("Wrong"),
+                        RestStatus.BAD_REQUEST,
+                        false
+                    ),
+                    new ShardInfo.Failure(
+                        new ShardId("index", "_uuid", 1),
+                        "_node_id",
+                        new CircuitBreakingException("Wrong", 12, 21, CircuitBreaker.Durability.PERMANENT),
+                        RestStatus.NOT_ACCEPTABLE,
+                        true
+                    ) }
             );
             String output = Strings.toString(shardInfo);
             assertEquals(XContentHelper.stripWhitespace("""

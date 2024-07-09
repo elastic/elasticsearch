@@ -8,23 +8,20 @@ package org.elasticsearch.test.eql;
 
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.TestUtils;
 
@@ -53,7 +50,6 @@ import static org.junit.Assert.assertThat;
  *
  * While the loader could be made generic, the queries are bound to each index and generalizing that would make things way too complicated.
  */
-@SuppressWarnings("removal")
 public class DataLoader {
     public static final String TEST_INDEX = "endgame-140";
     public static final String TEST_EXTRA_INDEX = "extra";
@@ -79,15 +75,12 @@ public class DataLoader {
     public static void main(String[] args) throws IOException {
         main = true;
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
-            loadDatasetIntoEs(new RestHighLevelClient(client, ignore -> {}, List.of()) {
-            }, DataLoader::createParser);
+            loadDatasetIntoEs(client, DataLoader::createParser);
         }
     }
 
-    public static void loadDatasetIntoEs(
-        RestHighLevelClient client,
-        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p
-    ) throws IOException {
+    public static void loadDatasetIntoEs(RestClient client, CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
+        throws IOException {
 
         //
         // Main Index
@@ -113,7 +106,7 @@ public class DataLoader {
     }
 
     private static void load(
-        RestHighLevelClient client,
+        RestClient client,
         String indexNames,
         String dataName,
         Consumer<Map<String, Object>> datasetTransform,
@@ -136,14 +129,8 @@ public class DataLoader {
         }
     }
 
-    private static void createTestIndex(RestHighLevelClient client, String indexName, String mapping) throws IOException {
-        ESRestTestCase.createIndex(
-            client.getLowLevelClient(),
-            indexName,
-            Settings.builder().put("number_of_shards", 1).build(),
-            mapping,
-            null
-        );
+    private static void createTestIndex(RestClient client, String indexName, String mapping) throws IOException {
+        ESRestTestCase.createIndex(client, indexName, Settings.builder().put("number_of_shards", 1).build(), mapping, null);
     }
 
     /**
@@ -171,30 +158,40 @@ public class DataLoader {
 
     @SuppressWarnings("unchecked")
     private static void loadData(
-        RestHighLevelClient client,
+        RestClient client,
         String indexName,
         Consumer<Map<String, Object>> datasetTransform,
         URL resource,
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p
     ) throws IOException {
-        BulkRequest bulk = new BulkRequest();
-        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        StringBuilder bulkRequestBody = new StringBuilder();
+        String actionMetadata = Strings.format("{ \"index\" : { \"_index\" : \"%s\" } }%n", indexName);
 
+        int bulkDocuments;
         try (XContentParser parser = p.apply(JsonXContent.jsonXContent, TestUtils.inputStream(resource))) {
             List<Object> list = parser.list();
+            bulkDocuments = list.size();
             for (Object item : list) {
                 assertThat(item, instanceOf(Map.class));
                 Map<String, Object> entry = (Map<String, Object>) item;
                 if (datasetTransform != null) {
                     datasetTransform.accept(entry);
                 }
-                bulk.add(new IndexRequest(indexName).source(entry, XContentType.JSON));
+                bulkRequestBody.append(actionMetadata);
+                try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                    builder.map(entry);
+                    bulkRequestBody.append(Strings.toString(builder));
+                }
+                bulkRequestBody.append("\n");
             }
         }
 
-        if (bulk.numberOfActions() > 0) {
-            BulkResponse bulkResponse = client.bulk(bulk, RequestOptions.DEFAULT);
-            if (bulkResponse.hasFailures()) {
+        if (bulkDocuments > 0) {
+            Request request = new Request("POST", "_bulk?refresh=true");
+            request.setJsonEntity(bulkRequestBody.toString());
+            ObjectPath response = ObjectPath.createFromResponse(client.performRequest(request));
+            boolean errors = response.evaluate("errors");
+            if (errors) {
                 LogManager.getLogger(DataLoader.class).info("Data loading FAILED");
             } else {
                 LogManager.getLogger(DataLoader.class).info("Data loading OK");

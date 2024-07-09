@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.support.SamlInitiateSingleSignOnException;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.mockito.Mockito;
 import org.opensaml.saml.saml2.core.StatusCode;
@@ -112,7 +113,9 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         final TransportSamlInitiateSingleSignOnAction action = setupTransportAction(false);
         action.doExecute(mock(Task.class), request, future);
 
-        final SamlInitiateSingleSignOnResponse response = future.get();
+        final SamlInitiateSingleSignOnException ex = (SamlInitiateSingleSignOnException) expectThrows(Exception.class, future::get)
+            .getCause();
+        final SamlInitiateSingleSignOnResponse response = ex.getSamlInitiateSingleSignOnResponse();
         assertThat(response.getError(), equalTo("Request is missing secondary authentication"));
         assertThat(response.getSamlStatus(), equalTo(StatusCode.REQUESTER));
         assertThat(response.getPostUrl(), equalTo("https://sp.some.org/saml/acs"));

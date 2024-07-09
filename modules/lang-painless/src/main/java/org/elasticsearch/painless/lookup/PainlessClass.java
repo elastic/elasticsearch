@@ -45,11 +45,11 @@ public final class PainlessClass {
         this.staticFields = Map.copyOf(staticFields);
         this.fields = Map.copyOf(fields);
         this.functionalInterfaceMethod = functionalInterfaceMethod;
-        this.annotations = annotations;
+        this.annotations = Map.copyOf(annotations);
 
         this.getterMethodHandles = Map.copyOf(getterMethodHandles);
         this.setterMethodHandles = Map.copyOf(setterMethodHandles);
-        this.runtimeMethods = Map.copyOf(runtimeMethods);
+        this.runtimeMethods = runtimeMethods.equals(methods) ? this.methods : Map.copyOf(runtimeMethods);
     }
 
     @Override

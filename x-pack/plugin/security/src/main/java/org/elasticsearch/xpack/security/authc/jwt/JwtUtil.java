@@ -13,6 +13,7 @@ import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jose.util.JSONObjectUtils;
 import com.nimbusds.jwt.JWT;
+import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -59,6 +60,7 @@ import java.security.MessageDigest;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -354,6 +356,25 @@ public class JwtUtil {
         return messageDigest.digest();
     }
 
+    public static SignedJWT parseSignedJWT(SecureString token) {
+        if (token == null || token.isEmpty()) {
+            return null;
+        }
+        // a lightweight pre-check for JWTs
+        if (containsAtLeastTwoDots(token) == false) {
+            return null;
+        }
+        try {
+            SignedJWT signedJWT = SignedJWT.parse(token.toString());
+            // trigger claim set parsing (the parsed version will be cached internally)
+            signedJWT.getJWTClaimsSet();
+            return signedJWT;
+        } catch (ParseException e) {
+            LOGGER.debug("Failed to parse JWT bearer token", e);
+            return null;
+        }
+    }
+
     /**
      * Helper class to consolidate multiple trace level statements to a single trace statement with lazy evaluation.
      * If trace level is not enabled, then no work is performed. This class is not threadsafe and is not intended for a long lifecycle.
@@ -411,5 +432,22 @@ public class JwtUtil {
         } else {
             return jwt::getParsedString;
         }
+    }
+
+    /**
+     * This is a lightweight pre-check for the JWT token format.
+     * If this returns {@code true}, the token MIGHT be a JWT. Otherwise, the token is definitely not a JWT.
+     */
+    private static boolean containsAtLeastTwoDots(SecureString secureString) {
+        if (secureString == null || secureString.length() < 2) {
+            return false;
+        }
+        int ndots = 0;
+        for (int i = 0; i < secureString.length(); i++) {
+            if (secureString.charAt(i) == '.' && ++ndots >= 2) {
+                return true;
+            }
+        }
+        return false;
     }
 }

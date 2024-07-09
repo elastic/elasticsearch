@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
@@ -58,9 +59,12 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
+import org.elasticsearch.xpack.ml.autoscaling.NodeFakeAvailabilityZoneMapper;
+import org.elasticsearch.xpack.ml.autoscaling.NodeRealAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
@@ -112,7 +116,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     private NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
     private Client client;
     private static MockAppender appender;
-    private static Logger testLogger1 = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
+    private static final Logger testLogger1 = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
 
     @Before
     public void setupObjects() throws IllegalAccessException {
@@ -200,7 +204,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     public void testClusterChanged_GivenNodesAdded_ThenLogMlNodeHeterogeneityCalled() {
-        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        nodeAvailabilityZoneMapper = randomFrom(mock(NodeRealAvailabilityZoneMapper.class), mock(NodeFakeAvailabilityZoneMapper.class));
         TrainedModelAssignmentClusterService serviceSpy = spy(createClusterService(randomInt(5)));
         doNothing().when(serviceSpy).logMlNodeHeterogeneity();
         doReturn(false).when(serviceSpy).eventStateHasGlobalBlockStateNotRecoveredBlock(any());
@@ -222,7 +226,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     public void testStopPlatformSpecificModelsInHeterogeneousClusters_GivenMultipleMlNodeArchitectures_ThenCallSetToStopping() {
-        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        nodeAvailabilityZoneMapper = randomFrom(mock(NodeRealAvailabilityZoneMapper.class), mock(NodeFakeAvailabilityZoneMapper.class));
         TrainedModelAssignmentClusterService serviceSpy = spy(createClusterService(randomInt(5)));
 
         Set<String> architecturesSet = new HashSet<>(randomList(2, 5, () -> randomAlphaOfLength(10)));
@@ -274,7 +278,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
                                 modelId,
-                                TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L))
+                                TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L), null)
                                     .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                     .addRoutingEntry(startedNode, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                             )
@@ -386,7 +390,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
-                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, randomNonNegativeLong())))
+                            .addNewAssignment(
+                                modelId,
+                                TrainedModelAssignment.Builder.empty(newParams(modelId, randomNonNegativeLong()), null)
+                            )
                             .build()
                     )
                     .build()
@@ -436,7 +443,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
-        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+        nodeAvailabilityZoneMapper = randomFrom(
+            new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
+            new NodeFakeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes)
+        );
 
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
@@ -444,7 +454,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .build();
 
         TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = createClusterService(5);
-        ClusterState newState = trainedModelAssignmentClusterService.createModelAssignment(currentState, newParams("new-model", 150, 4, 1));
+        ClusterState newState = trainedModelAssignmentClusterService.createModelAssignment(
+            currentState,
+            new CreateTrainedModelAssignmentAction.Request(newParams("new-model", 150, 4, 1), null)
+        );
         TrainedModelAssignment createdAssignment = TrainedModelAssignmentMetadata.fromState(newState).getDeploymentAssignment("new-model");
 
         assertThat(createdAssignment, is(not(nullValue())));
@@ -460,7 +473,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         expectThrows(
             ResourceAlreadyExistsException.class,
-            () -> trainedModelAssignmentClusterService.createModelAssignment(newState, newParams("new-model", 150))
+            () -> trainedModelAssignmentClusterService.createModelAssignment(
+                newState,
+                new CreateTrainedModelAssignmentAction.Request(newParams("new-model", 150), null)
+            )
         );
     }
 
@@ -477,8 +493,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
-        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
-
+        nodeAvailabilityZoneMapper = randomFrom(
+            new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
+            new NodeFakeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes)
+        );
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
             .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
@@ -487,7 +505,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = createClusterService(0);
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> trainedModelAssignmentClusterService.createModelAssignment(currentState, newParams("new-model", 150, 4, 1))
+            () -> trainedModelAssignmentClusterService.createModelAssignment(
+                currentState,
+                new CreateTrainedModelAssignmentAction.Request(newParams("new-model", 150, 4, 1), null)
+            )
         );
 
         assertThat(
@@ -505,7 +526,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 8))
             .build();
-        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+        nodeAvailabilityZoneMapper = randomFrom(
+            new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
+            new NodeFakeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes)
+        );
 
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
@@ -517,7 +541,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         trainedModelAssignmentClusterService.createNewModelAssignment(
-            newParams("new-model", 150),
+            new CreateTrainedModelAssignmentAction.Request(newParams("new-model", 150), null),
             new LatchedActionListener<>(
                 ActionListener.wrap(
                     trainedModelAssignment -> fail("assignment should have failed to be created because reset mode is set"),
@@ -536,6 +560,43 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         latch.await();
     }
 
+    public void testHaveMlNodesChanged_ReturnsFalseWhenPreviouslyShuttingDownNode_IsMarkedAsReturning_ButIsNotAPresentNode() {
+        String model1 = "model-1";
+        String shuttingDownNode = "ml-shutting-down-node";
+        String mlNode1 = "ml-node-with-room";
+
+        ClusterState stateWithShuttingDownNodeAndMlNode1 = createClusterState(
+            List.of(shuttingDownNode, mlNode1),
+            Metadata.builder()
+                .putCustom(
+                    TrainedModelAssignmentMetadata.NAME,
+                    TrainedModelAssignmentMetadata.Builder.empty()
+                        .addNewAssignment(
+                            model1,
+                            TrainedModelAssignment.Builder.empty(newParams(model1, 100), null)
+                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                        )
+                        .build()
+                )
+                .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(shuttingDownNode))
+                .build()
+        );
+
+        ClusterState stateWithMlNode1 = ClusterState.builder(stateWithShuttingDownNodeAndMlNode1)
+            .nodes(DiscoveryNodes.builder(stateWithShuttingDownNodeAndMlNode1.nodes()).remove(shuttingDownNode).build())
+            .metadata(
+                Metadata.builder(stateWithShuttingDownNodeAndMlNode1.metadata())
+                    .putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY)
+                    .build()
+            )
+            .build();
+
+        var shutdownEvent = new ClusterChangedEvent("test", stateWithMlNode1, stateWithShuttingDownNodeAndMlNode1);
+        var metadata = TrainedModelAssignmentMetadata.fromState(shutdownEvent.state());
+
+        assertFalse(TrainedModelAssignmentClusterService.haveMlNodesChanged(shutdownEvent, metadata));
+    }
+
     public void testHaveMlNodesChanged_ReturnsTrueWhenNodeShutsDownAndWasRoutedTo() {
         String model1 = "model-1";
         String mlNode1 = "ml-node-with-room";
@@ -549,7 +610,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     TrainedModelAssignmentMetadata.Builder.empty()
                         .addNewAssignment(
                             model1,
-                            TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                            TrainedModelAssignment.Builder.empty(newParams(model1, 100), null)
                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                         )
                         .build()
@@ -566,7 +627,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     TrainedModelAssignmentMetadata.Builder.empty()
                         .addNewAssignment(
                             model1,
-                            TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                            TrainedModelAssignment.Builder.empty(newParams(model1, 100), null)
                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                         )
                         .build()
@@ -593,7 +654,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     TrainedModelAssignmentMetadata.Builder.empty()
                         .addNewAssignment(
                             model1,
-                            TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                            TrainedModelAssignment.Builder.empty(newParams(model1, 100), null)
                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
                         )
                         .build()
@@ -610,7 +671,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     TrainedModelAssignmentMetadata.Builder.empty()
                         .addNewAssignment(
                             model1,
-                            TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                            TrainedModelAssignment.Builder.empty(newParams(model1, 100), null)
                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                         )
                         .build()
@@ -652,7 +713,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
-                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100)))
+                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
                                         .build()
                                 )
                                 .build()
@@ -699,7 +760,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
-                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100)))
+                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
                                         .build()
                                 )
                                 .build()
@@ -711,7 +772,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
-                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100)))
+                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
                                         .build()
                                 )
                                 .build()
@@ -733,7 +794,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
-                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100)))
+                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
                                         .build()
                                 )
                                 .build()
@@ -745,7 +806,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
-                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100)))
+                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
                                         .build()
                                 )
                                 .build()
@@ -767,7 +828,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
-                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100)))
+                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
                                         .build()
                                 )
                                 .build()
@@ -779,7 +840,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
-                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100)))
+                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
                                         .build()
                                 )
                                 .build()
@@ -803,7 +864,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(
                                             model1,
-                                            TrainedModelAssignment.Builder.empty(newParams(model1, 100)).stopAssignment("test")
+                                            TrainedModelAssignment.Builder.empty(newParams(model1, 100), null).stopAssignment("test")
                                         )
                                         .build()
                                 )
@@ -816,7 +877,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
-                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100)))
+                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
                                         .build()
                                 )
                                 .build()
@@ -838,7 +899,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
-                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100)))
+                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
                                         .build()
                                 )
                                 .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(mlNode2))
@@ -851,7 +912,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAssignmentMetadata.NAME,
                                     TrainedModelAssignmentMetadata.Builder.empty()
-                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100)))
+                                        .addNewAssignment(model1, TrainedModelAssignment.Builder.empty(newParams(model1, 100), null))
                                         .build()
                                 )
                                 .build()
@@ -875,12 +936,12 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(
                                             model1,
-                                            TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                                            TrainedModelAssignment.Builder.empty(newParams(model1, 100), null)
                                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
                                         .addNewAssignment(
                                             model2,
-                                            TrainedModelAssignment.Builder.empty(newParams("model-2", 100))
+                                            TrainedModelAssignment.Builder.empty(newParams("model-2", 100), null)
                                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                                 .addRoutingEntry(mlNode2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
@@ -897,12 +958,12 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(
                                             model1,
-                                            TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                                            TrainedModelAssignment.Builder.empty(newParams(model1, 100), null)
                                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
                                         .addNewAssignment(
                                             model2,
-                                            TrainedModelAssignment.Builder.empty(newParams("model-2", 100))
+                                            TrainedModelAssignment.Builder.empty(newParams("model-2", 100), null)
                                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                                 .addRoutingEntry(mlNode2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
@@ -929,12 +990,12 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(
                                             model1,
-                                            TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                                            TrainedModelAssignment.Builder.empty(newParams(model1, 100), null)
                                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
                                         .addNewAssignment(
                                             model2,
-                                            TrainedModelAssignment.Builder.empty(newParams("model-2", 100))
+                                            TrainedModelAssignment.Builder.empty(newParams("model-2", 100), null)
                                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                                 .addRoutingEntry(mlNode2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                                 .stopAssignment("test")
@@ -952,12 +1013,12 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                     TrainedModelAssignmentMetadata.Builder.empty()
                                         .addNewAssignment(
                                             model1,
-                                            TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                                            TrainedModelAssignment.Builder.empty(newParams(model1, 100), null)
                                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
                                         .addNewAssignment(
                                             model2,
-                                            TrainedModelAssignment.Builder.empty(newParams("model-2", 100))
+                                            TrainedModelAssignment.Builder.empty(newParams("model-2", 100), null)
                                                 .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                                 .addRoutingEntry(mlNode2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
@@ -984,7 +1045,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentMetadata fullModelAllocation = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 model1,
-                TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                TrainedModelAssignment.Builder.empty(newParams(model1, 100), null)
                     .addRoutingEntry(mlNode1.getId(), new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     .addRoutingEntry(mlNode2.getId(), new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
@@ -1179,7 +1240,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
-                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100)))
+                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
                             .build()
                     )
                     .build()
@@ -1194,7 +1255,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
-                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100)))
+                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
                             .build()
                     )
                     .build()
@@ -1217,7 +1278,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentMetadata modelMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 modelId,
-                TrainedModelAssignment.Builder.empty(newParams(modelId, 100))
+                TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null)
                     .addRoutingEntry(mlNodeId, new RoutingInfo(0, 0, RoutingState.STARTED, ""))
             )
             .build();
@@ -1294,7 +1355,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
-                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100)))
+                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
                             .build()
                     )
                     .build()
@@ -1309,7 +1370,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
-                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100)))
+                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
                             .build()
                     )
                     .build()
@@ -1371,7 +1432,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
-                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100)))
+                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
                             .build()
                     )
                     .build()
@@ -1386,7 +1447,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
-                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100)))
+                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, 100), null))
                             .build()
                     )
                     .build()
@@ -1411,7 +1472,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 TrainedModelAssignmentMetadata.Builder.empty()
                     .addNewAssignment(
                         modelId,
-                        TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L))
+                        TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L), null)
                             .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     )
@@ -1443,7 +1504,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 TrainedModelAssignmentMetadata.Builder.empty()
                     .addNewAssignment(
                         modelId,
-                        TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L))
+                        TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L), null)
                             .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     )
                     .build()
@@ -1471,7 +1532,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 modelId,
-                TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L))
+                TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L), null)
                     .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
@@ -1515,7 +1576,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 modelId,
-                TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L))
+                TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L), null)
                     .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
@@ -1563,13 +1624,13 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 TrainedModelAssignmentMetadata.Builder.empty()
                     .addNewAssignment(
                         modelId1,
-                        TrainedModelAssignment.Builder.empty(newParams(modelId1, 10_000L))
+                        TrainedModelAssignment.Builder.empty(newParams(modelId1, 10_000L), null)
                             .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     )
                     .addNewAssignment(
                         modelId2,
-                        TrainedModelAssignment.Builder.empty(newParams(modelId2, 10_000L))
+                        TrainedModelAssignment.Builder.empty(newParams(modelId2, 10_000L), null)
                             .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     )
@@ -1620,14 +1681,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 TrainedModelAssignmentMetadata.Builder.empty()
                     .addNewAssignment(
                         modelId1,
-                        TrainedModelAssignment.Builder.empty(newParams(modelId1, 10_000L))
+                        TrainedModelAssignment.Builder.empty(newParams(modelId1, 10_000L), null)
                             .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             .addRoutingEntry(nodeId3, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     )
                     .addNewAssignment(
                         modelId2,
-                        TrainedModelAssignment.Builder.empty(newParams(modelId2, 10_000L))
+                        TrainedModelAssignment.Builder.empty(newParams(modelId2, 10_000L), null)
                             .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             .addRoutingEntry(nodeId3, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
@@ -1680,14 +1741,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 TrainedModelAssignmentMetadata.Builder.empty()
                     .addNewAssignment(
                         modelId1,
-                        TrainedModelAssignment.Builder.empty(newParams(modelId1, 10_000L))
+                        TrainedModelAssignment.Builder.empty(newParams(modelId1, 10_000L), null)
                             .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             .addRoutingEntry(nodeId3, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
                     )
                     .addNewAssignment(
                         modelId2,
-                        TrainedModelAssignment.Builder.empty(newParams(modelId2, 10_000L))
+                        TrainedModelAssignment.Builder.empty(newParams(modelId2, 10_000L), null)
                             .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             .addRoutingEntry(nodeId3, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
@@ -1741,12 +1802,12 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 availableNodeModelId,
-                TrainedModelAssignment.Builder.empty(taskParamsRunning)
+                TrainedModelAssignment.Builder.empty(taskParamsRunning, null)
                     .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
                 shuttingDownModelId,
-                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown, null)
                     .addRoutingEntry(shuttingDownNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
@@ -1754,12 +1815,12 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentMetadata.Builder rebalanced = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 availableNodeModelId,
-                TrainedModelAssignment.Builder.empty(taskParamsRunning)
+                TrainedModelAssignment.Builder.empty(taskParamsRunning, null)
                     .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
                 shuttingDownModelId,
-                TrainedModelAssignment.Builder.empty(taskParamsRunning)
+                TrainedModelAssignment.Builder.empty(taskParamsRunning, null)
                     .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
             );
 
@@ -1792,12 +1853,12 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 shuttingDownModelId,
-                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown, null)
                     .addRoutingEntry(shuttingDownNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
                 notShuttingDownModelId,
-                TrainedModelAssignment.Builder.empty(taskParamsNotShuttingDown)
+                TrainedModelAssignment.Builder.empty(taskParamsNotShuttingDown, null)
                     .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
@@ -1805,12 +1866,12 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentMetadata.Builder rebalanced = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 shuttingDownModelId,
-                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown, null)
                     .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
             )
             .addNewAssignment(
                 notShuttingDownModelId,
-                TrainedModelAssignment.Builder.empty(taskParamsNotShuttingDown)
+                TrainedModelAssignment.Builder.empty(taskParamsNotShuttingDown, null)
                     .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             );
 
@@ -1849,7 +1910,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 modelId,
-                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown, null)
                     .addRoutingEntry(disappearingNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
@@ -1857,7 +1918,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentMetadata.Builder rebalanced = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 modelId,
-                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown, null)
                     .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             );
 
@@ -1885,7 +1946,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 modelId,
-                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown, null)
                     .addRoutingEntry(shuttingDownNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
@@ -1958,7 +2019,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
-                            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(newParams(modelId, randomNonNegativeLong())))
+                            .addNewAssignment(
+                                modelId,
+                                TrainedModelAssignment.Builder.empty(newParams(modelId, randomNonNegativeLong()), null)
+                            )
                             .build()
                     )
                     .build()

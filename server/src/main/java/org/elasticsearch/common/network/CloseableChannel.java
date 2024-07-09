@@ -83,7 +83,7 @@ public interface CloseableChannel extends Closeable {
         if (blocking) {
             ArrayList<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
             for (final C channel : channels) {
-                PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+                PlainActionFuture<Void> closeFuture = new PlainActionFuture<>();
                 channel.addCloseListener(closeFuture);
                 futures.add(closeFuture);
             }

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
 
 import java.io.IOException;
@@ -412,8 +413,8 @@ public class IndexResolverTests extends ESTestCase {
             "*",
             response,
             (fieldName, types) -> null,
-            IndexResolver.PRESERVE_PROPERTIES
-
+            IndexResolver.PRESERVE_PROPERTIES,
+            null
         );
 
         assertTrue(resolution.isValid());
@@ -431,6 +432,35 @@ public class IndexResolverTests extends ESTestCase {
         assertNotNull(esField);
         assertEquals(esField.getDataType(), KEYWORD);
         assertEquals(KeywordEsField.class, esField.getClass());
+    }
+
+    public void testMergeObjectUnsupportedTypes() throws Exception {
+        var response = readFieldCapsResponse("fc-unsupported-object-compatible-subfields.json");
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            SqlDataTypeRegistry.INSTANCE,
+            "*",
+            response,
+            (fieldName, types) -> null,
+            IndexResolver.PRESERVE_PROPERTIES,
+            null
+        );
+
+        assertTrue(resolution.isValid());
+        EsIndex esIndex = resolution.get();
+        assertEquals(Set.of("index-1", "index-2"), esIndex.concreteIndices());
+        EsField esField = esIndex.mapping().get("file");
+        assertEquals(InvalidMappedField.class, esField.getClass());
+
+        assertEquals(
+            "mapped as [2] incompatible types: [unknown] in [index-2], [object] in [index-1]",
+            ((InvalidMappedField) esField).errorMessage()
+        );
+
+        esField = esField.getProperties().get("name");
+        assertNotNull(esField);
+        assertEquals(esField.getDataType(), UNSUPPORTED);
+        assertEquals(UnsupportedEsField.class, esField.getClass());
     }
 
     private static FieldCapabilitiesResponse readFieldCapsResponse(String resourceName) throws IOException {

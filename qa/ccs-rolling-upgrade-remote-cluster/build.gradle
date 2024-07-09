@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -13,10 +14,6 @@ apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
-
-dependencies {
-  testImplementation project(':client:rest-high-level')
-}
 
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
@@ -32,6 +29,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     versions = [bwcVersion.toString(), project.version]
     setting 'cluster.remote.node.attr', 'gateway'
     setting 'xpack.security.enabled', 'false'
+    requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
   }
   def remoteCluster = testClusters.register("${baseName}-remote") {
     numberOfNodes = 3
@@ -39,6 +37,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     firstNode.setting 'node.attr.gateway', 'true'
     lastNode.setting 'node.attr.gateway', 'true'
     setting 'xpack.security.enabled', 'false'
+    requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
   }
 
 

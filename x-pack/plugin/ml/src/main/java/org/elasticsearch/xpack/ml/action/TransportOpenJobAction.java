@@ -166,6 +166,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     MlTasks.jobTaskId(jobParams.getJobId()),
                     MlTasks.JOB_TASK_NAME,
                     jobParams,
+                    null,
                     waitForJobToStart
                 ),
                 listener::onFailure
@@ -324,7 +325,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), new ActionListener<>() {
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(), null, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in cancelling the persistent task, but the

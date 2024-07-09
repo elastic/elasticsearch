@@ -8,13 +8,16 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.shrink.ResizeNumberOfShardsCalculator;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -26,9 +29,10 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 
@@ -41,12 +45,13 @@ public class ShrinkAction implements LifecycleAction {
     public static final String NAME = "shrink";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
     public static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
+    public static final ParseField ALLOW_WRITE_AFTER_SHRINK = new ParseField("allow_write_after_shrink");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
     private static final ConstructingObjectParser<ShrinkAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new ShrinkAction((Integer) a[0], (ByteSizeValue) a[1])
+        a -> new ShrinkAction((Integer) a[0], (ByteSizeValue) a[1], (a[2] != null && (Boolean) a[2]))
     );
 
     static {
@@ -57,16 +62,22 @@ public class ShrinkAction implements LifecycleAction {
             MAX_PRIMARY_SHARD_SIZE,
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_WRITE_AFTER_SHRINK);
     }
+
+    public static final Settings CLEAR_WRITE_BLOCK_SETTINGS = Settings.builder()
+        .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), (String) null)
+        .build();
 
     private Integer numberOfShards;
     private ByteSizeValue maxPrimaryShardSize;
+    private boolean allowWriteAfterShrink;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public ShrinkAction(@Nullable Integer numberOfShards, @Nullable ByteSizeValue maxPrimaryShardSize) {
+    public ShrinkAction(@Nullable Integer numberOfShards, @Nullable ByteSizeValue maxPrimaryShardSize, boolean allowWriteAfterShrink) {
         if (numberOfShards != null && maxPrimaryShardSize != null) {
             throw new IllegalArgumentException("Cannot set both [number_of_shards] and [max_primary_shard_size]");
         }
@@ -84,6 +95,7 @@ public class ShrinkAction implements LifecycleAction {
             }
             this.numberOfShards = numberOfShards;
         }
+        this.allowWriteAfterShrink = allowWriteAfterShrink;
     }
 
     public ShrinkAction(StreamInput in) throws IOException {
@@ -94,6 +106,7 @@ public class ShrinkAction implements LifecycleAction {
             this.numberOfShards = null;
             this.maxPrimaryShardSize = ByteSizeValue.readFrom(in);
         }
+        this.allowWriteAfterShrink = in.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_ENABLE_WRITE) && in.readBoolean();
     }
 
     public Integer getNumberOfShards() {
@@ -104,6 +117,10 @@ public class ShrinkAction implements LifecycleAction {
         return maxPrimaryShardSize;
     }
 
+    public boolean getAllowWriteAfterShrink() {
+        return allowWriteAfterShrink;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         boolean hasNumberOfShards = numberOfShards != null;
@@ -112,6 +129,9 @@ public class ShrinkAction implements LifecycleAction {
             out.writeVInt(numberOfShards);
         } else {
             maxPrimaryShardSize.writeTo(out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_ENABLE_WRITE)) {
+            out.writeBoolean(this.allowWriteAfterShrink);
         }
     }
 
@@ -129,6 +149,7 @@ public class ShrinkAction implements LifecycleAction {
         if (maxPrimaryShardSize != null) {
             builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
         }
+        builder.field(ALLOW_WRITE_AFTER_SHRINK.getPreferredName(), allowWriteAfterShrink);
         builder.endObject();
         return builder;
     }
@@ -158,11 +179,13 @@ public class ShrinkAction implements LifecycleAction {
         StepKey isShrunkIndexKey = new StepKey(phase, NAME, ShrunkenIndexCheckStep.NAME);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
+        StepKey allowWriteKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
+        StepKey lastOrNextStep = allowWriteAfterShrink ? allowWriteKey : nextStepKey;
 
         AsyncBranchingStep conditionalSkipShrinkStep = new AsyncBranchingStep(
             preShrinkBranchingKey,
             checkNotWriteIndex,
-            nextStepKey,
+            lastOrNextStep,
             (indexMetadata, clusterState, listener) -> {
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     logger.warn(
@@ -242,7 +265,6 @@ public class ShrinkAction implements LifecycleAction {
             setSingleNodeKey
         );
         ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxPrimaryShardSize);
-
         // wait until the shrunk index is recovered. we again wait until the configured threshold is breached and if the shrunk index has
         // not successfully recovered until then, we rewind to the "cleanup-shrink-index" step to delete this unsuccessful shrunk index
         // and retry the operation by generating a new shrink index name and attempting to shrink again
@@ -278,8 +300,12 @@ public class ShrinkAction implements LifecycleAction {
             ShrinkIndexNameSupplier::getShrinkIndexName
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
-        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, nextStepKey);
-        return Arrays.asList(
+        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, lastOrNextStep);
+        UpdateSettingsStep allowWriteAfterShrinkStep = allowWriteAfterShrink
+            ? new UpdateSettingsStep(allowWriteKey, nextStepKey, client, CLEAR_WRITE_BLOCK_SETTINGS)
+            : null;
+
+        Stream<Step> steps = Stream.of(
             conditionalSkipShrinkStep,
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
@@ -297,8 +323,11 @@ public class ShrinkAction implements LifecycleAction {
             aliasSwapAndDelete,
             waitOnShrinkTakeover,
             replaceDataStreamBackingIndex,
-            deleteSourceIndexStep
+            deleteSourceIndexStep,
+            allowWriteAfterShrinkStep
         );
+
+        return steps.filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     @Override
@@ -306,12 +335,14 @@ public class ShrinkAction implements LifecycleAction {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShrinkAction that = (ShrinkAction) o;
-        return Objects.equals(numberOfShards, that.numberOfShards) && Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize);
+        return Objects.equals(numberOfShards, that.numberOfShards)
+            && Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize)
+            && Objects.equals(allowWriteAfterShrink, that.allowWriteAfterShrink);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numberOfShards, maxPrimaryShardSize);
+        return Objects.hash(numberOfShards, maxPrimaryShardSize, allowWriteAfterShrink);
     }
 
     @Override

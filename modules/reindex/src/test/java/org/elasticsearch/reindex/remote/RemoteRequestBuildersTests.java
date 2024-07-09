@@ -149,7 +149,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
         TimeValue scroll = null;
         if (randomBoolean()) {
-            scroll = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
+            scroll = randomPositiveTimeValue();
             searchRequest.scroll(scroll);
         }
         int size = between(0, Integer.MAX_VALUE);
@@ -251,7 +251,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
     public void testScrollParams() {
         String scroll = randomAlphaOfLength(30);
         Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
-        TimeValue keepAlive = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
+        TimeValue keepAlive = randomPositiveTimeValue();
         assertScroll(remoteVersion, scroll(scroll, keepAlive, remoteVersion).getParameters(), keepAlive);
     }
 

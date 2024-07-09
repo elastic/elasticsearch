@@ -32,10 +32,10 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/ml/job/get";
 
     private GetJobsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static final class Request extends MasterNodeReadRequest<Request> {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
@@ -47,8 +47,8 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
-        @SuppressWarnings("this-escape")
         public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             local(true);
         }
 

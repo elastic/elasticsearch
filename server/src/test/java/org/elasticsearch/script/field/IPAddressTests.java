@@ -8,7 +8,15 @@
 
 package org.elasticsearch.script.field;
 
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class IPAddressTests extends ESTestCase {
 
@@ -29,5 +37,15 @@ public class IPAddressTests extends ESTestCase {
         IPAddress addr4 = new IPAddress("b181:3a88:339c:97f5:2b40:5175:bf3d:f77e");
         assertFalse(addr4.isV4());
         assertTrue(addr4.isV6());
+    }
+
+    public void testWriteable() throws IOException {
+        var registry = new NamedWriteableRegistry(
+            List.of(new Entry(GenericNamedWriteable.class, IPAddress.NAMED_WRITEABLE_NAME, IPAddress::new))
+        );
+        var original = new IPAddress("192.168.1.1");
+        var generic = copyNamedWriteable(original, registry, GenericNamedWriteable.class);
+        var copied = asInstanceOf(IPAddress.class, generic);
+        assertThat(copied.toString(), equalTo(original.toString()));
     }
 }

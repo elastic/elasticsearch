@@ -10,21 +10,23 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class UpgradeWithOldIndexSettingsIT extends ParameterizedRollingUpgradeTestCase {
+public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCase {
 
     public UpgradeWithOldIndexSettingsIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -42,10 +44,7 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedRollingUpgradeTe
             Request createTestIndex = new Request("PUT", "/" + INDEX_NAME);
             createTestIndex.setJsonEntity("{\"settings\": {\"index.indexing.slowlog.level\": \"WARN\"}}");
             createTestIndex.setOptions(expectWarnings(EXPECTED_WARNING));
-            if (getOldClusterVersion().before(Version.V_8_0_0)) {
-                // create index with settings no longer valid in 8.0
-                client().performRequest(createTestIndex);
-            } else {
+            if (oldClusterHasFeature(RestTestLegacyFeatures.INDEXING_SLOWLOG_LEVEL_SETTING_REMOVED)) {
                 assertTrue(
                     expectThrows(ResponseException.class, () -> client().performRequest(createTestIndex)).getMessage()
                         .contains("unknown setting [index.indexing.slowlog.level]")
@@ -53,12 +52,15 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedRollingUpgradeTe
 
                 Request createTestIndex1 = new Request("PUT", "/" + INDEX_NAME);
                 client().performRequest(createTestIndex1);
+            } else {
+                // create index with settings no longer valid in 8.0
+                client().performRequest(createTestIndex);
             }
 
             // add some data
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            if (getOldClusterVersion().before(Version.V_8_0_0)) {
+            if (oldClusterHasFeature(RestTestLegacyFeatures.INDEXING_SLOWLOG_LEVEL_SETTING_REMOVED) == false) {
                 bulk.setOptions(expectWarnings(EXPECTED_WARNING));
             }
             bulk.setJsonEntity(Strings.format("""
@@ -70,7 +72,7 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedRollingUpgradeTe
             // add some more data
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            if (getOldClusterVersion().before(Version.V_8_0_0)) {
+            if (oldClusterHasFeature(RestTestLegacyFeatures.INDEXING_SLOWLOG_LEVEL_SETTING_REMOVED) == false) {
                 bulk.setOptions(expectWarnings(EXPECTED_WARNING));
             }
             bulk.setJsonEntity(Strings.format("""
@@ -79,7 +81,7 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedRollingUpgradeTe
                 """, INDEX_NAME));
             client().performRequest(bulk);
         } else {
-            if (getOldClusterVersion().before(Version.V_8_0_0)) {
+            if (oldClusterHasFeature(RestTestLegacyFeatures.INDEXING_SLOWLOG_LEVEL_SETTING_REMOVED) == false) {
                 Request createTestIndex = new Request("PUT", "/" + INDEX_NAME + "/_settings");
                 // update index settings should work
                 createTestIndex.setJsonEntity("{\"index.indexing.slowlog.level\": \"INFO\"}");
@@ -102,6 +104,39 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedRollingUpgradeTe
         }
     }
 
+    public void testMapperDynamicIndexSetting() throws IOException {
+        assumeTrue(
+            "Setting deprecated in 6.x, but was disallowed/removed incorrectly in some 7.x versions and can only be set safely in 7.17.22. "
+                + "Setting can't be used in 8.x ",
+            getOldClusterTestVersion().before("8.0.0") && getOldClusterTestVersion().after("7.17.21")
+        );
+        String indexName = "my-index";
+        if (isOldCluster()) {
+            createIndex(indexName);
+            Request request = new Request("PUT", "/" + indexName + "/_settings");
+            request.setJsonEntity(org.elasticsearch.common.Strings.toString(Settings.builder().put("index.mapper.dynamic", true).build()));
+            request.setOptions(
+                expectWarnings(
+                    "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        + "See the breaking changes documentation for the next major version."
+                )
+            );
+            assertOK(client().performRequest(request));
+        } else {
+            if (isUpgradedCluster()) {
+                var indexSettings = getIndexSettings(indexName);
+                assertThat(XContentMapValues.extractValue(indexName + ".settings.index.mapper.dynamic", indexSettings), equalTo("true"));
+                ensureGreen(indexName);
+                // New indices can never define the index.mapper.dynamic setting.
+                Exception e = expectThrows(
+                    ResponseException.class,
+                    () -> createIndex("my-index2", Settings.builder().put("index.mapper.dynamic", true).build())
+                );
+                assertThat(e.getMessage(), containsString("unknown setting [index.mapper.dynamic]"));
+            }
+        }
+    }
+
     private void assertCount(String index, int countAtLeast) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
@@ -117,7 +152,7 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedRollingUpgradeTe
     public static void updateIndexSettingsPermittingSlowlogDeprecationWarning(String index, Settings.Builder settings) throws IOException {
         Request request = new Request("PUT", "/" + index + "/_settings");
         request.setJsonEntity(org.elasticsearch.common.Strings.toString(settings.build()));
-        if (getOldClusterVersion().before(Version.V_7_17_9)) {
+        if (oldClusterHasFeature(RestTestLegacyFeatures.DEPRECATION_WARNINGS_LEAK_FIXED) == false) {
             // There is a bug (fixed in 7.17.9 and 8.7.0 where deprecation warnings could leak into ClusterApplierService#applyChanges)
             // Below warnings are set (and leaking) from an index in this test case
             request.setOptions(expectVersionSpecificWarnings(v -> {

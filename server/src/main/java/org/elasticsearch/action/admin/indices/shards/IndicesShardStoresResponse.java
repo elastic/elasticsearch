@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Response for {@link IndicesShardStoresAction}
+ * Response for {@link TransportIndicesShardStoresAction}
  *
  * Consists of {@link StoreStatus}s for requested indices grouped by
  * indices and shard ids and a list of encountered node {@link Failure}s

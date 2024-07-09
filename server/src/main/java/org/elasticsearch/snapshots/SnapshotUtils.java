@@ -27,7 +27,8 @@ public class SnapshotUtils {
      *
      * @param availableIndices list of available indices
      * @param selectedIndices  list of selected indices
-     * @param indicesOptions    ignore indices flag
+     * @param indicesOptions   from the indices options it only uses {@link IndicesOptions.ConcreteTargetOptions#allowUnavailableTargets()}
+     *                         and {@link IndicesOptions.WildcardOptions#allowEmptyExpressions()}
      * @return filtered out indices
      */
     public static List<String> filterIndices(List<String> availableIndices, String[] selectedIndices, IndicesOptions indicesOptions) {

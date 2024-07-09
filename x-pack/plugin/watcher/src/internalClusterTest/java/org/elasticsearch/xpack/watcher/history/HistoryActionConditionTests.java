@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -115,15 +116,20 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         assertWatchWithMinimumActionsCount(id, ExecutionState.EXECUTED, 1);
 
         // only one action should have failed via condition
+        AtomicReference<SearchHit> searchHitReference = new AtomicReference<>();
         assertBusy(() -> {
             // Watcher history is now written asynchronously, so we check this in an assertBusy
             ensureGreen(HistoryStoreField.DATA_STREAM);
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-            assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+            try {
+                assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+                searchHitReference.set(response.getHits().getAt(0).asUnpooled());
+            } finally {
+                response.decRef();
+            }
         });
 
-        final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        final SearchHit hit = response.getHits().getAt(0);
+        final SearchHit hit = searchHitReference.get();
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
         for (int i = 0; i < actionConditionsWithFailure.size(); ++i) {
@@ -163,16 +169,21 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         putAndTriggerWatch(id, input, actionConditionsWithFailure);
         assertWatchWithMinimumActionsCount(id, ExecutionState.EXECUTED, 1);
 
+        AtomicReference<SearchHit> searchHitReference = new AtomicReference<>();
         // only one action should have failed via condition
         assertBusy(() -> {
             // Watcher history is now written asynchronously, so we check this in an assertBusy
             ensureGreen(HistoryStoreField.DATA_STREAM);
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-            assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+            try {
+                assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+                searchHitReference.set(response.getHits().getAt(0).asUnpooled());
+            } finally {
+                response.decRef();
+            }
         });
 
-        final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        final SearchHit hit = response.getHits().getAt(0);
+        final SearchHit hit = searchHitReference.get();
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
         for (int i = 0; i < actionConditionsWithFailure.length; ++i) {
@@ -218,17 +229,21 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         assertWatchWithMinimumActionsCount(id, ExecutionState.EXECUTED, 1);
 
+        AtomicReference<SearchHit> searchHitReference = new AtomicReference<>();
         // all actions should be successful
         assertBusy(() -> {
             // Watcher history is now written asynchronously, so we check this in an assertBusy
             ensureGreen(HistoryStoreField.DATA_STREAM);
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-            assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+            try {
+                assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+                searchHitReference.set(response.getHits().getAt(0).asUnpooled());
+            } finally {
+                response.decRef();
+            }
         });
 
-        final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-
-        final SearchHit hit = response.getHits().getAt(0);
+        final SearchHit hit = searchHitReference.get();
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
         for (int i = 0; i < actionConditions.size(); ++i) {

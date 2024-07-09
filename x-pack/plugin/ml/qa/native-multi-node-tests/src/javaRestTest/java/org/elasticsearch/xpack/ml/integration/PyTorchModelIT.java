@@ -31,7 +31,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -635,7 +634,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             )
         );
 
-        client().performRequest(putPipeline("my_pipeline", """
+        putPipeline("my_pipeline", """
             {"processors": [
                   {
                     "inference": {
@@ -643,7 +642,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                     }
                   }
                 ]
-            }"""));
+            }""");
 
         Request request = new Request("PUT", "undeployed_model_index/_doc/1?pipeline=my_pipeline&refresh=true");
         request.setJsonEntity("""
@@ -717,7 +716,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
 
-        client().performRequest(putPipeline("my_pipeline", Strings.format("""
+        putPipeline("my_pipeline", Strings.format("""
             {
               "processors": [
                 {
@@ -726,7 +725,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                   }
                 }
               ]
-            }""", modelId)));
+            }""", modelId));
         ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
         assertThat(
@@ -749,7 +748,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         startDeployment(modelId);
         client().performRequest(new Request("PUT", Strings.format("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
 
-        client().performRequest(putPipeline("my_pipeline", Strings.format("""
+        putPipeline("my_pipeline", Strings.format("""
             {
               "processors": [
                 {
@@ -758,7 +757,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                   }
                 }
               ]
-            }""", modelAlias)));
+            }""", modelAlias));
         ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
         assertThat(

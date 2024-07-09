@@ -26,6 +26,7 @@ import java.util.Optional;
 public class RandomSamplerAggregatorFactory extends AggregatorFactory {
 
     private final int seed;
+    private final Integer shardSeed;
     private final double probability;
     private final SamplingContext samplingContext;
     private Weight weight;
@@ -33,6 +34,7 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
     RandomSamplerAggregatorFactory(
         String name,
         int seed,
+        Integer shardSeed,
         double probability,
         AggregationContext context,
         AggregatorFactory parent,
@@ -42,7 +44,8 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
         super(name, context, parent, subFactories, metadata);
         this.probability = probability;
         this.seed = seed;
-        this.samplingContext = new SamplingContext(probability, seed);
+        this.samplingContext = new SamplingContext(probability, seed, shardSeed);
+        this.shardSeed = shardSeed;
     }
 
     @Override
@@ -53,7 +56,18 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return new RandomSamplerAggregator(name, seed, probability, this::getWeight, factories, context, parent, cardinality, metadata);
+        return new RandomSamplerAggregator(
+            name,
+            seed,
+            shardSeed,
+            probability,
+            this::getWeight,
+            factories,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
     }
 
     /**
@@ -66,7 +80,11 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
      */
     private Weight getWeight() throws IOException {
         if (weight == null) {
-            RandomSamplingQuery query = new RandomSamplingQuery(probability, seed, context.shardRandomSeed());
+            RandomSamplingQuery query = new RandomSamplingQuery(
+                probability,
+                seed,
+                shardSeed == null ? context.shardRandomSeed() : shardSeed
+            );
             BooleanQuery booleanQuery = new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER)
                 .add(context.query(), BooleanClause.Occur.FILTER)
                 .build();

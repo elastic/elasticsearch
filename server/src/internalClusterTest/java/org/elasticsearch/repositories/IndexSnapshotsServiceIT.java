@@ -10,9 +10,9 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.shard.TransportGetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -63,7 +64,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 );
             }
         } else {
-            expectThrows(RepositoryException.class, responseFuture::actionGet);
+            expectThrows(RepositoryException.class, responseFuture);
         }
 
         disableRepoConsistencyCheck("This test checks an empty repository");
@@ -113,7 +114,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         final boolean useBwCFormat = randomBoolean();
         if (useBwCFormat) {
-            final IndexVersion version = randomVersionBetween(random(), IndexVersion.V_7_5_0, IndexVersion.current());
+            final IndexVersion version = randomVersionBetween(random(), IndexVersions.V_7_5_0, IndexVersion.current());
             initWithSnapshotVersion(repoName, repoPath, version);
         }
 
@@ -136,7 +137,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             final SnapshotInfo snapshotInfo = createSnapshot(repoName, Strings.format("snap-%03d", i), snapshotIndices);
             if (snapshotInfo.indices().contains(indexName)) {
                 lastSnapshot = snapshotInfo;
-                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().execute().actionGet();
+                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().get();
                 IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(indexName);
                 expectedIndexMetadataId = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
             }
@@ -144,7 +145,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         if (useBwCFormat) {
             // Reload the RepositoryData so we don't use cached data that wasn't serialized
-            assertAcked(clusterAdmin().prepareDeleteRepository(repoName).get());
+            assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).get());
             createRepository(repoName, "fs", repoPath);
         }
 
@@ -175,10 +176,11 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         blockAllDataNodes(fsRepoName);
 
         final String snapshotName = "snap-1";
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(fsRepoName, snapshotName)
-            .setIndices(indexName)
-            .setWaitForCompletion(true)
-            .execute();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            fsRepoName,
+            snapshotName
+        ).setIndices(indexName).setWaitForCompletion(true).execute();
 
         waitForBlockOnAnyDataNode(fsRepoName);
 
@@ -291,7 +293,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             ((MockRepository) repositoriesService.repository(repoName)).setBlockAndFailOnWriteSnapFiles();
         }
 
-        clusterAdmin().prepareCreateSnapshot(repoName, "snap")
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap")
             .setIndices(indexName)
             .setWaitForCompletion(false)
             .setFeatureStates(NO_FEATURE_STATES_VALUE)
@@ -337,15 +339,15 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         boolean useAllRepositoriesRequest
     ) {
         ShardId shardId = new ShardId(new Index(indexName, "__na__"), shard);
-        PlainActionFuture<GetShardSnapshotResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<GetShardSnapshotResponse> future = new PlainActionFuture<>();
         final GetShardSnapshotRequest request;
         if (useAllRepositoriesRequest && randomBoolean()) {
-            request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);
+            request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(TEST_REQUEST_TIMEOUT, shardId);
         } else {
-            request = GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, repositories);
+            request = GetShardSnapshotRequest.latestSnapshotInRepositories(TEST_REQUEST_TIMEOUT, shardId, repositories);
         }
 
-        client().execute(GetShardSnapshotAction.INSTANCE, request, future);
+        client().execute(TransportGetShardSnapshotAction.TYPE, request, future);
         return future;
     }
 }

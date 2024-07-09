@@ -18,7 +18,7 @@ import java.io.IOException;
 /**
  * Exception that is thrown when creating lucene queries on the shard
  */
-public class QueryShardException extends ElasticsearchException {
+public final class QueryShardException extends ElasticsearchException {
 
     public QueryShardException(QueryRewriteContext context, String msg, Object... args) {
         this(context, msg, null, args);
@@ -32,7 +32,6 @@ public class QueryShardException extends ElasticsearchException {
      * This constructor is provided for use in unit tests where a
      * {@link SearchExecutionContext} may not be available
      */
-    @SuppressWarnings("this-escape")
     public QueryShardException(Index index, String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
         setIndex(index);

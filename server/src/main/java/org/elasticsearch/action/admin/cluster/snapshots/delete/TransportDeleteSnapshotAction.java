@@ -8,7 +8,9 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -28,6 +30,7 @@ import org.elasticsearch.transport.TransportService;
  * Transport action for delete snapshot operation
  */
 public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNodeAction<DeleteSnapshotRequest> {
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/snapshot/delete");
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -40,7 +43,7 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DeleteSnapshotAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -56,6 +59,15 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
     protected ClusterBlockException checkBlock(DeleteSnapshotRequest request, ClusterState state) {
         // Cluster is not affected but we look up repositories in metadata
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    }
+
+    @Override
+    protected void doExecute(Task task, DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
+        if (clusterService.state().getMinTransportVersion().before(TransportVersions.DELETE_SNAPSHOTS_ASYNC_ADDED)
+            && request.waitForCompletion() == false) {
+            throw new UnsupportedOperationException("wait_for_completion parameter is not supported by all nodes in this cluster");
+        }
+        super.doExecute(task, request, listener);
     }
 
     @Override

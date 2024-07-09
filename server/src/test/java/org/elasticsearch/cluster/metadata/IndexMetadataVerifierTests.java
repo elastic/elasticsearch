@@ -13,6 +13,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -94,12 +96,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 .put("index.similarity.my_similarity.after_effect", "l")
                 .build()
         );
-        service.verifyIndexMetadata(src, IndexVersion.MINIMUM_COMPATIBLE);
+        service.verifyIndexMetadata(src, IndexVersions.MINIMUM_COMPATIBLE);
     }
 
     public void testIncompatibleVersion() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
-        IndexVersion minCompat = IndexVersion.MINIMUM_COMPATIBLE;
+        IndexVersion minCompat = IndexVersions.MINIMUM_COMPATIBLE;
         IndexVersion indexCreated = IndexVersion.fromId(randomIntBetween(1000099, minCompat.id() - 1));
         final IndexMetadata metadata = newIndexMeta(
             "foo",
@@ -107,7 +109,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         );
         String message = expectThrows(
             IllegalStateException.class,
-            () -> service.verifyIndexMetadata(metadata, IndexVersion.MINIMUM_COMPATIBLE)
+            () -> service.verifyIndexMetadata(metadata, IndexVersions.MINIMUM_COMPATIBLE)
         ).getMessage();
         assertThat(
             message,
@@ -115,10 +117,10 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 "The index [foo/"
                     + metadata.getIndexUUID()
                     + "] has current compatibility version ["
-                    + indexCreated
+                    + indexCreated.toReleaseVersion()
                     + "] "
                     + "but the minimum compatible version is ["
-                    + minCompat
+                    + minCompat.toReleaseVersion()
                     + "]. It should be re-indexed in Elasticsearch "
                     + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "
@@ -129,7 +131,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
 
         indexCreated = IndexVersionUtils.randomVersionBetween(random(), minCompat, IndexVersion.current());
         IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build());
-        service.verifyIndexMetadata(goodMeta, IndexVersion.MINIMUM_COMPATIBLE);
+        service.verifyIndexMetadata(goodMeta, IndexVersions.MINIMUM_COMPATIBLE);
     }
 
     private IndexMetadataVerifier getIndexMetadataVerifier() {
@@ -139,7 +141,8 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            null
+            null,
+            MapperMetrics.NOOP
         );
     }
 

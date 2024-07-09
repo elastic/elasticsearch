@@ -23,14 +23,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -58,7 +53,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
 
         for (int j = 0; j < 10; j++) {
             final String id = Integer.toString(j);
-            client().prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+            prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
         }
 
         assertBusy(() -> {
@@ -95,21 +90,17 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                     if (node == other) {
                         continue;
                     }
-                    final MockTransportService senderTransportService = (MockTransportService) internalCluster().getInstance(
-                        TransportService.class,
-                        node.getName()
-                    );
-                    final MockTransportService receiverTransportService = (MockTransportService) internalCluster().getInstance(
-                        TransportService.class,
-                        other.getName()
-                    );
-                    senderTransportService.addSendBehavior(receiverTransportService, (connection, requestId, action, request, options) -> {
-                        if ("indices:admin/seq_no/global_checkpoint_sync[r]".equals(action)) {
-                            throw new IllegalStateException("blocking indices:admin/seq_no/global_checkpoint_sync[r]");
-                        } else {
-                            connection.sendRequest(requestId, action, request, options);
-                        }
-                    });
+                    MockTransportService.getInstance(node.getName())
+                        .addSendBehavior(
+                            MockTransportService.getInstance(other.getName()),
+                            (connection, requestId, action, request, options) -> {
+                                if ("indices:admin/seq_no/global_checkpoint_sync[r]".equals(action)) {
+                                    throw new IllegalStateException("blocking indices:admin/seq_no/global_checkpoint_sync[r]");
+                                } else {
+                                    connection.sendRequest(requestId, action, request, options);
+                                }
+                            }
+                        );
                 }
             }
         }, client -> {
@@ -120,15 +111,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                     if (node == other) {
                         continue;
                     }
-                    final MockTransportService senderTransportService = (MockTransportService) internalCluster().getInstance(
-                        TransportService.class,
-                        node.getName()
-                    );
-                    final MockTransportService receiverTransportService = (MockTransportService) internalCluster().getInstance(
-                        TransportService.class,
-                        other.getName()
-                    );
-                    senderTransportService.clearOutboundRules(receiverTransportService);
+                    MockTransportService.getInstance(node.getName()).clearOutboundRules(MockTransportService.getInstance(other.getName()));
                 }
             }
         });
@@ -156,37 +139,14 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         final int numberOfDocuments = randomIntBetween(0, 256);
 
         final int numberOfThreads = randomIntBetween(1, 4);
-        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
 
         // start concurrent indexing threads
-        final List<Thread> threads = new ArrayList<>(numberOfThreads);
-        for (int i = 0; i < numberOfThreads; i++) {
-            final int index = i;
-            final Thread thread = new Thread(() -> {
-                try {
-                    barrier.await();
-                } catch (BrokenBarrierException | InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                for (int j = 0; j < numberOfDocuments; j++) {
-                    final String id = Integer.toString(index * numberOfDocuments + j);
-                    client().prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
-                }
-                try {
-                    barrier.await();
-                } catch (BrokenBarrierException | InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-            threads.add(thread);
-            thread.start();
-        }
-
-        // synchronize the start of the threads
-        barrier.await();
-
-        // wait for the threads to finish
-        barrier.await();
+        startInParallel(numberOfThreads, index -> {
+            for (int j = 0; j < numberOfDocuments; j++) {
+                final String id = Integer.toString(index * numberOfDocuments + j);
+                prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+            }
+        });
 
         afterIndexing.accept(client());
 
@@ -216,19 +176,16 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
             }
         }, 60, TimeUnit.SECONDS);
         ensureGreen("test");
-        for (final Thread thread : threads) {
-            thread.join();
-        }
     }
 
     public void testPersistGlobalCheckpoint() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         Settings.Builder indexSettings = Settings.builder()
-            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, "ms"))
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, TimeUnit.MILLISECONDS))
             .put("index.number_of_replicas", randomIntBetween(0, 1));
         if (randomBoolean()) {
             indexSettings.put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
-                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, "ms"));
+                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, TimeUnit.MILLISECONDS));
         }
         prepareCreate("test", indexSettings).get();
         if (randomBoolean()) {
@@ -236,7 +193,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         }
         int numDocs = randomIntBetween(1, 20);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
         ensureGreen("test");
         assertBusy(() -> {
@@ -265,7 +222,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         logger.info("numDocs {}", numDocs);
         long maxSeqNo = 0;
         for (int i = 0; i < numDocs; i++) {
-            maxSeqNo = client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get().getSeqNo();
+            maxSeqNo = prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get().getSeqNo();
             logger.info("got {}", maxSeqNo);
         }
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {

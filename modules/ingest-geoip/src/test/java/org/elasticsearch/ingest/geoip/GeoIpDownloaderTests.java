@@ -290,8 +290,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
             @Override
             void updateTaskState() {
-                assertEquals(0, state.get("test.mmdb").firstChunk());
-                assertEquals(10, state.get("test.mmdb").lastChunk());
+                assertEquals(0, state.getDatabases().get("test.mmdb").firstChunk());
+                assertEquals(10, state.getDatabases().get("test.mmdb").lastChunk());
             }
 
             @Override
@@ -341,8 +341,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
             @Override
             void updateTaskState() {
-                assertEquals(9, state.get("test.mmdb").firstChunk());
-                assertEquals(10, state.get("test.mmdb").lastChunk());
+                assertEquals(9, state.getDatabases().get("test.mmdb").firstChunk());
+                assertEquals(10, state.getDatabases().get("test.mmdb").lastChunk());
             }
 
             @Override

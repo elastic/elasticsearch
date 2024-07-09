@@ -296,37 +296,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
-            if (exp instanceof BinaryComparison bc) {
-                return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
-            } else if (exp instanceof InsensitiveBinaryComparison bc) {
-                return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
-            } else if (exp instanceof BinaryLogic bl) {
-                return canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
-            } else if (exp instanceof In in) {
-                return isAttributePushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
-            } else if (exp instanceof Not not) {
-                return canPushToSource(not.field(), hasIdenticalDelegate);
-            } else if (exp instanceof UnaryScalarFunction usf) {
-                if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
-                    if (usf instanceof IsNull || usf instanceof IsNotNull) {
-                        if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
-                            return true;
-                        }
-                    }
-                    return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
-                }
-            } else if (exp instanceof CIDRMatch cidrMatch) {
-                return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate)
-                    && Expressions.foldable(cidrMatch.matches());
-            } else if (exp instanceof SpatialRelatesFunction bc) {
-                return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
-            } else if (exp instanceof MatchQueryPredicate) {
-                return true;
-            }
-            return false;
-        }
-
         public static boolean includesMatchExpression(Expression exp) {
             if (exp instanceof MatchQueryPredicate) {
                 return true;
@@ -334,24 +303,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 return includesMatchExpression(bl.left()) || includesMatchExpression(bl.right());
             } else if (exp instanceof Not not) {
                 return includesMatchExpression(not.field());
-            }
-            return false;
-        }
-
-        private static boolean isAttributePushable(
-            Expression expression,
-            Expression operation,
-            Predicate<FieldAttribute> hasIdenticalDelegate
-        ) {
-            if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
-                return true;
-            }
-            if (expression instanceof MetadataAttribute ma && ma.searchable()) {
-                return operation == null
-                    // no range or regex queries supported with metadata fields
-                    || operation instanceof Equals
-                    || operation instanceof NotEquals
-                    || operation instanceof WildcardLike;
             }
             return false;
         }
@@ -389,6 +340,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             PhysicalPlan plan = rankExec;
             PhysicalPlan child = rankExec.child();
             if (child instanceof EsQueryExec queryExec) {
+                for (Expression exp : rankExec.expressions()) {
+                    if (canPushToSource(exp, x -> false) == false) {
+                        throw new VerificationException("Unsupported expression using MATCH: [{}]", exp.source().text());
+                    }
+                }
+
                 if (rankAlreadyPushedToQuery(queryExec)) {
                     plan = pushRankToRescorers(queryExec, rankExec);
                 } else {
@@ -591,6 +548,54 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         // if (exp instanceof MetadataAttribute ma && ma.name().equals("_score")) ...
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
             return fa.dataType() != DataType.TEXT || hasIdenticalDelegate.test(fa);
+        }
+        return false;
+    }
+
+    private static boolean isAttributePushable(
+        Expression expression,
+        Expression operation,
+        Predicate<FieldAttribute> hasIdenticalDelegate
+    ) {
+        if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
+            return true;
+        }
+        if (expression instanceof MetadataAttribute ma && ma.searchable()) {
+            return operation == null
+                // no range or regex queries supported with metadata fields
+                || operation instanceof Equals
+                || operation instanceof NotEquals
+                || operation instanceof WildcardLike;
+        }
+        return false;
+    }
+
+    public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
+        if (exp instanceof BinaryComparison bc) {
+            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
+        } else if (exp instanceof InsensitiveBinaryComparison bc) {
+            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
+        } else if (exp instanceof BinaryLogic bl) {
+            return canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
+        } else if (exp instanceof In in) {
+            return isAttributePushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
+        } else if (exp instanceof Not not) {
+            return canPushToSource(not.field(), hasIdenticalDelegate);
+        } else if (exp instanceof UnaryScalarFunction usf) {
+            if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
+                if (usf instanceof IsNull || usf instanceof IsNotNull) {
+                    if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
+                        return true;
+                    }
+                }
+                return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
+            }
+        } else if (exp instanceof CIDRMatch cidrMatch) {
+            return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate) && Expressions.foldable(cidrMatch.matches());
+        } else if (exp instanceof SpatialRelatesFunction bc) {
+            return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
+        } else if (exp instanceof MatchQueryPredicate) {
+            return true;
         }
         return false;
     }

@@ -836,7 +836,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(actualLuceneQuery, equalTo(expectedLuceneQuery));
     }
 
-    public void testSearchWithUnsupportedMatchConditions() {
+    public void testSearchWithUnsupportedMatchFilters() {
         var error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
             search test [
                 | where match(first_name, "Meg") and ends_with(last_name, "Ryan")
@@ -862,6 +862,44 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             search test [
                | where (match(first_name, "Meryl") and match(last_name, "Streep"))
                     or concat(first_name, " ", last_name) == "Meryl Streep"
+            ]
+            """));
+        assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));
+    }
+
+    public void testSearchWithNonPushableRankExpressions() {
+        var error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
+            search test [
+                | rank match(first_name, "Meg") and ends_with(last_name, "Ryan")
+            ]
+            """));
+        assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));
+
+        error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
+            search test [
+               | rank not match(first_name, "Goldie") and ends_with(last_name, "Hawn")
+            ]
+            """));
+        assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));
+
+        error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
+            search test [
+               | rank match(first_name, "Meryl") or concat(first_name, " ", last_name) == "Meryl Streep"
+            ]
+            """));
+        assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));
+
+        error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
+            search test [
+               | rank (match(first_name, "Meryl") and match(last_name, "Streep"))
+                    or concat(first_name, " ", last_name) == "Meryl Streep"
+            ]
+            """));
+        assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));
+
+        error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
+            search test [
+               | rank concat(first_name, " ", last_name) == "Meryl Streep"
             ]
             """));
         assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));

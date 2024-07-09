@@ -8,6 +8,8 @@
 
 package org.elasticsearch.repositories;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -29,6 +31,8 @@ import java.util.stream.Collectors;
  * Represents the current {@link ShardGeneration} for each shard in a repository.
  */
 public final class ShardGenerations {
+
+    private static final Logger logger = LogManager.getLogger(ShardGenerations.class);
 
     public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
 
@@ -88,7 +92,7 @@ public final class ShardGenerations {
     }
 
     /**
-     * Computes the obsolete shard index generations that can be deleted once this instance was written to the repository.
+     * Computes the obsolete shard index generations that can be deleted once this instance is written to the repository.
      * Note: This method should only be used when finalizing a snapshot and we can safely assume that data has only been added but not
      *       removed from shard paths.
      *
@@ -109,6 +113,13 @@ public final class ShardGenerations {
                 // Since this method assumes only additions and no removals of shards, a null updated generation means no update
                 if (updatedGeneration != null && oldGeneration != null && oldGeneration.equals(updatedGeneration) == false) {
                     obsoleteShardIndices.put(i, oldGeneration);
+                    logger.debug(
+                        "Marking snapshot generation [{}] for cleanup. The new generation is [{}]. Index [{}], shard ID [{}]",
+                        oldGeneration,
+                        updatedGeneration,
+                        indexId,
+                        i
+                    );
                 }
             }
             result.put(indexId, Collections.unmodifiableMap(obsoleteShardIndices));

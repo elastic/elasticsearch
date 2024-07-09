@@ -2435,6 +2435,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Same as {@link #runInParallel(int, IntConsumer)} but also attempts to start all tasks at the same time by blocking execution on a
+     * barrier until all threads are started and ready to execute their task.
+     */
+    public static void startInParallel(int numberOfTasks, IntConsumer taskFactory) throws InterruptedException {
+        final CyclicBarrier barrier = new CyclicBarrier(numberOfTasks);
+        runInParallel(numberOfTasks, i -> {
+            safeAwait(barrier);
+            taskFactory.accept(i);
+        });
+    }
+
+    /**
      * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. On of the tasks will be run on the
      * calling thread, the rest will be run on a new thread.
      * @param numberOfTasks number of tasks to run in parallel

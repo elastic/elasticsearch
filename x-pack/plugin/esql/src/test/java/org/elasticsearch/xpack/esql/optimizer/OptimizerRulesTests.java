@@ -86,37 +86,6 @@ public class OptimizerRulesTests extends ESTestCase {
     private static final Expression DUMMY_EXPRESSION =
         new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
 
-    // Test BooleanFunctionEqualsElimination
-    public void testBoolEqualsSimplificationOnExpressions() {
-        BooleanFunctionEqualsElimination s = new BooleanFunctionEqualsElimination();
-        Expression exp = new GreaterThan(EMPTY, getFieldAttribute(), new Literal(EMPTY, 0, DataType.INTEGER), null);
-
-        assertEquals(exp, s.rule(new Equals(EMPTY, exp, TRUE)));
-        // TODO: Replace use of QL Not with ESQL Not
-        assertEquals(new Not(EMPTY, exp), s.rule(new Equals(EMPTY, exp, FALSE)));
-    }
-
-    public void testBoolEqualsSimplificationOnFields() {
-        BooleanFunctionEqualsElimination s = new BooleanFunctionEqualsElimination();
-
-        FieldAttribute field = getFieldAttribute();
-
-        List<? extends BinaryComparison> comparisons = asList(
-            new Equals(EMPTY, field, TRUE),
-            new Equals(EMPTY, field, FALSE),
-            notEqualsOf(field, TRUE),
-            notEqualsOf(field, FALSE),
-            new Equals(EMPTY, NULL, TRUE),
-            new Equals(EMPTY, NULL, FALSE),
-            notEqualsOf(NULL, TRUE),
-            notEqualsOf(NULL, FALSE)
-        );
-
-        for (BinaryComparison comparison : comparisons) {
-            assertEquals(comparison, s.rule(comparison));
-        }
-    }
-
     // Test Propagate Equals
 
     // a == 1 AND a == 2 -> FALSE

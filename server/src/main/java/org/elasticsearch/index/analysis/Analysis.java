@@ -45,7 +45,9 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CSVUtil;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -53,6 +55,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
@@ -180,6 +183,31 @@ public class Analysis {
         return defaultWords;
     }
 
+    // FIXME: Factor out this repeated code
+    public static CharArraySet parseWords(
+        Environment env,
+        Settings settings,
+        String name,
+        CharArraySet defaultWords,
+        Map<String, Set<?>> namedWords,
+        boolean ignoreCase,
+        WordListsIndexService wordListsIndexService
+    ) {
+        String value = settings.get(name);
+        if (value != null) {
+            if ("_none_".equals(value)) {
+                return CharArraySet.EMPTY_SET;
+            } else {
+                return resolveNamedWords(settings.getAsList(name), namedWords, ignoreCase);
+            }
+        }
+        List<String> pathLoadedWords = getWordList(env, settings, name, wordListsIndexService);
+        if (pathLoadedWords != null) {
+            return resolveNamedWords(pathLoadedWords, namedWords, ignoreCase);
+        }
+        return defaultWords;
+    }
+
     public static CharArraySet parseCommonWords(Environment env, Settings settings, CharArraySet defaultCommonWords, boolean ignoreCase) {
         return parseWords(env, settings, "common_words", defaultCommonWords, NAMED_STOP_WORDS, ignoreCase);
     }
@@ -191,11 +219,17 @@ public class Analysis {
 
     public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords) {
         boolean stopwordsCase = settings.getAsBoolean("stopwords_case", false);
-        return parseStopWords(env, settings, defaultStopWords, stopwordsCase);
+        return parseStopWords(env, settings, defaultStopWords, stopwordsCase, null);
     }
 
-    public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords, boolean ignoreCase) {
-        return parseWords(env, settings, "stopwords", defaultStopWords, NAMED_STOP_WORDS, ignoreCase);
+    public static CharArraySet parseStopWords(
+        Environment env,
+        Settings settings,
+        CharArraySet defaultStopWords,
+        boolean ignoreCase,
+        WordListsIndexService wordListsIndexService
+    ) {
+        return parseWords(env, settings, "stopwords", defaultStopWords, NAMED_STOP_WORDS, ignoreCase, wordListsIndexService);
     }
 
     private static CharArraySet resolveNamedWords(Collection<String> words, Map<String, Set<?>> namedWords, boolean ignoreCase) {
@@ -230,7 +264,17 @@ public class Analysis {
      *          If the word list cannot be found at either key.
      */
     public static List<String> getWordList(Environment env, Settings settings, String settingPrefix) {
-        return getWordList(env, settings, settingPrefix + "_path", settingPrefix, true);
+        return getWordList(env, settings, settingPrefix + "_path", settingPrefix, true, null);
+    }
+
+    // FIXME: Factor out this repeated code
+    public static List<String> getWordList(
+        Environment env,
+        Settings settings,
+        String settingPrefix,
+        WordListsIndexService wordListsIndexService
+    ) {
+        return getWordList(env, settings, settingPrefix + "_path", settingPrefix, true, wordListsIndexService);
     }
 
     /**
@@ -245,7 +289,8 @@ public class Analysis {
         Settings settings,
         String settingPath,
         String settingList,
-        boolean removeComments
+        boolean removeComments,
+        WordListsIndexService wordListIndexService
     ) {
         String wordListPath = settings.get(settingPath, null);
 
@@ -279,44 +324,57 @@ public class Analysis {
 //        }
 
         final URL pathAsUrl = tryToParsePathAsURL(wordListPath);
-        final Path path;
-        final boolean deletePath;
+        String stringValue = null;
+        Path pathValue = null;
         if (pathAsUrl != null) {
-            try {
-                path = downloadFile(pathAsUrl);
-                deletePath = true;
-            } catch (IOException e) {
-                String message = Strings.format("IOException while downloading file %s", settingPath);
-                throw new IllegalArgumentException(message, e);
+            // TODO: Don't hard-code index name
+            final String fakeIndexName = "hard-coded-index";
+            PlainActionFuture<String> wordListLoadingFuture = new PlainActionFuture<>();
+            wordListIndexService.getWordListValue(fakeIndexName, wordListPath, wordListLoadingFuture);
+            stringValue = wordListLoadingFuture.actionGet();
+            if (stringValue == null) {
+                try {
+                    stringValue = readFile(pathAsUrl);
+                } catch (IOException e) {
+                    String message = Strings.format("IOException while reading file at %s", settingPath);
+                    throw new IllegalArgumentException(message, e);
+                }
             }
+
+            wordListIndexService.putWordList(fakeIndexName, wordListPath, stringValue, new ActionListener<>() {
+                @Override
+                public void onResponse(WordListsIndexService.PutWordListResult putWordListResult) {
+                    // TODO: Log result
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new ElasticsearchStatusException(
+                        "Unable to index word list [" + wordListPath + "] for index [" + fakeIndexName + "]",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        e
+                    );
+                }
+            });
         } else {
-            path = env.configFile().resolve(wordListPath);
-            deletePath = false;
+            pathValue = env.configFile().resolve(wordListPath);
         }
 
         try {
-            return loadWordList(path, removeComments);
+            // TODO: Clean up error handling
+            return stringValue != null ? loadWordList(stringValue, removeComments) : loadWordList(pathValue, removeComments);
         } catch (CharacterCodingException ex) {
             String message = Strings.format(
                 "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
                 settingPath,
-                path
+                pathValue
             );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = Strings.format("IOException while reading %s: %s", settingPath, path);
+            String message = Strings.format("IOException while reading %s: %s", settingPath, pathValue);
             throw new IllegalArgumentException(message, ioe);
         } catch (AccessControlException ace) {
-            throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
-        } finally {
-            if (deletePath) {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (IOException e) {
-                    // TODO: Log this instead?
-                    throw new RuntimeException("Unable to delete temp file " + path, e);
-                }
-            }
+            throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, pathValue), ace);
         }
     }
 
@@ -328,7 +386,7 @@ public class Analysis {
         boolean removeComments,
         boolean checkDuplicate
     ) {
-        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
+        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments, null);
         if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
             checkDuplicateRules(ruleList);
         }
@@ -369,6 +427,22 @@ public class Analysis {
     private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {
         final List<String> result = new ArrayList<>();
         try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            String word;
+            while ((word = br.readLine()) != null) {
+                if (Strings.hasText(word) == false) {
+                    continue;
+                }
+                if (removeComments == false || word.startsWith("#") == false) {
+                    result.add(word.trim());
+                }
+            }
+        }
+        return result;
+    }
+
+    private static List<String> loadWordList(String value, boolean removeComments) throws IOException {
+        final List<String> result = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new StringReader(value))) {
             String word;
             while ((word = br.readLine()) != null) {
                 if (Strings.hasText(word) == false) {
@@ -456,6 +530,37 @@ public class Analysis {
         }
 
         return path;
+    }
+
+    private static String readFile(URL url) throws IOException {
+        String protocol = url.getProtocol();
+        if (protocol.equals("http") == false && protocol.equals("https") == false) {
+            throw new IllegalArgumentException("Cannot handle protocol [" + protocol + "]");
+        }
+
+        SpecialPermission.check();
+        ReadableByteChannel readableByteChannel = null;
+        StringBuilder sb = new StringBuilder();
+        try {
+            readableByteChannel = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<ReadableByteChannel>) () -> Channels.newChannel(url.openStream())
+            );
+
+            Reader reader = Channels.newReader(readableByteChannel, StandardCharsets.UTF_8);
+            char[] arr = new char[1024];
+            int charsRead;
+            while ((charsRead = reader.read(arr, 0, arr.length)) != -1) {
+                sb.append(arr, 0, charsRead);
+            }
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getCause();
+        } finally {
+            if (readableByteChannel != null) {
+                readableByteChannel.close();
+            }
+        }
+
+        return sb.toString();
     }
 
     // TODO: How to handle file:// URLs?

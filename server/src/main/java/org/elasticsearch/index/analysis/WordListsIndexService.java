@@ -33,7 +33,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class WordListsIndexService {
     public static final String WORD_LISTS_FEATURE_NAME = "word_lists";
-    public static final String ANALYSIS_ORIGIN = "analysis";
+    public static final String WORD_LISTS_ORIGIN = "word_lists";
 
     private static final String WORD_LISTS_INDEX_NAME_PATTERN = ".word_lists-*";
     private static final int WORD_LISTS_INDEX_FORMAT = 1;
@@ -54,7 +54,7 @@ public class WordListsIndexService {
         .setMappings(mappings())
         .setSettings(settings())
         .setVersionMetaKey("version")
-        .setOrigin(ANALYSIS_ORIGIN)
+        .setOrigin(WORD_LISTS_ORIGIN)
         .build();
 
     private final Client client;
@@ -65,7 +65,7 @@ public class WordListsIndexService {
     }
 
     public WordListsIndexService(Client client) {
-        this.client = new OriginSettingClient(client, ANALYSIS_ORIGIN);
+        this.client = new OriginSettingClient(client, WORD_LISTS_ORIGIN);
     }
 
     private static XContentBuilder mappings() {
@@ -148,7 +148,7 @@ public class WordListsIndexService {
             });
     }
 
-    public void putWordList(String index, String wordListName, String wordListValue, ActionListener<PutWordListResult> listener) throws IOException {
+    public void putWordList(String index, String wordListName, String wordListValue, ActionListener<PutWordListResult> listener) {
         IndexRequest indexRequest = createWordListIndexRequest(index, wordListName, wordListValue).setRefreshPolicy(
             WriteRequest.RefreshPolicy.IMMEDIATE
         );
@@ -166,7 +166,7 @@ public class WordListsIndexService {
         return index + "_" + wordListName;
     }
 
-    private static IndexRequest createWordListIndexRequest(String index, String wordListName, String wordListValue) throws IOException {
+    private static IndexRequest createWordListIndexRequest(String index, String wordListName, String wordListValue) {
         final String wordListId = generateWordListId(index, wordListName);
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -179,6 +179,8 @@ public class WordListsIndexService {
             builder.endObject();
 
             return new IndexRequest(WORD_LISTS_ALIAS_NAME).id(wordListId).opType(DocWriteRequest.OpType.INDEX).source(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Unable to build word list index request", e);
         }
     }
 }

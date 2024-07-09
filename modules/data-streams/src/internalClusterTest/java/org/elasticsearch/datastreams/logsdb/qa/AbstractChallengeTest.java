@@ -154,9 +154,7 @@ public abstract class AbstractChallengeTest extends ESSingleNodeTestCase {
 
     private XContentBuilder createMappings(final CheckedConsumer<XContentBuilder, IOException> builderConsumer) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
         builderConsumer.accept(builder);
-        builder.endObject();
         return builder;
     }
 

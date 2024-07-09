@@ -232,8 +232,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         List<Page> pages = new ArrayList<>();
 
-        int pageSize = randomIntBetween(1, 10);
-        for (int initialRow = 0; initialRow < rowsCount; initialRow += pageSize) {
+        int pageSize = randomIntBetween(1, 100);
+        for (int initialRow = 0; initialRow < rowsCount;) {
             if (pageSize > rowsCount - initialRow) {
                 pageSize = rowsCount - initialRow;
             }
@@ -259,6 +259,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
 
             pages.add(new Page(pageSize, blocks));
+            initialRow += pageSize;
+            pageSize = randomIntBetween(1, 100);
         }
 
         return pages;

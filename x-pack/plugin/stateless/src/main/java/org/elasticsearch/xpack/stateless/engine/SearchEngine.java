@@ -467,12 +467,12 @@ public class SearchEngine extends Engine {
 
     private void setSequenceNumbers(SegmentInfos segmentInfos) {
         final var commit = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(segmentInfos.userData.entrySet());
-        assert commit.maxSeqNo >= maxSequenceNumber
+        assert commit.maxSeqNo() >= maxSequenceNumber
             : "Commit [" + commit + "] max sequence number less than tracked max sequence number [" + maxSequenceNumber + "]";
-        maxSequenceNumber = commit.maxSeqNo;
-        assert commit.localCheckpoint >= processedLocalCheckpoint
+        maxSequenceNumber = commit.maxSeqNo();
+        assert commit.localCheckpoint() >= processedLocalCheckpoint
             : "Commit [" + commit + "] local checkpoint less than tracked local checkpoint [" + processedLocalCheckpoint + "]";
-        processedLocalCheckpoint = commit.localCheckpoint;
+        processedLocalCheckpoint = commit.localCheckpoint();
     }
 
     @Override
@@ -662,7 +662,7 @@ public class SearchEngine extends Engine {
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         var segmentInfos = segmentInfosAndCommit.segmentInfos();
         var commitInfo = getSequenceNumbersCommitInfo(segmentInfos);
-        return new SeqNoStats(commitInfo.maxSeqNo, commitInfo.localCheckpoint, config().getGlobalCheckpointSupplier().getAsLong());
+        return new SeqNoStats(commitInfo.maxSeqNo(), commitInfo.localCheckpoint(), config().getGlobalCheckpointSupplier().getAsLong());
     }
 
     @Override
@@ -764,7 +764,7 @@ public class SearchEngine extends Engine {
     public SafeCommitInfo getSafeCommitInfo() {
         var segmentInfos = segmentInfosAndCommit.segmentInfos();
         var sequenceNumbersCommitInfo = getSequenceNumbersCommitInfo(segmentInfos);
-        return new SafeCommitInfo(sequenceNumbersCommitInfo.localCheckpoint, segmentInfos.totalMaxDoc());
+        return new SafeCommitInfo(sequenceNumbersCommitInfo.localCheckpoint(), segmentInfos.totalMaxDoc());
     }
 
     @Override

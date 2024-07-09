@@ -337,7 +337,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         ActionListener.run(l, listener -> {
             ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
             boolean completed = shardSyncState.ensureSynced(
-                new Translog.Location(location.generation, location.translogLocation + location.size, 0),
+                new Translog.Location(location.generation(), location.translogLocation() + location.size(), 0),
                 listener
             );
             if (completed == false) {

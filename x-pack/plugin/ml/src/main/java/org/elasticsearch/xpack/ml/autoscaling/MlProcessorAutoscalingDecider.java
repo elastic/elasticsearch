@@ -25,8 +25,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.time.Instant.ofEpochMilli;
 import static org.elasticsearch.common.xcontent.XContentElasticsearchExtension.DEFAULT_FORMATTER;
@@ -59,12 +57,12 @@ class MlProcessorAutoscalingDecider {
             scaleTimer.resetScaleDownCoolDown();
 
             String reason = Strings.format(
-                "requesting scale up as current capacity [node:[{}], tier:[{}]] "
-                    + "is insufficient for required deployments [node:[{}], tier:[{}]]",
-                currentCapacity.nodeProcessors(),
-                currentCapacity.tierProcessors(),
-                requiredCapacity.nodeProcessors(),
-                requiredCapacity.tierProcessors()
+                "requesting scale up as current capacity [node:[%1$.2f], tier:[%2$.2f]] "
+                    + "is insufficient for required deployments [node:[%3$.2f], tier:[%4$.2f]]",
+                currentCapacity.nodeProcessors().count(),
+                currentCapacity.tierProcessors().count(),
+                requiredCapacity.nodeProcessors().count(),
+                requiredCapacity.tierProcessors().count()
             );
 
             return MlProcessorAutoscalingCapacity.builder(requiredCapacity.nodeProcessors(), requiredCapacity.tierProcessors())

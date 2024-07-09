@@ -106,7 +106,13 @@ public class EsqlCapabilities {
         /**
          * Support for WEIGHTED_AVG function.
          */
-        AGG_WEIGHTED_AVG;
+        AGG_WEIGHTED_AVG,
+
+        /**
+         * Fix to GROK validation in case of multiple fields with same name and different types
+         * https://github.com/elastic/elasticsearch/issues/110533
+         */
+        GROK_VALIDATION;
 
         private final boolean snapshotOnly;
 

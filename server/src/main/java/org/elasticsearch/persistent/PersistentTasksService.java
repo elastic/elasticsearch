@@ -125,7 +125,7 @@ public class PersistentTasksService {
      * {@link AllocatedPersistentTask#updatePersistentTaskState} instead.
      * Accepts operation timeout as optional parameter
      */
-    void sendUpdateStateRequest(
+    protected void sendUpdateStateRequest(
         final String taskId,
         final long taskAllocationID,
         final PersistentTaskState taskState,

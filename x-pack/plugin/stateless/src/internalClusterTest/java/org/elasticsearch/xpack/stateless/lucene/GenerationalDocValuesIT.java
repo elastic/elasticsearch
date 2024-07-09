@@ -20,10 +20,13 @@ package co.elastic.elasticsearch.stateless.lucene;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
+import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -35,7 +38,12 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FilterMergePolicy;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -44,38 +52,50 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.hamcrest.Matcher;
+import org.junit.After;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+import java.util.stream.StreamSupport;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.contains;
@@ -83,6 +103,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -92,6 +114,8 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
      * Plugin to track Lucene opened generational files.
      */
     public static class GenerationalFilesTrackingStatelessPlugin extends Stateless {
+        static final AtomicReference<MergeFinder> mergeFinderRef = new AtomicReference<>(MergeFinder.EMPTY);
+        static final AtomicBoolean useCustomMergePolicy = new AtomicBoolean(false);
 
         public GenerationalFilesTrackingStatelessPlugin(Settings settings) {
             super(settings);
@@ -137,6 +161,100 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                 cacheWarmingService
             );
         }
+
+        @Override
+        protected MergePolicy getMergePolicy(EngineConfig engineConfig) {
+            return new FilterMergePolicy(super.getMergePolicy(engineConfig)) {
+                @Override
+                public MergeSpecification findMerges(MergeTrigger mergeTrigger, SegmentInfos segmentInfos, MergeContext mergeContext)
+                    throws IOException {
+                    if (useCustomMergePolicy.get()) {
+                        return mergeFinderRef.get().findMerges(mergeTrigger, segmentInfos, mergeContext);
+                    } else {
+                        return super.findMerges(mergeTrigger, segmentInfos, mergeContext);
+                    }
+                }
+
+                @Override
+                public MergeSpecification findForcedMerges(
+                    SegmentInfos segmentInfos,
+                    int maxSegmentCount,
+                    Map<SegmentCommitInfo, Boolean> segmentsToMerge,
+                    MergeContext mergeContext
+                ) throws IOException {
+                    if (useCustomMergePolicy.get()) {
+                        // Disable force merges
+                        return null;
+                    } else {
+                        return super.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, mergeContext);
+                    }
+                }
+
+                @Override
+                public MergeSpecification findFullFlushMerges(
+                    MergeTrigger mergeTrigger,
+                    SegmentInfos segmentInfos,
+                    MergeContext mergeContext
+                ) throws IOException {
+                    if (useCustomMergePolicy.get()) {
+                        // Disable full flush merges
+                        return null;
+                    } else {
+                        return super.findFullFlushMerges(mergeTrigger, segmentInfos, mergeContext);
+                    }
+                }
+
+                @Override
+                public MergeSpecification findForcedDeletesMerges(SegmentInfos segmentInfos, MergeContext mergeContext) throws IOException {
+                    if (useCustomMergePolicy.get()) {
+                        // Disable full flush merges
+                        return null;
+                    } else {
+                        return super.findForcedDeletesMerges(segmentInfos, mergeContext);
+                    }
+                }
+            };
+        }
+
+        static void setMergeFinder(MergeFinder mergeFinder) {
+            mergeFinderRef.set(mergeFinder);
+        }
+
+        static void enableCustomMergePolicy() {
+            useCustomMergePolicy.set(true);
+        }
+
+        static void disableCustomMergePolicy() {
+            useCustomMergePolicy.set(false);
+        }
+    }
+
+    interface MergeFinder {
+        MergeFinder EMPTY = (mergeTrigger, segmentInfos, mergeContext) -> null;
+
+        MergePolicy.MergeSpecification findMerges(
+            MergeTrigger mergeTrigger,
+            SegmentInfos segmentInfos,
+            MergePolicy.MergeContext mergeContext
+        );
+    }
+
+    protected StatelessCommitService createStatelessCommitService(
+        Settings settings,
+        ObjectStoreService objectStoreService,
+        ClusterService clusterService,
+        Client client,
+        StatelessCommitCleaner commitCleaner,
+        SharedBlobCacheWarmingService cacheWarmingService
+    ) {
+        return new GenerationalFilesTrackingStatelessCommitService(
+            settings,
+            objectStoreService,
+            clusterService,
+            client,
+            commitCleaner,
+            cacheWarmingService
+        );
     }
 
     public static class GenerationalFilesTrackingStatelessCommitService extends StatelessCommitService {
@@ -256,13 +374,20 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(Stateless.class);
         plugins.add(GenerationalFilesTrackingStatelessPlugin.class);
+        plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
 
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
-            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L));
+            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
+    }
+
+    @After
+    public void disableCustomMergePolicy() {
+        GenerationalFilesTrackingStatelessPlugin.disableCustomMergePolicy();
     }
 
     /**
@@ -278,6 +403,372 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                 .build()
         );
         return indexName;
+    }
+
+    public void testBackgroundMergeCanRetainDeletedGenerationalFile() throws Exception {
+        GenerationalFilesTrackingStatelessPlugin.enableCustomMergePolicy();
+        var nodeName = startMasterAndIndexNode(
+            // Disable the cache, so we force all reads to fetch data from the blob store
+            Settings.builder()
+                .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(1))
+                // Ensure that commits are uploaded in the order that we want
+                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+                .build()
+        );
+
+        final var indexName = createIndex(1, 0);
+        var indexingShard = findIndexShard(resolveIndex(indexName), 0);
+        var indexEngine = asInstanceOf(IndexEngine.class, indexingShard.getEngineOrNull());
+        var searchDirectory = SearchDirectory.unwrapDirectory(indexingShard.store().directory());
+
+        // BCC4
+        final long docsAfterSegment_0 = 10_000L;
+        executeBulk(
+            bulkRequest -> LongStream.range(0L, docsAfterSegment_0)
+                .mapToObj(n -> client().prepareIndex(indexName).setId(String.valueOf(n)).setSource("segment", "_0"))
+                .forEach(bulkRequest::add)
+        );
+        flush(indexName);
+
+        assertThat(indexEngine.getCurrentGeneration(), equalTo(4L));
+        assertBusyFilesLocations(
+            searchDirectory,
+            Map.ofEntries(
+                // BCC3
+                entry("segments_3", 3L),
+                entry("segments_4", 4L),
+                // BCC4 -> Contains documents with IDs [0, 10_000]
+                entry("_0.cfe", 4L),
+                entry("_0.cfs", 4L),
+                entry("_0.si", 4L)
+            )
+        );
+
+        // Flush two new segments that will create BCC5 and BCC6 in the blob store
+
+        // BCC5
+        executeBulk(bulkRequest -> bulkRequest.add(client().prepareIndex(indexName).setSource("segment", "_1")));
+        flush(indexName);
+        // BCC6
+        executeBulk(bulkRequest -> bulkRequest.add(client().prepareIndex(indexName).setSource("segment", "_2")));
+        flush(indexName);
+
+        assertThat(indexEngine.getCurrentGeneration(), equalTo(6L));
+        assertBusyFilesLocations(
+            searchDirectory,
+            Map.ofEntries(
+                // BCC3
+                entry("segments_3", 3L),
+                // BCC4
+                entry("segments_4", 4L),
+                entry("_0.cfe", 4L),
+                entry("_0.cfs", 4L),
+                entry("_0.si", 4L),
+                // BCC5
+                entry("segments_5", 5L),
+                entry("_1.cfe", 5L),
+                entry("_1.cfs", 5L),
+                entry("_1.si", 5L),
+                // BCC6
+                entry("segments_6", 6L),
+                entry("_2.cfe", 6L),
+                entry("_2.cfs", 6L),
+                entry("_2.si", 6L)
+            )
+        );
+
+        // The next BCC (with generation 7) will contain the generational file that will be retained by the background merge,
+        // hence we'll inject a custom repository strategy that will block any reads by the Lucene Merge Thread #0 on that blob
+        // to wait until the BCC containing that file is deleted wrongly.
+        final var bccContainingFirstGenFile = BatchedCompoundCommit.blobNameFromGeneration(7);
+        var blockBccContainingFirstGenFileReadByFirstMerge = new CountDownLatch(1);
+        var bccContainingFirstGenFileReadFirstMergeBlocked = new CountDownLatch(1);
+        var blockBccContainingFirstGenFileReadBySecondMerge = new CountDownLatch(1);
+        var bccContainingFirstGenFileReadSecondMergeBlocked = new CountDownLatch(1);
+        var bccContainingFirstGenFileDeleted = new CountDownLatch(1);
+        PlainActionFuture<IOException> fileNotFoundExceptionFuture = new PlainActionFuture<>();
+        setNodeRepositoryStrategy(nodeName, new StatelessMockRepositoryStrategy() {
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                maybeBlock(blobName);
+                try {
+                    return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+                } catch (IOException e) {
+                    fileNotFoundExceptionFuture.onResponse(e);
+                    throw e;
+                }
+            }
+
+            void maybeBlock(String blobName) {
+                if (blobName.equals(bccContainingFirstGenFile)) {
+                    var currentThreadName = Thread.currentThread().getName();
+                    if (currentThreadName.contains("Lucene Merge Thread #0")) {
+                        blockRead(bccContainingFirstGenFileReadFirstMergeBlocked, blockBccContainingFirstGenFileReadByFirstMerge);
+                    } else if (currentThreadName.contains("Lucene Merge Thread #1")) {
+                        blockRead(bccContainingFirstGenFileReadSecondMergeBlocked, blockBccContainingFirstGenFileReadBySecondMerge);
+                    }
+                }
+            }
+
+            private void blockRead(CountDownLatch signalReadBlocked, CountDownLatch unblockReadLatch) {
+                logger.info("--> Blocking reads from {}", Thread.currentThread().getName());
+                signalReadBlocked.countDown();
+                try {
+                    // 10 seconds might be not enough since the file deletion takes a bit to be executed
+                    assertTrue(unblockReadLatch.await(60, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            }
+
+            @Override
+            public void blobStoreDeleteBlobsIgnoringIfNotExists(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                Iterator<String> blobNames
+            ) throws IOException {
+                List<String> blobsToDelete = new ArrayList<>();
+                blobNames.forEachRemaining(blobsToDelete::add);
+                var shouldTrigger = blobsToDelete.stream().anyMatch(name -> name.contains(bccContainingFirstGenFile));
+                originalRunnable.run();
+                if (shouldTrigger) {
+                    bccContainingFirstGenFileDeleted.countDown();
+                }
+            }
+        });
+
+        // Before we create a new segment and the first generational file attached to segment _0, set a new merge finder that
+        // will trigger a background merge for segments _0, _1, _2 after the new segment (_3) is flushed and segment _0 has
+        // a generational file with generation 1 attached to it. That should trigger a read against the blob store while the
+        // three segments are merged.
+        var firstMergeTriggered = new AtomicBoolean(false);
+        GenerationalFilesTrackingStatelessPlugin.setMergeFinder((mergeTrigger, segmentInfos, mergeContext) -> {
+            if (firstMergeTriggered.compareAndSet(false, true)) {
+                var mergeSpecification = new MergePolicy.MergeSpecification();
+                var toMerge = StreamSupport.stream(segmentInfos.spliterator(), false)
+                    .filter(
+                        segmentCommitInfo -> segmentCommitInfo.info.name.equals("_0")
+                            || segmentCommitInfo.info.name.equals("_1")
+                            || segmentCommitInfo.info.name.equals("_2")
+                    )
+                    .toList();
+
+                var segmentWithDeletions = StreamSupport.stream(segmentInfos.spliterator(), false)
+                    .filter(f -> f.info.name.equals("_0"))
+                    .findFirst()
+                    .orElseThrow();
+                // Ensure that the segment _0 has a generational file attached to it
+                assertThat(segmentWithDeletions.getDocValuesGen(), is(equalTo(1L)));
+
+                assertThat(toMerge.size(), is(equalTo(3)));
+
+                mergeSpecification.add(new MergePolicy.OneMerge(toMerge));
+                return mergeSpecification;
+            } else {
+                return null;
+            }
+        });
+
+        // Delete a document present in segment _0, it should create a new generational file in generation 1
+        executeBulk(
+            bulkRequest -> bulkRequest.add(client().prepareDelete(indexName, String.valueOf(1)))
+                .add(client().prepareIndex(indexName).setSource("segment", "_3"))
+        );
+        flush(indexName);
+
+        assertThat(indexEngine.getCurrentGeneration(), equalTo(8L));
+        assertBusyFilesLocations(
+            searchDirectory,
+            Map.ofEntries(
+                // BCC3
+                entry("segments_3", 3L),
+                // BCC4
+                entry("segments_4", 4L),
+                entry("_0.cfe", 4L),
+                entry("_0.cfs", 4L),
+                entry("_0.si", 4L),
+                // BCC5
+                entry("segments_5", 5L),
+                entry("_1.cfe", 5L),
+                entry("_1.cfs", 5L),
+                entry("_1.si", 5L),
+                // BCC6
+                entry("segments_6", 6L),
+                entry("_2.cfe", 6L),
+                entry("_2.cfs", 6L),
+                entry("_2.si", 6L),
+                // BCC7
+                // Deletes might cause a refresh when InternalEngine.getVersionFromMap is called,
+                // that will generate an empty commit (segments_7)
+                entry("segments_7", 7L),
+                entry("segments_8", 7L),
+                entry("_3.cfe", 7L),
+                entry("_3.cfs", 7L),
+                entry("_3.si", 7L),
+                entry("_0_1_Lucene90_0.dvd", 7L),
+                entry("_0_1_Lucene90_0.dvm", 7L),
+                entry("_0_1.fnm", 7L)
+            )
+        );
+
+        // Wait until the background merge tries to read _0_1_Lucene90_0.dvd from BCC7
+        safeAwait(bccContainingFirstGenFileReadFirstMergeBlocked);
+
+        executeBulk(bulkRequest -> bulkRequest.add(client().prepareIndex(indexName).setSource("segment", "_5")));
+        flush(indexName);
+
+        // The commit with generation 8 was reserved for the background merge, hence the jump to generation 9
+        assertThat(indexEngine.getCurrentGeneration(), equalTo(9L));
+        assertBusyFilesLocations(
+            searchDirectory,
+            Map.ofEntries(
+                // BCC3
+                entry("segments_3", 3L),
+                // BCC4
+                entry("segments_4", 4L),
+                entry("_0.cfe", 4L),
+                entry("_0.cfs", 4L),
+                entry("_0.si", 4L),
+                // BCC5
+                entry("segments_5", 5L),
+                entry("_1.cfe", 5L),
+                entry("_1.cfs", 5L),
+                entry("_1.si", 5L),
+                // BCC6
+                entry("segments_6", 6L),
+                entry("_2.cfe", 6L),
+                entry("_2.cfs", 6L),
+                entry("_2.si", 6L),
+                // BCC7
+                entry("segments_7", 7L),
+                entry("segments_8", 7L),
+                entry("_3.cfe", 7L),
+                entry("_3.cfs", 7L),
+                entry("_3.si", 7L),
+                // The generational doc value files is carried over
+                entry("_0_1_Lucene90_0.dvd", 9L),
+                entry("_0_1_Lucene90_0.dvm", 9L),
+                entry("_0_1.fnm", 9L),
+                // BCC9 (segment _4 is reserved by the previous background merge)
+                entry("segments_9", 9L),
+                entry("_5.cfe", 9L),
+                entry("_5.cfs", 9L),
+                entry("_5.si", 9L)
+            )
+        );
+
+        // We want BCC7 (which contains _0_1_Lucene90_0.dvd and segment _3, and it's read by the background Lucene Merge Thread #0)
+        // to be merged away with the next segment (_5) so the BCC7 is not referenced anymore and can be deleted
+        // (until the gen files bug is solved).
+        var lastMergeTriggered = new AtomicBoolean(false);
+        GenerationalFilesTrackingStatelessPlugin.setMergeFinder((mergeTrigger, segmentInfos, mergeContext) -> {
+            if (lastMergeTriggered.compareAndSet(false, true)) {
+                var toMerge = StreamSupport.stream(segmentInfos.spliterator(), false)
+                    .filter(segmentCommitInfo -> segmentCommitInfo.info.name.equals("_3") || segmentCommitInfo.info.name.equals("_5"))
+                    .toList();
+                assertThat(toMerge.size(), equalTo(2));
+
+                var mergeSpecification = new MergePolicy.MergeSpecification();
+                mergeSpecification.add(new MergePolicy.OneMerge(toMerge));
+                return mergeSpecification;
+            } else {
+                return null;
+            }
+        });
+
+        // Execute a bulk that will trigger a background merge and includes a new deletion for segment _0, that will roll over
+        // the generational file generation (from 1 -> 2), making _0_1_Lucene90_0.dvd not needed anymore and not referenced after the
+        // triggered merge finishes.
+        executeBulk(
+            bulkRequest -> bulkRequest.add(client().prepareDelete(indexName, String.valueOf(2)))
+                .add(client().prepareIndex(indexName).setSource("segment", "_6"))
+        );
+        flush(indexName);
+
+        // Wait until the second background merge tries to read BCC7
+        safeAwait(bccContainingFirstGenFileReadSecondMergeBlocked);
+
+        assertThat(indexEngine.getCurrentGeneration(), equalTo(10L));
+        assertBusyFilesLocations(
+            searchDirectory,
+            Map.ofEntries(
+                // BCC3
+                entry("segments_3", 3L),
+                // BCC4
+                entry("segments_4", 4L),
+                entry("_0.cfe", 4L),
+                entry("_0.cfs", 4L),
+                entry("_0.si", 4L),
+                // BCC5
+                entry("segments_5", 5L),
+                entry("_1.cfe", 5L),
+                entry("_1.cfs", 5L),
+                entry("_1.si", 5L),
+                // BCC6
+                entry("segments_6", 6L),
+                entry("_2.cfe", 6L),
+                entry("_2.cfs", 6L),
+                entry("_2.si", 6L),
+                // BCC7
+                entry("segments_7", 7L),
+                entry("segments_8", 7L),
+                entry("_3.cfe", 7L),
+                entry("_3.cfs", 7L),
+                entry("_3.si", 7L),
+                // The generational doc value files is carried over
+                entry("_0_1_Lucene90_0.dvd", 9L),
+                entry("_0_1_Lucene90_0.dvm", 9L),
+                entry("_0_1.fnm", 9L),
+                // BCC9 (segment _4 is reserved by the previous background merge)
+                entry("segments_9", 9L),
+                entry("_5.cfe", 9L),
+                entry("_5.cfs", 9L),
+                entry("_5.si", 9L),
+                // BCC10 (It includes the new generational file with new deletions)
+                entry("segments_a", 10L),
+                entry("_6.cfe", 10L),
+                entry("_6.cfs", 10L),
+                entry("_6.si", 10L),
+                entry("_0_2_Lucene90_0.dvd", 10L),
+                entry("_0_2_Lucene90_0.dvm", 10L),
+                entry("_0_2.fnm", 10L)
+            )
+        );
+
+        // Unblock the second background merge
+        blockBccContainingFirstGenFileReadBySecondMerge.countDown();
+
+        // Wait until the background merge (merging _3 and _5) finishes
+        assertBusy(() -> {
+            var runningMerges = client().admin()
+                .indices()
+                .prepareStats(indexName)
+                .setMerge(true)
+                .get()
+                .getIndex(indexName)
+                .getPrimaries()
+                .getMerge()
+                .getCurrent();
+            assertThat(runningMerges, is(equalTo(1L)));
+        });
+        // Ensure that the background merge is flushed and uploaded into the blob store
+        flush(indexName);
+        // Wait until the file BCC 7 is deleted while there's a background merge using _0_1_Lucene90_0.dvd which was stored in BCC7
+
+        // TODO: once we fix the underlying issue this should fail ES-8897
+        safeAwait(bccContainingFirstGenFileDeleted);
+        // Let the read continue and fail
+        blockBccContainingFirstGenFileReadByFirstMerge.countDown();
+
+        // We expect to get a NoSuchFileException while we try to read BCC7
+        assertThat(fileNotFoundExceptionFuture.get(), instanceOf(NoSuchFileException.class));
     }
 
     public void testSearchShardGenerationFilesRetention() throws Exception {

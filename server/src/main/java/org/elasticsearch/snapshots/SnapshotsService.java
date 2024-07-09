@@ -1182,7 +1182,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         assert snapshotEntry.isClone() == false : "clones take a different path";
         boolean snapshotChanged = false;
         ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
-        for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardSnapshotEntry : snapshotEntry.shardSnapshotStatusByRepoShardId().entrySet()) {
+        for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardSnapshotEntry : snapshotEntry.shardSnapshotStatusByRepoShardId()
+            .entrySet()) {
             ShardSnapshotStatus shardStatus = shardSnapshotEntry.getValue();
             ShardId shardId = snapshotEntry.shardId(shardSnapshotEntry.getKey());
             if (shardStatus.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)) {

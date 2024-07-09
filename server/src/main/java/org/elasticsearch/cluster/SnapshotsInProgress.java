@@ -239,7 +239,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                             """,
                         oldStatus.generation(),
                         newStatus.generation(),
-                        entry.snapshot(),
+                        oldEntry.snapshot(),
                         repositoryShardId.shardId(),
                         oldStatus.nodeId()
                     );

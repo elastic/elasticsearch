@@ -57,6 +57,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.analysis.WordListsIndexService.WORD_LISTS_DESCRIPTOR;
+import static org.elasticsearch.index.analysis.WordListsIndexService.WORD_LISTS_FEATURE_NAME;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_DESCRIPTOR;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
@@ -121,7 +123,8 @@ public class SystemIndices {
      */
     private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = Stream.of(
         new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)),
-        new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR))
+        new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR)),
+        new Feature(WORD_LISTS_FEATURE_NAME, "Manages word lists", List.of(WORD_LISTS_DESCRIPTOR))
     ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
 
     public static final Map<String, SystemIndexDescriptor.MappingsVersion> SERVER_SYSTEM_MAPPINGS_VERSIONS =

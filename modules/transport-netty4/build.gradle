@@ -37,15 +37,14 @@ dependencies {
   api project(":libs:elasticsearch-ssl-config")
 
   // network stack
-  api "io.netty:netty-buffer:${versions.netty}"
-  api "io.netty:netty-codec:${versions.netty}"
-  api "io.netty:netty-codec-http:${versions.netty}"
-  api "io.netty:netty-common:${versions.netty}"
-  api "io.netty:netty-handler:${versions.netty}"
-  api "io.netty:netty-resolver:${versions.netty}"
-  api "io.netty:netty-transport:${versions.netty}"
-  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
-
+  api libs.netty.buffer
+  api libs.netty.codec
+  api libs.netty.codec.http
+  api libs.netty.common
+  api libs.netty.handler
+  api libs.netty.resolver
+  api libs.netty.transport
+  api libs.netty.transport.native.unix.common
   testImplementation project(':modules:rest-root')
 }
 

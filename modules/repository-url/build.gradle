@@ -24,11 +24,11 @@ restResources {
 }
 
 dependencies {
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api libs.httpclient
+  api libs.httpcore
+  api libs.commons.logging
+  api libs.commons.codec
+  api libs.log4j12.api
   yamlRestTestImplementation project(':test:fixtures:url-fixture')
   internalClusterTestImplementation project(':test:fixtures:url-fixture')
 }

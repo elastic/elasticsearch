@@ -8,7 +8,7 @@
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  api 'org.lz4:lz4-java:1.8.0'
+  api libs.lz4.java
   api project(':libs:elasticsearch-core')
 
   testImplementation(project(":test:framework")) {

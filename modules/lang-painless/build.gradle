@@ -35,12 +35,13 @@ configurations {
 }
 
 dependencies {
-    api "org.antlr:antlr4-runtime:${versions.antlr4}"
-    api 'org.ow2.asm:asm-util:7.2'
-    api 'org.ow2.asm:asm-tree:7.2'
-    api 'org.ow2.asm:asm-commons:7.2'
-    api 'org.ow2.asm:asm-analysis:7.2'
-    api 'org.ow2.asm:asm:7.2'
+    api libs.antlr4.runtime
+    // TODO Rene: those are updated and used to be 7.2
+    api libs.asm.util
+    api libs.asm.tree
+    api libs.asm.commons
+    api libs.asm.analysis
+    api libs.asm
     spi project('spi')
     clusterModules project(':modules:mapper-extras')
 }

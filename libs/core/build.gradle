@@ -11,12 +11,12 @@ apply plugin: 'elasticsearch.mrjar'
 
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
-  compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+  compileOnly libs.jsr305
   compileOnly project(':libs:elasticsearch-logging')
 
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation libs.randomizedtesting.runner
+  testImplementation libs.junit
+  testImplementation libs.hamcrest
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-core'

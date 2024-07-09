@@ -10,9 +10,9 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-dissect'
   }
-  testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  testImplementation libs.jackson.core
+  testImplementation libs.jackson.annotations
+  testImplementation libs.jackson.databind
 }
 
 tasks.named('forbiddenApisMain').configure {

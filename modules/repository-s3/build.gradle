@@ -17,29 +17,25 @@ esplugin {
   classname 'org.elasticsearch.repositories.s3.S3RepositoryPlugin'
 }
 
-versions << [
-  'aws': '1.12.270'
-]
-
 dependencies {
-  api "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
-  api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
-  api "com.amazonaws:aws-java-sdk-sts:${versions.aws}"
-  api "com.amazonaws:jmespath-java:${versions.aws}"
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  api "joda-time:joda-time:2.10.14"
+  api libs.aws.java.sdk.s3
+  api libs.aws.java.sdk.core
+  api libs.aws.java.sdk.sts
+  api libs.aws.jmespath.java
+  api libs.httpclient
+  api libs.httpcore
+  api libs.commons.logging
+  api libs.log4j12.api
+  api libs.commons.codec
+  api libs.jackson.core
+  api libs.jackson.databind
+  api libs.jackson.annotations
+  api libs.jackson.dataformat.cbor
+  api libs.joda.time
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
-  api 'javax.xml.bind:jaxb-api:2.2.2'
+  api libs.jaxb.api
 
   testImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation project(":test:framework")
@@ -47,8 +43,8 @@ dependencies {
   yamlRestTestImplementation project(':test:fixtures:minio-fixture')
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
 
-  yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
-  internalClusterTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+  yamlRestTestRuntimeOnly libs.slf4j.simple
+  internalClusterTestRuntimeOnly libs.slf4j.simple
 }
 
 restResources {

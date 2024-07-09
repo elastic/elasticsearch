@@ -16,7 +16,7 @@ group = "org.elasticsearch.plugin"
 tasks.named("loggerUsageCheck").configure {enabled = false }
 
 dependencies {
-  api "org.apache.lucene:lucene-core:${versions.lucene}"
+  api libs.lucene.core
   api project(':libs:elasticsearch-plugin-api')
 }
 

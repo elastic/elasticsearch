@@ -10,9 +10,9 @@ apply plugin: 'elasticsearch.publish'
 dependencies {
   // do not add non-test compile dependencies to secure-sm without a good reason to do so
 
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation libs.randomizedtesting.runner
+  testImplementation libs.junit
+  testImplementation libs.hamcrest
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-secure-sm'

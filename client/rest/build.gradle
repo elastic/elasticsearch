@@ -40,18 +40,18 @@ projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apa
 licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
 
 dependencies {
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-  api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api libs.httpclient
+  api libs.httpcore
+  api libs.httpasyncclient
+  api libs.httpcore.nio
+  api libs.commons.codec
+  api libs.commons.logging
 
   testImplementation project(":client:test")
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-  testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  testImplementation libs.randomizedtesting.runner
+  testImplementation libs.junit
+  testImplementation libs.hamcrest
+  testImplementation libs.mocksocket
 }
 
 tasks.named("processResources").configure {

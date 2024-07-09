@@ -45,18 +45,18 @@ def versions = [
 configurations.testRuntimeClasspath {
   exclude module: 'commons-logging'
   // The version used by POI potentially conflicts with the one pulled in by :test:framework:
-  resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
+  resolutionStrategy.force tikaLibs.commons.codec
 }
 
 configurations.testCompileClasspath {
   // The version used by POI potentially conflicts with the one pulled in by :test:framework:
-  resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
+  resolutionStrategy.force tikaLibs.commons.codec
 }
 
 dependencies {
   // take over logging for all dependencies
-  api "org.slf4j:slf4j-api:${versions.slf4}"
-  api "org.slf4j:jcl-over-slf4j:${versions.slf4}"
+  api tikaLibs.slf4j.api
+  api tikaLibs.jcl.over.slf4j
 
   // route slf4j over log4j
   // TODO blocked on https://github.com/elastic/elasticsearch/issues/93714
@@ -64,54 +64,55 @@ dependencies {
 
   // nop all slf4j logging
   // workaround for https://github.com/elastic/elasticsearch/issues/93714
-  api "org.slf4j:slf4j-nop:${versions.slf4}"
+  api tikaLibs.slf4j.nop
 
   // mandatory for tika
-  api "org.apache.tika:tika-core:${versions.tika}"
-  api "org.apache.tika:tika-langdetect:${versions.tika}"
-  api "org.apache.tika:tika-langdetect-tika:${versions.tika}"
-  api "org.apache.tika:tika-parser-html-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-microsoft-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-pdf-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-xml-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-text-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-miscoffice-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-apple-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
-  api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
-  api "org.tukaani:xz:${versions.xz}"
-  api "commons-io:commons-io:${versions.commonsIo}"
+  api tikaLibs.tika.core
+  api tikaLibs.tika.langdetect
+  api tikaLibs.tika.langdetect.tika
+  api tikaLibs.tika.parser.html.module
+  api tikaLibs.tika.parser.microsoft.module
+  api tikaLibs.tika.parser.pdf.module
+  api tikaLibs.tika.parser.xml.module
+  api tikaLibs.tika.parser.text.module
+  api tikaLibs.tika.parser.miscoffice.module
+  api tikaLibs.tika.parser.apple.module
+  api tikaLibs.tika.parser.xmp.commons
+  api tikaLibs.tika.parser.zip.commons
+  api tikaLibs.xz
+  api tikaLibs.commons.io
 
   // character set detection
-  api "com.googlecode.juniversalchardet:juniversalchardet:${versions.juniversalchardet}"
+  api tikaLibs.juniversalchardet
 
   // external parser libraries
   // HTML
-  api "org.ccil.cowan.tagsoup:tagsoup:${versions.tagsoup}"
+  api tikaLibs.tagsoup
   // Adobe PDF
-  api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
-  api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
-  api "org.apache.pdfbox:jempbox:${versions.jempbox}"
+  api tikaLibs.pdfbox
+  api tikaLibs.fontbox
+  api tikaLibs.jempbox
   // OpenOffice
-  api "org.apache.poi:poi-ooxml:${versions.poi}"
-  api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
-  api "org.apache.poi:poi:${versions.poi}"
-  api "commons-codec:commons-codec:${versions.commonsCodec}"
-  api "org.apache.xmlbeans:xmlbeans:${versions.xmlbeans}"
-  api "org.apache.commons:commons-collections4:${versions.commonsCollections4}"
+  api tikaLibs.poi.ooxml
+  api tikaLibs.poi.ooxml.lite
+  api tikaLibs.poi
+  api tikaLibs.commons.codec
+  api tikaLibs.xmlbeans
+  api tikaLibs.commons.collections4
   // MS Office
-  api "org.apache.poi:poi-scratchpad:${versions.poi}"
+  api tikaLibs.poi.scratchpad
   // Apple iWork
-  api "org.apache.commons:commons-compress:${versions.commonsCompress}"
+  api tikaLibs.commons.compress
   // Outlook documents
-  api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
-  api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
+  api tikaLibs.apache.mime4j.core
+  api tikaLibs.apache.mime4j.dom
+
   // EPUB books
-  api "org.apache.commons:commons-lang3:${versions.commonsLang3}"
+  api tikaLibs.commons.lang3
   // Microsoft Word files with visio diagrams
-  api "org.apache.commons:commons-math3:${versions.commonsMath3}"
+  api tikaLibs.commons.math3
   // POIs dependency
-  api "com.zaxxer:SparseBitSet:${versions.sparsebitset}"
+  api tikaLibs.sparsebitset
 }
 
 restResources {

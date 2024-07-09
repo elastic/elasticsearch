@@ -15,7 +15,7 @@ configurations.all {
 }
 dependencies {
   testImplementation (project(':test:framework'))
-  api "junit:junit:${versions.junit}"
+  api libs.junit
   api project(':test:fixtures:testcontainer-utils')
   api("org.testcontainers:testcontainers:${versions.testcontainer}") {
     transitive = false
@@ -25,6 +25,6 @@ dependencies {
   }
 
   // ensure we have proper logging during when used in tests
-  runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+  runtimeOnly libs.slf4j.simple
   runtimeOnly("org.hamcrest:hamcrest:${versions.hamcrest}")
 }

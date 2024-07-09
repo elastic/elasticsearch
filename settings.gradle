@@ -28,6 +28,12 @@ dependencyResolutionManagement {
     buildLibs {
       from(files("gradle/build.versions.toml"))
     }
+    libs {
+      from(files("gradle/versions.toml"))
+    }
+    tikaLibs {
+      from(files("gradle/tika.versions.toml"))
+    }
   }
 }
 

@@ -17,21 +17,21 @@ dependencies {
   api project(":server")
   api project(":libs:elasticsearch-cli")
   api project(':libs:elasticsearch-preallocate')
-  api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  api "junit:junit:${versions.junit}"
-  api "org.hamcrest:hamcrest:${versions.hamcrest}"
-  api "org.apache.lucene:lucene-test-framework:${versions.lucene}"
-  api "org.apache.lucene:lucene-codecs:${versions.lucene}"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api libs.randomizedtesting.runner
+  api libs.junit
+  api libs.hamcrest
+  api libs.lucene.test.framework
+  api libs.lucene.codecs
+  api libs.commons.logging
+  api libs.commons.codec
 
   // mockito
-  api 'org.mockito:mockito-core:5.11.0'
-  api 'org.mockito:mockito-subclass:5.11.0'
-  api 'net.bytebuddy:byte-buddy:1.14.12'
-  api 'org.objenesis:objenesis:3.3'
+  api libs.mockito.core
+  api libs.mockito.subclass
+  api libs.byte.buddy
+  api libs.objenesis
 
-  api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  api libs.mocksocket
 }
 
 sourceSets {

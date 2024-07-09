@@ -1014,7 +1014,7 @@ public class Stateless extends Plugin
                     config.getIndexSettings(),
                     config.getWarmer(),
                     config.getStore(),
-                    config.getMergePolicy(),
+                    getMergePolicy(config),
                     config.getAnalyzer(),
                     config.getSimilarity(),
                     config.getCodecService(),
@@ -1049,6 +1049,10 @@ public class Stateless extends Plugin
                 return new SearchEngine(config, getClosedShardService());
             }
         });
+    }
+
+    protected org.apache.lucene.index.MergePolicy getMergePolicy(EngineConfig engineConfig) {
+        return engineConfig.getMergePolicy();
     }
 
     @Override

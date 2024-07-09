@@ -261,8 +261,13 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             if (filterExec.child() instanceof EsQueryExec queryExec) {
                 List<Expression> pushable = new ArrayList<>();
                 List<Expression> nonPushable = new ArrayList<>();
+                var filterIncludesMatch = includesMatchExpression(filterExec.condition());
                 for (Expression exp : splitAnd(filterExec.condition())) {
-                    (canPushToSource(exp, x -> hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(exp);
+                    var canPushExp = canPushToSource(exp, x -> hasIdenticalDelegate(x, ctx.searchStats()));
+                    if (canPushExp == false && filterIncludesMatch) {
+                        throw new VerificationException("Unsupported expression using MATCH: [{}]", exp.source().text());
+                    }
+                    (canPushExp ? pushable : nonPushable).add(exp);
                 }
                 if (pushable.size() > 0) { // update the executable with pushable conditions
                     Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable));
@@ -318,6 +323,17 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
             } else if (exp instanceof MatchQueryPredicate) {
                 return true;
+            }
+            return false;
+        }
+
+        public static boolean includesMatchExpression(Expression exp) {
+            if (exp instanceof MatchQueryPredicate) {
+                return true;
+            } else if (exp instanceof BinaryLogic bl) {
+                return includesMatchExpression(bl.left()) || includesMatchExpression(bl.right());
+            } else if (exp instanceof Not not) {
+                return includesMatchExpression(not.field());
             }
             return false;
         }

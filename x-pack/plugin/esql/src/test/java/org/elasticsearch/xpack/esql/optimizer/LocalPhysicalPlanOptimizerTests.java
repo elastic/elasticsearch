@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -76,6 +77,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -832,6 +834,37 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new BoolQueryBuilder().must(new MatchQueryBuilder("first_name", "Meg")).must(new MatchQueryBuilder("last_name", "Ryan"))
         );
         assertThat(actualLuceneQuery, equalTo(expectedLuceneQuery));
+    }
+
+    public void testSearchWithUnsupportedMatchConditions() {
+        var error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
+            search test [
+                | where match(first_name, "Meg") and ends_with(last_name, "Ryan")
+            ]
+            """));
+        assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));
+
+        error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
+            search test [
+               | where not match(first_name, "Goldie") and ends_with(last_name, "Hawn")
+            ]
+            """));
+        assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));
+
+        error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
+            search test [
+               | where match(first_name, "Meryl") or concat(first_name, " ", last_name) == "Meryl Streep"
+            ]
+            """));
+        assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));
+
+        error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
+            search test [
+               | where (match(first_name, "Meryl") and match(last_name, "Streep"))
+                    or concat(first_name, " ", last_name) == "Meryl Streep"
+            ]
+            """));
+        assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));
     }
 
     private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {

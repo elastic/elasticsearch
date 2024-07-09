@@ -237,7 +237,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 4, RoutingState.STARTED, ""))
                             )
                             .addNewAssignment(
@@ -254,7 +255,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(4, 4, RoutingState.STARTED, ""))
                             )
                             .build()

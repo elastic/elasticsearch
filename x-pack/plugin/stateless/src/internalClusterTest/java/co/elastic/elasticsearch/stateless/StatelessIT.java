@@ -361,7 +361,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> {
             assertThat(indexShard.getEngineOrNull().getProcessedLocalCheckpoint(), greaterThanOrEqualTo(0L));
-            assertThat(indexShard.getEngineOrNull().getTranslogLastWriteLocation().translogLocation, greaterThanOrEqualTo(0L));
+            assertThat(indexShard.getEngineOrNull().getTranslogLastWriteLocation().translogLocation(), greaterThanOrEqualTo(0L));
         });
         // Sleep to allow local file system translog sync to complete which historically would have advanced local checkpoint. But now it
         // should no longer advance local checkpoint

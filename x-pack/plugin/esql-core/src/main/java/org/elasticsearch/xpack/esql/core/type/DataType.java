@@ -42,15 +42,15 @@ public enum DataType {
     COUNTER_INTEGER(builder().esType("counter_integer").size(Integer.BYTES).docValues().counter()),
     COUNTER_DOUBLE(builder().esType("counter_double").size(Double.BYTES).docValues().counter()),
 
-    LONG(builder().esType("long").size(Long.BYTES).integer().docValues().counter(COUNTER_LONG)),
-    INTEGER(builder().esType("integer").size(Integer.BYTES).integer().docValues().counter(COUNTER_INTEGER)),
-    SHORT(builder().esType("short").size(Short.BYTES).integer().docValues().widenSmallNumeric(INTEGER)),
-    BYTE(builder().esType("byte").size(Byte.BYTES).integer().docValues().widenSmallNumeric(INTEGER)),
-    UNSIGNED_LONG(builder().esType("unsigned_long").size(Long.BYTES).integer().docValues()),
-    DOUBLE(builder().esType("double").size(Double.BYTES).rational().docValues().counter(COUNTER_DOUBLE)),
-    FLOAT(builder().esType("float").size(Float.BYTES).rational().docValues().widenSmallNumeric(DOUBLE)),
-    HALF_FLOAT(builder().esType("half_float").size(Float.BYTES).rational().docValues().widenSmallNumeric(DOUBLE)),
-    SCALED_FLOAT(builder().esType("scaled_float").size(Long.BYTES).rational().docValues().widenSmallNumeric(DOUBLE)),
+    LONG(builder().esType("long").size(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG)),
+    INTEGER(builder().esType("integer").size(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER)),
+    SHORT(builder().esType("short").size(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    BYTE(builder().esType("byte").size(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    UNSIGNED_LONG(builder().esType("unsigned_long").size(Long.BYTES).wholeNumber().docValues()),
+    DOUBLE(builder().esType("double").size(Double.BYTES).rationalNumber().docValues().counter(COUNTER_DOUBLE)),
+    FLOAT(builder().esType("float").size(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    HALF_FLOAT(builder().esType("half_float").size(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    SCALED_FLOAT(builder().esType("scaled_float").size(Long.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
 
     KEYWORD(builder().esType("keyword").unknownSize().docValues()),
     TEXT(builder().esType("text").unknownSize()),
@@ -80,14 +80,14 @@ public enum DataType {
     private final int size;
 
     /**
-     * True if the type represents an integer number
+     * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
      */
-    private final boolean isInteger;
+    private final boolean isWholeNumber;
 
     /**
-     * True if the type represents a rational number
+     * True if the type represents a "rational number", as in, <strong>does</strong> have a decimal part.
      */
-    private final boolean isRational;
+    private final boolean isRationalNumber;
 
     /**
      * True if the type supports doc values by default
@@ -117,8 +117,8 @@ public enum DataType {
         this.name = typeString.toUpperCase(Locale.ROOT);
         this.esType = builder.esType;
         this.size = builder.size;
-        this.isInteger = builder.isInteger;
-        this.isRational = builder.isRational;
+        this.isWholeNumber = builder.isWholeNumber;
+        this.isRationalNumber = builder.isRationalNumber;
         this.docValues = builder.docValues;
         this.isCounter = builder.isCounter;
         this.widenSmallNumeric = builder.widenSmallNumeric;
@@ -254,20 +254,32 @@ public enum DataType {
         return esType;
     }
 
+    /**
+     * The name we give to types on the response.
+     */
     public String outputType() {
         return esType == null ? "unsupported" : esType;
     }
 
-    public boolean isInteger() {
-        return isInteger;
+    /**
+     * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
+     */
+    public boolean isWholeNumber() {
+        return isWholeNumber;
     }
 
-    public boolean isRational() {
-        return isRational;
+    /**
+     * True if the type represents a "rational number", as in, <strong>does</strong> have a decimal part.
+     */
+    public boolean isRationalNumber() {
+        return isRationalNumber;
     }
 
+    /**
+     * Does this data type represent <strong>any</strong> number?
+     */
     public boolean isNumeric() {
-        return isInteger || isRational;
+        return isWholeNumber || isRationalNumber;
     }
 
     public int size() {
@@ -343,14 +355,14 @@ public enum DataType {
         private int size;
 
         /**
-         * True if the type represents an integer number
+         * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
          */
-        private boolean isInteger;
+        private boolean isWholeNumber;
 
         /**
-         * True if the type represents a rational number
+         * True if the type represents a "rational number", as in, <strong>does</strong> have a decimal part.
          */
-        private boolean isRational;
+        private boolean isRationalNumber;
 
         /**
          * True if the type supports doc values by default
@@ -396,13 +408,13 @@ public enum DataType {
             return this;
         }
 
-        Builder integer() {
-            this.isInteger = true;
+        Builder wholeNumber() {
+            this.isWholeNumber = true;
             return this;
         }
 
-        Builder rational() {
-            this.isRational = true;
+        Builder rationalNumber() {
+            this.isRationalNumber = true;
             return this;
         }
 

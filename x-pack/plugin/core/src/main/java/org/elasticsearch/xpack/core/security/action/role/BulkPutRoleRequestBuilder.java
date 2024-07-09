@@ -27,7 +27,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Builder for requests to bulk add a roles to the security index
  */
-public class BulkPutRoleRequestBuilder extends ActionRequestBuilder<BulkPutRolesRequest, BulkPutRolesResponse> {
+public class BulkPutRoleRequestBuilder extends ActionRequestBuilder<BulkPutRolesRequest, BulkRolesResponse> {
 
     private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowDescription(true).build();
     @SuppressWarnings("unchecked")
@@ -44,7 +44,7 @@ public class BulkPutRoleRequestBuilder extends ActionRequestBuilder<BulkPutRoles
     }
 
     public BulkPutRoleRequestBuilder(ElasticsearchClient client) {
-        super(client, ActionTypes.BULK_PUT_ROLES, new BulkPutRolesRequest());
+        super(client, ActionTypes.BULK_PUT_ROLES, new BulkPutRolesRequest(List.of()));
     }
 
     public BulkPutRoleRequestBuilder content(BytesReference content, XContentType xContentType) throws IOException {

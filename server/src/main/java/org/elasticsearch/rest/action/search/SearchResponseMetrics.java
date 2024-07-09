@@ -9,6 +9,8 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.builder.QueryCategory;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -19,6 +21,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class SearchResponseMetrics {
+
+    private static final Logger logger = LogManager.getLogger(SearchResponseMetrics.class);
 
     public enum ResponseCountTotalStatus {
         SUCCESS("succes"),
@@ -67,7 +71,9 @@ public class SearchResponseMetrics {
     }
 
     public long recordTookTime(long tookTime, Set<QueryCategory> queryCategories) {
-        tookDurationTotalMillisHistogram.record(tookTime, categoriesToAttributes(queryCategories));
+        Map<String, Object> attributes = categoriesToAttributes(queryCategories);
+        logger.info("Query attributes: {}", attributes);
+        tookDurationTotalMillisHistogram.record(tookTime, attributes);
         return tookTime;
     }
 
@@ -76,13 +82,12 @@ public class SearchResponseMetrics {
     }
 
     public void incrementResponseCount(ResponseCountTotalStatus responseCountTotalStatus, Set<QueryCategory> queryCategories) {
-        responseCountTotalCounter.incrementBy(
-            1L,
-            Maps.copyMapWithAddedEntry(
-                categoriesToAttributes(queryCategories),
-                RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME,
-                responseCountTotalStatus.getDisplayName()
-            )
+        Map<String, Object> attributes = Maps.copyMapWithAddedEntry(
+            categoriesToAttributes(queryCategories),
+            RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME,
+            responseCountTotalStatus.getDisplayName()
         );
+        logger.info("Query attributes: {}", attributes);
+        responseCountTotalCounter.incrementBy(1L, attributes);
     }
 }

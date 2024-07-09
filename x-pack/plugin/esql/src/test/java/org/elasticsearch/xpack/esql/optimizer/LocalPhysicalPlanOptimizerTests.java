@@ -839,21 +839,14 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testSearchWithUnsupportedMatchFilters() {
         var error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
             search test [
-                | where match(first_name, "Meg") and ends_with(last_name, "Ryan")
+                | where match(first_name, "Meg") or ends_with(last_name, "Ryan")
             ]
             """));
         assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));
 
         error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
             search test [
-               | where not match(first_name, "Goldie") and ends_with(last_name, "Hawn")
-            ]
-            """));
-        assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));
-
-        error = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
-            search test [
-               | where match(first_name, "Meryl") or concat(first_name, " ", last_name) == "Meryl Streep"
+               | where not match(first_name, "Goldie") or ends_with(last_name, "Hawn")
             ]
             """));
         assertThat(error.getMessage(), containsString("Unsupported expression using MATCH"));

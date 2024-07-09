@@ -261,10 +261,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             if (filterExec.child() instanceof EsQueryExec queryExec) {
                 List<Expression> pushable = new ArrayList<>();
                 List<Expression> nonPushable = new ArrayList<>();
-                var filterIncludesMatch = includesMatchExpression(filterExec.condition());
                 for (Expression exp : splitAnd(filterExec.condition())) {
                     var canPushExp = canPushToSource(exp, x -> hasIdenticalDelegate(x, ctx.searchStats()));
-                    if (canPushExp == false && filterIncludesMatch) {
+                    if (canPushExp == false && includesMatchExpression(exp)) {
                         throw new VerificationException("Unsupported expression using MATCH: [{}]", exp.source().text());
                     }
                     (canPushExp ? pushable : nonPushable).add(exp);

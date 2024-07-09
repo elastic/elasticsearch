@@ -88,9 +88,6 @@ public class EqualMatcher<T> extends Matcher {
     }
 
     private boolean matchArraysEqualIgnoringSorting(T[] actualArray, T[] expectedArray) {
-        if (actualArray.length != expectedArray.length) {
-            return false;
-        }
         final List<T> actualList = Arrays.asList(actualArray);
         final List<T> expectedList = Arrays.asList(expectedArray);
         return actualList.containsAll(expectedList) && expectedList.containsAll(actualList);

@@ -1,0 +1,5 @@
+pr: 110659
+summary: Fix autoscaling for partial deployments
+area: Machine Learning
+type: bug
+issues: []

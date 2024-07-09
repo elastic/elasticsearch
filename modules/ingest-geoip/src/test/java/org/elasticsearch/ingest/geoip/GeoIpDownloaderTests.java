@@ -565,22 +565,10 @@ public class GeoIpDownloaderTests extends ESTestCase {
         int unexpiredDatabasesCount = randomIntBetween(0, 100);
         Map<String, GeoIpTaskState.Metadata> databases = new HashMap<>();
         for (int i = 0; i < expiredDatabasesCount; i++) {
-            databases.put(
-                "expiredDatabase" + i,
-                new GeoIpTaskState.Metadata(0, 0, 0, randomAlphaOfLength(20), Instant.now().minus(40, ChronoUnit.DAYS).toEpochMilli())
-            );
+            databases.put("expiredDatabase" + i, newGeoIpTaskStateMetadata(true));
         }
         for (int i = 0; i < unexpiredDatabasesCount; i++) {
-            databases.put(
-                "unexpiredDatabase" + i,
-                new GeoIpTaskState.Metadata(
-                    0,
-                    0,
-                    0,
-                    randomAlphaOfLength(20),
-                    Instant.now().minus(randomIntBetween(0, 29), ChronoUnit.DAYS).toEpochMilli()
-                )
-            );
+            databases.put("unexpiredDatabase" + i, newGeoIpTaskStateMetadata(false));
         }
         GeoIpTaskState geoIpTaskState = new GeoIpTaskState(databases);
         geoIpDownloader.setState(geoIpTaskState);
@@ -608,6 +596,16 @@ public class GeoIpDownloaderTests extends ESTestCase {
             );
         }
         assertThat(deleteCount.get(), equalTo(expiredDatabasesCount));
+    }
+
+    private GeoIpTaskState.Metadata newGeoIpTaskStateMetadata(boolean expired) {
+        Instant lastChecked;
+        if (expired) {
+            lastChecked = Instant.now().minus(randomIntBetween(31, 100), ChronoUnit.DAYS);
+        } else {
+            lastChecked = Instant.now().minus(randomIntBetween(0, 29), ChronoUnit.DAYS);
+        }
+        return new GeoIpTaskState.Metadata(0, 0, 0, randomAlphaOfLength(20), lastChecked.toEpochMilli());
     }
 
     private static class MockClient extends NoOpClient {

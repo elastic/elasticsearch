@@ -810,6 +810,9 @@
                                 "closed": {
                                   "type": "long"
                                 },
+                                "concurrency": {
+                                  "type": "long"
+                                },
                                 "count": {
                                   "type": "long"
                                 },
@@ -2243,6 +2246,10 @@
                                 "closed": {
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.server.response.errors.closed"
+                                },
+                                "concurrency": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.concurrency"
                                 },
                                 "count": {
                                   "type": "alias",

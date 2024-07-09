@@ -990,6 +990,9 @@
                                 "closed": {
                                   "type": "long"
                                 },
+                                "concurrency": {
+                                  "type": "long"
+                                },
                                 "count": {
                                   "type": "long"
                                 },

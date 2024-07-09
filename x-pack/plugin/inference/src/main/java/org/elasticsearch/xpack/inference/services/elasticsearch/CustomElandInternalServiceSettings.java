@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
@@ -29,7 +30,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
     public static final String NAME = "custom_eland_model_internal_service_settings";
 
     public CustomElandInternalServiceSettings(
-        int numAllocations,
+        Integer numAllocations,
         int numThreads,
         String modelId,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings
@@ -51,7 +52,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
     public static CustomElandInternalServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        Integer numAllocations = extractRequiredPositiveInteger(
+        Integer numAllocations = extractOptionalPositiveInteger(
             map,
             NUM_ALLOCATIONS,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -99,7 +100,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
 
     public CustomElandInternalServiceSettings(StreamInput in) throws IOException {
         super(
-            in.readVInt(),
+            in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS) ? in.readOptionalVInt() : in.readVInt(),
             in.readVInt(),
             in.readString(),
             in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)

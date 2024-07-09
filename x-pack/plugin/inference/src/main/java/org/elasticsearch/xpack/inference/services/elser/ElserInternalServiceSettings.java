@@ -19,9 +19,11 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 
@@ -41,7 +43,7 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
     public static ElserInternalServiceSettings.Builder fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        Integer numAllocations = extractRequiredPositiveInteger(
+        Integer numAllocations = extractOptionalPositiveInteger(
             map,
             NUM_ALLOCATIONS,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -57,6 +59,14 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
             if (exception != null) {
                 validationException.addValidationErrors(exception.validationErrors());
             }
+        }
+        if (numAllocations == null && adaptiveAllocationsSettings == null) {
+            validationException.addValidationError(
+                ServiceUtils.missingOneOfSettingsErrorMsg(
+                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
+                    ModelConfigurations.SERVICE_SETTINGS
+                )
+            );
         }
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
@@ -87,7 +97,7 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
     }
 
     public ElserInternalServiceSettings(
-        int numAllocations,
+        Integer numAllocations,
         int numThreads,
         String modelId,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings
@@ -98,7 +108,7 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
 
     public ElserInternalServiceSettings(StreamInput in) throws IOException {
         super(
-            in.readVInt(),
+            in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS) ? in.readOptionalVInt() : in.readVInt(),
             in.readVInt(),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X) ? in.readString() : ElserInternalService.ELSER_V2_MODEL,
             in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)
@@ -119,7 +129,11 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(getNumAllocations());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            out.writeOptionalVInt(getNumAllocations());
+        } else {
+            out.writeVInt(getNumAllocations());
+        }
         out.writeVInt(getNumThreads());
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeString(getModelId());

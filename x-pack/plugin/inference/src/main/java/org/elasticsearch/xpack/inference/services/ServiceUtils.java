@@ -192,6 +192,10 @@ public final class ServiceUtils {
         return Strings.format("[%s] does not contain the required setting [%s]", scope, settingName);
     }
 
+    public static String missingOneOfSettingsErrorMsg(List<String> settingNames, String scope) {
+        return Strings.format("[%s] does not contain one of the required settings [%s]", scope, String.join(", ", settingNames));
+    }
+
     public static String invalidTypeErrorMsg(String settingName, Object foundObject, String expectedType) {
         return Strings.format(
             "field [%s] is not of the expected type. The value [%s] cannot be converted to a [%s]",

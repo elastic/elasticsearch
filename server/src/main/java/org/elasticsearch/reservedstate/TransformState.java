@@ -16,10 +16,5 @@ import java.util.Set;
  * A {@link ClusterState} wrapper used by the ReservedClusterStateService to pass the
  * current state as well as previous keys set by an {@link ReservedClusterStateHandler} to each transform
  * step of the cluster state update.
- *
- * Each {@link ReservedClusterStateHandler} can also provide a non cluster state transform consumer that should run after
- * the cluster state is fully validated. This allows for handlers to perform extra steps, like clearing caches or saving
- * other state outside the cluster state. The consumer, if provided, must return a {@link NonStateTransformResult} with
- * the keys that will be saved as reserved in the cluster state.
  */
 public record TransformState(ClusterState state, Set<String> keys) {}

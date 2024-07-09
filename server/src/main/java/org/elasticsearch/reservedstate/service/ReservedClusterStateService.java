@@ -205,11 +205,10 @@ public class ReservedClusterStateService {
             return;
         }
 
-        // We trial run all handler validations to ensure that we can process all of the cluster state error free. During
-        // the trial run we collect 'consumers' (functions) for any non cluster state transforms that need to run.
-        var trialRunResult = trialRun(namespace, state, reservedStateChunk, orderedHandlers);
+        // We trial run all handler validations to ensure that we can process all of the cluster state error free.
+        var trialRunErrors = trialRun(namespace, state, reservedStateChunk, orderedHandlers);
         // this is not using the modified trial state above, but that doesn't matter, we're just setting errors here
-        var error = checkAndReportError(namespace, trialRunResult.errors, reservedStateVersion);
+        var error = checkAndReportError(namespace, trialRunErrors, reservedStateVersion);
 
         if (error != null) {
             errorListener.accept(error);
@@ -269,14 +268,13 @@ public class ReservedClusterStateService {
     /**
      * Goes through all of the handlers, runs the validation and the transform part of the cluster state.
      * <p>
-     * While running the handlers we also collect any non cluster state transformation consumer actions that
-     * need to be performed asynchronously before we attempt to save the cluster state. The trial run does not
-     * result in an update of the cluster state, it's only purpose is to verify if we can correctly perform a
-     * cluster state update with the given reserved state chunk.
+     * The trial run does not result in an update of the cluster state, it's only purpose is to verify
+     * if we can correctly perform a cluster state update with the given reserved state chunk.
      *
      * Package private for testing
+     * @return Any errors that occured
      */
-    TrialRunResult trialRun(
+    List<String> trialRun(
         String namespace,
         ClusterState currentState,
         ReservedStateChunk stateChunk,
@@ -300,7 +298,7 @@ public class ReservedClusterStateService {
             }
         }
 
-        return new TrialRunResult(errors);
+        return errors;
     }
 
     /**
@@ -366,9 +364,4 @@ public class ReservedClusterStateService {
     public void installStateHandler(ReservedClusterStateHandler<?> handler) {
         this.handlers.put(handler.name(), handler);
     }
-
-    /**
-     * Helper record class to combine the result of a trial run, non cluster state actions and any errors
-     */
-    record TrialRunResult(List<String> errors) {}
 }

@@ -44,10 +44,10 @@ required_capability: agg_max_min_boolean_support
 from employees
 | eval x = salary is not null
 | where emp_no > 10050
-| stats a = max(salary is not null), b = max(x);
+| stats a = max(salary is not null), b = max(x), c = max(case(salary is null, true, false)), d = max(is_rehired);
 
-a:boolean | b:boolean
-true      | true
+a:boolean | b:boolean | c:boolean | d:boolean
+true      | true      | false     | true
 ;
 
 minOfBooleanExpression
@@ -55,10 +55,10 @@ required_capability: agg_max_min_boolean_support
 from employees
 | eval x = salary is not null
 | where emp_no > 10050
-| stats a = min(salary is not null), b = min(x);
+| stats a = min(salary is not null), b = min(x), c = min(case(salary is null, true, false)), d = min(is_rehired);
 
-a:boolean | b:boolean
-true      | true
+a:boolean | b:boolean | c:boolean | d:boolean
+true      | true      | false     | false
 ;
 
 minOfBoolean

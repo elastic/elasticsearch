@@ -121,8 +121,6 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
         return builder.startObject()
             .field("primary_term", primaryTerm())
             .field("blob_name", blobName())
-            // TODO: Remove writing blobLength to object store. Need it for now since an old node may read the commit
-            .field("blob_length", Long.MIN_VALUE)
             .field("offset", offset)
             .field("file_length", fileLength)
             .endObject();

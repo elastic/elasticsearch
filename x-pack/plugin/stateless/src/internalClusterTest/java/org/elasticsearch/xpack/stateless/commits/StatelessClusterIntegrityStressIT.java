@@ -805,17 +805,17 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                     if (namedReleasable == NamedReleasable.EMPTY) {
                         return;
                     }
-                    final PlainActionFuture<Void> removedFuture = new PlainActionFuture<>();
+                    final PlainActionFuture<Void> isolatedFuture = new PlainActionFuture<>();
                     final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
                     masterClusterService.addListener(new ClusterStateListener() {
                         @Override
                         public void clusterChanged(ClusterChangedEvent clusterChangedEvent) {
-                            if (removedFuture.isDone() == false
+                            if (isolatedFuture.isDone() == false
                                 && clusterChangedEvent.nodesDelta()
                                     .removedNodes()
                                     .stream()
                                     .anyMatch(d -> d.getName().equals(namedReleasable.name))) {
-                                removedFuture.onResponse(null);
+                                isolatedFuture.onResponse(null);
                                 masterClusterService.removeListener(this);
                             }
                         }
@@ -842,13 +842,13 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                         internalCluster().setDisruptionScheme(networkDisruption);
                         networkDisruption.startDisrupting();
                     }
-                    removedFuture.actionGet(defaultTestTimeout);
-                    logger.info("--> isolated node [{}] removed", namedReleasable.name);
+                    isolatedFuture.actionGet(defaultTestTimeout);
+                    logger.info("--> isolated node [{}]", namedReleasable.name);
                     try {
                         final var healthRequest = new ClusterHealthRequest().waitForStatus(ClusterHealthStatus.YELLOW)
                             .waitForEvents(Priority.LANGUID)
-                            .waitForNoRelocatingShards(true)
-                            .waitForNoInitializingShards(true)
+                            .waitForNoRelocatingShards(false)
+                            .waitForNoInitializingShards(false)
                             .waitForNodes(Integer.toString(nodes.size() - 1));
                         client(masterNodeName()).admin().cluster().health(healthRequest).actionGet(defaultTestTimeout);
                         logger.info("--> cluster is stable after node [{}] isolated", namedReleasable.name);

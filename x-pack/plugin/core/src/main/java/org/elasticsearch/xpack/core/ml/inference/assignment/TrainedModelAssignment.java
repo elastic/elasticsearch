@@ -41,6 +41,7 @@ import java.util.Set;
 // TODO implement better diffable logic so that whole diff does not need to be serialized if only one part changes
 /**
  * Trained model assignment object that contains assignment options and the assignment routing table
+ * Basically defines what a deployment is, and which nodes contain the allocations for that deployment
  */
 public final class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssignment>, ToXContentObject {
 
@@ -100,6 +101,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     }
 
     private final StartTrainedModelDeploymentAction.TaskParams taskParams;
+
+    // mapping of nodeId to RoutingInfo, which contains the status of all allocations on a node for this deployment
     private final Map<String, RoutingInfo> nodeRoutingTable;
     private final AssignmentState assignmentState;
     private final String reason;
@@ -289,13 +292,14 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     }
 
     public boolean isSatisfied(Set<String> assignableNodeIds) {
-        int allocations = nodeRoutingTable.entrySet()
+        // assignableNodeIds == all the ML Nodes in the cluster
+        int sumOfCurrentAllocationsOnAllStartingOrStartedNodes = nodeRoutingTable.entrySet()
             .stream()
             .filter(e -> assignableNodeIds.contains(e.getKey()))
             .filter(e -> e.getValue().getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED))
-            .mapToInt(e -> e.getValue().getTargetAllocations())
+            .mapToInt(e -> e.getValue().getCurrentAllocations())
             .sum();
-        return allocations >= taskParams.getNumberOfAllocations();
+        return sumOfCurrentAllocationsOnAllStartingOrStartedNodes >= taskParams.getNumberOfAllocations();
     }
 
     public boolean hasOutdatedRoutingEntries() {

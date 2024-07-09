@@ -266,7 +266,7 @@ class MlMemoryAutoscalingDecider {
                 }
                 // We should keep this check here as well as in the processor decider while cloud is not
                 // reacting to processor autoscaling.
-                if (modelAssignmentsRequireMoreThanHalfCpu(
+                if (modelAssignmentsRequireMoreThanHalfOfAvailableMlProcessors(
                     mlContext.modelAssignments.values(),
                     mlContext.mlNodes,
                     allocatedProcessorsScale
@@ -746,7 +746,8 @@ class MlMemoryAutoscalingDecider {
                 incrementCountFunction.accept(nodeLoad);
                 mostFreeMemoryFirst.add(
                     nodeLoad.incAssignedNativeCodeOverheadMemory(requiredNativeCodeOverhead)
-                        .incAssignedAnomalyDetectorMemory(requiredMemory)
+                        .incAssignedAnomalyDetectorMemory(requiredMemory) // TODO we only increment AD memory, but this function is called
+                                                                          // on trained models / native inference and DFA as well as AD
                 );
             }
         }
@@ -827,7 +828,7 @@ class MlMemoryAutoscalingDecider {
         return newCapacity;
     }
 
-    static boolean modelAssignmentsRequireMoreThanHalfCpu(
+    static boolean modelAssignmentsRequireMoreThanHalfOfAvailableMlProcessors(
         Collection<TrainedModelAssignment> assignments,
         List<DiscoveryNode> mlNodes,
         int allocatedProcessorsScale

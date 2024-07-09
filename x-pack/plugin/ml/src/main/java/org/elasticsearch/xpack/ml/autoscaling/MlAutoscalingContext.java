@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -89,12 +90,20 @@ class MlAutoscalingContext {
     }
 
     private static List<String> getWaitingAllocatedModels(Map<String, TrainedModelAssignment> modelAssignments) {
-        return modelAssignments.entrySet()
-            .stream()
-            // TODO: Eventually care about those that are STARTED but not FULLY_ALLOCATED
-            .filter(e -> e.getValue().getAssignmentState().equals(AssignmentState.STARTING) && e.getValue().getNodeRoutingTable().isEmpty())
-            .map(Map.Entry::getKey)
-            .toList();
+        return modelAssignments.entrySet().stream().filter(e -> isWaitingToBeFullyAllocated(e.getValue())).map(Map.Entry::getKey).toList();
+    }
+
+    private static boolean isWaitingToBeFullyAllocated(TrainedModelAssignment assignment) {
+        boolean isStarting = assignment.getAssignmentState().equals(AssignmentState.STARTING);
+        boolean isNotRouted = assignment.getNodeRoutingTable().isEmpty();
+
+        if (isStarting && isNotRouted) {
+            // we can avoid checking all the routing info at this point
+            return true;
+        }
+
+        Map<String, RoutingInfo> routing = assignment.getNodeRoutingTable();
+        return routing.values().stream().anyMatch(routingInfo -> routingInfo.getTargetAllocations() > routingInfo.getCurrentAllocations());
     }
 
     private static List<String> getWaitingAnalyticsJobs(

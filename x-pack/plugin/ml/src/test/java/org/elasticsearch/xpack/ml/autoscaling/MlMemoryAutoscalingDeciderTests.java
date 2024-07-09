@@ -1055,7 +1055,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
 
     public void testCpuModelAssignmentRequirements() {
         assertTrue(
-            MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
+            MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfOfAvailableMlProcessors(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
                         new StartTrainedModelDeploymentAction.TaskParams(
@@ -1093,7 +1093,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             )
         );
         assertTrue(
-            MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
+            MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfOfAvailableMlProcessors(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
                         new StartTrainedModelDeploymentAction.TaskParams(
@@ -1131,7 +1131,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             )
         );
         assertFalse(
-            MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
+            MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfOfAvailableMlProcessors(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
                         new StartTrainedModelDeploymentAction.TaskParams(

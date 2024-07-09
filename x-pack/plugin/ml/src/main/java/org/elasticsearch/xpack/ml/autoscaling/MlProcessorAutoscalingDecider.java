@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
@@ -49,17 +50,27 @@ class MlProcessorAutoscalingDecider {
     ) {
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(context.state());
 
-        if (hasUnsatisfiedDeployments(trainedModelAssignmentMetadata, mlContext.mlNodes)) {
-            logger.debug(() -> "Computing required capacity as there are partially allocated deployments");
-            scaleTimer.resetScaleDownCoolDown();
-            return computeRequiredCapacity(trainedModelAssignmentMetadata).setReason(
-                "requesting scale up as there are unsatisfied deployments"
-            ).build();
-        }
-
         final MlProcessorAutoscalingCapacity currentCapacity = computeCurrentCapacity(mlContext.mlNodes, allocatedProcessorsScale);
-
         final MlProcessorAutoscalingCapacity requiredCapacity = computeRequiredCapacity(trainedModelAssignmentMetadata).build();
+
+        if (currentCapacity.tierProcessors().roundUp() < requiredCapacity.tierProcessors().roundUp()
+            || currentCapacity.nodeProcessors().roundUp() < requiredCapacity.nodeProcessors().roundUp()) {
+            logger.debug(() -> "required capacity exceeded current capacity, requesting scale up");
+            scaleTimer.resetScaleDownCoolDown();
+
+            String reason = Strings.format(
+                "requesting scale up as current capacity [node:[{}], tier:[{}]] "
+                    + "is insufficient for required deployments [node:[{}], tier:[{}]]",
+                currentCapacity.nodeProcessors(),
+                currentCapacity.tierProcessors(),
+                requiredCapacity.nodeProcessors(),
+                requiredCapacity.tierProcessors()
+            );
+
+            return MlProcessorAutoscalingCapacity.builder(requiredCapacity.nodeProcessors(), requiredCapacity.tierProcessors())
+                .setReason(reason)
+                .build();
+        }
 
         if (requiredCapacity.tierProcessors().roundUp() == currentCapacity.tierProcessors().roundUp()) {
             return MlProcessorAutoscalingCapacity.builder(currentCapacity.nodeProcessors(), currentCapacity.tierProcessors())
@@ -67,7 +78,7 @@ class MlProcessorAutoscalingDecider {
                 .build();
         }
 
-        if (MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
+        if (MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfOfAvailableMlProcessors(
             trainedModelAssignmentMetadata.allAssignments().values(),
             mlContext.mlNodes,
             allocatedProcessorsScale
@@ -106,18 +117,6 @@ class MlProcessorAutoscalingDecider {
                 )
             )
             .build();
-    }
-
-    private static boolean hasUnsatisfiedDeployments(
-        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata,
-        List<DiscoveryNode> mlNodes
-    ) {
-        final Set<String> mlNodeIds = mlNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
-        return trainedModelAssignmentMetadata.allAssignments()
-            .values()
-            .stream()
-            .filter(deployment -> deployment.getTaskParams().getPriority() == Priority.NORMAL)
-            .anyMatch(deployment -> deployment.isSatisfied(mlNodeIds) == false);
     }
 
     private static MlProcessorAutoscalingCapacity.Builder computeRequiredCapacity(

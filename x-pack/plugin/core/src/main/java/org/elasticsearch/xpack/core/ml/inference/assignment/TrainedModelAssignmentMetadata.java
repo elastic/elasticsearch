@@ -39,11 +39,14 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 
+// Provides a mapping of deploymentIds to TrainedModelAssignments. TrainedModelAssignment provides all the information about allocations
 public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
     private static final TrainedModelAssignmentMetadata EMPTY = new TrainedModelAssignmentMetadata(Collections.emptyMap());
     public static final String DEPRECATED_NAME = "trained_model_allocation";
     public static final String NAME = "trained_model_assignment";
+
+    // Mapping of deploymentId to TrainedModelAssignment
     private final Map<String, TrainedModelAssignment> deploymentRoutingEntries;
     private final String writeableName;
 

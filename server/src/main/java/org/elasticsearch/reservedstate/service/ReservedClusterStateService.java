@@ -41,6 +41,7 @@ import static org.elasticsearch.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.checkErrorVersion;
+import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.isNewError;
 import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.checkMetadataVersion;
 import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.keysForHandler;
 
@@ -151,7 +152,6 @@ public class ReservedClusterStateService {
             new ReservedStateUpdateTask(
                 namespace,
                 emptyState,
-                List.of(),
                 Map.of(),
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
@@ -212,7 +212,37 @@ public class ReservedClusterStateService {
 
         if (error != null) {
             errorListener.accept(error);
+            return;
         }
+        updateTaskQueue.submitTask(
+            "reserved cluster state [" + namespace + "]",
+            new ReservedStateUpdateTask(
+                namespace,
+                reservedStateChunk,
+                handlers,
+                orderedHandlers,
+                ReservedClusterStateService.this::updateErrorState,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(ActionResponse.Empty empty) {
+                        logger.info("Successfully applied new reserved cluster state for namespace [{}]", namespace);
+                        errorListener.accept(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // Don't spam the logs on repeated errors
+                        if (isNewError(existingMetadata, reservedStateVersion.version())) {
+                            logger.debug("Failed to apply reserved cluster state", e);
+                            errorListener.accept(e);
+                        } else {
+                            errorListener.accept(null);
+                        }
+                    }
+                }
+            ),
+            null
+        );
     }
 
     // package private for testing

@@ -580,7 +580,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
         client.addHandler(
             UpdatePersistentTaskStatusAction.INSTANCE,
             (UpdatePersistentTaskStatusAction.Request request, ActionListener<PersistentTaskResponse> taskResponseListener) -> {
-
                 PersistentTasksCustomMetadata.Assignment assignment = mock(PersistentTasksCustomMetadata.Assignment.class);
                 PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = new PersistentTasksCustomMetadata.PersistentTask<>(
                     GeoIpDownloader.GEOIP_DOWNLOADER,
@@ -589,8 +588,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
                     request.getAllocationId(),
                     assignment
                 );
-                taskResponseListener.onResponse(new PersistentTaskResponse(new PersistentTask<>(persistentTask, request.getState())));
                 updatePersistentTaskStateCount.incrementAndGet();
+                taskResponseListener.onResponse(new PersistentTaskResponse(new PersistentTask<>(persistentTask, request.getState())));
             }
         );
         client.addHandler(

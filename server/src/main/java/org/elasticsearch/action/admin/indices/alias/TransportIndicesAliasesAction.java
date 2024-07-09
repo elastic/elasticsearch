@@ -123,6 +123,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             List<String> concreteDataStreams = indexNameExpressionResolver.dataStreamNames(
                 state,
                 request.indicesOptions(),
+                action.autoExpandAliases() != null ? action.autoExpandAliases() : false,
                 action.indices()
             );
             final Index[] concreteIndices;
@@ -130,7 +131,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                 Index[] unprocessedConcreteIndices = indexNameExpressionResolver.concreteIndices(
                     state,
                     request.indicesOptions(),
-                    true,
+                    action.autoExpandAliases(),
                     action.indices()
                 );
                 List<Index> nonBackingIndices = Arrays.stream(unprocessedConcreteIndices).filter(index -> {
@@ -190,7 +191,12 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                     default -> throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
                 }
             } else {
-                concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), false, action.indices());
+                concreteIndices = indexNameExpressionResolver.concreteIndices(
+                    state,
+                    request.indicesOptions(),
+                    action.autoExpandAliases(),
+                    action.indices()
+                );
             }
 
             for (Index concreteIndex : concreteIndices) {

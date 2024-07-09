@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -88,6 +89,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField ADD = new ParseField("add");
         private static final ParseField REMOVE = new ParseField("remove");
         private static final ParseField REMOVE_INDEX = new ParseField("remove_index");
+        private static final ParseField AUTO_EXPAND_ALIASES = new ParseField("auto_expand_aliases");
 
         public enum Type {
             ADD((byte) 0, AliasActions.ADD),
@@ -190,6 +192,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::writeIndex, XContentParser::booleanValue, IS_WRITE_INDEX, ValueType.BOOLEAN);
             ADD_PARSER.declareField(AliasActions::isHidden, XContentParser::booleanValue, IS_HIDDEN, ValueType.BOOLEAN);
+            ADD_PARSER.declareField(AliasActions::autoExpandAliases, XContentParser::booleanValue, AUTO_EXPAND_ALIASES, ValueType.BOOLEAN);
             REMOVE_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
         }
 
@@ -227,6 +230,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private Boolean writeIndex;
         private Boolean isHidden;
         private Boolean mustExist;
+        private Boolean autoExpandAliases;
 
         public AliasActions(AliasActions.Type type) {
             this.type = type;
@@ -247,6 +251,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             isHidden = in.readOptionalBoolean();
             originalAliases = in.readStringArray();
             mustExist = in.readOptionalBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.AUTO_EXPAND_ALIASES)) {
+                autoExpandAliases = in.readOptionalBoolean();
+            } else {
+                autoExpandAliases = false;
+            }
         }
 
         @Override
@@ -262,6 +271,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalBoolean(isHidden);
             out.writeStringArray(originalAliases);
             out.writeOptionalBoolean(mustExist);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.AUTO_EXPAND_ALIASES)) {
+                out.writeOptionalBoolean(autoExpandAliases);
+            }
         }
 
         /**
@@ -462,6 +474,18 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return mustExist;
         }
 
+        public AliasActions autoExpandAliases(Boolean autoExpandAliases) {
+            if (type != Type.ADD) {
+                throw new IllegalArgumentException("[" + AUTO_EXPAND_ALIASES.getPreferredName() + "] is unsupported for [" + type + "]");
+            }
+            this.autoExpandAliases = autoExpandAliases;
+            return this;
+        }
+
+        public Boolean autoExpandAliases() {
+            return autoExpandAliases;
+        }
+
         @Override
         public String[] aliases() {
             return aliases;
@@ -531,6 +555,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (null != mustExist) {
                 builder.field(MUST_EXIST.getPreferredName(), mustExist);
             }
+            if (null != autoExpandAliases) {
+                builder.field(AUTO_EXPAND_ALIASES.getPreferredName(), autoExpandAliases);
+            }
             builder.endObject();
             builder.endObject();
             return builder;
@@ -563,6 +590,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 + isHidden
                 + ",mustExist="
                 + mustExist
+                + ",autoExpandAliases="
+                + autoExpandAliases
                 + "]";
         }
 
@@ -582,7 +611,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 && Objects.equals(searchRouting, other.searchRouting)
                 && Objects.equals(writeIndex, other.writeIndex)
                 && Objects.equals(isHidden, other.isHidden)
-                && Objects.equals(mustExist, other.mustExist);
+                && Objects.equals(mustExist, other.mustExist)
+                && Objects.equals(autoExpandAliases, other.autoExpandAliases);
         }
 
         @Override
@@ -597,7 +627,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 searchRouting,
                 writeIndex,
                 isHidden,
-                mustExist
+                mustExist,
+                autoExpandAliases
             );
         }
     }

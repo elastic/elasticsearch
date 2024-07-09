@@ -401,8 +401,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(newStateMaker, exceptionThrower))
         );
 
-        var trialRunResult = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
-        assertThat(trialRunResult.errors(), contains(containsString("Error processing one state change:")));
+        var trialRunErrors = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
+        assertThat(trialRunErrors, contains(containsString("Error processing one state change:")));
 
         // We exit on duplicate errors before we update the cluster state error metadata
         assertThat(
@@ -605,8 +605,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(newStateMaker, exceptionThrower))
         );
 
-        var trialRunResult = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
-        assertThat(trialRunResult.errors(), empty());
+        var trialRunErrors = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
+        assertThat(trialRunErrors, empty());
     }
 
     static class TestHandler implements ReservedClusterStateHandler<Map<String, Object>> {

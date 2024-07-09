@@ -564,3 +564,27 @@ last_name:keyword
 Facello
 Simmel
 ;
+
+shadowingHierarchical
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.continent.name, city.country.name, city.name, city.country.continent.planet.name
+| SORT city.name
+;
+
+city.country.continent.name:keyword | city.country.name:keyword | city.name:keyword | city.country.continent.planet.name:keyword
+Europe                              | Netherlands               | Amsterdam         | Earth
+North America                       | United States of America  | San Francisco     | Earth
+Asia                                | Japan                     | Tokyo             | Earth
+;
+
+shadowingHierarchicalWildcard
+FROM addresses
+| KEEP *name, city.country.continent.planet.name
+| SORT city.name
+;
+
+city.country.continent.name:keyword | city.country.name:keyword | city.name:keyword | city.country.continent.planet.name:keyword
+Europe                              | Netherlands               | Amsterdam         | Earth
+North America                       | United States of America  | San Francisco     | Earth
+Asia                                | Japan                     | Tokyo             | Earth
+;

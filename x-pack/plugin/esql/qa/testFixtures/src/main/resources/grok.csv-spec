@@ -26,6 +26,19 @@ first_name:keyword | left:keyword | full_name:keyword | right:keyword | last_nam
 Georgi             | left         |    Georgi Facello | right         | Facello
 ;
 
+shadowingHierarchical
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.name, city.name
+| GROK city.name "%{WORD:city.country.continent.planet.name} %{WORD}"
+| SORT city.name
+;
+
+city.country.name:keyword | city.name:keyword | city.country.continent.planet.name:keyword
+Netherlands               | Amsterdam         | null
+United States of America  | San Francisco     | San
+Japan                     | Tokyo             | null
+;
+
 shadowingSelf
 FROM employees
 | KEEP first_name, last_name

@@ -9,10 +9,20 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,6 +41,8 @@ public class WordListsIndexService {
     private static final String WORD_LISTS_ALIAS_NAME = ".word_lists";
     private static final int WORD_LISTS_INDEX_MAPPINGS_VERSION = 1;
     private static final String WORD_LIST_ID_FIELD = "id";
+    private static final String WORD_LIST_INDEX_FIELD = "index";
+    private static final String WORD_LIST_NAME_FIELD = "name";
     private static final String WORD_LIST_VALUE_FIELD = "value";
 
     public static final SystemIndexDescriptor WORD_LISTS_DESCRIPTOR = SystemIndexDescriptor.builder()
@@ -47,8 +59,13 @@ public class WordListsIndexService {
 
     private final Client client;
 
+    public enum PutWordListResult {
+        CREATED,
+        UPDATED
+    }
+
     public WordListsIndexService(Client client) {
-        this.client = client;
+        this.client = new OriginSettingClient(client, ANALYSIS_ORIGIN);
     }
 
     private static XContentBuilder mappings() {
@@ -68,6 +85,16 @@ public class WordListsIndexService {
                     builder.startObject("properties");
                     {
                         builder.startObject(WORD_LIST_ID_FIELD);
+                        {
+                            builder.field("type", "keyword");
+                        }
+                        builder.endObject();
+                        builder.startObject(WORD_LIST_INDEX_FIELD);
+                        {
+                            builder.field("type", "keyword");
+                        }
+                        builder.endObject();
+                        builder.startObject(WORD_LIST_NAME_FIELD);
                         {
                             builder.field("type", "keyword");
                         }
@@ -97,5 +124,61 @@ public class WordListsIndexService {
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), WORD_LISTS_INDEX_FORMAT)
             .build();
+    }
+
+    public void getWordListValue(String index, String wordListName, ActionListener<String> listener) {
+        final String wordListId = generateWordListId(index, wordListName);
+        client.prepareSearch(WORD_LISTS_ALIAS_NAME)
+            .setQuery(QueryBuilders.termQuery(WORD_LIST_ID_FIELD, wordListId))
+            .setSize(1)
+            .setPreference(Preference.LOCAL.type())
+            .setTrackTotalHits(true)
+            .execute(new DelegatingActionListener<>(listener) {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    final long wordListCount = searchResponse.getHits().getTotalHits().value;
+                    if (wordListCount > 1) {
+                        listener.onFailure(new IllegalStateException(wordListCount + " word lists have ID [" + wordListId + "]"));
+                    } else if (wordListCount == 1) {
+                        listener.onResponse(searchResponse.getHits().getHits()[0].field(WORD_LIST_VALUE_FIELD).getValue());
+                    } else {
+                        listener.onResponse(null);
+                    }
+                }
+            });
+    }
+
+    public void putWordList(String index, String wordListName, String wordListValue, ActionListener<PutWordListResult> listener) throws IOException {
+        IndexRequest indexRequest = createWordListIndexRequest(index, wordListName, wordListValue).setRefreshPolicy(
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        );
+
+        client.index(indexRequest, listener.delegateFailure((l, indexResponse) -> {
+            PutWordListResult result = indexResponse.status() == RestStatus.CREATED
+                ? PutWordListResult.CREATED
+                : PutWordListResult.UPDATED;
+
+            l.onResponse(result);
+        }));
+    }
+
+    private static String generateWordListId(String index, String wordListName) {
+        return index + "_" + wordListName;
+    }
+
+    private static IndexRequest createWordListIndexRequest(String index, String wordListName, String wordListValue) throws IOException {
+        final String wordListId = generateWordListId(index, wordListName);
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.field(WORD_LIST_ID_FIELD, wordListId);
+                builder.field(WORD_LIST_INDEX_FIELD, index);
+                builder.field(WORD_LIST_NAME_FIELD, wordListName);
+                builder.field(WORD_LIST_VALUE_FIELD, wordListValue);
+            }
+            builder.endObject();
+
+            return new IndexRequest(WORD_LISTS_ALIAS_NAME).id(wordListId).opType(DocWriteRequest.OpType.INDEX).source(builder);
+        }
     }
 }

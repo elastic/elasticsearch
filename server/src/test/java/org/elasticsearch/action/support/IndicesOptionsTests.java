@@ -357,15 +357,10 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            randomBoolean()
-        );
-        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
             randomBoolean(),
             randomBoolean()
         );
+        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
         FailureStoreOptions failureStoreOptions = new IndicesOptions.FailureStoreOptions(randomBoolean(), randomBoolean());
 
         IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, failureStoreOptions);
@@ -382,13 +377,14 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), equalTo(wildcardOptions.includeHidden()));
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
-        assertThat(map.get("auto_expand_aliases"), equalTo(gatekeeperOptions.autoExpandAliases()));
+        assertThat(map.get("auto_expand_aliases"), equalTo(wildcardOptions.autoExpandAliases()));
         assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
         assertThat(map.get("failure_store"), equalTo(failureStoreOptions.displayValue()));
     }
 
     public void testFromXContent() throws IOException {
         WildcardOptions wildcardOptions = new WildcardOptions(
+            randomBoolean(),
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),

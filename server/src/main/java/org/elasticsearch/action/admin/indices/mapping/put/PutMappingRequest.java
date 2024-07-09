@@ -75,12 +75,12 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 .includeHidden(false)
                 .allowEmptyExpressions(false)
                 .resolveAliases(true)
+                .autoExpandAliases(false)
         )
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder()
                 .allowClosedIndices(true)
                 .allowAliasToMultipleIndices(true)
-                .autoExpandAliases(false)
                 .ignoreThrottled(false)
                 .allowFailureIndices(false)
         )

@@ -113,15 +113,22 @@ public record IndicesOptions(
         boolean matchClosed,
         boolean includeHidden,
         boolean resolveAliases,
-        boolean allowEmptyExpressions
+        boolean allowEmptyExpressions,
+        boolean autoExpandAliases
     ) implements ToXContentFragment {
 
         public static final String EXPAND_WILDCARDS = "expand_wildcards";
         public static final String ALLOW_NO_INDICES = "allow_no_indices";
+        public static final String AUTO_EXPAND_ALIASES = "auto_expand_aliases";
 
-        public static final WildcardOptions DEFAULT = new WildcardOptions(true, false, false, true, true);
+        public static final WildcardOptions DEFAULT = new WildcardOptions(true, false, false, true, true, true);
 
-        public static WildcardOptions parseParameters(Object expandWildcards, Object allowNoIndices, WildcardOptions defaultOptions) {
+        public static WildcardOptions parseParameters(
+            Object expandWildcards,
+            Object allowNoIndices,
+            Object autoExpandAliases,
+            WildcardOptions defaultOptions
+        ) {
             if (expandWildcards == null && allowNoIndices == null) {
                 return defaultOptions;
             }
@@ -133,6 +140,9 @@ public record IndicesOptions(
 
             if (allowNoIndices != null) {
                 builder.allowEmptyExpressions(nodeBooleanValue(allowNoIndices, ALLOW_NO_INDICES));
+            }
+            if (autoExpandAliases != null) {
+                builder.autoExpandAliases(nodeBooleanValue(autoExpandAliases, AUTO_EXPAND_ALIASES));
             }
             return builder.build();
         }
@@ -179,6 +189,7 @@ public record IndicesOptions(
                 builder.endArray();
             }
             builder.field(ALLOW_NO_INDICES, allowEmptyExpressions());
+            builder.field(AUTO_EXPAND_ALIASES, autoExpandAliases());
             return builder;
         }
 
@@ -188,6 +199,7 @@ public record IndicesOptions(
             private boolean includeHidden;
             private boolean resolveAliases;
             private boolean allowEmptyExpressions;
+            private boolean autoExpandAliases;
 
             Builder() {
                 this(DEFAULT);
@@ -199,6 +211,7 @@ public record IndicesOptions(
                 includeHidden = options.includeHidden;
                 resolveAliases = options.resolveAliases;
                 allowEmptyExpressions = options.allowEmptyExpressions;
+                autoExpandAliases = options.autoExpandAliases;
             }
 
             /**
@@ -244,6 +257,11 @@ public record IndicesOptions(
                 return this;
             }
 
+            public Builder autoExpandAliases(boolean autoExpandAliases) {
+                this.autoExpandAliases = autoExpandAliases;
+                return this;
+            }
+
             /**
              * Disables expanding wildcards.
              */
@@ -251,6 +269,7 @@ public record IndicesOptions(
                 matchOpen = false;
                 matchClosed = false;
                 includeHidden = false;
+                autoExpandAliases = false;
                 return this;
             }
 
@@ -261,6 +280,7 @@ public record IndicesOptions(
                 matchOpen = true;
                 matchClosed = true;
                 includeHidden = true;
+                autoExpandAliases = true;
                 return this;
             }
 
@@ -291,7 +311,7 @@ public record IndicesOptions(
             }
 
             public WildcardOptions build() {
-                return new WildcardOptions(matchOpen, matchClosed, includeHidden, resolveAliases, allowEmptyExpressions);
+                return new WildcardOptions(matchOpen, matchClosed, includeHidden, resolveAliases, allowEmptyExpressions, autoExpandAliases);
             }
         }
 
@@ -320,13 +340,11 @@ public record IndicesOptions(
         boolean allowAliasToMultipleIndices,
         boolean allowClosedIndices,
         boolean allowFailureIndices,
-        boolean autoExpandAliases,
         @Deprecated boolean ignoreThrottled
     ) implements ToXContentFragment {
 
-        public static final String AUTO_EXPAND_ALIASES = "auto_expand_aliases";
         public static final String IGNORE_THROTTLED = "ignore_throttled";
-        public static final GatekeeperOptions DEFAULT = new GatekeeperOptions(true, true, true, false, false);
+        public static final GatekeeperOptions DEFAULT = new GatekeeperOptions(true, true, true, false);
 
         public static GatekeeperOptions parseParameter(Object ignoreThrottled, GatekeeperOptions defaultOptions) {
             if (ignoreThrottled == null && defaultOptions != null) {
@@ -339,14 +357,13 @@ public record IndicesOptions(
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(IGNORE_THROTTLED, ignoreThrottled()).field(AUTO_EXPAND_ALIASES, autoExpandAliases());
+            return builder.field(IGNORE_THROTTLED, ignoreThrottled());
         }
 
         public static class Builder {
             private boolean allowAliasToMultipleIndices;
             private boolean allowClosedIndices;
             private boolean allowFailureIndices;
-            private boolean autoExpandAliases;
             private boolean ignoreThrottled;
 
             public Builder() {
@@ -357,7 +374,6 @@ public record IndicesOptions(
                 allowAliasToMultipleIndices = options.allowAliasToMultipleIndices;
                 allowClosedIndices = options.allowClosedIndices;
                 allowFailureIndices = options.allowFailureIndices;
-                autoExpandAliases = options.autoExpandAliases;
                 ignoreThrottled = options.ignoreThrottled;
             }
 
@@ -388,11 +404,6 @@ public record IndicesOptions(
                 return this;
             }
 
-            public Builder autoExpandAliases(boolean autoExpandAliases) {
-                this.autoExpandAliases = autoExpandAliases;
-                return this;
-            }
-
             /**
              * Throttled indices will not be included in the result. Defaults to false.
              */
@@ -402,13 +413,7 @@ public record IndicesOptions(
             }
 
             public GatekeeperOptions build() {
-                return new GatekeeperOptions(
-                    allowAliasToMultipleIndices,
-                    allowClosedIndices,
-                    allowFailureIndices,
-                    autoExpandAliases,
-                    ignoreThrottled
-                );
+                return new GatekeeperOptions(allowAliasToMultipleIndices, allowClosedIndices, allowFailureIndices, ignoreThrottled);
             }
         }
 
@@ -550,7 +555,8 @@ public record IndicesOptions(
         ERROR_WHEN_CLOSED_INDICES,
         IGNORE_THROTTLED,
 
-        ALLOW_FAILURE_INDICES // Added in 8.14
+        ALLOW_FAILURE_INDICES, // Added in 8.14
+        AUTO_EXPAND_ALIASES    // Added in 8.16
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
@@ -576,6 +582,7 @@ public record IndicesOptions(
                 .includeHidden(false)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -595,6 +602,7 @@ public record IndicesOptions(
                 .includeHidden(false)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -614,6 +622,7 @@ public record IndicesOptions(
                 .includeHidden(false)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -633,6 +642,7 @@ public record IndicesOptions(
                 .includeHidden(true)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -652,6 +662,7 @@ public record IndicesOptions(
                 .includeHidden(false)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -665,7 +676,13 @@ public record IndicesOptions(
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(true)
+                .includeHidden(true)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -685,6 +702,7 @@ public record IndicesOptions(
                 .includeHidden(false)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -698,7 +716,13 @@ public record IndicesOptions(
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(true)
+                .includeHidden(true)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -718,6 +742,7 @@ public record IndicesOptions(
                 .includeHidden(false)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -731,7 +756,13 @@ public record IndicesOptions(
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN_FAILURE_STORE = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(true)
+                .includeHidden(true)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -751,6 +782,7 @@ public record IndicesOptions(
                 .includeHidden(false)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -770,6 +802,7 @@ public record IndicesOptions(
                 .includeHidden(false)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -789,6 +822,7 @@ public record IndicesOptions(
                 .includeHidden(true)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -808,6 +842,7 @@ public record IndicesOptions(
                 .includeHidden(false)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -827,6 +862,7 @@ public record IndicesOptions(
                 .includeHidden(false)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -846,6 +882,7 @@ public record IndicesOptions(
                 .includeHidden(false)
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
+                .autoExpandAliases(true)
         )
         .gatekeeperOptions(
             GatekeeperOptions.builder()
@@ -933,7 +970,7 @@ public record IndicesOptions(
     }
 
     public boolean autoExpandAliases() {
-        return gatekeeperOptions().autoExpandAliases();
+        return wildcardOptions.autoExpandAliases();
     }
 
     /**
@@ -976,6 +1013,9 @@ public record IndicesOptions(
         }
         if (ignoreUnavailable()) {
             backwardsCompatibleOptions.add(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS);
+        }
+        if (autoExpandAliases()) {
+            backwardsCompatibleOptions.add(Option.AUTO_EXPAND_ALIASES);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS)) {
             if (allowFailureIndices()) {
@@ -1186,7 +1226,7 @@ public record IndicesOptions(
             allowAliasesToMultipleIndices,
             forbidClosedIndices,
             ignoreAliases,
-            false,
+            true,
             ignoreThrottled
         );
     }
@@ -1209,11 +1249,11 @@ public record IndicesOptions(
             .includeHidden(expandToHiddenIndices)
             .resolveAliases(ignoreAliases == false)
             .allowEmptyExpressions(allowNoIndices)
+            .autoExpandAliases(autoExpandAliases)
             .build();
         final GatekeeperOptions gatekeeperOptions = GatekeeperOptions.builder()
             .allowAliasToMultipleIndices(allowAliasesToMultipleIndices)
             .allowClosedIndices(forbidClosedIndices == false)
-            .autoExpandAliases(autoExpandAliases)
             .ignoreThrottled(ignoreThrottled)
             .build();
         return new IndicesOptions(
@@ -1237,6 +1277,7 @@ public record IndicesOptions(
             DataStream.isFailureStoreFeatureFlagEnabled()
                 ? request.param(FailureStoreOptions.FAILURE_STORE)
                 : FailureStoreOptions.INCLUDE_ONLY_REGULAR_INDICES,
+            request.param(WildcardOptions.AUTO_EXPAND_ALIASES),
             defaultSettings
         );
     }
@@ -1253,6 +1294,7 @@ public record IndicesOptions(
                     ? map.get(GatekeeperOptions.IGNORE_THROTTLED)
                     : map.get("ignoreThrottled"),
                 map.containsKey(FailureStoreOptions.FAILURE_STORE) ? map.get(FailureStoreOptions.FAILURE_STORE) : map.get("failureStore"),
+                false,
                 defaultSettings
             );
         }
@@ -1263,6 +1305,9 @@ public record IndicesOptions(
                 : map.get("ignoreUnavailable"),
             map.containsKey(WildcardOptions.ALLOW_NO_INDICES) ? map.get(WildcardOptions.ALLOW_NO_INDICES) : map.get("allowNoIndices"),
             map.containsKey(GatekeeperOptions.IGNORE_THROTTLED) ? map.get(GatekeeperOptions.IGNORE_THROTTLED) : map.get("ignoreThrottled"),
+            map.containsKey(WildcardOptions.AUTO_EXPAND_ALIASES)
+                ? map.get(WildcardOptions.AUTO_EXPAND_ALIASES)
+                : map.get("autoExpandAliases"),
             defaultSettings
         );
     }
@@ -1280,6 +1325,8 @@ public record IndicesOptions(
             || "ignoreThrottled".equals(name)
             || WildcardOptions.ALLOW_NO_INDICES.equals(name)
             || "allowNoIndices".equals(name)
+            || WildcardOptions.AUTO_EXPAND_ALIASES.equals(name)
+            || "autoExpandAliases".equals(name)
             || (DataStream.isFailureStoreFeatureFlagEnabled() && FailureStoreOptions.FAILURE_STORE.equals(name))
             || (DataStream.isFailureStoreFeatureFlagEnabled() && "failureStore".equals(name));
     }
@@ -1291,7 +1338,26 @@ public record IndicesOptions(
         Object ignoreThrottled,
         IndicesOptions defaultSettings
     ) {
-        return fromParameters(wildcardsString, ignoreUnavailableString, allowNoIndicesString, ignoreThrottled, null, defaultSettings);
+        return fromParameters(wildcardsString, ignoreUnavailableString, allowNoIndicesString, ignoreThrottled, null, null, defaultSettings);
+    }
+
+    public static IndicesOptions fromParameters(
+        Object wildcardsString,
+        Object ignoreUnavailableString,
+        Object allowNoIndicesString,
+        Object ignoreThrottled,
+        Object autoExpandAliases,
+        IndicesOptions defaultSettings
+    ) {
+        return fromParameters(
+            wildcardsString,
+            ignoreUnavailableString,
+            allowNoIndicesString,
+            ignoreThrottled,
+            null,
+            autoExpandAliases,
+            defaultSettings
+        );
     }
 
     public static IndicesOptions fromParameters(
@@ -1300,17 +1366,24 @@ public record IndicesOptions(
         Object allowNoIndicesString,
         Object ignoreThrottled,
         Object failureStoreString,
+        Object autoExpandAliasesString,
         IndicesOptions defaultSettings
     ) {
         if (wildcardsString == null
             && ignoreUnavailableString == null
             && allowNoIndicesString == null
             && ignoreThrottled == null
-            && failureStoreString == null) {
+            && failureStoreString == null
+            && autoExpandAliasesString == null) {
             return defaultSettings;
         }
 
-        WildcardOptions wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.wildcardOptions);
+        WildcardOptions wildcards = WildcardOptions.parseParameters(
+            wildcardsString,
+            allowNoIndicesString,
+            autoExpandAliasesString,
+            defaultSettings.wildcardOptions
+        );
         GatekeeperOptions gatekeeperOptions = GatekeeperOptions.parseParameter(ignoreThrottled, defaultSettings.gatekeeperOptions);
         FailureStoreOptions failureStoreOptions = DataStream.isFailureStoreFeatureFlagEnabled()
             ? FailureStoreOptions.parseParameters(failureStoreString, defaultSettings.failureStoreOptions)
@@ -1338,10 +1411,10 @@ public record IndicesOptions(
 
     private static final ParseField EXPAND_WILDCARDS_FIELD = new ParseField(WildcardOptions.EXPAND_WILDCARDS);
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField(ConcreteTargetOptions.IGNORE_UNAVAILABLE);
-    private static final ParseField AUTO_EXPAND_ALIASES_FIELD = new ParseField(GatekeeperOptions.AUTO_EXPAND_ALIASES);
     private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GatekeeperOptions.IGNORE_THROTTLED).withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField(WildcardOptions.ALLOW_NO_INDICES);
     private static final ParseField FAILURE_STORE_FIELD = new ParseField(FailureStoreOptions.FAILURE_STORE);
+    private static final ParseField AUTO_EXPAND_ALIASES_FIELD = new ParseField(WildcardOptions.AUTO_EXPAND_ALIASES);
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, null);
@@ -1355,6 +1428,7 @@ public record IndicesOptions(
         FailureStoreOptions failureStoreOptions = defaults == null ? FailureStoreOptions.DEFAULT : defaults.failureStoreOptions();
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
+        Boolean autoExpandAliases = defaults == null ? null : defaults.autoExpandAliases();
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
         String currentFieldName = null;
         if (token != Token.START_OBJECT) {
@@ -1401,7 +1475,7 @@ public record IndicesOptions(
                 } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     allowNoIndices = parser.booleanValue();
                 } else if (AUTO_EXPAND_ALIASES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    generalOptions.autoExpandAliases(parser.booleanValue());
+                    autoExpandAliases = parser.booleanValue();
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     generalOptions.ignoreThrottled(parser.booleanValue());
                 } else if (DataStream.isFailureStoreFeatureFlagEnabled()
@@ -1431,6 +1505,11 @@ public record IndicesOptions(
         if (ignoreUnavailable == null) {
             throw new ElasticsearchParseException(
                 "indices options xcontent did not contain " + IGNORE_UNAVAILABLE_FIELD.getPreferredName()
+            );
+        }
+        if (autoExpandAliases == null) {
+            throw new ElasticsearchParseException(
+                "indices options xcontent did not contain " + AUTO_EXPAND_ALIASES_FIELD.getPreferredName()
             );
         }
         return IndicesOptions.builder()

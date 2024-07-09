@@ -1688,7 +1688,7 @@ public class InternalEngine extends Engine {
         final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {
             releaseInFlightDocs(addingDocs);
-            return new IllegalArgumentException("Number of documents in the index can't exceed [" + maxDocs + "]");
+            return new IllegalArgumentException("Number of documents in the shard cannot exceed [" + maxDocs + "]");
         } else {
             return null;
         }

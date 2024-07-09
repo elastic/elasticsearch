@@ -459,7 +459,7 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        EsqlTestUtils.assertWarnings(normalized, testCase.expectedWarnings(true), testCase.expectedWarningsRegex());
+        EsqlTestUtils.assertWarnings(normalized, testCase.expectedWarnings(), testCase.expectedWarningsRegex());
     }
 
     BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase(

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -65,7 +64,9 @@ public final class EnrichCache {
     // non-private for unit testing only
     EnrichCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
         this.relativeNanoTimeProvider = relativeNanoTimeProvider;
-        this.cache = CacheBuilder.<CacheKey, CacheValue>builder().setMaximumWeight(maxSize).removalListener(this::removalListener).build();
+        this.cache = CacheBuilder.<CacheKey, CacheValue>builder().setMaximumWeight(maxSize).removalListener(notification -> {
+            sizeInBytes.getAndAdd(-1 * notification.getValue().sizeInBytes);
+        }).build();
     }
 
     /**
@@ -184,10 +185,6 @@ public final class EnrichCache {
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
         }
-    }
-
-    private void removalListener(RemovalNotification<CacheKey, CacheValue> removal) {
-        sizeInBytes.getAndAdd(-1 * removal.getValue().sizeInBytes);
     }
 
     private static class CacheKey {

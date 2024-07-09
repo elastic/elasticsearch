@@ -33,8 +33,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -47,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.List;
 import java.util.Map;
@@ -233,7 +232,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithGroups() {
         assertEquals(
-            new EsqlAggregate(
+            new Aggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 Aggregate.AggregateType.STANDARD,
@@ -250,7 +249,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithoutGroups() {
         assertEquals(
-            new EsqlAggregate(
+            new Aggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 Aggregate.AggregateType.STANDARD,
@@ -266,13 +265,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithoutAggs() throws Exception {
         assertEquals(
-            new EsqlAggregate(
-                EMPTY,
-                PROCESSING_CMD_INPUT,
-                Aggregate.AggregateType.STANDARD,
-                List.of(attribute("a")),
-                List.of(attribute("a"))
-            ),
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(attribute("a")), List.of(attribute("a"))),
             processingCommand("stats by a")
         );
     }
@@ -509,7 +502,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().size(), equalTo(1));
         assertThat(limit.children().get(0), instanceOf(Filter.class));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
-        assertThat(limit.children().get(0).children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
     }
 
     public void testLimitConstraints() {
@@ -559,7 +552,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(orderBy.children().size(), equalTo(1));
         assertThat(orderBy.children().get(0), instanceOf(Filter.class));
         assertThat(orderBy.children().get(0).children().size(), equalTo(1));
-        assertThat(orderBy.children().get(0).children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+        assertThat(orderBy.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
     }
 
     public void testSubquery() {
@@ -1065,7 +1058,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Filter w = (Filter) limit.children().get(0);
         assertThat(((Literal) w.condition().children().get(1)).value(), equalTo(5));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
-        assertThat(limit.children().get(0).children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
         plan = statement("from test | where x < ?n1 |  limit 10", new QueryParams(List.of(new QueryParam("n1", 5, INTEGER))));
         assertThat(plan, instanceOf(Limit.class));
@@ -1077,7 +1070,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         w = (Filter) limit.children().get(0);
         assertThat(((Literal) w.condition().children().get(1)).value(), equalTo(5));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
-        assertThat(limit.children().get(0).children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
         plan = statement("from test | where x < ?1 |  limit 10", new QueryParams(List.of(new QueryParam(null, 5, INTEGER))));
         assertThat(plan, instanceOf(Limit.class));
@@ -1089,7 +1082,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         w = (Filter) limit.children().get(0);
         assertThat(((Literal) w.condition().children().get(1)).value(), equalTo(5));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
-        assertThat(limit.children().get(0).children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
     }
 
     public void testParamInEval() {
@@ -1111,7 +1104,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Filter f = (Filter) eval.children().get(0);
         assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
         assertThat(f.children().size(), equalTo(1));
-        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
         plan = statement(
             "from test | where x < ?n1 | eval y = ?n2 + ?n3 |  limit 10",
@@ -1131,7 +1124,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         f = (Filter) eval.children().get(0);
         assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
         assertThat(f.children().size(), equalTo(1));
-        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
         plan = statement(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  limit 10",
@@ -1149,7 +1142,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         f = (Filter) eval.children().get(0);
         assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
         assertThat(f.children().size(), equalTo(1));
-        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
     }
 
     public void testParamInAggFunction() {
@@ -1164,8 +1157,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             )
         );
-        assertThat(plan, instanceOf(EsqlAggregate.class));
-        EsqlAggregate agg = (EsqlAggregate) plan;
+        assertThat(plan, instanceOf(Aggregate.class));
+        Aggregate agg = (Aggregate) plan;
         assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
@@ -1176,7 +1169,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Filter f = (Filter) eval.children().get(0);
         assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
         assertThat(f.children().size(), equalTo(1));
-        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
         plan = statement(
             "from test | where x < ?n1 | eval y = ?n2 + ?n3 |  stats count(?n4) by z",
@@ -1189,8 +1182,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             )
         );
-        assertThat(plan, instanceOf(EsqlAggregate.class));
-        agg = (EsqlAggregate) plan;
+        assertThat(plan, instanceOf(Aggregate.class));
+        agg = (Aggregate) plan;
         assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
@@ -1201,7 +1194,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         f = (Filter) eval.children().get(0);
         assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
         assertThat(f.children().size(), equalTo(1));
-        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
         plan = statement(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  stats count(?3) by z",
@@ -1209,8 +1202,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER), new QueryParam(null, "*", KEYWORD))
             )
         );
-        assertThat(plan, instanceOf(EsqlAggregate.class));
-        agg = (EsqlAggregate) plan;
+        assertThat(plan, instanceOf(Aggregate.class));
+        agg = (Aggregate) plan;
         assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
@@ -1221,7 +1214,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         f = (Filter) eval.children().get(0);
         assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
         assertThat(f.children().size(), equalTo(1));
-        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
     }
 
     public void testParamMixed() {
@@ -1292,8 +1285,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             return;
         }
         LogicalPlan from = statement(statement);
-        assertThat(from, instanceOf(EsqlUnresolvedRelation.class));
-        EsqlUnresolvedRelation table = (EsqlUnresolvedRelation) from;
+        assertThat(from, instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation table = (UnresolvedRelation) from;
         assertThat(table.table().index(), is(string));
     }
 
@@ -1389,23 +1382,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertStatement(
             "METRICS foo",
-            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of(), IndexMode.TIME_SERIES)
+            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), false, List.of(), IndexMode.TIME_SERIES, null)
         );
         assertStatement(
             "METRICS foo,bar",
-            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES)
+            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), false, List.of(), IndexMode.TIME_SERIES, null)
         );
         assertStatement(
             "METRICS foo*,bar",
-            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), List.of(), IndexMode.TIME_SERIES)
+            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), false, List.of(), IndexMode.TIME_SERIES, null)
         );
         assertStatement(
             "METRICS foo-*,bar",
-            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), List.of(), IndexMode.TIME_SERIES)
+            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), false, List.of(), IndexMode.TIME_SERIES, null)
         );
         assertStatement(
             "METRICS foo-*,bar+*",
-            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), List.of(), IndexMode.TIME_SERIES)
+            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), false, List.of(), IndexMode.TIME_SERIES, null)
         );
     }
 
@@ -1424,7 +1417,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         for (Map.Entry<String, String> e : patterns.entrySet()) {
             assertStatement(
                 e.getKey(),
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), List.of(), IndexMode.TIME_SERIES)
+                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), false, List.of(), IndexMode.TIME_SERIES, null)
             );
         }
     }
@@ -1433,9 +1426,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertStatement(
             "METRICS foo load=avg(cpu) BY ts",
-            new EsqlAggregate(
+            new Aggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of(), IndexMode.TIME_SERIES),
+                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), false, List.of(), IndexMode.TIME_SERIES, null),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
@@ -1443,9 +1436,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertStatement(
             "METRICS foo,bar load=avg(cpu) BY ts",
-            new EsqlAggregate(
+            new Aggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
+                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), false, List.of(), IndexMode.TIME_SERIES, null),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
@@ -1453,9 +1446,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertStatement(
             "METRICS foo,bar load=avg(cpu),max(rate(requests)) BY ts",
-            new EsqlAggregate(
+            new Aggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
+                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), false, List.of(), IndexMode.TIME_SERIES, null),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(
@@ -1476,9 +1469,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertStatement(
             "METRICS foo* count(errors)",
-            new EsqlAggregate(
+            new Aggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), false, List.of(), IndexMode.TIME_SERIES, null),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
@@ -1486,9 +1479,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertStatement(
             "METRICS foo* a(b)",
-            new EsqlAggregate(
+            new Aggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), false, List.of(), IndexMode.TIME_SERIES, null),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
@@ -1496,9 +1489,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertStatement(
             "METRICS foo* a(b)",
-            new EsqlAggregate(
+            new Aggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), false, List.of(), IndexMode.TIME_SERIES, null),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
@@ -1506,9 +1499,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertStatement(
             "METRICS foo* a1(b2)",
-            new EsqlAggregate(
+            new Aggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), false, List.of(), IndexMode.TIME_SERIES, null),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
@@ -1516,9 +1509,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertStatement(
             "METRICS foo*,bar* b = min(a) by c, d.e",
-            new EsqlAggregate(
+            new Aggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), List.of(), IndexMode.TIME_SERIES),
+                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), false, List.of(), IndexMode.TIME_SERIES, null),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(

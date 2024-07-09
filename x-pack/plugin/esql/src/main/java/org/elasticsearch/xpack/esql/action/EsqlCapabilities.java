@@ -106,7 +106,13 @@ public class EsqlCapabilities {
         /**
          * Support for WEIGHTED_AVG function.
          */
-        AGG_WEIGHTED_AVG;
+        AGG_WEIGHTED_AVG,
+
+        /**
+         * Fix for non-unique attribute names in ROW.
+         * https://github.com/elastic/elasticsearch/issues/110541
+         */
+        UNIQUE_NAMES;
 
         private final boolean snapshotOnly;
 

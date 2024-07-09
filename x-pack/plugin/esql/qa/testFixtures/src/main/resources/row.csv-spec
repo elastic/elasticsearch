@@ -37,7 +37,7 @@ a:integer
 ;
 
 shadowingInternal
-//TODO: needs cap to skip on bwc tests
+required_capability: enrich_load
 ROW a = 1, a = 2;
 
 a:integer
@@ -87,7 +87,7 @@ a:integer | b:integer | c:null | z:integer
 ;
 
 evalRowWithNull2
-//TODO: needs cap to skip on bwc tests
+required_capability: enrich_load
 row a = 1, null, b = 2, c = null, null | eval z = a+b;
 
 a:integer | b:integer | c:null | null:null | z:integer

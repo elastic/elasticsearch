@@ -47,6 +47,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
             numAllocations,
             numThreads,
             modelId,
+            null,
             dims,
             similarityMeasure,
             elementType
@@ -84,6 +85,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     numThreads,
                     modelId,
                     null,
+                    null,
                     SimilarityMeasure.DOT_PRODUCT,
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
@@ -107,6 +109,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     numAllocations,
                     numThreads,
                     modelId,
+                    null,
                     null,
                     SimilarityMeasure.COSINE,
                     DenseVectorFieldMapper.ElementType.FLOAT
@@ -148,6 +151,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     numThreads,
                     modelId,
                     null,
+                    null,
                     SimilarityMeasure.DOT_PRODUCT,
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
@@ -187,6 +191,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     numAllocations,
                     numThreads,
                     modelId,
+                    null,
                     1,
                     SimilarityMeasure.DOT_PRODUCT,
                     DenseVectorFieldMapper.ElementType.FLOAT
@@ -200,6 +205,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
             1,
             1,
             "model_id",
+            null,
             100,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.BYTE
@@ -210,7 +216,8 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"num_allocations":1,"num_threads":1,"model_id":"model_id","dimensions":100,"similarity":"cosine","element_type":"byte"}"""));
+            {"num_allocations":1,"num_threads":1,"model_id":"model_id","adaptive_allocations":null,"dimensions":100,""" + """
+            "similarity":"cosine","element_type":"byte"}"""));
     }
 
     @Override

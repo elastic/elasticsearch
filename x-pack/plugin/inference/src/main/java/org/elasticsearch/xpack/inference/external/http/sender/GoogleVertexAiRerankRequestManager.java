@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleV
 import org.elasticsearch.xpack.inference.external.response.googlevertexai.GoogleVertexAiRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -57,13 +56,13 @@ public class GoogleVertexAiRerankRequestManager extends GoogleVertexAiRequestMan
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        GoogleVertexAiRerankRequest request = new GoogleVertexAiRerankRequest(query, input, model);
+        var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
+        GoogleVertexAiRerankRequest request = new GoogleVertexAiRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

@@ -89,7 +89,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private volatile int maxOpenJobs;
     protected volatile int maxLazyMLNodes;
     protected volatile long maxMLNodeSize;
-    protected volatile int allocatedProcessorsScale;
+    protected volatile double allocatedProcessorsScale;
 
     public TrainedModelAssignmentClusterService(
         Settings settings,
@@ -147,7 +147,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         this.maxMLNodeSize = value.getBytes();
     }
 
-    private void setAllocatedProcessorsScale(int scale) {
+    private void setAllocatedProcessorsScale(double scale) {
         this.allocatedProcessorsScale = scale;
     }
 

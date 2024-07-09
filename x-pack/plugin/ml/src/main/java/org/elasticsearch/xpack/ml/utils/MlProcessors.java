@@ -17,7 +17,7 @@ public final class MlProcessors {
 
     private MlProcessors() {}
 
-    public static Processors get(DiscoveryNode node, Integer allocatedProcessorScale) {
+    public static Processors get(DiscoveryNode node, Double allocatedProcessorScale) {
         // Try getting the most modern setting, and if that's null then instead get the older setting. (If both are null then return zero.)
         String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
         if (allocatedProcessorsString == null) {
@@ -47,7 +47,7 @@ public final class MlProcessors {
         }
     }
 
-    public static Processors getMaxMlNodeProcessors(DiscoveryNodes nodes, Integer allocatedProcessorScale) {
+    public static Processors getMaxMlNodeProcessors(DiscoveryNodes nodes, Double allocatedProcessorScale) {
         Processors answer = Processors.ZERO;
         for (DiscoveryNode node : nodes) {
             if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
@@ -60,7 +60,7 @@ public final class MlProcessors {
         return answer;
     }
 
-    public static Processors getTotalMlNodeProcessors(DiscoveryNodes nodes, Integer allocatedProcessorScale) {
+    public static Processors getTotalMlNodeProcessors(DiscoveryNodes nodes, Double allocatedProcessorScale) {
         int total = 0;
         for (DiscoveryNode node : nodes) {
             if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {

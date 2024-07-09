@@ -125,7 +125,7 @@ class MlMemoryAutoscalingDecider {
         Settings configuration,
         AutoscalingDeciderContext context,
         MlAutoscalingContext mlContext,
-        int allocatedProcessorsScale
+        double allocatedProcessorsScale
     ) {
         final ClusterState clusterState = context.state();
 
@@ -830,7 +830,7 @@ class MlMemoryAutoscalingDecider {
     static boolean modelAssignmentsRequireMoreThanHalfCpu(
         Collection<TrainedModelAssignment> assignments,
         List<DiscoveryNode> mlNodes,
-        int allocatedProcessorsScale
+        double allocatedProcessorsScale
     ) {
         int totalRequiredProcessors = assignments.stream()
             .mapToInt(t -> t.getTaskParams().getNumberOfAllocations() * t.getTaskParams().getThreadsPerAllocation())

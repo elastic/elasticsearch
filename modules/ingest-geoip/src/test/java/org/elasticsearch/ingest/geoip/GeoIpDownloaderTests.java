@@ -123,7 +123,18 @@ public class GeoIpDownloaderTests extends ESTestCase {
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
             () -> true
-        );
+        ) {
+            {
+                GeoIpTaskParams geoIpTaskParams = mock(GeoIpTaskParams.class);
+                when(geoIpTaskParams.getWriteableName()).thenReturn(GeoIpDownloader.GEOIP_DOWNLOADER);
+                init(
+                    new TestPersistentTasksService(clusterService, threadPool, client, GeoIpDownloader.GEOIP_DOWNLOADER, geoIpTaskParams),
+                    null,
+                    null,
+                    0
+                );
+            }
+        };
     }
 
     @After
@@ -577,11 +588,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
             (DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> flushResponseActionListener) -> {
                 deleteCount.incrementAndGet();
             }
-        );
-        GeoIpTaskParams geoIpTaskParams = mock(GeoIpTaskParams.class);
-        when(geoIpTaskParams.getWriteableName()).thenReturn(GeoIpDownloader.GEOIP_DOWNLOADER);
-        geoIpDownloader.setPersistentTasksService(
-            new TestPersistentTasksService(clusterService, threadPool, client, GeoIpDownloader.GEOIP_DOWNLOADER, geoIpTaskParams)
         );
         geoIpDownloader.runDownloader();
         assertThat(geoIpDownloader.getStatus().getExpiredDatabases(), equalTo(expiredDatabasesCount));

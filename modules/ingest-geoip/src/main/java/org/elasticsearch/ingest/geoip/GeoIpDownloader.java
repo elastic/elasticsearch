@@ -33,7 +33,6 @@ import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -348,15 +347,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     @Override
     public GeoIpDownloaderStats getStatus() {
         return isCancelled() || isCompleted() ? null : stats;
-    }
-
-    /**
-     * This sets the value of this GeoIpDownloader's persistentTasksService to the given value. It is meant for unit tests only because
-     * it does not initialize any of several other fields that need to be initialized in real usage.
-     * @param persistentTasksService The test PersistentTasksService to use
-     */
-    void setPersistentTasksService(PersistentTasksService persistentTasksService) {
-        init(persistentTasksService, null, null, 0);
     }
 
     private void scheduleNextRun(TimeValue time) {

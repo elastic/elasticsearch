@@ -12,8 +12,8 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -91,8 +91,8 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
         if (field().foldable()) {
             return new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD)));
-        } else if (field instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
-            return new Sum(source(), fieldAttribute.getAggregateDoubleMetricSubFields().get("sum"));
+        } else if (field instanceof AggregateDoubleMetricAttribute aggregateDoubleMetricAttribute) {
+            return new Sum(source(), aggregateDoubleMetricAttribute.getSumSubField());
         } else {
             return null;
         }

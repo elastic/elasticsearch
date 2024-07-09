@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricAttribute;
+import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricSubAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -238,28 +240,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         list.add(new UnsupportedAttribute(source, name, uef));
                     } else {
                         boolean isADMF = t.getDataType() == AGGREGATE_DOUBLE_METRIC;
-                        FieldAttribute attribute = new FieldAttribute(source, null, name, t);
                         if (isADMF) {
-                            // TODO: maybe a dedicated FieldAttribute for aggregate double metric field?
-                            var field = new FieldAttribute(source, attribute, name + ".min", new EsField("min", DOUBLE, Map.of(), true));
-                            attribute.addAggregateDoubleMetricSubField("min", field);
-                            list.add(field);
-                            field = new FieldAttribute(source, attribute, name + ".max", new EsField("max", DOUBLE, Map.of(), true));
-                            attribute.addAggregateDoubleMetricSubField("max", field);
-                            list.add(field);
-                            field = new FieldAttribute(source, attribute, name + ".sum", new EsField("sum", DOUBLE, Map.of(), true));
-                            attribute.addAggregateDoubleMetricSubField("sum", field);
-                            list.add(field);
-                            field = new FieldAttribute(
+                            var minField = new AggregateDoubleMetricSubAttribute(source, name, "min");
+                            list.add(minField);
+                            var maxField = new AggregateDoubleMetricSubAttribute(source, name, "max");
+                            list.add(maxField);
+                            var sumField = new AggregateDoubleMetricSubAttribute(source, name, "sum");
+                            list.add(sumField);
+                            var countField = new AggregateDoubleMetricSubAttribute(source, name, "value_count");
+                            list.add(countField);
+
+                            AggregateDoubleMetricAttribute attribute = new AggregateDoubleMetricAttribute(
                                 source,
-                                attribute,
-                                name + ".value_count",
-                                new EsField("value_count", INTEGER, Map.of(), true)
+                                null,
+                                name,
+                                t,
+                                null,
+                                Nullability.TRUE,
+                                null,
+                                false,
+                                minField.id(),
+                                maxField.id(),
+                                sumField.id(),
+                                countField.id()
                             );
-                            attribute.addAggregateDoubleMetricSubField("value_count", field);
-                            list.add(field);
+                            list.add(attribute);
+                        } else {
+                            FieldAttribute attribute = new FieldAttribute(source, null, name, t);
+                            list.add(attribute);
                         }
-                        list.add(attribute);
                     }
                 }
                 // allow compound object even if they are unknown (but not NESTED)

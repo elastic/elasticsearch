@@ -12,8 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricAttribute;
+import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricSubAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -93,10 +94,8 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
 
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        if (field() instanceof FieldAttribute fieldAttribute && fieldAttribute.parent() != null) {
-            if (fieldAttribute.parent().dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
-                return new SumIntAggregatorFunctionSupplier(inputChannels);
-            }
+        if (field() instanceof AggregateDoubleMetricSubAttribute) {
+            return new SumIntAggregatorFunctionSupplier(inputChannels);
         }
         return CountAggregatorFunction.supplier(inputChannels);
     }
@@ -132,8 +131,8 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
                 new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
                 new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD))
             );
-        } else if (field instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
-            return new Count(source(), fieldAttribute.getAggregateDoubleMetricSubFields().get("value_count"));
+        } else if (field instanceof AggregateDoubleMetricAttribute aggregateDoubleMetricAttribute) {
+            return new Count(source(), aggregateDoubleMetricAttribute.getValueCountSubField());
         } else {
             return null;
         }

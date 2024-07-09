@@ -13,8 +13,8 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -86,8 +86,8 @@ public class Min extends NumericAggregate implements SurrogateExpression {
     public Expression surrogate() {
         if (field().foldable()) {
             return new MvMin(source(), field());
-        } else if (field() instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
-            return new Min(source(), fieldAttribute.getAggregateDoubleMetricSubFields().get("min"));
+        } else if (field() instanceof AggregateDoubleMetricAttribute aggregateDoubleMetricAttribute) {
+            return new Min(source(), aggregateDoubleMetricAttribute.getMinSubField());
         } else {
             return null;
         }

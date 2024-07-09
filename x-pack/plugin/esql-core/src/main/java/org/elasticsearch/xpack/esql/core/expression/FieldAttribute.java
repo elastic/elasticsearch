@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,8 +18,6 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -78,26 +75,6 @@ public class FieldAttribute extends TypedAttribute {
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
-        this.aggregateDoubleMetricSubFields = new HashMap<>();
-    }
-
-    public FieldAttribute(
-        Source source,
-        FieldAttribute parent,
-        String name,
-        DataType type,
-        EsField field,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic,
-        Map<String, FieldAttribute> aggregateDoubleMetricSubFields
-    ) {
-        super(source, name, type, qualifier, nullability, id, synthetic);
-        this.path = parent != null ? parent.name() : StringUtils.EMPTY;
-        this.parent = parent;
-        this.field = field;
-        this.aggregateDoubleMetricSubFields = aggregateDoubleMetricSubFields;
     }
 
     @SuppressWarnings("unchecked")
@@ -119,10 +96,7 @@ public class FieldAttribute extends TypedAttribute {
             in.readOptionalString(),
             in.readEnum(Nullability.class),
             NameId.readFrom((StreamInput & PlanStreamInput) in),
-            in.readBoolean(),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)
-                ? in.readMap(FieldAttribute::new)
-                : null
+            in.readBoolean()
         );
     }
 
@@ -137,9 +111,6 @@ public class FieldAttribute extends TypedAttribute {
         out.writeEnum(nullable());
         id().writeTo(out);
         out.writeBoolean(synthetic());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)) {
-            out.writeMap(aggregateDoubleMetricSubFields, (out1, value) -> value.writeTo(out1));
-        }
     }
 
     @Override
@@ -201,8 +172,7 @@ public class FieldAttribute extends TypedAttribute {
             qualifier,
             nullability,
             id,
-            synthetic,
-            aggregateDoubleMetricSubFields
+            synthetic
         );
     }
 
@@ -227,13 +197,4 @@ public class FieldAttribute extends TypedAttribute {
         return field;
     }
 
-    private final Map<String, FieldAttribute> aggregateDoubleMetricSubFields;
-
-    public void addAggregateDoubleMetricSubField(String k, FieldAttribute attribute) {
-        aggregateDoubleMetricSubFields.put(k, attribute);
-    }
-
-    public Map<String, FieldAttribute> getAggregateDoubleMetricSubFields() {
-        return aggregateDoubleMetricSubFields;
-    }
 }

@@ -32,7 +32,13 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.splitQualifiedI
 public abstract class Attribute extends NamedExpression {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         // TODO add UnsupportedAttribute when these are moved to the same project
-        return List.of(FieldAttribute.ENTRY, MetadataAttribute.ENTRY, ReferenceAttribute.ENTRY);
+        return List.of(
+            FieldAttribute.ENTRY,
+            MetadataAttribute.ENTRY,
+            ReferenceAttribute.ENTRY,
+            AggregateDoubleMetricAttribute.ENTRY,
+            AggregateDoubleMetricSubAttribute.ENTRY
+        );
     }
 
     // empty - such as a top level attribute in SELECT cause

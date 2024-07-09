@@ -49,14 +49,14 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
         var serviceSettings = embeddingsModel.getServiceSettings();
-        var truncatedInput = truncate(input, serviceSettings.maxInputTokens());
+        var truncatedInput = truncate(docsInput, serviceSettings.maxInputTokens());
         var requestEntity = AmazonBedrockEmbeddingsEntityFactory.createEntity(embeddingsModel, truncatedInput);
         var responseHandler = new AmazonBedrockEmbeddingsResponseHandler();
         var request = new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, embeddingsModel, requestEntity, timeout);

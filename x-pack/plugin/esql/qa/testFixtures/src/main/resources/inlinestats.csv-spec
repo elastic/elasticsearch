@@ -61,6 +61,23 @@ emp_no:integer | avg_worked_seconds:long | languages:integer | max_avg_worked_se
          10027 |               374037782 |              null | 374037782
 ;
 
+maxOfLongByIntDouble
+FROM employees
+| KEEP emp_no, avg_worked_seconds, languages, height
+| EVAL height=ROUND(height, 1)
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY languages, height
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT languages, height ASC
+| LIMIT 4;
+
+emp_no:integer | avg_worked_seconds:long | languages:integer | height:double | max_avg_worked_seconds:long
+         10083 |               331236443 |                 1 |           1.4 | 331236443
+         10084 |               359067056 |                 1 |           1.5 | 359067056
+         10033 |               208374744 |                 1 |           1.6 | 208374744
+         10086 |               328580163 |                 1 |           1.7 | 328580163
+;
+
+
 two
 FROM employees
 | KEEP emp_no, languages, avg_worked_seconds, gender

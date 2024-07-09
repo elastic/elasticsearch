@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -36,7 +37,10 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -53,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -909,6 +914,183 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         assertThat(allowedBytesForMlTier, greaterThanOrEqualTo(ByteSizeValue.ofGb(2).getBytes() + PER_NODE_OVERHEAD));
     }
 
+    public void testScale_withFullyAllocated() {
+        String modelId1 = "model-id-1";
+        String modelId2 = "model-id-2";
+
+        String mlNodeId1 = "ml-node-id-1";
+        String mlNodeId2 = "ml-node-id-2";
+        String dataNodeId = "data-node-id";
+
+        long nodeSize = 5000000L;
+
+        DiscoveryNode mlNode1 = buildNode(mlNodeId1, true, nodeSize, 20000L);
+        DiscoveryNode mlNode2 = buildNode(mlNodeId2, true, nodeSize, 20000L);
+        DiscoveryNode dataNode = buildNode(dataNodeId, false, 24L, 200000L);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAssignmentMetadata.NAME,
+                        TrainedModelAssignmentMetadata.Builder.empty()
+                            .addNewAssignment(
+                                modelId1,
+                                TrainedModelAssignment.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        // TaskParams are not actually used by this test
+                                        modelId1,
+                                        modelId1,
+                                        0L,
+                                        0,
+                                        0,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
+                                    )
+                                ).addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                            )
+                            .addNewAssignment(
+                                modelId2,
+                                TrainedModelAssignment.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        // TaskParams are not actually used by this test
+                                        modelId2,
+                                        modelId2,
+                                        0L,
+                                        0,
+                                        0,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
+                                    )
+                                ).addRoutingEntry(mlNodeId2, new RoutingInfo(4, 4, RoutingState.STARTED, ""))
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        MlMemoryAutoscalingDecider decider = buildDecider();
+        decider.setUseAuto(true);
+        decider.setMaxMlNodeSize(ByteSizeValue.ofGb(64));
+
+        AutoscalingCapacity oldCapacity = new AutoscalingCapacity(
+            new AutoscalingCapacity.AutoscalingResources(ByteSizeValue.ofBytes(0), ByteSizeValue.ofBytes(nodeSize * 2), Processors.of(8.0)),
+            new AutoscalingCapacity.AutoscalingResources(ByteSizeValue.ofBytes(0), ByteSizeValue.ofBytes(nodeSize), Processors.of(4.0))
+        );
+
+        MlMemoryAutoscalingCapacity capacity = decider.scale(
+            Settings.EMPTY,
+            new DeciderContext(clusterState, oldCapacity),
+            new MlAutoscalingContext(clusterState),
+            1
+        );
+
+        assertThat(capacity.nodeSize(), equalTo(ByteSizeValue.ofBytes(nodeSize)));
+        assertThat(capacity.tierSize(), equalTo(ByteSizeValue.ofBytes(2 * nodeSize)));
+        assertThat(capacity.reason(), equalTo("Passing currently perceived capacity as no scaling changes are necessary"));
+    }
+
+    public void testScale_withAssignmentStartedButNotFullyAllocated() {
+        String modelId1 = "model-id-1";
+        String modelId2 = "model-id-2";
+
+        String mlNodeId1 = "ml-node-id-1";
+        String mlNodeId2 = "ml-node-id-2";
+        String dataNodeId = "data-node-id";
+
+        long nodeSize = 5000000L;
+
+        DiscoveryNode mlNode1 = buildNode(mlNodeId1, true, nodeSize, 20000L);
+        DiscoveryNode mlNode2 = buildNode(mlNodeId2, true, nodeSize, 20000L);
+        DiscoveryNode dataNode = buildNode(dataNodeId, false, 24L, 200000L);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAssignmentMetadata.NAME,
+                        TrainedModelAssignmentMetadata.Builder.empty()
+                            .addNewAssignment(
+                                modelId1,
+                                TrainedModelAssignment.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        // TaskParams are not actually used by this test
+                                        modelId1,
+                                        modelId1,
+                                        0L,
+                                        0,
+                                        0,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
+                                    )
+                                ).addRoutingEntry(mlNodeId1, new RoutingInfo(1, 4, RoutingState.STARTED, ""))
+                            )
+                            .addNewAssignment(
+                                modelId2,
+                                TrainedModelAssignment.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        // TaskParams are not actually used by this test
+                                        modelId2,
+                                        modelId2,
+                                        0L,
+                                        0,
+                                        0,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
+                                    )
+                                ).addRoutingEntry(mlNodeId2, new RoutingInfo(4, 4, RoutingState.STARTED, ""))
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        MlMemoryAutoscalingDecider decider = buildDecider();
+        decider.setUseAuto(true);
+        decider.setMaxMlNodeSize(ByteSizeValue.ofGb(64));
+
+        AutoscalingCapacity oldCapacity = new AutoscalingCapacity(
+            new AutoscalingCapacity.AutoscalingResources(ByteSizeValue.ofBytes(0), ByteSizeValue.ofBytes(nodeSize * 2), Processors.of(8.0)),
+            new AutoscalingCapacity.AutoscalingResources(ByteSizeValue.ofBytes(0), ByteSizeValue.ofBytes(nodeSize), Processors.of(4.0))
+        );
+
+        MlMemoryAutoscalingCapacity capacity = decider.scale(
+            Settings.EMPTY,
+            new DeciderContext(clusterState, oldCapacity),
+            new MlAutoscalingContext(clusterState),
+            1
+        );
+
+        assertThat(capacity.nodeSize(), equalTo(ByteSizeValue.ofMb(714)));
+        assertThat(capacity.tierSize(), equalTo(ByteSizeValue.ofMb(714)));
+        // these values were determined by running this test
+        // this value is due to guessing the JVM size and overhead in
+        // org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity.autoscalingCapacity
+        assertThat(
+            capacity.reason(),
+            equalTo(
+                "requesting scale up as number of jobs in queues exceeded configured limit or there is at least "
+                    + "one trained model waiting for assignment and current capacity is not large enough for waiting jobs or models"
+            )
+        );
+    }
+
     public void testScaleUp_withWaitingModelsAndRoomInNodes() {
         // Two small nodes in cluster, so simulate two availability zones
         when(nodeRealAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(2));
@@ -1456,7 +1638,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
 
         @Override
         public Set<DiscoveryNode> nodes() {
-            return null;
+            return new HashSet<>(state.nodes().getAllNodes());
         }
 
         @Override
@@ -1478,6 +1660,14 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         public void ensureNotCancelled() {
 
         }
+    }
+
+    static DiscoveryNode buildNode(String name, boolean isML, Long nodeSize, Long jvmSize) {
+        return DiscoveryNodeUtils.builder(name)
+            .name(name)
+            .attributes(Map.of(MAX_JVM_SIZE_NODE_ATTR, jvmSize.toString(), MACHINE_MEMORY_NODE_ATTR, nodeSize.toString()))
+            .roles(isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+            .build();
     }
 
     private static long autoBytesForMl(Long nodeSize, Long jvmSize) {

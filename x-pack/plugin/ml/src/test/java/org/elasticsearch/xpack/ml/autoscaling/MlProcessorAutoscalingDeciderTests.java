@@ -196,7 +196,91 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(8.0)));
         assertThat(capacity.tierProcessors(), equalTo(Processors.of(20.0)));
-        assertThat(capacity.reason(), equalTo("requesting scale up as there are unsatisfied deployments"));
+        assertThat(
+            capacity.reason(),
+            equalTo(
+                "requesting scale up as current capacity [node:[4.00], tier:[8.00]] is "
+                    + "insufficient for required deployments [node:[8.00], tier:[20.00]]"
+            )
+        );
+    }
+
+    public void testScale_GivenDeploymentsAreStartedButNotFullyAllocated() {
+        String modelId1 = "model-id-1";
+        String modelId2 = "model-id-2";
+
+        String mlNodeId1 = "ml-node-id-1";
+        String mlNodeId2 = "ml-node-id-2";
+        String dataNodeId = "data-node-id";
+        DiscoveryNode mlNode1 = buildNode(mlNodeId1, true, 1);
+        DiscoveryNode mlNode2 = buildNode(mlNodeId2, true, 4);
+        DiscoveryNode dataNode = buildNode(dataNodeId, false, 24);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAssignmentMetadata.NAME,
+                        TrainedModelAssignmentMetadata.Builder.empty()
+                            .addNewAssignment(
+                                modelId1,
+                                TrainedModelAssignment.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId1,
+                                        modelId1,
+                                        0L,
+                                        4,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
+                                    )
+                                ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 4, RoutingState.STARTED, ""))
+                            )
+                            .addNewAssignment(
+                                modelId2,
+                                TrainedModelAssignment.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
+                                        modelId2,
+                                        0L,
+                                        4,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
+                                    )
+                                ).addRoutingEntry(mlNodeId1, new RoutingInfo(4, 4, RoutingState.STARTED, ""))
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        MlProcessorAutoscalingDecider decider = newDecider();
+
+        MlProcessorAutoscalingCapacity capacity = decider.scale(
+            Settings.EMPTY,
+            newContext(clusterState),
+            new MlAutoscalingContext(clusterState),
+            1
+        );
+
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(1.0)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(8.0)));
+        assertThat(
+            capacity.reason(),
+            equalTo(
+                "requesting scale up as current capacity [node:[4.00], tier:[5.00]] is "
+                    + "insufficient for required deployments [node:[1.00], tier:[8.00]]"
+            )
+        );
     }
 
     public void testScale_GivenUnsatisfiedDeploymentIsLowPriority_ShouldNotScaleUp() {
@@ -353,12 +437,16 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
 
         // test with allocated processor scaling
         capacity = decider.scale(Settings.EMPTY, newContext(clusterState), new MlAutoscalingContext(clusterState), 2);
-
-        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(1.9)));
-        assertThat(capacity.tierProcessors(), equalTo(Processors.of(3.8)));
+        // because the allocatedProcessorsScale is 2 the required capacity is greater than the currentCapacity, the required capacity is
+        // returned
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(2.0)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(5.0)));
         assertThat(
             capacity.reason(),
-            equalTo("not scaling down as model assignments require more than half of the ML tier's allocated processors")
+            equalTo(
+                "requesting scale up as current capacity [node:[1.90], tier:[3.80]] is"
+                    + " insufficient for required deployments [node:[2.00], tier:[5.00]]"
+            )
         );
     }
 
@@ -595,7 +683,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         assertThat(capacity.reason(), equalTo("requesting scale down as tier and/or node size could be smaller"));
     }
 
-    private static DiscoveryNode buildNode(String name, boolean isML, double allocatedProcessors) {
+    static DiscoveryNode buildNode(String name, boolean isML, double allocatedProcessors) {
         return DiscoveryNodeUtils.builder(name)
             .name(name)
             .attributes(

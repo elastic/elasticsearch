@@ -30,21 +30,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
-import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
-import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.junit.After;
 import org.junit.Before;
@@ -60,10 +54,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -483,113 +474,19 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testChunkInfer() {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
-        mlTrainedModelResults.add(MlChunkedTextEmbeddingFloatResultsTests.createRandomResults());
-        mlTrainedModelResults.add(MlChunkedTextEmbeddingFloatResultsTests.createRandomResults());
-        mlTrainedModelResults.add(new ErrorInferenceResults(new RuntimeException("boom")));
+        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
         var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
 
         ThreadPool threadpool = new TestThreadPool("test");
-        Client client = mock(Client.class);
-        when(client.threadPool()).thenReturn(threadpool);
-        doAnswer(invocationOnMock -> {
-            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(response);
-            return null;
-        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
-
-        var model = new MultilingualE5SmallModel(
-            "foo",
-            TaskType.TEXT_EMBEDDING,
-            "e5",
-            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null)
-        );
-        var service = createService(client);
-
-        var gotResults = new AtomicBoolean();
-        var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
-            assertThat(chunkedResponse, hasSize(3));
-            assertThat(chunkedResponse.get(0), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-            var result1 = (InferenceChunkedTextEmbeddingFloatResults) chunkedResponse.get(0);
-            assertEquals(
-                ((MlChunkedTextEmbeddingFloatResults) mlTrainedModelResults.get(0)).getChunks().size(),
-                result1.getChunks().size()
-            );
-            assertEquals(
-                ((MlChunkedTextEmbeddingFloatResults) mlTrainedModelResults.get(0)).getChunks().get(0).matchedText(),
-                result1.getChunks().get(0).matchedText()
-            );
-            assertArrayEquals(
-                (FloatConversionUtils.floatArrayOf(
-                    ((MlChunkedTextEmbeddingFloatResults) mlTrainedModelResults.get(0)).getChunks().get(0).embedding()
-                )),
-                result1.getChunks().get(0).embedding(),
-                0.0001f
-            );
-            assertThat(chunkedResponse.get(1), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-            var result2 = (InferenceChunkedTextEmbeddingFloatResults) chunkedResponse.get(1);
-            // assertEquals(((MlChunkedTextEmbeddingFloatResults) mlTrainedModelResults.get(1)).getChunks(), result2.getChunks());
-
-            assertEquals(
-                ((MlChunkedTextEmbeddingFloatResults) mlTrainedModelResults.get(1)).getChunks().size(),
-                result2.getChunks().size()
-            );
-            assertEquals(
-                ((MlChunkedTextEmbeddingFloatResults) mlTrainedModelResults.get(1)).getChunks().get(0).matchedText(),
-                result2.getChunks().get(0).matchedText()
-            );
-            assertArrayEquals(
-                (FloatConversionUtils.floatArrayOf(
-                    ((MlChunkedTextEmbeddingFloatResults) mlTrainedModelResults.get(1)).getChunks().get(0).embedding()
-                )),
-                result2.getChunks().get(0).embedding(),
-                0.0001f
-            );
-
-            var result3 = (ErrorChunkedInferenceResults) chunkedResponse.get(2);
-            assertThat(result3.getException(), instanceOf(RuntimeException.class));
-            assertThat(result3.getException().getMessage(), containsString("boom"));
-            gotResults.set(true);
-        }, ESTestCase::fail);
-
-        service.chunkedInfer(
-            model,
-            null,
-            List.of("foo", "bar"),
-            Map.of(),
-            InputType.SEARCH,
-            new ChunkingOptions(null, null),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            ActionListener.runAfter(resultsListener, () -> terminate(threadpool))
-        );
-
-        if (gotResults.get() == false) {
-            terminate(threadpool);
-        }
-        assertTrue("Listener not called", gotResults.get());
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testChunkInferSetsTokenization() {
-        var expectedSpan = new AtomicInteger();
-        var expectedWindowSize = new AtomicReference<Integer>();
-
-        Client client = mock(Client.class);
-        ThreadPool threadpool = new TestThreadPool("test");
         try {
+            Client client = mock(Client.class);
             when(client.threadPool()).thenReturn(threadpool);
             doAnswer(invocationOnMock -> {
-                var request = (InferTrainedModelDeploymentAction.Request) invocationOnMock.getArguments()[1];
-                assertThat(request.getUpdate(), instanceOf(TokenizationConfigUpdate.class));
-                var update = (TokenizationConfigUpdate) request.getUpdate();
-                assertEquals(update.getSpanSettings().span(), expectedSpan.get());
-                assertEquals(update.getSpanSettings().maxSequenceLength(), expectedWindowSize.get());
+                var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+                listener.onResponse(response);
                 return null;
-            }).when(client)
-                .execute(
-                    same(InferTrainedModelDeploymentAction.INSTANCE),
-                    any(InferTrainedModelDeploymentAction.Request.class),
-                    any(ActionListener.class)
-                );
+            }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
 
             var model = new MultilingualE5SmallModel(
                 "foo",
@@ -599,29 +496,43 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
             var service = createService(client);
 
-            expectedSpan.set(-1);
-            expectedWindowSize.set(null);
+            var gotResults = new AtomicBoolean();
+            var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
+                assertThat(chunkedResponse, hasSize(2));
+                assertThat(chunkedResponse.get(0), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+                var result1 = (InferenceChunkedTextEmbeddingFloatResults) chunkedResponse.get(0);
+                assertThat(result1.chunks(), hasSize(1));
+                assertArrayEquals(
+                    ((MlTextEmbeddingResults) mlTrainedModelResults.get(0)).getInferenceAsFloat(),
+                    result1.getChunks().get(0).embedding(),
+                    0.0001f
+                );
+                assertEquals("foo", result1.getChunks().get(0).matchedText());
+                assertThat(chunkedResponse.get(1), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+                var result2 = (InferenceChunkedTextEmbeddingFloatResults) chunkedResponse.get(1);
+                assertThat(result2.chunks(), hasSize(1));
+                assertArrayEquals(
+                    ((MlTextEmbeddingResults) mlTrainedModelResults.get(1)).getInferenceAsFloat(),
+                    result2.getChunks().get(0).embedding(),
+                    0.0001f
+                );
+                assertEquals("bar", result2.getChunks().get(0).matchedText());
+
+                gotResults.set(true);
+            }, ESTestCase::fail);
+
             service.chunkedInfer(
                 model,
+                null,
                 List.of("foo", "bar"),
                 Map.of(),
                 InputType.SEARCH,
-                null,
+                new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
+                ActionListener.runAfter(resultsListener, () -> terminate(threadpool))
             );
 
-            expectedSpan.set(-1);
-            expectedWindowSize.set(256);
-            service.chunkedInfer(
-                model,
-                List.of("foo", "bar"),
-                Map.of(),
-                InputType.SEARCH,
-                new ChunkingOptions(256, null),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
-            );
+            assertTrue("Listener not called", gotResults.get());
         } finally {
             terminate(threadpool);
         }
@@ -748,14 +659,12 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var inputs = randomList(1, 3, () -> randomAlphaOfLength(4));
         var inputType = randomFrom(InputType.SEARCH, InputType.INGEST);
         var timeout = randomTimeValue();
-        var chunk = randomBoolean();
         var request = ElasticsearchInternalService.buildInferenceRequest(
             id,
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             inputs,
             inputType,
-            timeout,
-            chunk
+            timeout
         );
 
         assertEquals(id, request.getId());
@@ -765,7 +674,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             request.getPrefixType()
         );
         assertEquals(timeout, request.getInferenceTimeout());
-        assertEquals(chunk, request.isChunked());
+        assertEquals(false, request.isChunked());
     }
 
     @SuppressWarnings("unchecked")

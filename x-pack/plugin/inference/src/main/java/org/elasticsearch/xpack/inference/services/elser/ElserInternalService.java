@@ -25,17 +25,17 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -180,8 +180,7 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             inputs,
             inputType,
-            timeout,
-            false // chunk
+            timeout
         );
 
         client.execute(
@@ -223,26 +222,28 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
             return;
         }
 
-        var configUpdate = chunkingOptions != null
-            ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : new TokenizationConfigUpdate(null, null);
-
-        var request = buildInferenceRequest(
-            model.getConfigurations().getInferenceEntityId(),
-            configUpdate,
+        var batchedRequests = new EmbeddingRequestChunker(
             inputs,
-            inputType,
-            timeout,
-            true // chunk
-        );
+            ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE,
+            EmbeddingRequestChunker.EmbeddingType.SPARSE
+        ).batchRequestsWithListeners(listener);
 
-        client.execute(
-            InferModelAction.INSTANCE,
-            request,
-            listener.delegateFailureAndWrap(
-                (l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getInferenceResults()))
-            )
-        );
+        for (var batch : batchedRequests) {
+            var inferenceRequest = buildInferenceRequest(
+                model.getConfigurations().getInferenceEntityId(),
+                EmptyConfigUpdate.INSTANCE,
+                batch.batch().inputs(),
+                inputType,
+                timeout
+            );
+
+            client.execute(
+                InferModelAction.INSTANCE,
+                inferenceRequest,
+                batch.listener()
+                    .delegateFailureAndWrap((l, inferenceResult) -> translateMlResults(inferenceResult.getInferenceResults(), l))
+            );
+        }
     }
 
     private void checkCompatibleTaskType(TaskType taskType) {
@@ -285,24 +286,26 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
         return ElserMlNodeTaskSettings.DEFAULT;
     }
 
-    private List<ChunkedInferenceServiceResults> translateChunkedResults(List<InferenceResults> inferenceResults) {
-        var translated = new ArrayList<ChunkedInferenceServiceResults>();
+    private void translateMlResults(List<InferenceResults> inferenceResults, ActionListener<InferenceServiceResults> listener) {
+        var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
 
         for (var inferenceResult : inferenceResults) {
-            if (inferenceResult instanceof MlChunkedTextExpansionResults mlChunkedResult) {
-                translated.add(InferenceChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult));
+            if (inferenceResult instanceof TextExpansionResults mlResult) {
+                embeddings.add(new SparseEmbeddingResults.Embedding(mlResult.getWeightedTokens(), mlResult.isTruncated()));
             } else if (inferenceResult instanceof ErrorInferenceResults error) {
-                translated.add(new ErrorChunkedInferenceResults(error.getException()));
+                listener.onFailure(error.getException()); // fail the entire batch
+                return;
             } else {
                 throw new ElasticsearchStatusException(
                     "Expected a chunked inference [{}] received [{}]",
                     RestStatus.INTERNAL_SERVER_ERROR,
-                    MlChunkedTextExpansionResults.NAME,
+                    TextExpansionResults.NAME,
                     inferenceResult.getWriteableName()
                 );
             }
         }
-        return translated;
+
+        listener.onResponse(new SparseEmbeddingResults(embeddings));
     }
 
     @Override

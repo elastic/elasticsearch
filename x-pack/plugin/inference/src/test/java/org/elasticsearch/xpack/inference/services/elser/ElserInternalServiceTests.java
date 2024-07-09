@@ -26,13 +26,11 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResultsTests;
-import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -46,8 +44,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -355,83 +351,19 @@ public class ElserInternalServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testChunkInfer() {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
-        mlTrainedModelResults.add(InferenceChunkedTextExpansionResultsTests.createRandomResults());
-        mlTrainedModelResults.add(InferenceChunkedTextExpansionResultsTests.createRandomResults());
-        mlTrainedModelResults.add(new ErrorInferenceResults(new RuntimeException("boom")));
+        mlTrainedModelResults.add(TextExpansionResultsTests.createRandomResults());
+        mlTrainedModelResults.add(TextExpansionResultsTests.createRandomResults());
         var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
 
         ThreadPool threadpool = new TestThreadPool("test");
-        Client client = mock(Client.class);
-        when(client.threadPool()).thenReturn(threadpool);
-        doAnswer(invocationOnMock -> {
-            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(response);
-            return null;
-        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
-
-        var model = new ElserInternalModel(
-            "foo",
-            TaskType.SPARSE_EMBEDDING,
-            "elser",
-            new ElserInternalServiceSettings(1, 1, "elser", null),
-            new ElserMlNodeTaskSettings()
-        );
-        var service = createService(client);
-
-        var gotResults = new AtomicBoolean();
-        var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
-            assertThat(chunkedResponse, hasSize(3));
-            assertThat(chunkedResponse.get(0), instanceOf(InferenceChunkedSparseEmbeddingResults.class));
-            var result1 = (InferenceChunkedSparseEmbeddingResults) chunkedResponse.get(0);
-            assertEquals(((MlChunkedTextExpansionResults) mlTrainedModelResults.get(0)).getChunks(), result1.getChunkedResults());
-            assertThat(chunkedResponse.get(1), instanceOf(InferenceChunkedSparseEmbeddingResults.class));
-            var result2 = (InferenceChunkedSparseEmbeddingResults) chunkedResponse.get(1);
-            assertEquals(((MlChunkedTextExpansionResults) mlTrainedModelResults.get(1)).getChunks(), result2.getChunkedResults());
-            var result3 = (ErrorChunkedInferenceResults) chunkedResponse.get(2);
-            assertThat(result3.getException(), instanceOf(RuntimeException.class));
-            assertThat(result3.getException().getMessage(), containsString("boom"));
-            gotResults.set(true);
-        }, ESTestCase::fail);
-
-        service.chunkedInfer(
-            model,
-            null,
-            List.of("foo", "bar"),
-            Map.of(),
-            InputType.SEARCH,
-            new ChunkingOptions(null, null),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            ActionListener.runAfter(resultsListener, () -> terminate(threadpool))
-        );
-
-        if (gotResults.get() == false) {
-            terminate(threadpool);
-        }
-        assertTrue("Listener not called", gotResults.get());
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testChunkInferSetsTokenization() {
-        var expectedSpan = new AtomicInteger();
-        var expectedWindowSize = new AtomicReference<Integer>();
-
-        ThreadPool threadpool = new TestThreadPool("test");
-        Client client = mock(Client.class);
         try {
+            Client client = mock(Client.class);
             when(client.threadPool()).thenReturn(threadpool);
             doAnswer(invocationOnMock -> {
-                var request = (InferTrainedModelDeploymentAction.Request) invocationOnMock.getArguments()[1];
-                assertThat(request.getUpdate(), instanceOf(TokenizationConfigUpdate.class));
-                var update = (TokenizationConfigUpdate) request.getUpdate();
-                assertEquals(update.getSpanSettings().span(), expectedSpan.get());
-                assertEquals(update.getSpanSettings().maxSequenceLength(), expectedWindowSize.get());
+                var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+                listener.onResponse(response);
                 return null;
-            }).when(client)
-                .execute(
-                    same(InferTrainedModelDeploymentAction.INSTANCE),
-                    any(InferTrainedModelDeploymentAction.Request.class),
-                    any(ActionListener.class)
-                );
+            }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
 
             var model = new ElserInternalModel(
                 "foo",
@@ -442,29 +374,93 @@ public class ElserInternalServiceTests extends ESTestCase {
             );
             var service = createService(client);
 
-            expectedSpan.set(-1);
-            expectedWindowSize.set(null);
+            var gotResults = new AtomicBoolean();
+            var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
+                assertThat(chunkedResponse, hasSize(2));
+                assertThat(chunkedResponse.get(0), instanceOf(InferenceChunkedSparseEmbeddingResults.class));
+                var result1 = (InferenceChunkedSparseEmbeddingResults) chunkedResponse.get(0);
+                assertEquals(
+                    ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
+                    result1.getChunkedResults().get(0).weightedTokens()
+                );
+                assertEquals("foo", result1.getChunkedResults().get(0).matchedText());
+                assertThat(chunkedResponse.get(1), instanceOf(InferenceChunkedSparseEmbeddingResults.class));
+                var result2 = (InferenceChunkedSparseEmbeddingResults) chunkedResponse.get(1);
+                assertEquals(
+                    ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
+                    result2.getChunkedResults().get(0).weightedTokens()
+                );
+                assertEquals("bar", result2.getChunkedResults().get(0).matchedText());
+                gotResults.set(true);
+            }, ESTestCase::fail);
+
             service.chunkedInfer(
                 model,
+                null,
                 List.of("foo", "bar"),
                 Map.of(),
                 InputType.SEARCH,
-                null,
+                new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
+                ActionListener.runAfter(resultsListener, () -> terminate(threadpool))
             );
 
-            expectedSpan.set(-1);
-            expectedWindowSize.set(256);
+            assertTrue("Listener not called", gotResults.get());
+        } finally {
+            terminate(threadpool);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testChunkInfer_FailsBatch() {
+        var mlTrainedModelResults = new ArrayList<InferenceResults>();
+        mlTrainedModelResults.add(TextExpansionResultsTests.createRandomResults());
+        mlTrainedModelResults.add(TextExpansionResultsTests.createRandomResults());
+        mlTrainedModelResults.add(new ErrorInferenceResults(new RuntimeException("boom")));
+        var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
+
+        ThreadPool threadpool = new TestThreadPool("test");
+        try {
+            Client client = mock(Client.class);
+            when(client.threadPool()).thenReturn(threadpool);
+            doAnswer(invocationOnMock -> {
+                var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+                listener.onResponse(response);
+                return null;
+            }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
+
+            var model = new ElserInternalModel(
+                "foo",
+                TaskType.SPARSE_EMBEDDING,
+                "elser",
+                new ElserInternalServiceSettings(1, 1, "elser", null),
+                new ElserMlNodeTaskSettings()
+            );
+            var service = createService(client);
+
+            var gotResults = new AtomicBoolean();
+            var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
+                assertThat(chunkedResponse, hasSize(3));
+                // a single failure fails the batch
+                for (var er : chunkedResponse) {
+                    assertThat(er, instanceOf(ErrorChunkedInferenceResults.class));
+                    assertEquals("boom", ((ErrorChunkedInferenceResults) er).getException().getMessage());
+                }
+                gotResults.set(true);
+            }, ESTestCase::fail);
+
             service.chunkedInfer(
                 model,
-                List.of("foo", "bar"),
+                null,
+                List.of("foo", "bar", "baz"),
                 Map.of(),
                 InputType.SEARCH,
-                new ChunkingOptions(256, null),
+                new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
+                ActionListener.runAfter(resultsListener, () -> terminate(threadpool))
             );
+
+            assertTrue("Listener not called", gotResults.get());
         } finally {
             terminate(threadpool);
         }

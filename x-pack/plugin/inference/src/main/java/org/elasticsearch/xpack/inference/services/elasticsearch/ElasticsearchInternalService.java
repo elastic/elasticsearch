@@ -26,9 +26,6 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -39,10 +36,8 @@ import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
@@ -357,8 +352,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             inputs,
             inputType,
-            timeout,
-            false
+            timeout
         );
 
         client.execute(
@@ -384,8 +378,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             new TextSimilarityConfigUpdate(query),
             inputs,
             inputType,
-            timeout,
-            false
+            timeout
         );
 
         var modelSettings = (CustomElandRerankTaskSettings) model.getTaskSettings();
@@ -447,8 +440,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 EmptyConfigUpdate.INSTANCE,
                 batch.batch().inputs(),
                 inputType,
-                timeout,
-                false
+                timeout
             );
 
             client.execute(
@@ -474,7 +466,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 return;
             } else {
                 chunkPartListener.onFailure(
-                    createInvalidChunkedResultException(MlChunkedTextEmbeddingFloatResults.NAME, inferenceResult.getWriteableName())
+                    createInvalidChunkedResultException(MlTextEmbeddingResults.NAME, inferenceResult.getWriteableName())
                 );
                 return;
             }
@@ -606,7 +598,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults similarity) {
                 rankings.add(new RankedDocsResults.RankedDoc(i, (float) similarity.score(), inputSupplier.apply(i)));
             } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
-                if (errorResult.getException()instanceof ElasticsearchStatusException statusException) {
+                if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
                     throw statusException;
                 } else {
                     throw new ElasticsearchStatusException(

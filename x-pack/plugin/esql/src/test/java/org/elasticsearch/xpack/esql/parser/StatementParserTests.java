@@ -776,7 +776,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "row a = \"foo bar\" | GROK a \"%{NUMBER:foo} %{WORD:foo}\"",
-            "Invalid GROK pattern [%{NUMBER:foo} %{WORD:foo}]: the attribute [foo] is defined multiple times with different types"
+            "line 1:22: Invalid GROK pattern [%{NUMBER:foo} %{WORD:foo}]:"
+                + " the attribute [foo] is defined multiple times with different types"
         );
     }
 

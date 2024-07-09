@@ -42,10 +42,13 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -280,8 +283,7 @@ public class ElserInternalService implements InferenceService {
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             inputs,
             inputType,
-            timeout,
-            false // chunk
+            timeout
         );
 
         client.execute(
@@ -323,26 +325,49 @@ public class ElserInternalService implements InferenceService {
             return;
         }
 
-        var configUpdate = chunkingOptions != null
-            ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : new TokenizationConfigUpdate(null, null);
-
-        var request = buildInferenceRequest(
-            model.getConfigurations().getInferenceEntityId(),
-            configUpdate,
+        var batchedRequests = new EmbeddingRequestChunker(
             inputs,
-            inputType,
-            timeout,
-            true // chunk
-        );
+            ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE,
+            EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType())
+        ).batchRequestsWithListeners(listener);
 
-        client.execute(
-            InferModelAction.INSTANCE,
-            request,
-            listener.delegateFailureAndWrap(
-                (l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getInferenceResults()))
-            )
-        );
+        for (var batch : batchedRequests) {
+            var inferenceRequest = buildInferenceRequest(
+                model.getConfigurations().getInferenceEntityId(),
+                EmptyConfigUpdate.INSTANCE,
+                batch.batch().inputs(),
+                inputType,
+                timeout
+            );
+
+            client.execute(
+                InferModelAction.INSTANCE,
+                inferenceRequest,
+                batch.listener()
+                    .delegateFailureAndWrap((l, inferenceResult) -> translateToChunkedResults(inferenceResult.getInferenceResults(), l))
+            );
+        }
+
+
+//        var configUpdate = chunkingOptions != null
+//            ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
+//            : new TokenizationConfigUpdate(null, null);
+//
+//        var request = buildInferenceRequest(
+//            model.getConfigurations().getInferenceEntityId(),
+//            configUpdate,
+//            inputs,
+//            inputType,
+//            timeout
+//        );
+//
+//        client.execute(
+//            InferModelAction.INSTANCE,
+//            request,
+//            listener.delegateFailureAndWrap(
+//                (l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getInferenceResults()))
+//            )
+//        );
     }
 
     private void checkCompatibleTaskType(TaskType taskType) {

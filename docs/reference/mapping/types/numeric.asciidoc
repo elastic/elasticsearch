@@ -46,6 +46,10 @@ NOTE: The `double`, `float` and `half_float` types consider that `-0.0` and
 if the upper bound is `-0.0` then `+0.0` will not match, and if the lower
 bound is `+0.0` then `-0.0` will not match.
 
+NOTE: The default value for `coerce` is `true` for all numeric types. One implication
+of this is indexing `""` results in a `null` value, which cannot then be fetched at
+query time.
+
 ==== Which type should I use?
 
 As far as integer types (`byte`, `short`, `integer` and `long`) are concerned,
@@ -121,7 +125,8 @@ The following parameters are accepted by numeric types:
 
     Try to convert strings to numbers and truncate fractions for integers.
     Accepts `true` (default) and `false`. Not applicable for `unsigned_long`.
-    Note that this cannot be set if the `script` parameter is used.
+    Note that this cannot be set if the `script` parameter is used. Also note
+    that the coerced value of `""` is `null`, which cannot be fetched at query time.
 
 <<doc-values,`doc_values`>>::
 

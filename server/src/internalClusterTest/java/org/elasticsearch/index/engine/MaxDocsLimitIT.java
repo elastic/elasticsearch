@@ -102,7 +102,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         assertThat(indexingResult.numFailures, equalTo(rejectedRequests));
         assertThat(indexingResult.numSuccess, equalTo(0));
         final IllegalArgumentException deleteError = expectThrows(IllegalArgumentException.class, client().prepareDelete("test", "any-id"));
-        assertThat(deleteError.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
+        assertThat(deleteError.getMessage(), containsString("Number of documents in the shard cannot exceed [" + maxDocs.get() + "]"));
         indicesAdmin().prepareRefresh("test").get();
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(new MatchAllQueryBuilder()).setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0),
@@ -162,7 +162,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
                     assertThat(resp.status(), equalTo(RestStatus.CREATED));
                 } catch (IllegalArgumentException e) {
                     numFailure.incrementAndGet();
-                    assertThat(e.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
+                    assertThat(e.getMessage(), containsString("Number of documents in the shard cannot exceed [" + maxDocs.get() + "]"));
                 }
             }
         });

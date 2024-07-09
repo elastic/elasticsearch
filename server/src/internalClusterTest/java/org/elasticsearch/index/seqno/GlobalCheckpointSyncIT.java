@@ -26,8 +26,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collection;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -141,15 +139,9 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         final int numberOfDocuments = randomIntBetween(0, 256);
 
         final int numberOfThreads = randomIntBetween(1, 4);
-        final CyclicBarrier barrier = new CyclicBarrier(numberOfThreads);
 
         // start concurrent indexing threads
-        runInParallel(numberOfThreads, index -> {
-            try {
-                barrier.await();
-            } catch (BrokenBarrierException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+        startInParallel(numberOfThreads, index -> {
             for (int j = 0; j < numberOfDocuments; j++) {
                 final String id = Integer.toString(index * numberOfDocuments + j);
                 prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();

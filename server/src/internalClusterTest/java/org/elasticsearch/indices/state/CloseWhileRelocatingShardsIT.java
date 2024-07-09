@@ -38,7 +38,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -187,13 +186,8 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             ClusterRerouteUtils.reroute(client(), commands.toArray(AllocationCommand[]::new));
 
             // start index closing threads
-            final CyclicBarrier barrier = new CyclicBarrier(indices.length);
-            runInParallel(indices.length, i -> {
-                try {
-                    safeAwait(barrier);
-                } finally {
-                    release.countDown();
-                }
+            startInParallel(indices.length, i -> {
+                release.countDown();
                 // Closing is not always acknowledged when shards are relocating: this is the case when the target shard is initializing
                 // or is catching up operations. In these cases the TransportVerifyShardBeforeCloseAction will detect that the global
                 // and max sequence number don't match and will not ack the close.

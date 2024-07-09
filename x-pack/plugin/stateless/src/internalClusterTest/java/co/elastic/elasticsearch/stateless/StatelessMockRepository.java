@@ -38,7 +38,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -98,10 +100,15 @@ public class StatelessMockRepository extends FsRepository {
 
         @Override
         public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+            // We need to consume and copy the blobNames iterator twice to ensure that both originalRunnable
+            // and blobStoreDeleteBlobsIgnoringIfNotExists get all the expected blob names
+            List<String> blobNamesCopy = new ArrayList<>();
+            blobNames.forEachRemaining(blobNamesCopy::add);
+            List<String> blobNamesCopy2 = new ArrayList<>(blobNamesCopy);
             getStrategy().blobStoreDeleteBlobsIgnoringIfNotExists(
-                () -> super.deleteBlobsIgnoringIfNotExists(purpose, blobNames),
+                () -> super.deleteBlobsIgnoringIfNotExists(purpose, blobNamesCopy.iterator()),
                 purpose,
-                blobNames
+                blobNamesCopy2.iterator()
             );
         }
 

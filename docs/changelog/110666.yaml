@@ -1,5 +1,5 @@
 pr: 110666
-summary: Removing the use of Stream::peak from `GeoIpDownloader::cleanDatabases`
+summary: Removing the use of Stream::peek from `GeoIpDownloader::cleanDatabases`
 area: Ingest Node
 type: bug
 issues: []

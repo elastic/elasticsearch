@@ -59,11 +59,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
 
     @Override
     public Sum replaceChildren(List<Expression> newChildren) {
-        Expression newChild = newChildren.get(0);
-        if (newChild instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
-            newChild = fieldAttribute.getAggregateDoubleMetricSubFields().get("sum");
-        }
-        return new Sum(source(), newChild);
+        return new Sum(source(), newChildren.get(0));
     }
 
     @Override
@@ -93,8 +89,12 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         var field = field();
 
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
-        return field.foldable()
-            ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD)))
-            : null;
+        if (field().foldable()) {
+            return new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD)));
+        } else if (field instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
+            return new Sum(source(), fieldAttribute.getAggregateDoubleMetricSubFields().get("sum"));
+        } else {
+            return null;
+        }
     }
 }

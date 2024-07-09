@@ -54,11 +54,7 @@ public class Min extends NumericAggregate implements SurrogateExpression {
 
     @Override
     public Min replaceChildren(List<Expression> newChildren) {
-        Expression newChild = newChildren.get(0);
-        if (newChild instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
-            newChild = fieldAttribute.getAggregateDoubleMetricSubFields().get("min");
-        }
-        return new Min(source(), newChild);
+        return new Min(source(), newChildren.get(0));
     }
 
     @Override
@@ -88,6 +84,12 @@ public class Min extends NumericAggregate implements SurrogateExpression {
 
     @Override
     public Expression surrogate() {
-        return field().foldable() ? new MvMin(source(), field()) : null;
+        if (field().foldable()) {
+            return new MvMin(source(), field());
+        } else if (field() instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
+            return new Min(source(), fieldAttribute.getAggregateDoubleMetricSubFields().get("min"));
+        } else {
+            return null;
+        }
     }
 }

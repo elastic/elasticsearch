@@ -334,6 +334,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
         if (argType instanceof ParameterizedType pt) {
             if (pt.getRawType() == Map.class) {
+                // To avoid stack overflow in case of FieldAttribute's aggregateDoubleMetricSubFields argument:
+                if (toBuildClass == FieldAttribute.class) {
+                    return Map.of();
+                }
                 return makeMap(toBuildClass, pt);
             }
             if (pt.getRawType() == List.class) {

@@ -124,7 +124,7 @@ public final class ResponseValueUtils {
             case UNSIGNED_LONG -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
             case LONG, COUNTER_LONG -> ((LongBlock) block).getLong(offset);
             case INTEGER, COUNTER_INTEGER -> ((IntBlock) block).getInt(offset);
-            case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock) block).getDouble(offset);
+            case DOUBLE, COUNTER_DOUBLE, AGGREGATE_DOUBLE_METRIC -> ((DoubleBlock) block).getDouble(offset);
             case KEYWORD, TEXT -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case IP -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -152,7 +152,7 @@ public final class ResponseValueUtils {
                 }
             }
             case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, NESTED, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE,
-                NULL, PARTIAL_AGG, AGGREGATE_DOUBLE_METRIC -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
+                NULL, PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 
@@ -174,7 +174,9 @@ public final class ResponseValueUtils {
                     case UNSIGNED_LONG -> ((LongBlock.Builder) builder).appendLong(longToUnsignedLong(((Number) value).longValue(), true));
                     case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
-                    case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
+                    case DOUBLE, COUNTER_DOUBLE, AGGREGATE_DOUBLE_METRIC -> ((DoubleBlock.Builder) builder).appendDouble(
+                        ((Number) value).doubleValue()
+                    );
                     case KEYWORD, TEXT, UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
                     case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
                     case DATETIME -> {

@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Locale;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_DOUBLE_METRIC;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -91,6 +92,7 @@ public final class EsqlDataTypes {
             && t != SOURCE
             && t != HALF_FLOAT
             && t != PARTIAL_AGG
+            && t != AGGREGATE_DOUBLE_METRIC
             && t.isCounter() == false;
     }
 

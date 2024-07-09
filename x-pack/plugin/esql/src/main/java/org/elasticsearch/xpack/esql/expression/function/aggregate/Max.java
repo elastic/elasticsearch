@@ -54,11 +54,7 @@ public class Max extends NumericAggregate implements SurrogateExpression {
 
     @Override
     public Max replaceChildren(List<Expression> newChildren) {
-        Expression newChild = newChildren.get(0);
-        if (newChild instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
-            newChild = fieldAttribute.getAggregateDoubleMetricSubFields().get("max");
-        }
-        return new Max(source(), newChild);
+        return new Max(source(), newChildren.get(0));
     }
 
     @Override
@@ -88,6 +84,12 @@ public class Max extends NumericAggregate implements SurrogateExpression {
 
     @Override
     public Expression surrogate() {
-        return field().foldable() ? new MvMax(source(), field()) : null;
+        if (field().foldable()) {
+            return new MvMax(source(), field());
+        } else if (field() instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
+            return new Max(source(), fieldAttribute.getAggregateDoubleMetricSubFields().get("max"));
+        } else {
+            return null;
+        }
     }
 }

@@ -78,11 +78,7 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
 
     @Override
     public Count replaceChildren(List<Expression> newChildren) {
-        Expression newChild = newChildren.get(0);
-        if (newChild instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
-            newChild = fieldAttribute.getAggregateDoubleMetricSubFields().get("value_count");
-        }
-        return new Count(source(), newChild);
+        return new Count(source(), newChildren.get(0));
     }
 
     @Override
@@ -136,8 +132,10 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
                 new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
                 new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD))
             );
+        } else if (field instanceof FieldAttribute fieldAttribute && fieldAttribute.dataType() == DataType.AGGREGATE_DOUBLE_METRIC) {
+            return new Count(source(), fieldAttribute.getAggregateDoubleMetricSubFields().get("value_count"));
+        } else {
+            return null;
         }
-
-        return null;
     }
 }

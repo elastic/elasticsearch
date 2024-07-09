@@ -1856,8 +1856,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
 
-        assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
-        if (safeCommit.get().localCheckpoint == globalCheckpoint) {
+        assert safeCommit.get().localCheckpoint() <= globalCheckpoint : safeCommit.get().localCheckpoint() + " > " + globalCheckpoint;
+        if (safeCommit.get().localCheckpoint() == globalCheckpoint) {
             logger.trace(
                 "skip local recovery as the safe commit is up to date; safe commit {} global checkpoint {}",
                 safeCommit.get(),
@@ -1876,7 +1876,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpoint
             );
             recoveryState.getTranslog().totalLocal(0);
-            recoveryStartingSeqNoListener.onResponse(safeCommit.get().localCheckpoint + 1);
+            recoveryStartingSeqNoListener.onResponse(safeCommit.get().localCheckpoint() + 1);
             return;
         }
 
@@ -1915,7 +1915,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // we need to find the safe commit again as we should have created a new one during the local recovery
                     final Optional<SequenceNumbers.CommitInfo> newSafeCommit = store.findSafeIndexCommit(globalCheckpoint);
                     assert newSafeCommit.isPresent() : "no safe commit found after local recovery";
-                    return newSafeCommit.get().localCheckpoint + 1;
+                    return newSafeCommit.get().localCheckpoint() + 1;
                 } catch (Exception e) {
                     logger.debug(
                         () -> format(

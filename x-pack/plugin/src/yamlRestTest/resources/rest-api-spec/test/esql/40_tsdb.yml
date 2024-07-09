@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: ["esql.metrics_counter_fields"]
-      reason: "require metrics counter fields"
+      cluster_features: [ "esql.aggregate_metric_double" ]
+      reason: "Requires support for aggregate double metric field in es|ql"
       test_runner_features: allowed_warnings_regex
   - do:
       indices.create:

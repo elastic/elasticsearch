@@ -72,10 +72,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -317,20 +315,14 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
     private static Releasable withResourceTracker() {
         assertNull(refs);
-        final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
         final var latch = new CountDownLatch(1);
-        refs = LeakTracker.wrap(reachabilityChecker.register(AbstractRefCounted.of(latch::countDown)));
+        refs = AbstractRefCounted.of(latch::countDown);
         return () -> {
             refs.decRef();
-            boolean success = false;
             try {
                 safeAwait(latch);
-                success = true;
             } finally {
                 refs = null;
-                if (success == false) {
-                    reachabilityChecker.ensureUnreachable();
-                }
             }
         };
     }
@@ -644,9 +636,10 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                             @Override
                             public void accept(RestChannel channel) {
                                 localRefs.mustIncRef();
-                                client.execute(TYPE, new Request(), new RestActionListener<>(channel) {
+                                client.execute(TYPE, new Request(), ActionListener.releaseAfter(new RestActionListener<>(channel) {
                                     @Override
                                     protected void processResponse(Response response) {
+                                        localRefs.mustIncRef();
                                         channel.sendResponse(RestResponse.chunked(RestStatus.OK, response.getResponseBodyPart(), () -> {
                                             // cancellation notification only happens while processing a continuation, not while computing
                                             // the next one; prompt cancellation requires use of something like RestCancellableNodeClient
@@ -655,7 +648,10 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                                             localRefs.decRef();
                                         }));
                                     }
-                                });
+                                }, () -> {
+                                    assertSame(localRefs, refs);
+                                    localRefs.decRef();
+                                }));
                             }
                         };
                     } else {

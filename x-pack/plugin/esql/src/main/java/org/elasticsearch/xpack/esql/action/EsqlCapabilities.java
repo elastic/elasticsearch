@@ -45,9 +45,9 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
-         * Support for aggregation function {@code TOP_LIST}.
+         * Support for aggregation function {@code TOP}.
          */
-        AGG_TOP_LIST,
+        AGG_TOP,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -63,8 +63,9 @@ public class EsqlCapabilities {
          * LOOKUP command with
          * - tables using syntax {@code "tables": {"type": [<values>]}}
          * - fixed variable shadowing
+         * - fixed Join.references(), requiring breaking change to Join serialization
          */
-        LOOKUP_V3(true),
+        LOOKUP_V4(true),
 
         /**
          * Support for requesting the "REPEAT" command.
@@ -89,7 +90,30 @@ public class EsqlCapabilities {
         /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
-        ST_DISTANCE;
+        ST_DISTANCE,
+
+        /**
+         * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
+         * https://github.com/elastic/elasticsearch/issues/110184
+         */
+        GROK_DISSECT_MASKING,
+
+        /**
+         * Support for quoting index sources in double quotes.
+         */
+        DOUBLE_QUOTES_SOURCE_ENCLOSING,
+
+        /**
+         * Support for WEIGHTED_AVG function.
+         */
+        AGG_WEIGHTED_AVG,
+
+        /**
+         * Fix for union-types when aggregating over an inline conversion with casting operator. Done in #110476.
+         */
+        UNION_TYPES_AGG_CAST;
+
+        private final boolean snapshotOnly;
 
         Cap() {
             snapshotOnly = false;
@@ -103,7 +127,9 @@ public class EsqlCapabilities {
             return name().toLowerCase(Locale.ROOT);
         }
 
-        private final boolean snapshotOnly;
+        public boolean snapshotOnly() {
+            return snapshotOnly;
+        }
     }
 
     public static final Set<String> CAPABILITIES = capabilities();

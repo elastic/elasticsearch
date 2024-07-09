@@ -70,6 +70,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.ObjLongConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -151,7 +152,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             assert update != null;
             assert shardId != null;
             mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
-        }, mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
+        }, (mappingUpdateListener, initialMappingVersion) -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
                 mappingUpdateListener.onResponse(null);
@@ -166,6 +167,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             public void onTimeout(TimeValue timeout) {
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
+        }, clusterState -> {
+            var indexMetadata = clusterState.metadata().index(primary.shardId().getIndex());
+            return indexMetadata == null || (indexMetadata.mapping() != null && indexMetadata.getMappingVersion() != initialMappingVersion);
         }), listener, executor(primary), postWriteRefresh, postWriteAction, documentParsingProvider);
     }
 
@@ -185,7 +189,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper updateHelper,
         LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater,
-        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ObjLongConsumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
         Executor executor
     ) {
@@ -210,7 +214,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper updateHelper,
         LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater,
-        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ObjLongConsumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
         Executor executor,
         @Nullable PostWriteRefresh postWriteRefresh,
@@ -309,7 +313,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper updateHelper,
         LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater,
-        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ObjLongConsumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<Void> itemDoneListener,
         DocumentParsingProvider documentParsingProvider
     ) throws Exception {
@@ -399,7 +403,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private static boolean handleMappingUpdateRequired(
         BulkPrimaryExecutionContext context,
         MappingUpdatePerformer mappingUpdater,
-        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ObjLongConsumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<Void> itemDoneListener,
         IndexShard primary,
         Engine.Result result,
@@ -407,6 +411,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper.Result updateResult
     ) {
         final var mapperService = primary.mapperService();
+        final long initialMappingVersion = mapperService.mappingVersion();
         try {
             CompressedXContent mergedSource = mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
@@ -440,7 +445,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     public void onFailure(Exception e) {
                         context.failOnMappingUpdate(e);
                     }
-                }, () -> itemDoneListener.onResponse(null)));
+                }, () -> itemDoneListener.onResponse(null)), initialMappingVersion);
             }
 
             @Override

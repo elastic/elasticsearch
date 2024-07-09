@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 
-import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.DOWN;
+import static org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules.TransformDirection.DOWN;
 
 /**
  * Fold the arms of {@code CASE} statements.

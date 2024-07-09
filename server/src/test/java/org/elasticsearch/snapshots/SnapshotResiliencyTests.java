@@ -212,6 +212,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -258,7 +259,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     @After
-    public void verifyReposThenStopServices() {
+    public void verifyReposThenStopServices() throws ExecutionException {
         try {
             clearDisruptionsAndAwaitSync();
 

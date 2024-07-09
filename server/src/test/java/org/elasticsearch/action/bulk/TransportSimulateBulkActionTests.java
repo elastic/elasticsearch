@@ -8,19 +8,16 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersions;
@@ -34,6 +31,8 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 import org.junit.Before;
 
@@ -63,36 +62,16 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
 
     class TestTransportSimulateBulkAction extends TransportSimulateBulkAction {
 
-        volatile boolean failIndexCreation = false;
-        boolean indexCreated = false; // set when the "real" index is created
-        Runnable beforeIndexCreation = null;
-
         TestTransportSimulateBulkAction() {
             super(
                 TransportSimulateBulkActionTests.this.threadPool,
                 transportService,
-                clusterService,
+                TransportSimulateBulkActionTests.this.clusterService,
                 null,
-                null,
-                new NodeClient(Settings.EMPTY, TransportSimulateBulkActionTests.this.threadPool),
-                new ActionFilters(Collections.emptySet()),
-                new TransportBulkActionTookTests.Resolver(),
+                new ActionFilters(Set.of()),
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE
             );
-        }
-
-        @Override
-        void createIndex(CreateIndexRequest createIndexRequest, ActionListener<CreateIndexResponse> listener) {
-            indexCreated = true;
-            if (beforeIndexCreation != null) {
-                beforeIndexCreation.run();
-            }
-            if (failIndexCreation) {
-                listener.onFailure(new ResourceAlreadyExistsException("index already exists"));
-            } else {
-                listener.onResponse(null);
-            }
         }
     }
 
@@ -137,10 +116,11 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         for (int i = 0; i < bulkItemCount; i++) {
             Map<String, ?> source = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(5));
             IndexRequest indexRequest = new IndexRequest(randomAlphaOfLength(10)).id(randomAlphaOfLength(10)).source(source);
+            indexRequest.setListExecutedPipelines(true);
             for (int j = 0; j < randomIntBetween(0, 10); j++) {
                 indexRequest.addPipeline(randomAlphaOfLength(12));
             }
-            bulkRequest.add();
+            bulkRequest.add(indexRequest);
         }
         AtomicBoolean onResponseCalled = new AtomicBoolean(false);
         ActionListener<BulkResponse> listener = new ActionListener<>() {
@@ -148,6 +128,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             public void onResponse(BulkResponse response) {
                 onResponseCalled.set(true);
                 BulkItemResponse[] responseItems = response.getItems();
+                assertThat(responseItems.length, equalTo(bulkItemCount));
                 assertThat(responseItems.length, equalTo(bulkRequest.requests().size()));
                 for (int i = 0; i < responseItems.length; i++) {
                     BulkItemResponse responseItem = responseItems[i];
@@ -167,12 +148,15 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                                 Strings.format(
                                     """
                                         {
+                                          "_id": "%s",
                                           "_index": "%s",
+                                          "_version": -3,
                                           "_source": %s,
                                           "executed_pipelines": [%s]
                                         }""",
+                                    indexRequest.id(),
                                     indexRequest.index(),
-                                    indexRequest.source(),
+                                    convertMapToJsonString(indexRequest.sourceAsMap()),
                                     indexRequest.getExecutedPipelines()
                                         .stream()
                                         .map(pipeline -> "\"" + pipeline + "\"")
@@ -192,20 +176,13 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 fail(e, "Unexpected error");
             }
         };
-        Map<String, CreateIndexRequest> indicesToAutoCreate = Map.of(); // unused
-        Set<String> dataStreamsToRollover = Set.of(); // unused
-        Set<String> failureStoresToRollover = Set.of(); // unused
-        long startTime = 0;
-        bulkAction.createMissingIndicesAndIndexData(
-            task,
-            bulkRequest,
-            r -> fail("executor is unused"),
-            listener,
-            indicesToAutoCreate,
-            dataStreamsToRollover,
-            failureStoresToRollover,
-            startTime
-        );
+        bulkAction.doInternalExecute(task, bulkRequest, r -> fail("executor is unused"), listener, randomLongBetween(0, Long.MAX_VALUE));
         assertThat(onResponseCalled.get(), equalTo(true));
+    }
+
+    private String convertMapToJsonString(Map<String, ?> map) throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder().map(map)) {
+            return BytesReference.bytes(builder).utf8ToString();
+        }
     }
 }

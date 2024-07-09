@@ -49,6 +49,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -120,6 +121,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportSearchAction.class);
     public static final String FROZEN_INDICES_DEPRECATION_MESSAGE = "Searching frozen indices [{}] is deprecated."
         + " Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release.";
+
+    private static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
@@ -292,24 +295,43 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingAndMetrics = listener.delegateFailureAndWrap((l, searchResponse) -> {
-            searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
-            if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-                // Deduplicate failures by exception message and index
-                ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
-                for (ShardOperationFailedException f : groupedFailures) {
-                    boolean causeHas500Status = false;
-                    if (f.getCause() != null) {
-                        causeHas500Status = ExceptionsHelper.status(f.getCause()).getStatus() >= 500;
+        ActionListener<SearchResponse> loggingAndMetrics = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                try {
+                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                    SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
+                        SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
+                    if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                        // Deduplicate failures by exception message and index
+                        ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                        for (ShardOperationFailedException f : groupedFailures) {
+                            boolean causeHas500Status = false;
+                            if (f.getCause() != null) {
+                                causeHas500Status = ExceptionsHelper.status(f.getCause()).getStatus() >= 500;
+                            }
+                            if ((f.status().getStatus() >= 500 || causeHas500Status)
+                                && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false) {
+                                logger.warn("TransportSearchAction shard failure (partial results response)", f);
+                                responseCountTotalStatus = SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE;
+                            }
+                        }
                     }
-                    if ((f.status().getStatus() >= 500 || causeHas500Status)
-                        && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false) {
-                        logger.warn("TransportSearchAction shard failure (partial results response)", f);
-                    }
+                    listener.onResponse(searchResponse);
+                    // increment after the delegated onResponse to ensure we don't
+                    // record both a success and a failure if there is an exception
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                } catch (Exception e) {
+                    onFailure(e);
                 }
             }
-            l.onResponse(searchResponse);
-        });
+
+            @Override
+            public void onFailure(Exception e) {
+                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+                listener.onFailure(e);
+            }
+        };
         executeRequest((SearchTask) task, searchRequest, loggingAndMetrics, AsyncSearchActionProvider::new);
     }
 

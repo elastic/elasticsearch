@@ -24,20 +24,14 @@ import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -48,10 +42,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -59,10 +49,8 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -73,7 +61,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -84,28 +71,17 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Groups bulk request items by shard, optionally creating non-existent indices and
  * delegates to {@link TransportShardBulkAction} for shard-level bulk execution
  */
-public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
+public class TransportBulkAction extends TransportAbstractBulkAction {
 
     public static final String NAME = "indices:data/write/bulk";
     public static final ActionType<BulkResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
     public static final String LAZY_ROLLOVER_ORIGIN = "lazy_rollover";
 
-    private final ActionType<BulkResponse> bulkAction;
-    private final ThreadPool threadPool;
-    private final ClusterService clusterService;
-    private final IngestService ingestService;
     private final FeatureService featureService;
-    private final LongSupplier relativeTimeProvider;
-    private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final IndexingPressure indexingPressure;
-    private final SystemIndices systemIndices;
     private final OriginSettingClient rolloverClient;
-
-    private final Executor writeExecutor;
-    private final Executor systemWriteExecutor;
 
     @Inject
     public TransportBulkAction(
@@ -180,40 +156,23 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider
     ) {
-        super(bulkAction.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            bulkAction,
+            transportService,
+            actionFilters,
+            requestReader,
+            threadPool,
+            clusterService,
+            ingestService,
+            indexingPressure,
+            systemIndices,
+            relativeTimeProvider
+        );
         Objects.requireNonNull(relativeTimeProvider);
-        this.bulkAction = bulkAction;
-        this.threadPool = threadPool;
-        this.clusterService = clusterService;
-        this.ingestService = ingestService;
         this.featureService = featureService;
-        this.relativeTimeProvider = relativeTimeProvider;
-        this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.indexingPressure = indexingPressure;
-        this.systemIndices = systemIndices;
-        clusterService.addStateApplier(this.ingestForwarder);
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
-        this.writeExecutor = threadPool.executor(Names.WRITE);
-        this.systemWriteExecutor = threadPool.executor(Names.SYSTEM_WRITE);
-    }
-
-    /**
-     * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are
-     * modeled as {@link IndexRequest} inside the {@link UpdateRequest}. Ignores {@link org.elasticsearch.action.delete.DeleteRequest}'s
-     *
-     * @param docWriteRequest The request to find the {@link IndexRequest}
-     * @return the found {@link IndexRequest} or {@code null} if one can not be found.
-     */
-    public static IndexRequest getIndexWriteRequest(DocWriteRequest<?> docWriteRequest) {
-        IndexRequest indexRequest = null;
-        if (docWriteRequest instanceof IndexRequest) {
-            indexRequest = (IndexRequest) docWriteRequest;
-        } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
-            indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
-        }
-        return indexRequest;
     }
 
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
@@ -233,123 +192,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     @Override
-    protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-        /*
-         * This is called on the Transport thread so we can check the indexing
-         * memory pressure *quickly* but we don't want to keep the transport
-         * thread busy. Then, as soon as we have the indexing pressure in we fork
-         * to one of the write thread pools. We do this because juggling the
-         * bulk request can get expensive for a few reasons:
-         * 1. Figuring out which shard should receive a bulk request might require
-         *    parsing the _source.
-         * 2. When dispatching the sub-requests to shards we may have to compress
-         *    them. LZ4 is super fast, but slow enough that it's best not to do it
-         *    on the transport thread, especially for large sub-requests.
-         *
-         * We *could* detect these cases and only fork in then, but that is complex
-         * to get right and the fork is fairly low overhead.
-         */
-        final int indexingOps = bulkRequest.numberOfActions();
-        final long indexingBytes = bulkRequest.ramBytesUsed();
-        final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
-        final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
-        final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
-        final Executor executor = isOnlySystem ? systemWriteExecutor : writeExecutor;
-        ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener);
-    }
-
-    private void ensureClusterStateThenForkAndExecute(
+    protected void doInternalExecute(
         Task task,
         BulkRequest bulkRequest,
         Executor executor,
-        ActionListener<BulkResponse> releasingListener
+        ActionListener<BulkResponse> listener,
+        long relativeStartTime
     ) {
-        final ClusterState initialState = clusterService.state();
-        final ClusterBlockException blockException = initialState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
-        if (blockException != null) {
-            if (false == blockException.retryable()) {
-                releasingListener.onFailure(blockException);
-                return;
-            }
-            logger.trace("cluster is blocked, waiting for it to recover", blockException);
-            final ClusterStateObserver clusterStateObserver = new ClusterStateObserver(
-                initialState,
-                clusterService,
-                bulkRequest.timeout(),
-                logger,
-                threadPool.getThreadContext()
-            );
-            clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    forkAndExecute(task, bulkRequest, executor, releasingListener);
-                }
-
-                @Override
-                public void onClusterServiceClose() {
-                    releasingListener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    releasingListener.onFailure(blockException);
-                }
-            }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE));
-        } else {
-            forkAndExecute(task, bulkRequest, executor, releasingListener);
-        }
-    }
-
-    private void forkAndExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> releasingListener) {
-        executor.execute(new ActionRunnable<>(releasingListener) {
-            @Override
-            protected void doRun() {
-                doInternalExecute(task, bulkRequest, executor, releasingListener);
-            }
-        });
-    }
-
-    protected void doInternalExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener) {
-        final long startTime = relativeTime();
-
-        boolean hasIndexRequestsWithPipelines = false;
-        final Metadata metadata = clusterService.state().getMetadata();
-        for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-            IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
-            if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
-                hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
-            }
-
-            if (actionRequest instanceof IndexRequest ir) {
-                if (ir.getAutoGeneratedTimestamp() != IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP) {
-                    throw new IllegalArgumentException("autoGeneratedTimestamp should not be set externally");
-                }
-            }
-        }
-
-        if (hasIndexRequestsWithPipelines) {
-            // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
-            // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
-            // this path is never taken.
-            ActionListener.run(listener, l -> {
-                if (Assertions.ENABLED) {
-                    final boolean arePipelinesResolved = bulkRequest.requests()
-                        .stream()
-                        .map(TransportBulkAction::getIndexWriteRequest)
-                        .filter(Objects::nonNull)
-                        .allMatch(IndexRequest::isPipelineResolved);
-                    assert arePipelinesResolved : bulkRequest;
-                }
-                if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executor, metadata, l);
-                } else {
-                    ingestForwarder.forwardIngestRequest(bulkAction, bulkRequest, l);
-                }
-            });
-            return;
-        }
-
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();
@@ -363,7 +212,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indicesToAutoCreate,
             dataStreamsToBeRolledOver,
             failureStoresToBeRolledOver,
-            startTime
+            relativeStartTime
         );
     }
 
@@ -568,21 +417,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    /*
-     * This returns the IngestService to be used for the given request. The default implementation ignores the request and always returns
-     * the same ingestService, but child classes might use information in the request in creating an IngestService specific to that request.
-     */
-    protected IngestService getIngestService(BulkRequest request) {
-        return ingestService;
-    }
-
-    static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
+    static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, IndexAbstraction indexAbstraction) {
         DocWriteRequest.OpType opType = writeRequest.opType();
         if ((opType == OpType.CREATE || opType == OpType.INDEX) == false) {
             // op type not create or index, then bail early
             return;
         }
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
         if (indexAbstraction == null) {
             return;
         }
@@ -611,9 +451,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     + "] instead"
             );
         }
-        if (opType == DocWriteRequest.OpType.INDEX
-            && writeRequest.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM
-            && writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO) {
+        if (writeRequest.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM && writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException(
                 "index request with op_type=index and no if_primary_term and if_seq_no set "
                     + "targeting backing indices is disallowed, target corresponding data stream ["
@@ -623,8 +461,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    static void prohibitCustomRoutingOnDataStream(DocWriteRequest<?> writeRequest, Metadata metadata) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
+    static void prohibitCustomRoutingOnDataStream(DocWriteRequest<?> writeRequest, IndexAbstraction indexAbstraction) {
         if (indexAbstraction == null) {
             return;
         }
@@ -677,10 +514,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return false;
     }
 
-    protected long buildTookInMillis(long startTimeNanos) {
-        return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
-    }
-
     void executeBulk(
         Task task,
         BulkRequest bulkRequest,
@@ -706,72 +539,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ).run();
     }
 
-    private long relativeTime() {
-        return relativeTimeProvider.getAsLong();
-    }
-
-    private void processBulkIndexIngestRequest(
-        Task task,
-        BulkRequest original,
-        Executor executor,
-        Metadata metadata,
-        ActionListener<BulkResponse> listener
-    ) {
-        final long ingestStartTimeInNanos = System.nanoTime();
-        final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        getIngestService(original).executeBulkRequest(
-            original.numberOfActions(),
-            () -> bulkRequestModifier,
-            bulkRequestModifier::markItemAsDropped,
-            (indexName) -> shouldStoreFailure(indexName, metadata, threadPool.absoluteTimeInMillis()),
-            bulkRequestModifier::markItemForFailureStore,
-            bulkRequestModifier::markItemAsFailed,
-            (originalThread, exception) -> {
-                if (exception != null) {
-                    logger.debug("failed to execute pipeline for a bulk request", exception);
-                    listener.onFailure(exception);
-                } else {
-                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
-                    BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
-                    ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(
-                        ingestTookInMillis,
-                        listener
-                    );
-                    if (bulkRequest.requests().isEmpty()) {
-                        // at this stage, the transport bulk action can't deal with a bulk request with no requests,
-                        // so we stop and send an empty response back to the client.
-                        // (this will happen if pre-processing all items in the bulk failed)
-                        actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
-                    } else {
-                        ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
-                            @Override
-                            protected void doRun() {
-                                doInternalExecute(task, bulkRequest, executor, actionListener);
-                            }
-
-                            @Override
-                            public boolean isForceExecution() {
-                                // If we fork back to a write thread we **not** should fail, because tp queue is full.
-                                // (Otherwise the work done during ingest will be lost)
-                                // It is okay to force execution here. Throttling of write requests happens prior to
-                                // ingest when a node receives a bulk request.
-                                return true;
-                            }
-                        };
-                        // If a processor went async and returned a response on a different thread then
-                        // before we continue the bulk request we should fork back on a write thread:
-                        if (originalThread == Thread.currentThread()) {
-                            runnable.run();
-                        } else {
-                            executor.execute(runnable);
-                        }
-                    }
-                }
-            },
-            executor
-        );
-    }
-
     /**
      * Determines if an index name is associated with either an existing data stream or a template
      * for one that has the failure store enabled.
@@ -781,11 +548,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * @return true if the given index name corresponds to a data stream with a failure store,
      * or if it matches a template that has a data stream failure store enabled.
      */
-    static boolean shouldStoreFailure(String indexName, Metadata metadata, long epochMillis) {
+    static boolean shouldStoreFailureInternal(String indexName, Metadata metadata, long epochMillis) {
         return DataStream.isFailureStoreFeatureFlagEnabled()
             && resolveFailureStoreFromMetadata(indexName, metadata, epochMillis).or(
                 () -> resolveFailureStoreFromTemplate(indexName, metadata)
             ).orElse(false);
+    }
+
+    @Override
+    protected boolean shouldStoreFailure(String indexName, Metadata metadata, long time) {
+        return shouldStoreFailureInternal(indexName, metadata, time);
     }
 
     /**

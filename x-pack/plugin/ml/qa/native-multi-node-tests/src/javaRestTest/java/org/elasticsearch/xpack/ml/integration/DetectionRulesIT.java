@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
@@ -46,6 +48,9 @@ import static org.hamcrest.Matchers.oneOf;
  * An integration test for detection rules
  */
 public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
+
+    // logger
+    public static final Logger logger = LogManager.getLogger(DetectionRulesIT.class);
 
     @After
     public void cleanUpTest() {
@@ -95,6 +100,9 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         closeJob(job.getId());
 
         List<AnomalyRecord> records = getRecords(job.getId());
+        // remove records that are not anomalies
+        records.removeIf(record -> record.getInitialRecordScore() < 1e-5);
+
         assertThat(records.size(), equalTo(1));
         assertThat(records.get(0).getByFieldValue(), equalTo("high"));
         long firstRecordTimestamp = records.get(0).getTimestamp().getTime();

@@ -204,11 +204,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             builder.tables(tables());
         }
 
-        Map<String, Object> answer = runEsql(
-            builder.query(testCase.query),
-            testCase.expectedWarnings(false),
-            testCase.expectedWarningsRegex()
-        );
+        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(), testCase.expectedWarningsRegex());
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 

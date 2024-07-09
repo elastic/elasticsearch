@@ -409,6 +409,27 @@ public class SecuritySystemIndices {
                                 builder.endObject();
                             }
                             builder.endObject();
+                            builder.startObject("role");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("manage");
+                                    {
+                                        builder.field("type", "object");
+                                        builder.startObject("properties");
+                                        {
+                                            builder.startObject("indices");
+                                            builder.field("type", "keyword");
+                                            builder.endObject();
+                                        }
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
                         }
                         builder.endObject();
                     }

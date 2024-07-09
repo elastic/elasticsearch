@@ -120,8 +120,8 @@ setup:
       features: headers
 
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "ingest simulate index mapping validation added in 8.15"
+      cluster_features: ["simulate.mapping.validation"]
+      reason: "ingest simulate index mapping validation added in 8.16"
 
   - do:
       headers:

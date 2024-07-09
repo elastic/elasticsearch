@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -22,6 +20,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -45,7 +44,7 @@ import java.util.concurrent.Executor;
  * shards are not actually modified).
  */
 public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
-    private static final Logger logger = LogManager.getLogger(TransportSimulateBulkAction.class);
+    public static final NodeFeature SIMULATE_MAPPING_VALIDATION = new NodeFeature("simulate.mapping.validation");
     private final IndicesService indicesService;
 
     @Inject

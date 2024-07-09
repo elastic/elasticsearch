@@ -161,11 +161,12 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
                 );
             }
             if (storageException.getCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                long currentPosition = Math.addExact(start, currentOffset);
                 throw addSuppressedExceptions(
                     new RequestedRangeNotSatisfiedException(
                         blobId.getName(),
-                        start,
-                        (end < Long.MAX_VALUE - 1) ? end - start + 1 : end,
+                        currentPosition,
+                        (end < Long.MAX_VALUE - 1) ? end - currentPosition + 1 : end,
                         storageException
                     )
                 );

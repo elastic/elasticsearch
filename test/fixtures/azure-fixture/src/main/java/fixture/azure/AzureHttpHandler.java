@@ -131,6 +131,13 @@ public class AzureHttpHandler implements HttpHandler {
 
                 final long start = Long.parseLong(matcher.group(1));
                 final long end = Long.parseLong(matcher.group(2));
+
+                if (blob.length() <= start) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                    return;
+                }
+
                 var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
 
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");

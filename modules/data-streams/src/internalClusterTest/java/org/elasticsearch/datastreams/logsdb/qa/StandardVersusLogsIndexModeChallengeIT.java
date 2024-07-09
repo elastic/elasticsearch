@@ -14,10 +14,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.datastreams.logsdb.qa.adaptors.SearchHitAdaptor;
+import org.elasticsearch.datastreams.logsdb.qa.adaptors.MatcherAdaptor;
 import org.elasticsearch.datastreams.logsdb.qa.exceptions.MatcherException;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -32,7 +33,9 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTest {
 
@@ -121,7 +124,9 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
         try {
             oracleResponse = queryOracle(searchSourceBuilder);
             challengeResponse = queryChallenge(searchSourceBuilder);
-            SearchHitAdaptor adaptor = new SearchHitAdaptor();
+            MatcherAdaptor<SearchHit[], Object[]> adaptor = hits -> Arrays.stream(hits)
+                .map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()))
+                .toArray();
 
             Matcher.mappings(getChallengeMappings(), getOracleMappings())
                 .settings(getChallengeSettings(), getOracleSettings())
@@ -173,7 +178,9 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
         try {
             oracleResponse = queryOracle(searchSourceBuilder);
             challengeResponse = queryChallenge(searchSourceBuilder);
-            SearchHitAdaptor adaptor = new SearchHitAdaptor();
+            MatcherAdaptor<SearchHit[], Object[]> adaptor = hits -> Arrays.stream(hits)
+                .map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()))
+                .toArray();
 
             Matcher.mappings(getChallengeMappings(), getOracleMappings())
                 .settings(getChallengeSettings(), getOracleSettings())

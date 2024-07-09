@@ -57,7 +57,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     }
 
     protected AbstractConvertFunction(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression());
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
     }
 
     /**

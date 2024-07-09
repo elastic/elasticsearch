@@ -19,27 +19,16 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -57,9 +46,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -96,13 +89,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 
 public class PlanNamedTypesTests extends ESTestCase {
 
@@ -177,19 +168,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         assertMap(actual, matchesList(expected));
     }
 
-    public void testFunctionEntries() {
-        var serializableFunctions = PlanNamedTypes.namedTypeEntries()
-            .stream()
-            .filter(e -> Expression.class.isAssignableFrom(e.categoryClass()))
-            .map(PlanNameRegistry.Entry::name)
-            .sorted()
-            .toList();
-
-        for (var function : new EsqlFunctionRegistry().listFunctions()) {
-            assertThat(serializableFunctions, hasItem(equalTo(PlanNamedTypes.name(function.clazz()))));
-        }
-    }
-
     // Tests that all names are unique - there should be a good reason if this is not the case.
     public void testUniqueNames() {
         var actual = PlanNamedTypes.namedTypeEntries().stream().map(PlanNameRegistry.Entry::name).distinct().toList();
@@ -213,68 +191,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         var deser = (RowExec) planStreamInput.readPhysicalPlanNode();
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(plan, unused -> deser);
         assertThat(in.readVInt(), equalTo(11_345));
-    }
-
-    public void testBinComparisonSimple() throws IOException {
-        var orig = new Equals(Source.EMPTY, field("foo", DataType.DOUBLE), field("bar", DataType.DOUBLE));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        out.writeNamed(Expression.class, orig);
-        var deser = (Equals) planStreamInput(bso).readNamed(Expression.class);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testBinComparison() {
-        Stream.generate(PlanNamedTypesTests::randomBinaryComparison).limit(100).forEach(obj -> assertNamedType(Expression.class, obj));
-    }
-
-    public void testArithmeticOperationSimple() throws IOException {
-        var orig = new Add(Source.EMPTY, field("foo", DataType.LONG), field("bar", DataType.LONG));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        out.writeNamed(Expression.class, orig);
-        var deser = (Add) planStreamInput(bso).readNamed(Expression.class);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testArithmeticOperation() {
-        Stream.generate(PlanNamedTypesTests::randomArithmeticOperation).limit(100).forEach(obj -> assertNamedType(Expression.class, obj));
-    }
-
-    public void testSubStringSimple() throws IOException {
-        var orig = new Substring(Source.EMPTY, field("foo", DataType.KEYWORD), new Literal(Source.EMPTY, 1, DataType.INTEGER), null);
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeSubstring(out, orig);
-        var deser = PlanNamedTypes.readSubstring(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testStartsWithSimple() throws IOException {
-        var orig = new StartsWith(Source.EMPTY, field("foo", DataType.KEYWORD), new Literal(Source.EMPTY, "fo", DataType.KEYWORD));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeStartsWith(out, orig);
-        var deser = PlanNamedTypes.readStartsWith(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testRoundSimple() throws IOException {
-        var orig = new Round(Source.EMPTY, field("value", DataType.DOUBLE), new Literal(Source.EMPTY, 1, DataType.INTEGER));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeRound(out, orig);
-        var deser = PlanNamedTypes.readRound(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testPowSimple() throws IOException {
-        var orig = new Pow(Source.EMPTY, field("value", DataType.DOUBLE), new Literal(Source.EMPTY, 1, DataType.INTEGER));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writePow(out, orig);
-        var deser = PlanNamedTypes.readPow(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
     public void testFieldSortSimple() throws IOException {

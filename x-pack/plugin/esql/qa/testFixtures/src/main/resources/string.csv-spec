@@ -28,8 +28,9 @@ a:integer | b:integer
 ;
 
 
-length
-from employees | sort emp_no | limit 3 | eval l = length(first_name) | keep emp_no, l;
+lengthAndSourceQuoting
+required_capability: double_quotes_source_enclosing
+from "employees" | sort emp_no | limit 3 | eval l = length(first_name) | keep emp_no, l;
 
 emp_no:integer | l:integer
 10001 | 6
@@ -79,10 +80,11 @@ a:integer | ss:keyword | l:keyword | r:keyword
 1         | bcd        | ab        | cd
 ;
 
-stringCastEmp
+stringCastEmpAndSourceTripleQuoting
 required_capability: string_literal_auto_casting
+required_capability: double_quotes_source_enclosing
 
-from employees
+from """employees"""
 | eval ss = substring(first_name, "2")
 | sort emp_no
 | keep emp_no, first_name, ss

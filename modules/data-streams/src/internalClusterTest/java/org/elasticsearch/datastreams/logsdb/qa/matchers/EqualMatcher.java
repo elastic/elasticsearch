@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.util.Arrays;
 import java.util.List;
 
-public class EqualMatcher<T> extends Matcher {
+class EqualMatcher<T> extends Matcher {
     private final XContentBuilder actualMappings;
     private final Settings.Builder actualSettings;
     private final XContentBuilder expectedMappings;

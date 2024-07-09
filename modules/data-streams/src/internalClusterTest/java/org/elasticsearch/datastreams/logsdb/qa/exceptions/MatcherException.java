@@ -8,11 +8,37 @@
 
 package org.elasticsearch.datastreams.logsdb.qa.exceptions;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xcontent.XContentBuilder;
+
 /**
  * Generic base class for all types of mismatch errors.
  */
 public class MatcherException extends Exception {
-    public MatcherException(String message) {
-        super(message);
+
+    public MatcherException(
+        final XContentBuilder actualMappings,
+        final Settings.Builder actualSettings,
+        final XContentBuilder expectedMappings,
+        final Settings.Builder expectedSettings,
+        final String errorMessage
+    ) {
+        super(errorMessage(actualMappings, actualSettings, expectedMappings, expectedSettings, errorMessage));
+    }
+
+
+    private static String errorMessage(
+        final XContentBuilder actualMappings,
+        final Settings.Builder actualSettings,
+        final XContentBuilder expectedMappings,
+        final Settings.Builder expectedSettings,
+        final String errorMessage
+    ) {
+        return "Error [" + errorMessage + "] " +
+                "Actual mappings [" + Strings.toString(actualMappings) + "] " +
+                "Actual settings [" + Strings.toString(actualSettings.build()) + "] " +
+                "Expected mappings [" + Strings.toString(expectedMappings) + "] " +
+                "Expected settings [" + Strings.toString(expectedSettings.build()) + "] ";
     }
 }

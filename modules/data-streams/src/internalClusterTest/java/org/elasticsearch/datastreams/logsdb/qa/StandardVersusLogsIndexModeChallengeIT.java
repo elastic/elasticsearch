@@ -169,7 +169,6 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
         assertThat(tuple.v2().hasFailures(), Matchers.equalTo(tuple.v1().hasFailures()));
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
-            .size(numberOfDocuments)
             .size(numberOfDocuments);
         SearchResponse oracleResponse = null;
         SearchResponse challengeResponse = null;

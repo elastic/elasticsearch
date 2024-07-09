@@ -21,6 +21,8 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.InputStreamDataInput;
@@ -249,6 +251,8 @@ public record StatelessCompoundCommit(
         return readFromStoreAtOffset(in, 0, StatelessCompoundCommit::blobNameFromGeneration);
     }
 
+    private static final Logger logger = LogManager.getLogger(StatelessCompoundCommit.class);
+
     /**
      * Reads the compound commit header from the data store at the specified offset within the input stream.
      * It's expected that the input stream is already positioned at the specified offset.
@@ -273,6 +277,16 @@ public record StatelessCompoundCommit(
                 long generation = input.readVLong();
                 long primaryTerm = input.readVLong();
                 String nodeEphemeralId = input.readString();
+
+                // TODO: remove logging after confirming that no compound commits exist at obsolete versions
+                logger.info(
+                    "{} with UUID [{}] reading compound commit {} of obsolete version [{}]",
+                    shardId,
+                    shardId.getIndex().getUUID(),
+                    new PrimaryTermAndGeneration(primaryTerm, generation),
+                    version
+                );
+
                 Map<String, BlobLocation> referencedBlobLocations = input.readMap(
                     StreamInput::readString,
                     (is) -> BlobLocation.readFromStore(is, version == VERSION_WITH_BLOB_LENGTH)

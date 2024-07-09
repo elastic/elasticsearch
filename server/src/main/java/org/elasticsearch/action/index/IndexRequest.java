@@ -146,6 +146,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     private Object rawTimestamp;
     private long normalisedBytesParsed = -1;
+    private boolean originatesFromUpdateByScript;
+    private boolean originatesFromUpdateByDoc;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -196,6 +198,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             normalisedBytesParsed = in.readZLong();
         } else {
             requireDataStream = false;
+        }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+            originatesFromUpdateByScript = in.readBoolean();
+        } else {
+            originatesFromUpdateByScript = false;
+        }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+            originatesFromUpdateByDoc = in.readBoolean();
+        } else {
+            originatesFromUpdateByDoc = false;
         }
     }
 
@@ -757,6 +771,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeBoolean(requireDataStream);
             out.writeZLong(normalisedBytesParsed);
         }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+            out.writeBoolean(originatesFromUpdateByScript);
+        }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
+            out.writeBoolean(originatesFromUpdateByDoc);
+        }
     }
 
     @Override
@@ -958,5 +980,23 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             return Collections.unmodifiableList(executedPipelines);
         }
+    }
+
+    public IndexRequest setOriginatesFromUpdateByScript(boolean originatesFromUpdateByScript) {
+        this.originatesFromUpdateByScript = originatesFromUpdateByScript;
+        return this;
+    }
+
+    public boolean originatesFromUpdateByScript() {
+        return originatesFromUpdateByScript;
+    }
+
+    public boolean originatesFromUpdateByDoc() {
+        return originatesFromUpdateByDoc;
+    }
+
+    public IndexRequest setOriginatesFromUpdateByDoc(boolean originatesFromUpdateByDoc) {
+        this.originatesFromUpdateByDoc = originatesFromUpdateByDoc;
+        return this;
     }
 }

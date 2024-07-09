@@ -5,7 +5,7 @@ coming[8.15.0]
 
 Also see <<breaking-changes-8.15,Breaking changes in 8.15>>.
 
-[[known-issues-8.13.0]]
+[[known-issues-8.15.0]]
 [float]
 === Known issues
 

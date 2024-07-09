@@ -111,7 +111,13 @@ public class EsqlCapabilities {
         /**
          * Fix for union-types when aggregating over an inline conversion with casting operator. Done in #110476.
          */
-        UNION_TYPES_AGG_CAST;
+        UNION_TYPES_AGG_CAST,
+
+        /**
+         * Fix to GROK validation in case of multiple fields with same name and different types
+         * https://github.com/elastic/elasticsearch/issues/110533
+         */
+        GROK_VALIDATION;
 
         private final boolean snapshotOnly;
 

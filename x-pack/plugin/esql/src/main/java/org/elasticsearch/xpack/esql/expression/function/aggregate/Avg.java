@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
@@ -28,7 +29,20 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 public class Avg extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::new);
 
-    @FunctionInfo(returnType = "double", description = "The average of a numeric field.", isAggregation = true)
+    @FunctionInfo(
+        returnType = "double",
+        description = "The average of a numeric field.",
+        isAggregation = true,
+        examples = {
+            @Example(file = "stats", tag = "avg"),
+            @Example(
+                description = "The expression can use inline functions. For example, to calculate the average "
+                    + "over a multivalued column, first use `MV_AVG` to average the multiple values per row, "
+                    + "and use the result with the `AVG` function",
+                file = "stats",
+                tag = "docsStatsAvgNestedExpression"
+            ) }
+    )
     public Avg(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }

@@ -344,8 +344,8 @@ public class InternalEngine extends Engine {
         final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             store.readLastCommittedSegmentsInfo().userData.entrySet()
         );
-        maxSeqNo = seqNoStats.maxSeqNo;
-        localCheckpoint = seqNoStats.localCheckpoint;
+        maxSeqNo = seqNoStats.maxSeqNo();
+        localCheckpoint = seqNoStats.localCheckpoint();
         logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
         return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
     }
@@ -1688,7 +1688,7 @@ public class InternalEngine extends Engine {
         final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {
             releaseInFlightDocs(addingDocs);
-            return new IllegalArgumentException("Number of documents in the index can't exceed [" + maxDocs + "]");
+            return new IllegalArgumentException("Number of documents in the shard cannot exceed [" + maxDocs + "]");
         } else {
             return null;
         }
@@ -2143,9 +2143,8 @@ public class InternalEngine extends Engine {
         final long localCheckpointOfLastCommit = Long.parseLong(
             lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
         );
-        final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(
-            localCheckpointOfLastCommit + 1
-        ).translogFileGeneration;
+        final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(localCheckpointOfLastCommit + 1)
+            .translogFileGeneration();
         if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThresholdSizeInBytes
             && relativeTimeInNanosSupplier.getAsLong() - lastFlushTimestamp < flushThresholdAgeInNanos) {
             return false;
@@ -2165,9 +2164,8 @@ public class InternalEngine extends Engine {
          *
          * This method is to maintain translog only, thus IndexWriter#hasUncommittedChanges condition is not considered.
          */
-        final long translogGenerationOfNewCommit = translog.getMinGenerationForSeqNo(
-            localCheckpointTracker.getProcessedCheckpoint() + 1
-        ).translogFileGeneration;
+        final long translogGenerationOfNewCommit = translog.getMinGenerationForSeqNo(localCheckpointTracker.getProcessedCheckpoint() + 1)
+            .translogFileGeneration();
         return translogGenerationOfLastCommit < translogGenerationOfNewCommit
             || localCheckpointTracker.getProcessedCheckpoint() == localCheckpointTracker.getMaxSeqNo();
     }

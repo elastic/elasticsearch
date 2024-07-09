@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
-public class ConstantFoldingTest extends ESTestCase {
+public class ConstantFoldingTests extends ESTestCase {
 
     public void testConstantFolding() {
         Expression exp = new Add(EMPTY, TWO, THREE);

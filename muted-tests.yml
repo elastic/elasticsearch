@@ -79,9 +79,6 @@ tests:
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testMinVersionAsOldVersion
   issue: https://github.com/elastic/elasticsearch/issues/109454
-- class: org.elasticsearch.search.aggregations.bucket.terms.RareTermsIT
-  method: testSingleValuedString
-  issue: https://github.com/elastic/elasticsearch/issues/110388
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"

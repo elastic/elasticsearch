@@ -45,6 +45,7 @@ public final class DeduplicatingFieldInfosFormat extends FieldInfosFormat {
         final FieldInfo[] deduplicated = new FieldInfo[fieldInfos.size()];
         int i = 0;
         for (FieldInfo fi : fieldInfos) {
+            var attributes = fi.attributes();
             deduplicated[i++] = new FieldInfo(
                 FieldMapper.internFieldName(fi.getName()),
                 fi.number,
@@ -54,8 +55,7 @@ public final class DeduplicatingFieldInfosFormat extends FieldInfosFormat {
                 fi.getIndexOptions(),
                 fi.getDocValuesType(),
                 fi.getDocValuesGen(),
-                // original attributes is UnmodifiableMap
-                internStringStringMap(fi.attributes()),
+                attributes.size() > 10 ? attributes : internStringStringMap(attributes),
                 fi.getPointDimensionCount(),
                 fi.getPointIndexDimensionCount(),
                 fi.getPointNumBytes(),

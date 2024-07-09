@@ -1143,7 +1143,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         Priority.NORMAL,
                         0L,
                         0L
-                    )
+                    ),
+                    null
                 ).addRoutingEntry("ml-node-1", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build(),
                 "model-2",
                 TrainedModelAssignment.Builder.empty(
@@ -1158,7 +1159,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         Priority.NORMAL,
                         0L,
                         0L
-                    )
+                    ),
+                    null
                 ).addRoutingEntry("ml-node-3", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build()
             ),
             List.of(
@@ -1242,7 +1244,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         Priority.NORMAL,
                         0L,
                         0L
-                    )
+                    ),
+                    null
                 )
                     .addRoutingEntry("ml-node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                     .addRoutingEntry("ml-node-2", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
@@ -1260,7 +1263,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         Priority.NORMAL,
                         0L,
                         0L
-                    )
+                    ),
+                    null
                 ).addRoutingEntry("ml-node-3", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build()
             ),
             List.of(
@@ -1334,7 +1338,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         Priority.NORMAL,
                         0L,
                         0L
-                    )
+                    ),
+                    null
                 ).addRoutingEntry("ml-node-1", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build(),
                 "model-2",
                 TrainedModelAssignment.Builder.empty(
@@ -1349,7 +1354,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         Priority.NORMAL,
                         0L,
                         0L
-                    )
+                    ),
+                    null
                 ).addRoutingEntry("ml-node-3", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build()
             ),
             List.of(
@@ -1432,7 +1438,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         Priority.NORMAL,
                         0L,
                         0L
-                    )
+                    ),
+                    null
                 ).addRoutingEntry("ml-node-1", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build(),
                 "model-2",
                 TrainedModelAssignment.Builder.empty(
@@ -1447,7 +1454,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         Priority.NORMAL,
                         0L,
                         0L
-                    )
+                    ),
+                    null
                 ).addRoutingEntry("ml-node-3", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build()
             ),
             List.of(
@@ -1525,7 +1533,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         Priority.NORMAL,
                         0L,
                         0L
-                    )
+                    ),
+                    null
                 ).addRoutingEntry("ml-node-1", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build(),
                 "model-2",
                 TrainedModelAssignment.Builder.empty(
@@ -1540,7 +1549,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         Priority.NORMAL,
                         0L,
                         0L
-                    )
+                    ),
+                    null
                 ).addRoutingEntry("ml-node-3", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build()
             ),
             List.of(

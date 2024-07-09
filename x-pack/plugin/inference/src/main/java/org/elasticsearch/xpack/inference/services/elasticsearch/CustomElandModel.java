@@ -37,6 +37,7 @@ public class CustomElandModel extends Model implements ElasticsearchModel {
         var startRequest = new StartTrainedModelDeploymentAction.Request(internalServiceSettings.getModelId(), this.getInferenceEntityId());
         startRequest.setNumberOfAllocations(internalServiceSettings.getNumAllocations());
         startRequest.setThreadsPerAllocation(internalServiceSettings.getNumThreads());
+        startRequest.setAdaptiveAllocationsSettings(internalServiceSettings.getAdaptiveAllocationsSettings());
         startRequest.setWaitForState(STARTED);
 
         return startRequest;

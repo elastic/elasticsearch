@@ -271,6 +271,7 @@ public class ElasticsearchInternalService implements InferenceService {
             model.getServiceSettings().getElasticsearchInternalServiceSettings().getNumAllocations(),
             model.getServiceSettings().getElasticsearchInternalServiceSettings().getNumThreads(),
             model.getServiceSettings().getElasticsearchInternalServiceSettings().getModelId(),
+            model.getServiceSettings().getElasticsearchInternalServiceSettings().getAdaptiveAllocationsSettings(),
             embeddingSize,
             model.getServiceSettings().similarity(),
             model.getServiceSettings().elementType()

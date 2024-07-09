@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
@@ -107,18 +106,14 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     }
 
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalAggregation aggregation = new UnmappedSignificantTerms(
+        return NonCollectingAggregator.withEmptyAggregation(
             name,
-            bucketCountThresholds.getRequiredSize(),
-            bucketCountThresholds.getMinDocCount(),
-            metadata
+            context,
+            parent,
+            factories,
+            metadata,
+            new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), metadata)
         );
-        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return aggregation;
-            }
-        };
     }
 
     private static boolean supportsAgg(MappedFieldType ft) {

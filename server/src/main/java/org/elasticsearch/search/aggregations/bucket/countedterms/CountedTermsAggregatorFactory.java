@@ -15,7 +15,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
@@ -88,19 +87,14 @@ class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalAggregation aggregation = new UnmappedTerms(
+        return NonCollectingAggregator.withEmptyAggregation(
             name,
-            order,
-            bucketCountThresholds.getRequiredSize(),
-            bucketCountThresholds.getMinDocCount(),
-            metadata
+            context,
+            parent,
+            factories,
+            metadata,
+            new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), metadata)
         );
-        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return aggregation;
-            }
-        };
     }
 
     @Override

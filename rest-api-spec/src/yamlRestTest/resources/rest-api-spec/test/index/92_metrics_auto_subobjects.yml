@@ -192,7 +192,7 @@
 "Root without subobjects with synthetic source":
   - requires:
       test_runner_features: allowed_warnings_regex
-      cluster_features: ["gte_v8.4.0"]
+      cluster_features: ["gte_v8.4.0", "mapper.subobjects_auto"]
       reason: added in 8.4.0
 
   - do:

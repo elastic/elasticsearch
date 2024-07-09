@@ -93,27 +93,7 @@ public class EqualMatcher<T> extends Matcher {
         }
         final List<T> actualList = Arrays.asList(actualArray);
         final List<T> expectedList = Arrays.asList(expectedArray);
-        for (T actualValue : actualArray) {
-            if (contains(actualValue, expectedList) == false) {
-                return false;
-            }
-        }
-        for (T expectedValue : expectedList) {
-            if (contains(expectedValue, actualList) == false) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private boolean contains(T value, List<T> list) {
-        for (T v : list) {
-            if (v.equals(value)) {
-                return true;
-            }
-        }
-        return false;
+        return actualList.containsAll(expectedList) && expectedList.containsAll(actualList);
     }
 
     private static <T> boolean matchArraysEqualExact(T[] actualArray, T[] expectedArray) {

@@ -26,7 +26,6 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Optional;
-import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -155,9 +154,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         final AtomicInteger completedRequests = new AtomicInteger();
         final AtomicInteger numSuccess = new AtomicInteger();
         final AtomicInteger numFailure = new AtomicInteger();
-        Phaser phaser = new Phaser(numThreads);
-        runInParallel(numThreads, i -> {
-            phaser.arriveAndAwaitAdvance();
+        startInParallel(numThreads, i -> {
             while (completedRequests.incrementAndGet() <= numRequests) {
                 try {
                     final DocWriteResponse resp = prepareIndex("test").setSource("{}", XContentType.JSON).get();

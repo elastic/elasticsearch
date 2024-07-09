@@ -30,7 +30,11 @@ public class AggregateDoubleMetricAttribute extends FieldAttribute {
     private final NameId sumSubNameId;
     private final NameId valueCountNameId;
 
-    public AggregateDoubleMetricAttribute(
+    public AggregateDoubleMetricAttribute(Source source, String name, EsField field) {
+        this(source, null, name, field, null, Nullability.TRUE, null, false, new NameId(), new NameId(), new NameId(), new NameId());
+    }
+
+    AggregateDoubleMetricAttribute(
         Source source,
         FieldAttribute parent,
         String name,

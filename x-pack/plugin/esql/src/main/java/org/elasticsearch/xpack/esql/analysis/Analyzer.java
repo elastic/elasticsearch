@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzer
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricAttribute;
-import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricSubAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -239,31 +238,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (t instanceof UnsupportedEsField uef) {
                         list.add(new UnsupportedAttribute(source, name, uef));
                     } else {
-                        boolean isADMF = t.getDataType() == AGGREGATE_DOUBLE_METRIC;
-                        if (isADMF) {
-                            var minField = new AggregateDoubleMetricSubAttribute(source, name, "min");
-                            list.add(minField);
-                            var maxField = new AggregateDoubleMetricSubAttribute(source, name, "max");
-                            list.add(maxField);
-                            var sumField = new AggregateDoubleMetricSubAttribute(source, name, "sum");
-                            list.add(sumField);
-                            var countField = new AggregateDoubleMetricSubAttribute(source, name, "value_count");
-                            list.add(countField);
-
-                            AggregateDoubleMetricAttribute attribute = new AggregateDoubleMetricAttribute(
-                                source,
-                                null,
-                                name,
-                                t,
-                                null,
-                                Nullability.TRUE,
-                                null,
-                                false,
-                                minField.id(),
-                                maxField.id(),
-                                sumField.id(),
-                                countField.id()
-                            );
+                        if (t.getDataType() == AGGREGATE_DOUBLE_METRIC) {
+                            AggregateDoubleMetricAttribute attribute = new AggregateDoubleMetricAttribute(source, name, t);
+                            list.add(attribute.getMinSubField());
+                            list.add(attribute.getMaxSubField());
+                            list.add(attribute.getSumSubField());
+                            list.add(attribute.getValueCountSubField());
                             list.add(attribute);
                         } else {
                             FieldAttribute attribute = new FieldAttribute(source, null, name, t);

@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
@@ -250,6 +252,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+
+        assumeTrue(
+            "Surrogate expression with non-trivial children cannot be evaluated",
+            expression.children()
+                .stream()
+                .allMatch(child -> child instanceof FieldAttribute || child instanceof DeepCopy || child instanceof Literal)
+        );
 
         if (expression instanceof AggregateFunction == false) {
             onEvaluableExpression.accept(expression);

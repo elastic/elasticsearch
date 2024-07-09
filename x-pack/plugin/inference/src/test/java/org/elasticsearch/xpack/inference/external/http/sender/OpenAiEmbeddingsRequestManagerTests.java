@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.inference.common.TruncatorTests;
 
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;
 
-public class OpenAiEmbeddingsExecutableRequestCreatorTests {
+public class OpenAiEmbeddingsRequestManagerTests {
     public static OpenAiEmbeddingsRequestManager makeCreator(
         String url,
         @Nullable String org,

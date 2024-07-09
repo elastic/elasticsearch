@@ -106,7 +106,12 @@ public class EsqlCapabilities {
         /**
          * Support for WEIGHTED_AVG function.
          */
-        AGG_WEIGHTED_AVG;
+        AGG_WEIGHTED_AVG,
+
+        /**
+         * Fix for union-types when aggregating over an inline conversion with casting operator. Done in #110476.
+         */
+        UNION_TYPES_AGG_CAST;
 
         private final boolean snapshotOnly;
 

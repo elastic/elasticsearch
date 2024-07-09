@@ -462,7 +462,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * waits until all free_context actions have been handled by the generic thread pool
      */
     protected void ensureAllFreeContextActionsAreConsumed() throws Exception {
-        logger.info("--> waiting for all ongoing tasks to complete within a reasonable time");
+        logger.info("--> waiting for all free_context tasks to complete within a reasonable time");
         safeGet(clusterAdmin().prepareListTasks().setActions(FREE_CONTEXT_ACTION_NAME + "*").setWaitForCompletion(true).execute());
     }
 

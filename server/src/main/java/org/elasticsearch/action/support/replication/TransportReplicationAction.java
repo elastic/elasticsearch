@@ -231,7 +231,7 @@ public abstract class TransportReplicationAction<
         transportService.registerRequestHandler(
             transportReplicaAction,
             executor,
-            true, // we must never reject on because of thread pool capacity on replicas
+            true, // we must never reject because of thread pool capacity on replicas
             canTripCircuitBreakerOnReplica,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in),
             this::handleReplicaRequest

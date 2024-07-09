@@ -29,7 +29,7 @@ import java.util.function.LongSupplier;
  * (i.e. the timestamp field for DataStreams or the 'event.ingested' field in ECS) into a MatchNoneQueryBuilder
  * and skip the shards that don't hold queried data. See IndexMetadata for more details.
  */
-    public class CoordinatorRewriteContext extends QueryRewriteContext {
+public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final CachedTimestampFieldInfo timestampFieldInfo;
 
     /**

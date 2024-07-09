@@ -1,3 +1,19 @@
+maxOfInt
+FROM employees
+| KEEP emp_no, languages, gender
+| INLINESTATS max_lang = MAX(languages) 
+| WHERE max_lang == languages
+| SORT emp_no ASC
+| LIMIT 5;
+
+emp_no:integer | languages:integer | gender:keyword | max_lang:integer
+         10002 |                 5 | F              | 5
+         10004 |                 5 | M              | 5
+         10011 |                 5 | null           | 5
+         10012 |                 5 | null           | 5
+         10014 |                 5 | null           | 5
+;
+
 maxOfIntByKeyword
 FROM employees
 | KEEP emp_no, languages, gender
@@ -26,6 +42,18 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
          10015 |               390266432 | null           | 390266432
          10030 |               394597613 | M              | 394597613
 ;
+
+maxOfLong
+FROM employees
+| KEEP emp_no, avg_worked_seconds, gender
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) 
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT emp_no ASC;
+
+emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_seconds:long
+         10030 |               394597613 | M              | 394597613
+;
+
 
 // TODO allow inline calculation like BY l = SUBSTRING(
 maxOfLongByCalculatedKeyword

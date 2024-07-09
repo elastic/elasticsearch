@@ -138,9 +138,6 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
 
     @Override
     public LogicalPlan firstPhase() {
-        if (groupings.isEmpty()) {
-            throw new IllegalArgumentException("INLINESTATS doesn't yet support non-grouping mode");
-        }
         return new Aggregate(source(), child(), Aggregate.AggregateType.STANDARD, groupings, aggregates);
     }
 

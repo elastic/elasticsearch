@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -54,6 +55,7 @@ public final class EnrichCache {
     private final LongSupplier relativeNanoTimeProvider;
     private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
     private final AtomicLong missesTimeInNanos = new AtomicLong(0);
+    private final AtomicLong sizeInBytes = new AtomicLong(0);
     private volatile Metadata metadata;
 
     EnrichCache(long maxSize) {
@@ -63,7 +65,7 @@ public final class EnrichCache {
     // non-private for unit testing only
     EnrichCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
         this.relativeNanoTimeProvider = relativeNanoTimeProvider;
-        this.cache = CacheBuilder.<CacheKey, CacheValue>builder().setMaximumWeight(maxSize).build();
+        this.cache = CacheBuilder.<CacheKey, CacheValue>builder().setMaximumWeight(maxSize).removalListener(this::removalListener).build();
     }
 
     /**
@@ -112,11 +114,12 @@ public final class EnrichCache {
     }
 
     // non-private for unit testing only
-    void put(SearchRequest searchRequest, CacheValue response) {
+    void put(SearchRequest searchRequest, CacheValue cacheValue) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
 
-        cache.put(cacheKey, response);
+        cache.put(cacheKey, cacheValue);
+        sizeInBytes.addAndGet(cacheValue.sizeInBytes);
     }
 
     void setMetadata(Metadata metadata) {
@@ -133,16 +136,8 @@ public final class EnrichCache {
             cacheStats.getEvictions(),
             TimeValue.nsecToMSec(hitsTimeInNanos.get()),
             TimeValue.nsecToMSec(missesTimeInNanos.get()),
-            computeTotalSizeInBytes()
+            sizeInBytes.get()
         );
-    }
-
-    private long computeTotalSizeInBytes() {
-        long size = 0;
-        for (CacheValue value : cache.values()) {
-            size += value.sizeInBytes;
-        }
-        return size;
     }
 
     private String getEnrichIndexKey(SearchRequest searchRequest) {
@@ -189,6 +184,10 @@ public final class EnrichCache {
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
         }
+    }
+
+    private void removalListener(RemovalNotification<CacheKey, CacheValue> removal) {
+        sizeInBytes.getAndAdd(-1 * removal.getValue().sizeInBytes);
     }
 
     private static class CacheKey {

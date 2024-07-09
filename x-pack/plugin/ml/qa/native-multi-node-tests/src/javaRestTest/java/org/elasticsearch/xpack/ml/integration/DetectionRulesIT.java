@@ -47,9 +47,6 @@ import static org.hamcrest.Matchers.oneOf;
  */
 public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
-    // logger
-    public static final Logger logger = LogManager.getLogger(DetectionRulesIT.class);
-
     @After
     public void cleanUpTest() {
         cleanUp();

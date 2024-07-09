@@ -32,7 +32,6 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
@@ -60,8 +59,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
      * Futures may be completed with {@code null} to indicate that there is
      * no usable timestamp field.
      */
-    private final Map<Index, PlainActionFuture<Map<String, DateFieldMapper.DateFieldType>>> fieldTypesByIndex = ConcurrentCollections
-        .newConcurrentMap();
+    private final Map<Index, PlainActionFuture<CachedTimestampFieldInfo>> fieldTypesByIndex = ConcurrentCollections.newConcurrentMap();
 
     public TimestampFieldMapperService(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
         this.indicesService = indicesService;
@@ -108,7 +106,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
 
             if (hasUsefulTimestampField(indexMetadata) && fieldTypesByIndex.containsKey(index) == false) {
                 logger.trace("computing timestamp mapping(s) for {}", index);
-                final PlainActionFuture<Map<String, DateFieldMapper.DateFieldType>> future = new PlainActionFuture<>();
+                final PlainActionFuture<CachedTimestampFieldInfo> future = new PlainActionFuture<>();
                 fieldTypesByIndex.put(index, future);
 
                 final IndexService indexService = indicesService.indexService(index);
@@ -126,14 +124,14 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
                             try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata)) {
                                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
                                 logger.trace("computed timestamp field mapping for {}", index);
-                                future.onResponse(fromMapperService(mapperService));
+                                future.onResponse(fromMapperService(mapperService, indexMetadata));
                             }
                         }
                     });
                 } else {
                     logger.trace("computing timestamp mapping for {} using existing index service", index);
                     try {
-                        future.onResponse(fromMapperService(indexService.mapperService()));
+                        future.onResponse(fromMapperService(indexService.mapperService(), indexMetadata));
                     } catch (Exception e) {
                         assert false : e;
                         future.onResponse(null);
@@ -162,25 +160,30 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         return eventIngestedRange.isComplete() && eventIngestedRange != IndexLongFieldRange.UNKNOWN;
     }
 
-    private static Map<String, DateFieldMapper.DateFieldType> fromMapperService(MapperService mapperService) {
-        Map<String, DateFieldMapper.DateFieldType> fieldToType = new HashMap<>();
+    private static CachedTimestampFieldInfo fromMapperService(MapperService mapperService, IndexMetadata indexMetadata) {
+        DateFieldMapper.DateFieldType timestampFieldType = null;
+        IndexLongFieldRange timestampFieldRange = null;
+        DateFieldMapper.DateFieldType eventIngestedFieldType = null;
+        IndexLongFieldRange eventIngestedFieldRange = null;
 
-        final MappedFieldType timestampFieldType = mapperService.fieldType(DataStream.TIMESTAMP_FIELD_NAME);
-        if (timestampFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
-            fieldToType.put(DataStream.TIMESTAMP_FIELD_NAME, dateFieldType);
+        MappedFieldType mappedFieldType = mapperService.fieldType(DataStream.TIMESTAMP_FIELD_NAME);
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
+            timestampFieldType = dateFieldType;
+            timestampFieldRange = indexMetadata.getTimestampRange();
         }
-        final MappedFieldType eventIngestedFieldType = mapperService.fieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
-        if (eventIngestedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
-            fieldToType.put(IndexMetadata.EVENT_INGESTED_FIELD_NAME, dateFieldType);
+        mappedFieldType = mapperService.fieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
+            eventIngestedFieldType = dateFieldType;
+            eventIngestedFieldRange = indexMetadata.getEventIngestedRange();
         }
-        if (fieldToType.isEmpty()) {
+        if (timestampFieldType == null && eventIngestedFieldType == null) {
             return null;
         }
-        return fieldToType;
+        return new CachedTimestampFieldInfo(timestampFieldType, timestampFieldRange, eventIngestedFieldType, eventIngestedFieldRange);
     }
 
     /**
-     * @return a map holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the given index,
+     * @return CachedTimestampFieldInfo holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the index.
      * or {@code null} if:
      * - the index is not found,
      * - the field is not found,
@@ -188,8 +191,8 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
      * - the index does not have a useful timestamp field.
      */
     @Nullable
-    public Map<String, DateFieldMapper.DateFieldType> getTimestampFieldTypeMap(Index index) {
-        final PlainActionFuture<Map<String, DateFieldMapper.DateFieldType>> future = fieldTypesByIndex.get(index);
+    public CachedTimestampFieldInfo getTimestampFieldTypeMap(Index index) {
+        final PlainActionFuture<CachedTimestampFieldInfo> future = fieldTypesByIndex.get(index);
         if (future == null || future.isDone() == false) {
             return null;
         }

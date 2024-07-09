@@ -98,7 +98,6 @@ import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -1769,7 +1768,7 @@ public class IndicesService extends AbstractLifecycleComponent
             client,
             nowInMillis,
             clusterService::state,
-            this::getTimestampFieldTypeMap
+            this::getTimestampFieldTypeInfo
         );
     }
 
@@ -1860,14 +1859,15 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * @return a map holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the given index,
+     * @return CachedTimestampFieldInfo holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the index.
+     * or {@code null} if:
      * - the index is not found,
      * - the field is not found, or
      * - the mapping is not known yet, or
      * - the index does not have a useful timestamp field.
      */
     @Nullable
-    public Map<String, DateFieldMapper.DateFieldType> getTimestampFieldTypeMap(Index index) {
+    public CachedTimestampFieldInfo getTimestampFieldTypeInfo(Index index) {
         return timestampFieldMapperService.getTimestampFieldTypeMap(index);
     }
 

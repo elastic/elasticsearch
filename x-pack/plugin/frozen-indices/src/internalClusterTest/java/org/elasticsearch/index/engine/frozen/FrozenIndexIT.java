@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.indices.CachedTimestampFieldInfo;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
@@ -203,7 +204,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         }
 
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-            assertNull(indicesService.getTimestampFieldTypeMap(index));
+            assertNull(indicesService.getTimestampFieldTypeInfo(index));
         }
 
         assertAcked(
@@ -213,9 +214,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             final PlainActionFuture<Map<String, DateFieldMapper.DateFieldType>> future = new PlainActionFuture<>();
             assertBusy(() -> {
-                Map<String, DateFieldMapper.DateFieldType> fieldTypeMap = indicesService.getTimestampFieldTypeMap(index);
-                DateFieldMapper.DateFieldType timestampFieldType = fieldTypeMap.get(DataStream.TIMESTAMP_FIELD_NAME);
-                DateFieldMapper.DateFieldType eventIngestedFieldType = fieldTypeMap.get(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+                CachedTimestampFieldInfo timestampsFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(index);
+                DateFieldMapper.DateFieldType timestampFieldType = timestampsFieldTypeInfo.getTimestampFieldType();
+                DateFieldMapper.DateFieldType eventIngestedFieldType = timestampsFieldTypeInfo.getEventIngestedFieldType();
                 assertNotNull(eventIngestedFieldType);
                 assertNotNull(timestampFieldType);
                 future.onResponse(
@@ -245,7 +246,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         );
         ensureGreen("index");
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-            assertNull(indicesService.getTimestampFieldTypeMap(index));
+            assertNull(indicesService.getTimestampFieldTypeInfo(index));
         }
     }
 
@@ -307,7 +308,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         }
 
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-            assertNull(indicesService.getTimestampFieldTypeMap(index));
+            assertNull(indicesService.getTimestampFieldTypeInfo(index));
         }
 
         assertAcked(
@@ -318,9 +319,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
             // final PlainActionFuture<DateFieldMapper.DateFieldType> timestampFieldTypeFuture = new PlainActionFuture<>();
             final PlainActionFuture<Map<String, DateFieldMapper.DateFieldType>> future = new PlainActionFuture<>();
             assertBusy(() -> {
-                Map<String, DateFieldMapper.DateFieldType> fieldTypeMap = indicesService.getTimestampFieldTypeMap(index);
-                DateFieldMapper.DateFieldType timestampFieldType = fieldTypeMap.get(DataStream.TIMESTAMP_FIELD_NAME);
-                DateFieldMapper.DateFieldType eventIngestedFieldType = fieldTypeMap.get(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+                CachedTimestampFieldInfo timestampsFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(index);
+                DateFieldMapper.DateFieldType timestampFieldType = timestampsFieldTypeInfo.getTimestampFieldType();
+                DateFieldMapper.DateFieldType eventIngestedFieldType = timestampsFieldTypeInfo.getEventIngestedFieldType();
                 if (timeField == DataStream.TIMESTAMP_FIELD_NAME) {
                     assertNotNull(timestampFieldType);
                     assertNull(eventIngestedFieldType);
@@ -344,7 +345,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         );
         ensureGreen("index");
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-            assertNull(indicesService.getTimestampFieldTypeMap(index));
+            assertNull(indicesService.getTimestampFieldTypeInfo(index));
         }
     }
 

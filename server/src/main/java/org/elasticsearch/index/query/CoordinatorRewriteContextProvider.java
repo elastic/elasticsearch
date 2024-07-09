@@ -10,15 +10,11 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.indices.CachedTimestampFieldInfo;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -28,14 +24,14 @@ public class CoordinatorRewriteContextProvider {
     private final Client client;
     private final LongSupplier nowInMillis;
     private final Supplier<ClusterState> clusterStateSupplier;
-    private final Function<Index, Map<String, DateFieldMapper.DateFieldType>> mappingSupplier;
+    private final Function<Index, CachedTimestampFieldInfo> mappingSupplier;
 
     public CoordinatorRewriteContextProvider(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
         Supplier<ClusterState> clusterStateSupplier,
-        Function<Index, Map<String, DateFieldMapper.DateFieldType>> mappingSupplier
+        Function<Index, CachedTimestampFieldInfo> mappingSupplier
     ) {
         this.parserConfig = parserConfig;
         this.client = client;
@@ -52,28 +48,25 @@ public class CoordinatorRewriteContextProvider {
         if (indexMetadata == null) {
             return null;
         }
-        Map<String, DateFieldMapper.DateFieldType> dateFieldMap = mappingSupplier.apply(index);
-        if (dateFieldMap == null) {
+        CachedTimestampFieldInfo timestampsFieldInfo = mappingSupplier.apply(index);
+        if (timestampsFieldInfo == null) {
             return null;
         }
 
-        DateFieldMapper.DateFieldType timestampFieldType = dateFieldMap.get(DataStream.TIMESTAMP_FIELD_NAME);
-        IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
+        // ensure the cached info has the latest ranges from cluster state
+        timestampsFieldInfo.setTimestampRange(indexMetadata.getTimestampRange());
+        timestampsFieldInfo.setEventIngestedRange(indexMetadata.getEventIngestedRange());
 
-        DateFieldMapper.DateFieldType eventIngestedFieldType = dateFieldMap.get(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
-        IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
-
-        if (timestampRange.containsAllShardRanges() == false) {
-            // if @timestamp rnage is not present or not ready in cluster state, fallback to using time series range (if present)
-            timestampRange = indexMetadata.getTimeSeriesTimestampRange(timestampFieldType);
+        if (timestampsFieldInfo.getTimestampRange().containsAllShardRanges() == false) {
+            // if @timestamp range is not present or not ready in cluster state, fallback to using time series range (if present)
+            timestampsFieldInfo.setTimestampRange(indexMetadata.getTimeSeriesTimestampRange(timestampsFieldInfo.getTimestampFieldType()));
             // if timestampRange in the time series is null AND the eventIngestedRange is not ready for use, return null (no coord rewrite)
-            if (timestampRange == null && eventIngestedRange.containsAllShardRanges() == false) {
+            if (timestampsFieldInfo.getTimestampRange() == null
+                && timestampsFieldInfo.getEventIngestedRange().containsAllShardRanges() == false) {
                 return null;
             }
         }
 
-        var timestampRangeInfo = new CoordinatorRewriteContext.DateFieldRange(timestampFieldType, timestampRange);
-        var eventIngestedRangeInfo = new CoordinatorRewriteContext.DateFieldRange(eventIngestedFieldType, eventIngestedRange);
-        return new CoordinatorRewriteContext(parserConfig, client, nowInMillis, timestampRangeInfo, eventIngestedRangeInfo);
+        return new CoordinatorRewriteContext(parserConfig, client, nowInMillis, timestampsFieldInfo);
     }
 }

@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.indices.CachedTimestampFieldInfo;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
@@ -1148,7 +1149,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
     static class StaticCoordinatorRewriteContextProviderBuilder {
         private ClusterState clusterState = ClusterState.EMPTY_STATE;
-        private final Map<Index, Map<String, DateFieldMapper.DateFieldType>> fields = new HashMap<>();
+        private final Map<Index, CachedTimestampFieldInfo> fields = new HashMap<>();
 
         private void addIndexMinMaxTimestamps(Index index, String fieldName, long minTimeStamp, long maxTimestamp) {
             if (clusterState.metadata().index(index) != null) {
@@ -1169,13 +1170,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 .numberOfReplicas(0);
             if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
                 indexMetadataBuilder.timestampRange(timestampRange);
+                fields.put(index, new CachedTimestampFieldInfo(new DateFieldMapper.DateFieldType(fieldName), null, null, null));
             } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
                 indexMetadataBuilder.eventIngestedRange(timestampRange, TransportVersion.current());
+                fields.put(index, new CachedTimestampFieldInfo(null, null, new DateFieldMapper.DateFieldType(fieldName), null));
             }
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
-            fields.put(index, Map.of(fieldName, new DateFieldMapper.DateFieldType(fieldName)));
         }
 
         /**
@@ -1216,11 +1218,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
             fields.put(
                 index,
-                Map.of(
-                    DataStream.TIMESTAMP_FIELD_NAME,
+                new CachedTimestampFieldInfo(
                     new DateFieldMapper.DateFieldType(DataStream.TIMESTAMP_FIELD_NAME),
-                    IndexMetadata.EVENT_INGESTED_FIELD_NAME,
-                    new DateFieldMapper.DateFieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME)
+                    null,
+                    new DateFieldMapper.DateFieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME),
+                    null
                 )
             );
         }
@@ -1238,7 +1240,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
-            fields.put(index, Map.of(DataStream.TIMESTAMP_FIELD_NAME, new DateFieldMapper.DateFieldType(DataStream.TIMESTAMP_FIELD_NAME)));
+            fields.put(
+                index,
+                new CachedTimestampFieldInfo(new DateFieldMapper.DateFieldType(DataStream.TIMESTAMP_FIELD_NAME), null, null, null)
+            );
         }
 
         public CoordinatorRewriteContextProvider build() {

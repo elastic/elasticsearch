@@ -6,13 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.logsdb.qa.matchers;
+package org.elasticsearch.datastreams.logsdb.qa.adaptors;
 
-import org.elasticsearch.datastreams.logsdb.qa.exceptions.MatcherException;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 
-public class DocumentFieldMatcher<T> extends Matcher<T> {
+public class InternalAggregationAdaptor implements MatcherAdaptor<InternalAggregation, Object> {
     @Override
-    public void match(T a, T b) throws MatcherException {
-
+    public Object adapt(InternalAggregation that) {
+        return that;
     }
 }

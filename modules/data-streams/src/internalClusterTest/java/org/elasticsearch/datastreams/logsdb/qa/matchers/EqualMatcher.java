@@ -10,16 +10,21 @@ package org.elasticsearch.datastreams.logsdb.qa.matchers;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.logsdb.qa.exceptions.MatcherException;
+import org.elasticsearch.datastreams.logsdb.qa.exceptions.MismatchTypeMatcherException;
 import org.elasticsearch.datastreams.logsdb.qa.exceptions.UncomparableMatcherException;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-public class EqualMatcher<T> extends Matcher<T> {
+import java.util.Arrays;
+import java.util.List;
+
+public class EqualMatcher<T> extends Matcher {
     private final XContentBuilder actualMappings;
     private final Settings.Builder actualSettings;
     private final XContentBuilder expectedMappings;
     private final Settings.Builder expectedSettings;
     private final T actual;
     private final T expected;
+    private final boolean ignoreSorting;
 
     public EqualMatcher(
         XContentBuilder actualMappings,
@@ -27,7 +32,8 @@ public class EqualMatcher<T> extends Matcher<T> {
         XContentBuilder expectedMappings,
         Settings.Builder expectedSettings,
         T actual,
-        T expected
+        T expected,
+        boolean ignoreSorting
     ) {
         this.actualMappings = actualMappings;
         this.actualSettings = actualSettings;
@@ -35,10 +41,10 @@ public class EqualMatcher<T> extends Matcher<T> {
         this.expectedSettings = expectedSettings;
         this.actual = actual;
         this.expected = expected;
+        this.ignoreSorting = ignoreSorting;
     }
 
     @SuppressWarnings("unchecked")
-    @Override
     public boolean match() throws MatcherException {
         if (actual == null) {
             if (expected == null) {
@@ -47,39 +53,76 @@ public class EqualMatcher<T> extends Matcher<T> {
                     actualSettings,
                     expectedMappings,
                     expectedSettings,
-                    "Both null");
+                    "Both 'actual' and 'expected' are null"
+                );
             }
             return false;
         }
         if (expected == null) {
             return false;
         }
-        if (actual.getClass().equals(expected.getClass())) {
-           throw new MismatchTypeMatcherException();
-       }
-        if (actual.getClass().isArray() && expected.getClass().isArray()) {
-            return matchArraysEqual((T[]) actual, (T[]) expected);
+        if (actual.getClass().equals(expected.getClass()) == false) {
+            throw new MismatchTypeMatcherException(
+                actualMappings,
+                actualSettings,
+                expectedMappings,
+                expectedSettings,
+                "Unable to match " + actual.getClass().getSimpleName() + " to " + expected.getClass().getSimpleName()
+            );
         }
-        if (actual.getClass().isArray() == false && expected.getClass().isArray() == false) {
-            return matchObjectEqual(actual, expected);
+        if (actual.getClass().isArray()) {
+            return matchArraysEqual((T[]) actual, (T[]) expected, ignoreSorting);
         }
-        throw new MismatchTypeMatcherException();
-    }
-
-    private boolean matchObjectEqual(final T actual, final T expected) {
         return actual.equals(expected);
     }
 
-    private boolean matchArraysEqual(final T[] actualArray, final T[] expectedArray) {
+    private boolean matchArraysEqual(final T[] actualArray, final T[] expectedArray, boolean ignoreSorting) {
         if (actualArray.length != expectedArray.length) {
             return false;
         }
-        for (int i = 0; i < actualArray.length; i++) {
-            boolean isEqual = matchObjectEqual(actualArray[i], expectedArray[i]);
-            if (isEqual == false) {
+        if (ignoreSorting) {
+            return matchArraysEqualIgnoringSorting(actualArray, expectedArray) != false;
+        } else {
+            return matchArraysEqualExact(actualArray, expectedArray) != false;
+        }
+    }
+
+    private boolean matchArraysEqualIgnoringSorting(T[] actualArray, T[] expectedArray) {
+        if (actualArray.length != expectedArray.length) {
+            return false;
+        }
+        final List<T> actualList = Arrays.asList(actualArray);
+        final List<T> expectedList = Arrays.asList(expectedArray);
+        for (T actualValue : actualArray) {
+            if (contains(actualValue, expectedList) == false) {
                 return false;
             }
         }
+        for (T expectedValue : expectedList) {
+            if (contains(expectedValue, actualList) == false) {
+                return false;
+            }
+        }
+
         return true;
+    }
+
+    private boolean contains(T value, List<T> list) {
+        for (T v : list) {
+            if (v.equals(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static <T> boolean matchArraysEqualExact(T[] actualArray, T[] expectedArray) {
+        for (int i = 0; i < actualArray.length; i++) {
+            boolean isEqual = actualArray[i].equals(expectedArray[i]);
+            if (isEqual == false) {
+                return true;
+            }
+        }
+        return false;
     }
 }

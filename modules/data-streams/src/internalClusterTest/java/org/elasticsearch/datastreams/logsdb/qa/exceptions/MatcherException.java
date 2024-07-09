@@ -27,7 +27,6 @@ public class MatcherException extends Exception {
         super(errorMessage(actualMappings, actualSettings, expectedMappings, expectedSettings, errorMessage));
     }
 
-
     private static String errorMessage(
         final XContentBuilder actualMappings,
         final Settings.Builder actualSettings,
@@ -35,10 +34,20 @@ public class MatcherException extends Exception {
         final Settings.Builder expectedSettings,
         final String errorMessage
     ) {
-        return "Error [" + errorMessage + "] " +
-                "Actual mappings [" + Strings.toString(actualMappings) + "] " +
-                "Actual settings [" + Strings.toString(actualSettings.build()) + "] " +
-                "Expected mappings [" + Strings.toString(expectedMappings) + "] " +
-                "Expected settings [" + Strings.toString(expectedSettings.build()) + "] ";
+        return "Error ["
+            + errorMessage
+            + "] "
+            + "actual mappings ["
+            + Strings.toString(actualMappings)
+            + "] "
+            + "actual settings ["
+            + Strings.toString(actualSettings.build())
+            + "] "
+            + "expected mappings ["
+            + Strings.toString(expectedMappings)
+            + "] "
+            + "expected settings ["
+            + Strings.toString(expectedSettings.build())
+            + "] ";
     }
 }

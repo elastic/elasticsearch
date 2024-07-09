@@ -6,13 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.logsdb.qa.exceptions;
+package org.elasticsearch.datastreams.logsdb.qa.adaptors;
 
-/**
- * Exception thrown when the contents of two arrays do not match.
- */
-public class ArrayContentsNotEqualException extends MatcherException {
-    public ArrayContentsNotEqualException(final String message) {
-        super(message);
-    }
+@FunctionalInterface
+public interface MatcherAdaptor<T, U> {
+    U adapt(T that);
 }

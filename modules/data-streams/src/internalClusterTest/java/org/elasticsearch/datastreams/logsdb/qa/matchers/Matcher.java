@@ -10,14 +10,15 @@ package org.elasticsearch.datastreams.logsdb.qa.matchers;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.logsdb.qa.exceptions.MatcherException;
+import org.elasticsearch.datastreams.logsdb.qa.exceptions.NotEqualMatcherException;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 /**
  * A base class to be used for the matching logic when comparing query results.
  */
-public abstract class Matcher<T> {
+public abstract class Matcher {
 
-    public static<T> ActualStep<T> with(
+    public static <T> ActualStep<T> with(
         final XContentBuilder expectedMappings,
         final Settings.Builder expectedSettings,
         final XContentBuilder actualMappings,
@@ -31,14 +32,18 @@ public abstract class Matcher<T> {
     }
 
     public interface ExpectedStep<T> {
-        CompareStep<T> expected(T expected);
+        IgnoreSortingStep expected(T expected);
     }
 
-    public interface CompareStep<T> {
-        boolean isEqual() throws MatcherException;
+    public interface IgnoreSortingStep {
+        CompareStep ignoreSorting(boolean ignoreSorting);
     }
 
-    private static class Builder<T> implements ActualStep<T>, ExpectedStep<T>, CompareStep<T> {
+    public interface CompareStep {
+        void isEqual() throws MatcherException;
+    }
+
+    private static class Builder<T> implements ActualStep<T>, ExpectedStep<T>, IgnoreSortingStep, CompareStep {
 
         protected final XContentBuilder expectedMappings;
         protected final Settings.Builder expectedSettings;
@@ -46,6 +51,7 @@ public abstract class Matcher<T> {
         protected final Settings.Builder actualSettings;
         private T expected;
         private T actual;
+        private boolean ignoreSorting;
 
         @Override
         public ExpectedStep<T> actual(T actual) {
@@ -54,21 +60,31 @@ public abstract class Matcher<T> {
         }
 
         @Override
-        public CompareStep<T> expected(T expected) {
+        public IgnoreSortingStep expected(T expected) {
             this.expected = expected;
             return this;
         }
 
         @Override
-        public boolean isEqual() throws MatcherException {
-            return new EqualMatcher<>(
+        public void isEqual() throws MatcherException {
+            boolean match = new EqualMatcher<>(
                 actualMappings,
                 actualSettings,
                 expectedMappings,
                 expectedSettings,
                 actual,
-                expected
+                expected,
+                ignoreSorting
             ).match();
+            if (match == false) {
+                throw new NotEqualMatcherException(
+                    actualMappings,
+                    actualSettings,
+                    expectedMappings,
+                    expectedSettings,
+                    "actual [" + actual + "] not equal to [" + expected + "]"
+                );
+            }
         }
 
         private Builder(
@@ -83,7 +99,12 @@ public abstract class Matcher<T> {
             this.actualMappings = actualMappings;
             this.actualSettings = actualSettings;
         }
+
+        @Override
+        public CompareStep ignoreSorting(boolean ignoreSorting) {
+            this.ignoreSorting = ignoreSorting;
+            return this;
+        }
     }
 
-    public abstract boolean match() throws MatcherException;
 }

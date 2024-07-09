@@ -11,8 +11,8 @@ package org.elasticsearch.datastreams.logsdb.qa.exceptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-public class UncomparableMatcherException extends MatcherException {
-    public UncomparableMatcherException(
+public class MismatchTypeMatcherException extends MatcherException {
+    public MismatchTypeMatcherException(
         XContentBuilder actualMappings,
         Settings.Builder actualSettings,
         XContentBuilder expectedMappings,

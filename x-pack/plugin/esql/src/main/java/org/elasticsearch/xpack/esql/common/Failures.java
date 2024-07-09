@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.common;
+package org.elasticsearch.xpack.esql.common;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;

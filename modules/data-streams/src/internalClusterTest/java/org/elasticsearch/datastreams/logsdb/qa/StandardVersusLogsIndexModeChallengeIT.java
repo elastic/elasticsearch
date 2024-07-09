@@ -44,8 +44,7 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
     }
 
     private static void mappings(final XContentBuilder builder) throws IOException {
-        builder.startObject()
-            .field("subobjects", false)
+        builder.field("subobjects", false)
             .startObject("properties")
 
             .startObject("@timestamp")
@@ -72,7 +71,6 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             .field("ignore_malformed", true)
             .endObject()
 
-            .endObject() // properties
             .endObject();
     }
 

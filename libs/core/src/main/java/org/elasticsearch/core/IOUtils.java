@@ -20,8 +20,6 @@
 
 package org.elasticsearch.core;
 
-import org.elasticsearch.logging.LogManager;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;

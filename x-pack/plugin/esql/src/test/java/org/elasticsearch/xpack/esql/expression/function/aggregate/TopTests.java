@@ -241,7 +241,7 @@ public class TopTests extends AbstractAggregationTestCase {
                 ),
                 "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                 fieldSupplier.type(),
-                equalTo(expected)
+                equalTo(expected.size() == 1 ? expected.get(0) : expected)
             );
         });
     }

@@ -39,7 +39,8 @@ public class MinTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.dateCases(1, 1000)
+            MultiRowTestCaseSupplier.dateCases(1, 1000),
+            MultiRowTestCaseSupplier.booleanCases(1, 1000)
         ).flatMap(List::stream).map(MinTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.addAll(
@@ -81,6 +82,15 @@ public class MinTests extends AbstractAggregationTestCase {
                         equalTo(0L)
                     )
                 ),
+                new TestCaseSupplier(
+                    List.of(DataType.BOOLEAN),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(true, false, false, true), DataType.BOOLEAN, "field")),
+                        "Min[field=Attribute[channel=0]]",
+                        DataType.BOOLEAN,
+                        equalTo(false)
+                    )
+                ),
 
                 // Folding
                 new TestCaseSupplier(
@@ -117,6 +127,15 @@ public class MinTests extends AbstractAggregationTestCase {
                         "Min[field=Attribute[channel=0]]",
                         DataType.DATETIME,
                         equalTo(200L)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.BOOLEAN),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(true), DataType.BOOLEAN, "field")),
+                        "Min[field=Attribute[channel=0]]",
+                        DataType.BOOLEAN,
+                        equalTo(true)
                     )
                 )
             )

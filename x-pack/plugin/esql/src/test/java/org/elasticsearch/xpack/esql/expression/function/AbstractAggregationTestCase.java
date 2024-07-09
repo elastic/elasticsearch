@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
@@ -131,11 +133,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     private void aggregateSingleMode(Expression expression) {
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
-            Page inputPage = rows(testCase.getMultiRowFields());
-            try {
-                aggregator.processPage(inputPage);
-            } finally {
-                inputPage.releaseBlocks();
+            for (Page inputPage : rows(testCase.getMultiRowFields())) {
+                try {
+                    aggregator.processPage(inputPage);
+                } finally {
+                    inputPage.releaseBlocks();
+                }
             }
 
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
@@ -164,11 +167,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             int intermediateBlockExtraSize = randomIntBetween(0, 10);
             intermediateBlocks = new Block[intermediateBlockOffset + intermediateStates + intermediateBlockExtraSize];
 
-            Page inputPage = rows(testCase.getMultiRowFields());
-            try {
-                aggregator.processPage(inputPage);
-            } finally {
-                inputPage.releaseBlocks();
+            for (Page inputPage : rows(testCase.getMultiRowFields())) {
+                try {
+                    aggregator.processPage(inputPage);
+                } finally {
+                    inputPage.releaseBlocks();
+                }
             }
 
             aggregator.evaluate(intermediateBlocks, intermediateBlockOffset, driverContext());
@@ -195,7 +199,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         ) {
             Page inputPage = new Page(intermediateBlocks);
             try {
-                aggregator.processPage(inputPage);
+                if (inputPage.getPositionCount() > 0) {
+                    aggregator.processPage(inputPage);
+                }
             } finally {
                 inputPage.releaseBlocks();
             }
@@ -250,6 +256,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+
+        assumeTrue(
+            "Surrogate expression with non-trivial children cannot be evaluated",
+            expression.children()
+                .stream()
+                .allMatch(child -> child instanceof FieldAttribute || child instanceof DeepCopy || child instanceof Literal)
+        );
 
         if (expression instanceof AggregateFunction == false) {
             onEvaluableExpression.accept(expression);

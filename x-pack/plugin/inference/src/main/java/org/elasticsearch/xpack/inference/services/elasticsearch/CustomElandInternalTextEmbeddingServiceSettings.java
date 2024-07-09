@@ -18,6 +18,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
@@ -107,19 +108,38 @@ public class CustomElandInternalTextEmbeddingServiceSettings implements ServiceS
     private final SimilarityMeasure similarityMeasure;
     private final DenseVectorFieldMapper.ElementType elementType;
 
-    public CustomElandInternalTextEmbeddingServiceSettings(int numAllocations, int numThreads, String modelId) {
-        this(numAllocations, numThreads, modelId, null, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
+    public CustomElandInternalTextEmbeddingServiceSettings(
+        int numAllocations,
+        int numThreads,
+        String modelId,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings
+    ) {
+        this(
+            numAllocations,
+            numThreads,
+            modelId,
+            adaptiveAllocationsSettings,
+            null,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
     }
 
     public CustomElandInternalTextEmbeddingServiceSettings(
         int numAllocations,
         int numThreads,
         String modelId,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         Integer dimensions,
         SimilarityMeasure similarityMeasure,
         DenseVectorFieldMapper.ElementType elementType
     ) {
-        internalServiceSettings = new ElasticsearchInternalServiceSettings(numAllocations, numThreads, modelId);
+        internalServiceSettings = new ElasticsearchInternalServiceSettings(
+            numAllocations,
+            numThreads,
+            modelId,
+            adaptiveAllocationsSettings
+        );
         this.dimensions = dimensions;
         this.similarityMeasure = Objects.requireNonNull(similarityMeasure);
         this.elementType = Objects.requireNonNull(elementType);

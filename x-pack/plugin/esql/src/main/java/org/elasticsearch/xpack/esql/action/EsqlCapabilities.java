@@ -117,7 +117,13 @@ public class EsqlCapabilities {
          * Fix to GROK validation in case of multiple fields with same name and different types
          * https://github.com/elastic/elasticsearch/issues/110533
          */
-        GROK_VALIDATION;
+        GROK_VALIDATION,
+
+        /**
+         * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
+         */
+        FIX_PARSING_LARGE_NEGATIVE_NUMBERS;
 
         private final boolean snapshotOnly;
 

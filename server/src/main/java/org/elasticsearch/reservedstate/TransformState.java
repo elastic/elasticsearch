@@ -8,11 +8,9 @@
 
 package org.elasticsearch.reservedstate;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 
 import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * A {@link ClusterState} wrapper used by the ReservedClusterStateService to pass the
@@ -24,8 +22,4 @@ import java.util.function.Consumer;
  * other state outside the cluster state. The consumer, if provided, must return a {@link NonStateTransformResult} with
  * the keys that will be saved as reserved in the cluster state.
  */
-public record TransformState(ClusterState state, Set<String> keys, Consumer<ActionListener<NonStateTransformResult>> nonStateTransform) {
-    public TransformState(ClusterState state, Set<String> keys) {
-        this(state, keys, null);
-    }
-}
+public record TransformState(ClusterState state, Set<String> keys) {}

@@ -123,7 +123,8 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             challengeResponse = queryChallenge(searchSourceBuilder);
             SearchHitAdaptor adaptor = new SearchHitAdaptor();
 
-            Matcher.with(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings())
+            Matcher.mappings(getChallengeMappings(), getOracleMappings())
+                .settings(getChallengeSettings(), getOracleSettings())
                 .actual(adaptor.adapt(oracleResponse.getHits().getHits()))
                 .expected(adaptor.adapt(challengeResponse.getHits().getHits()))
                 .ignoreSorting(true)
@@ -174,7 +175,8 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             challengeResponse = queryChallenge(searchSourceBuilder);
             SearchHitAdaptor adaptor = new SearchHitAdaptor();
 
-            Matcher.with(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings())
+            Matcher.mappings(getChallengeMappings(), getOracleMappings())
+                .settings(getChallengeSettings(), getOracleSettings())
                 .actual(adaptor.adapt(oracleResponse.getHits().getHits()))
                 .expected(adaptor.adapt(challengeResponse.getHits().getHits()))
                 .ignoreSorting(true)
@@ -225,7 +227,8 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             oracleResponse = queryOracle(searchSourceBuilder);
             challengeResponse = queryChallenge(searchSourceBuilder);
 
-            Matcher.with(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings())
+            Matcher.mappings(getChallengeMappings(), getOracleMappings())
+                .settings(getChallengeSettings(), getOracleSettings())
                 .actual(oracleResponse.getAggregations().get("agg"))
                 .expected(challengeResponse.getAggregations().get("agg"))
                 .ignoreSorting(true)
@@ -276,7 +279,8 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             oracleResponse = queryOracle(searchSourceBuilder);
             challengeResponse = queryChallenge(searchSourceBuilder);
 
-            Matcher.with(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings())
+            Matcher.mappings(getChallengeMappings(), getOracleMappings())
+                .settings(getChallengeSettings(), getOracleSettings())
                 .actual(oracleResponse.getAggregations().get("agg"))
                 .expected(challengeResponse.getAggregations().get("agg"))
                 .ignoreSorting(true)
@@ -329,7 +333,8 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             oracleResponse = queryOracle(sourceBuilder);
             challengeResponse = queryChallenge(sourceBuilder);
 
-            Matcher.with(getOracleMappings(), getOracleSettings(), getChallengeMappings(), getChallengeSettings())
+            Matcher.mappings(getChallengeMappings(), getOracleMappings())
+                .settings(getChallengeSettings(), getOracleSettings())
                 .actual(oracleResponse.getAggregations().get("agg"))
                 .expected(challengeResponse.getAggregations().get("agg"))
                 .ignoreSorting(true)

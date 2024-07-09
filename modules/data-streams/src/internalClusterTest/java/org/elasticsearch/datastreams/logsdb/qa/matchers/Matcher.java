@@ -18,13 +18,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
  */
 public abstract class Matcher {
 
-    public static <T> ActualStep<T> with(
-        final XContentBuilder expectedMappings,
-        final Settings.Builder expectedSettings,
-        final XContentBuilder actualMappings,
-        final Settings.Builder actualSettings
-    ) {
-        return new Builder<>(expectedMappings, expectedSettings, actualMappings, actualSettings);
+    public static <T> SettingsStep<T> mappings(final XContentBuilder actualMappings, final XContentBuilder expectedMappings) {
+        return new Builder<>(expectedMappings, actualMappings);
+    }
+
+    public interface SettingsStep<T> {
+        ActualStep<T> settings(Settings.Builder actualSettings, Settings.Builder expectedSettings);
     }
 
     public interface ActualStep<T> {
@@ -43,15 +42,22 @@ public abstract class Matcher {
         void isEqual() throws MatcherException;
     }
 
-    private static class Builder<T> implements ActualStep<T>, ExpectedStep<T>, IgnoreSortingStep, CompareStep {
+    private static class Builder<T> implements SettingsStep<T>, ActualStep<T>, ExpectedStep<T>, IgnoreSortingStep, CompareStep {
 
-        protected final XContentBuilder expectedMappings;
-        protected final Settings.Builder expectedSettings;
-        protected final XContentBuilder actualMappings;
-        protected final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final XContentBuilder actualMappings;
+        private Settings.Builder expectedSettings;
+        private Settings.Builder actualSettings;
         private T expected;
         private T actual;
         private boolean ignoreSorting;
+
+        @Override
+        public ActualStep<T> settings(Settings.Builder actualSettings, Settings.Builder expectedSettings) {
+            this.actualSettings = actualSettings;
+            this.expectedSettings = expectedSettings;
+            return this;
+        }
 
         @Override
         public ExpectedStep<T> actual(T actual) {
@@ -88,16 +94,12 @@ public abstract class Matcher {
         }
 
         private Builder(
-            final XContentBuilder expectedMappings,
-            final Settings.Builder expectedSettings,
             final XContentBuilder actualMappings,
-            final Settings.Builder actualSettings
+            final XContentBuilder expectedMappings
 
         ) {
-            this.expectedMappings = expectedMappings;
-            this.expectedSettings = expectedSettings;
             this.actualMappings = actualMappings;
-            this.actualSettings = actualSettings;
+            this.expectedMappings = expectedMappings;
         }
 
         @Override

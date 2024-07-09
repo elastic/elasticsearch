@@ -8,6 +8,7 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
+import com.sun.jna.FunctionMapper;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
@@ -17,6 +18,7 @@ import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 class JnaPosixCLibrary implements PosixCLibrary {
 
@@ -48,6 +50,30 @@ class JnaPosixCLibrary implements PosixCLibrary {
         @Override
         public void rlim_max(long v) {
             rlim_max.setValue(v);
+        }
+    }
+
+    public static final class JnaStat64 extends Structure implements Structure.ByReference, Stat64 {
+        public byte[] _ignore1;
+        public NativeLong st_size = new NativeLong(0);
+        public byte[] _ignore2;
+        public NativeLong st_blocks = new NativeLong(0);
+        public byte[] _ignore3;
+
+        JnaStat64(int sizeof, int stSizeOffset, int stBlocksOffset) {
+            this._ignore1 = new byte[stSizeOffset];
+            this._ignore2 = new byte[stBlocksOffset - stSizeOffset - 8];
+            this._ignore3 = new byte[sizeof - stBlocksOffset - 8];
+        }
+
+        @Override
+        public long st_size() {
+            return st_size.longValue();
+        }
+
+        @Override
+        public long st_blocks() {
+            return st_blocks.longValue();
         }
     }
 
@@ -96,13 +122,36 @@ class JnaPosixCLibrary implements PosixCLibrary {
 
         int fcntl(int fd, int cmd, JnaFStore fst);
 
+        int ftruncate(int fd, NativeLong length);
+
+        int open(String filename, int flags, Object... mode);
+
+        int close(int fd);
+
         String strerror(int errno);
     }
 
+    private interface FStat64Function extends Library {
+        int fstat64(int fd, JnaStat64 stat);
+    }
+
     private final NativeFunctions functions;
+    private final FStat64Function fstat64;
 
     JnaPosixCLibrary() {
         this.functions = Native.load("c", NativeFunctions.class);
+        FStat64Function fstat64;
+        try {
+            fstat64 = Native.load("c", FStat64Function.class);
+        } catch (UnsatisfiedLinkError e) {
+            // TODO: explain
+            fstat64 = Native.load(
+                "c",
+                FStat64Function.class,
+                Map.of(Library.OPTION_FUNCTION_MAPPER, (FunctionMapper) (lib, method) -> "__fxstat64")
+            );
+        }
+        this.fstat64 = fstat64;
     }
 
     @Override
@@ -113,6 +162,11 @@ class JnaPosixCLibrary implements PosixCLibrary {
     @Override
     public RLimit newRLimit() {
         return new JnaRLimit();
+    }
+
+    @Override
+    public Stat64 newStat64(int sizeof, int stSizeOffset, int stBlocksOffset) {
+        return new JnaStat64(sizeof, stSizeOffset, stBlocksOffset);
     }
 
     @Override
@@ -144,6 +198,28 @@ class JnaPosixCLibrary implements PosixCLibrary {
         assert fst instanceof JnaFStore;
         var jnaFst = (JnaFStore) fst;
         return functions.fcntl(fd, cmd, jnaFst);
+    }
+
+    @Override
+    public int ftruncate(int fd, long length) {
+        return functions.ftruncate(fd, new NativeLong(length));
+    }
+
+    @Override
+    public int open(String pathname, int flags, int mode) {
+        return functions.open(pathname, flags, mode);
+    }
+
+    @Override
+    public int close(int fd) {
+        return functions.close(fd);
+    }
+
+    @Override
+    public int fstat64(int fd, Stat64 stats) {
+        assert stats instanceof JnaStat64;
+        var jnaStats = (JnaStat64) stats;
+        return fstat64.fstat64(fd, jnaStats);
     }
 
     @Override

@@ -14,11 +14,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.blobcache.BlobCacheTestUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile.EvictionListener;
@@ -420,7 +420,7 @@ public class CacheFileTests extends ESTestCase {
             final FileChannel fileChannel = cacheFile.getChannel();
             assertTrue(Files.exists(file));
 
-            OptionalLong sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            OptionalLong sizeOnDisk = NativeAccess.instance().allocatedSizeInBytes(file);
             assertTrue(sizeOnDisk.isPresent());
             assertThat(sizeOnDisk.getAsLong(), equalTo(0L));
 
@@ -430,7 +430,7 @@ public class CacheFileTests extends ESTestCase {
             fill(fileChannel, Math.toIntExact(cacheFile.getLength() - 1L), Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
 
-            sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            sizeOnDisk = NativeAccess.instance().allocatedSizeInBytes(file);
             assertTrue(sizeOnDisk.isPresent());
             assertThat(
                 "Cache file should be sparse and not fully allocated on disk",
@@ -445,7 +445,7 @@ public class CacheFileTests extends ESTestCase {
             fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
 
-            sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            sizeOnDisk = NativeAccess.instance().allocatedSizeInBytes(file);
             assertTrue(sizeOnDisk.isPresent());
             assertThat(
                 "Cache file should be fully allocated on disk (maybe more given cluster/block size)",

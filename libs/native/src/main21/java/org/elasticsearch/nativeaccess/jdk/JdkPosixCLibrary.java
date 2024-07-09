@@ -49,6 +49,26 @@ class JdkPosixCLibrary implements PosixCLibrary {
     );
     private static final MethodHandle mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
     private static final MethodHandle fcntl$mh = downcallHandle("fcntl", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
+    private static final MethodHandle ftruncate$mh = downcallHandle("ftruncate", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG));
+    private static final MethodHandle open$mh = downcallHandle(
+        "open",
+        FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT),
+        CAPTURE_ERRNO_OPTION,
+        Linker.Option.firstVariadicArg(2)
+    );
+    private static final MethodHandle close$mh = downcallHandleWithErrno("close", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+    private static final MethodHandle fstat64$mh;
+    static {
+        MethodHandle fstat;
+        try {
+            fstat = downcallHandleWithErrno("fstat64", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        } catch (LinkageError e) {
+            // Due to different sizes of the stat structure for 32 vs 64 bit machines, on some systems fstat actually points to
+            // an internal symbol. So we fall back to looking for that symbol.
+            fstat = downcallHandleWithErrno("__fxstat64", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        }
+        fstat64$mh = fstat;
+    }
 
     static final MemorySegment errnoState = Arena.ofAuto().allocate(CAPTURE_ERRNO_LAYOUT);
 
@@ -86,6 +106,16 @@ class JdkPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
+    public Stat64 newStat64(int sizeof, int stSizeOffset, int stBlocksOffset) {
+        return new JdkStat64(sizeof, stSizeOffset, stBlocksOffset);
+    }
+
+    @Override
+    public FStore newFStore() {
+        return new JdkFStore();
+    }
+
+    @Override
     public int getrlimit(int resource, RLimit rlimit) {
         assert rlimit instanceof JdkRLimit;
         var jdkRlimit = (JdkRLimit) rlimit;
@@ -117,16 +147,50 @@ class JdkPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
-    public FStore newFStore() {
-        return new JdkFStore();
-    }
-
-    @Override
     public int fcntl(int fd, int cmd, FStore fst) {
         assert fst instanceof JdkFStore;
         var jdkFst = (JdkFStore) fst;
         try {
             return (int) fcntl$mh.invokeExact(errnoState, fd, cmd, jdkFst.segment);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int ftruncate(int fd, long length) {
+        try {
+            return (int) ftruncate$mh.invokeExact(errnoState, fd, length);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int open(String pathname, int flags, int mode) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment nativePathname = MemorySegmentUtil.allocateString(arena, pathname);
+            return (int) open$mh.invokeExact(errnoState, nativePathname, flags, mode);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int close(int fd) {
+        try {
+            return (int) close$mh.invokeExact(errnoState, fd);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int fstat64(int fd, Stat64 stat64) {
+        assert stat64 instanceof JdkStat64;
+        var jdkStat = (JdkStat64) stat64;
+        try {
+            return (int) fstat64$mh.invokeExact(errnoState, fd, jdkStat.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -167,6 +231,29 @@ class JdkPosixCLibrary implements PosixCLibrary {
         @Override
         public String toString() {
             return "JdkRLimit[rlim_cur=" + rlim_cur() + ", rlim_max=" + rlim_max();
+        }
+    }
+
+    private static class JdkStat64 implements Stat64 {
+
+        private final MemorySegment segment;
+        private final int stSizeOffset;
+        private final int stBlocksOffset;
+
+        JdkStat64(int sizeof, int stSizeOffset, int stBlocksOffset) {
+            this.segment = Arena.ofAuto().allocate(sizeof, 8);
+            this.stSizeOffset = stSizeOffset;
+            this.stBlocksOffset = stBlocksOffset;
+        }
+
+        @Override
+        public long st_size() {
+            return segment.get(JAVA_LONG, stSizeOffset);
+        }
+
+        @Override
+        public long st_blocks() {
+            return segment.get(JAVA_LONG, stBlocksOffset);
         }
     }
 

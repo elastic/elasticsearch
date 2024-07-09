@@ -135,7 +135,8 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             .put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
             .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
             .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-            .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s");
+            .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s")
+            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.ZERO);
     }
 
     @Before
@@ -829,7 +830,11 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
                 assertThat(notification.getTerm(), equalTo(primaryTerm));
 
                 if (notification.getGeneration() == afterGeneration) {
-                    assertThat(notification.getNodeId(), equalTo(getNodeId(indexNodeTarget)));
+                    assertThat(
+                        "Commit notification " + notification + " has the wrong preferred node id",
+                        notification.getNodeId(),
+                        equalTo(getNodeId(indexNodeTarget))
+                    );
                     targetNotificationReceived.countDown();
                 }
                 handler.messageReceived(request, channel, task);
@@ -845,7 +850,11 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
                     assertThat(chunkRequest.getPrimaryTerm(), equalTo(primaryTerm));
 
                     if (chunkRequest.getVirtualBatchedCompoundCommitGeneration() == afterGeneration) {
-                        assertThat(chunkRequest.getPreferredNodeId(), equalTo(getNodeId(indexNodeTarget)));
+                        assertThat(
+                            "Chunk request " + chunkRequest + " has the wrong preferred node id",
+                            chunkRequest.getPreferredNodeId(),
+                            equalTo(getNodeId(indexNodeTarget))
+                        );
                         targetGetChunkRequestReceived.countDown();
                     }
                     handler.messageReceived(request, channel, task);

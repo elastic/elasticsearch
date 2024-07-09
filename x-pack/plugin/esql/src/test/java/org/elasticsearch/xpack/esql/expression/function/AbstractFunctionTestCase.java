@@ -215,11 +215,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * Creates a page based on a list of multi-row fields.
+     * Creates a list of pages based on a list of multi-row fields.
      */
-    protected final Page rows(List<TestCaseSupplier.TypedData> multirowFields) {
+    protected final List<Page> rows(List<TestCaseSupplier.TypedData> multirowFields) {
         if (multirowFields.isEmpty()) {
-            return new Page(0, BlockUtils.NO_BLOCKS);
+            return List.of();
         }
 
         var rowsCount = multirowFields.get(0).multiRowData().size();
@@ -230,27 +230,40 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 field -> assertThat("All multi-row fields must have the same number of rows", field.multiRowData(), hasSize(rowsCount))
             );
 
-        var blocks = new Block[multirowFields.size()];
+        List<Page> pages = new ArrayList<>();
 
-        for (int i = 0; i < multirowFields.size(); i++) {
-            var field = multirowFields.get(i);
-            try (
-                var wrapper = BlockUtils.wrapperFor(
-                    TestBlockFactory.getNonBreakingInstance(),
-                    PlannerUtils.toElementType(field.type()),
-                    rowsCount
-                )
-            ) {
-
-                for (var row : field.multiRowData()) {
-                    wrapper.accept(row);
-                }
-
-                blocks[i] = wrapper.builder().build();
+        int pageSize = randomIntBetween(1, 100);
+        for (int initialRow = 0; initialRow < rowsCount;) {
+            if (pageSize > rowsCount - initialRow) {
+                pageSize = rowsCount - initialRow;
             }
+
+            var blocks = new Block[multirowFields.size()];
+
+            for (int i = 0; i < multirowFields.size(); i++) {
+                var field = multirowFields.get(i);
+                try (
+                    var wrapper = BlockUtils.wrapperFor(
+                        TestBlockFactory.getNonBreakingInstance(),
+                        PlannerUtils.toElementType(field.type()),
+                        pageSize
+                    )
+                ) {
+                    var multiRowData = field.multiRowData();
+                    for (int row = initialRow; row < initialRow + pageSize; row++) {
+                        wrapper.accept(multiRowData.get(row));
+                    }
+
+                    blocks[i] = wrapper.builder().build();
+                }
+            }
+
+            pages.add(new Page(pageSize, blocks));
+            initialRow += pageSize;
+            pageSize = randomIntBetween(1, 100);
         }
 
-        return new Page(rowsCount, blocks);
+        return pages;
     }
 
     /**

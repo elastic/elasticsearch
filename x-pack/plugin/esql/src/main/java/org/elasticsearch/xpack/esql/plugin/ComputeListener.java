@@ -76,8 +76,9 @@ final class ComputeListener implements Releasable {
     ActionListener<ComputeResponse> acquireCompute() {
         return acquireAvoid().map(resp -> {
             responseHeaders.collect();
-            if (resp != null && resp.getProfiles().isEmpty() == false) {
-                collectedProfiles.addAll(resp.getProfiles());
+            var profiles = resp.getProfiles();
+            if (profiles != null && profiles.isEmpty() == false) {
+                collectedProfiles.addAll(profiles);
             }
             return null;
         });

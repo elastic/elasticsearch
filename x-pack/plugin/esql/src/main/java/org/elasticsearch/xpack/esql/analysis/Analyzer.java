@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
-import org.elasticsearch.xpack.esql.core.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -1086,6 +1086,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
+            // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
+            // Now that we have resolved those, we need to re-resolve the aggregates.
+            if (plan instanceof EsqlAggregate agg && agg.expressionsResolved() == false) {
+                Map<Attribute, Expression> resolved = new HashMap<>();
+                for (Expression e : agg.groupings()) {
+                    Attribute attr = Expressions.attribute(e);
+                    if (attr != null && attr.resolved()) {
+                        resolved.put(attr, e);
+                    }
+                }
+                plan = agg.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolved));
+            }
+
             // Otherwise drop the converted attributes after the alias function, as they are only needed for this function, and
             // the original version of the attribute should still be seen as unconverted.
             plan = dropConvertedAttributes(plan, unionFieldAttributes);
@@ -1107,6 +1120,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return esr;
             });
             return plan;
+        }
+
+        private Expression resolveAttribute(UnresolvedAttribute ua, Map<Attribute, Expression> resolved) {
+            var named = resolveAgainstList(ua, resolved.keySet());
+            return switch (named.size()) {
+                case 0 -> ua;
+                case 1 -> named.get(0).equals(ua) ? ua : resolved.get(named.get(0));
+                default -> ua.withUnresolvedMessage("Resolved [" + ua + "] unexpectedly to multiple attributes " + named);
+            };
         }
 
         private LogicalPlan dropConvertedAttributes(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {

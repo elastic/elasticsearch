@@ -103,7 +103,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public int hamming(byte[] queryVector) {
-        return VectorUtil.xorBitCount(queryVector, docVector);
+        return ESVectorUtil.xorBitCount(queryVector, docVector);
     }
 
     @Override

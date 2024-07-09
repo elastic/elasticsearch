@@ -24,7 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil;
 
 import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;

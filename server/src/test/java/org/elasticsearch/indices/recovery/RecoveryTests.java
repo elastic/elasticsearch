@@ -252,7 +252,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     replica.getPendingPrimaryTerm()
                 );
             } else {
-                translogUUIDtoUse = translogGeneration.translogUUID;
+                translogUUIDtoUse = translogGeneration.translogUUID();
             }
             try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
                 userData.put(Engine.HISTORY_UUID_KEY, historyUUIDtoUse);

@@ -85,8 +85,8 @@ public class NodeTranslogBuffer implements Releasable {
         if (semaphore.tryAcquire()) {
             try {
                 Translog.Location newProcessedLocation = new Translog.Location(
-                    location.generation,
-                    location.translogLocation + location.size,
+                    location.generation(),
+                    location.translogLocation() + location.size(),
                     0
                 );
                 shardSyncState.updateProcessedLocation(newProcessedLocation);
@@ -226,7 +226,7 @@ public class NodeTranslogBuffer implements Releasable {
         private ShardSyncState.SyncMarker syncMarker() {
             return new ShardSyncState.SyncMarker(
                 primaryTerm,
-                new Translog.Location(location.generation, location.translogLocation + location.size, 0),
+                new Translog.Location(location.generation(), location.translogLocation() + location.size(), 0),
                 seqNos
             );
         }

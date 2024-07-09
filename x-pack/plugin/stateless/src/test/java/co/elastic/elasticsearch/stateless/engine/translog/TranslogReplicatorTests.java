@@ -596,7 +596,11 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertTrue(synchronouslyCompleteFuture.isDone());
 
         PlainActionFuture<Void> synchronouslyIncompleteFuture = new PlainActionFuture<>();
-        Translog.Location incompleteLocation = new Translog.Location(location.generation, location.translogLocation + location.size, 1);
+        Translog.Location incompleteLocation = new Translog.Location(
+            location.generation(),
+            location.translogLocation() + location.size(),
+            1
+        );
         CountDownLatch blocker = new CountDownLatch(1);
         blockerRef.set(blocker);
         translogReplicator.add(shardId, new BytesArray(new byte[1]), 1, incompleteLocation);

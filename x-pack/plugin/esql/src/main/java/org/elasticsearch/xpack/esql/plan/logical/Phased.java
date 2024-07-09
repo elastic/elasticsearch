@@ -53,7 +53,6 @@ public interface Phased {
         assert plan.analyzed();
         Holder<Boolean> seen = new Holder<>(false);
         LogicalPlan applied = plan.transformUp(logicalPlan -> {
-            // NOCOMMIT make sure this stops after the first one.
             if (seen.get() == false && logicalPlan instanceof Phased phased) {
                 seen.set(true);
                 return phased.nextPhase(schema, result);

@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -75,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Stats;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -397,12 +397,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
-            if (plan instanceof Aggregate agg) {
-                return resolveAggregate(agg, childrenOutput);
+            if (plan instanceof EsqlAggregate agg) {
+                return resolveStats(agg, childrenOutput);
             }
 
             if (plan instanceof InlineStats stats) {
-                return resolveInlineStats(stats, childrenOutput);
+                return resolveStats(stats, childrenOutput);
             }
 
             if (plan instanceof Drop d) {
@@ -436,61 +436,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
         }
 
-        private LogicalPlan resolveAggregate(Aggregate a, List<Attribute> childrenOutput) {
-            // if the grouping is resolved but the aggs are not, use the former to resolve the latter
-            // e.g. STATS a ... GROUP BY a = x + 1
-            Holder<Boolean> changed = new Holder<>(false);
-            List<Expression> groupings = a.groupings();
-            // first resolve groupings since the aggs might refer to them
-            // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
-            if (Resolvables.resolved(groupings) == false) {
-                List<Expression> newGroupings = new ArrayList<>(groupings.size());
-                for (Expression g : groupings) {
-                    Expression resolved = g.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
-                    if (resolved != g) {
-                        changed.set(true);
-                    }
-                    newGroupings.add(resolved);
-                }
-                groupings = newGroupings;
-                if (changed.get()) {
-                    a = new EsqlAggregate(a.source(), a.child(), a.aggregateType(), newGroupings, a.aggregates());
-                    changed.set(false);
-                }
-            }
-
-            if (a.expressionsResolved() == false) {
-                AttributeMap<Expression> resolved = new AttributeMap<>();
-                for (Expression e : groupings) {
-                    Attribute attr = Expressions.attribute(e);
-                    if (attr != null && attr.resolved()) {
-                        resolved.put(attr, attr);
-                    }
-                }
-                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved.keySet()), childrenOutput);
-                List<NamedExpression> newAggregates = new ArrayList<>();
-
-                for (NamedExpression aggregate : a.aggregates()) {
-                    var agg = (NamedExpression) aggregate.transformUp(UnresolvedAttribute.class, ua -> {
-                        Expression ne = ua;
-                        Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
-                        if (maybeResolved != null) {
-                            changed.set(true);
-                            ne = maybeResolved;
-                        }
-                        return ne;
-                    });
-                    newAggregates.add(agg);
-                }
-
-                a = changed.get() ? new EsqlAggregate(a.source(), a.child(), a.aggregateType(), groupings, newAggregates) : a;
-            }
-
-            return a;
-        }
-
-        private LogicalPlan resolveInlineStats(InlineStats stats, List<Attribute> childrenOutput) {
-            // NOCOMMIT this is a carbon copy of above - we should be able to share code
+        private LogicalPlan resolveStats(Stats stats, List<Attribute> childrenOutput) {
             // if the grouping is resolved but the aggs are not, use the former to resolve the latter
             // e.g. STATS a ... GROUP BY a = x + 1
             Holder<Boolean> changed = new Holder<>(false);
@@ -508,7 +454,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 groupings = newGroupings;
                 if (changed.get()) {
-                    stats = new InlineStats(stats.source(), stats.child(), newGroupings, stats.aggregates());
+                    stats = stats.resolve(newGroupings, stats.aggregates());
                     changed.set(false);
                 }
             }
@@ -537,10 +483,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newAggregates.add(agg);
                 }
 
-                stats = changed.get() ? new InlineStats(stats.source(), stats.child(), groupings, newAggregates) : stats;
+                stats = changed.get() ? stats.resolve(groupings, newAggregates) : stats;
             }
 
-            return stats;
+            return (LogicalPlan) stats;
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {

@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  * a proper output.
  * To simplify things, the Aggregate class will be replaced with a vanilla one.
  */
-public class EsqlAggregate extends Aggregate {
+public class EsqlAggregate extends Aggregate implements Stats {
 
     private List<Attribute> lazyOutput;
 
@@ -60,5 +60,10 @@ public class EsqlAggregate extends Aggregate {
     @Override
     public EsqlAggregate replaceChild(LogicalPlan newChild) {
         return new EsqlAggregate(source(), newChild, aggregateType(), groupings(), aggregates());
+    }
+
+    @Override
+    public EsqlAggregate resolve(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return new EsqlAggregate(source(), child(), aggregateType(), newGroupings, newAggregates);
     }
 }

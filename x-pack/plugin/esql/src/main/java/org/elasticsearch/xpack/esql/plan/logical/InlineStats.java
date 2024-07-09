@@ -38,7 +38,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class InlineStats extends UnaryPlan implements NamedWriteable, Phased {
+public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, Stats {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         InlineStats.class,
         "InlineStats",
@@ -87,10 +87,17 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased {
         return new InlineStats(source(), newChild, groupings, aggregates);
     }
 
+    @Override
+    public InlineStats resolve(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return new InlineStats(source(), child(), newGroupings, newAggregates);
+    }
+
+    @Override
     public List<Expression> groupings() {
         return groupings;
     }
 
+    @Override
     public List<? extends NamedExpression> aggregates() {
         return aggregates;
     }

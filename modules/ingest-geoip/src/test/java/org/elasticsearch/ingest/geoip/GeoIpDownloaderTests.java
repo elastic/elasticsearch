@@ -23,7 +23,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -31,18 +30,17 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTaskResponse;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -127,12 +125,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             {
                 GeoIpTaskParams geoIpTaskParams = mock(GeoIpTaskParams.class);
                 when(geoIpTaskParams.getWriteableName()).thenReturn(GeoIpDownloader.GEOIP_DOWNLOADER);
-                init(
-                    new TestPersistentTasksService(clusterService, threadPool, client, GeoIpDownloader.GEOIP_DOWNLOADER, geoIpTaskParams),
-                    null,
-                    null,
-                    0
-                );
+                init(new PersistentTasksService(clusterService, threadPool, client), null, null, 0);
             }
         };
     }
@@ -584,6 +577,21 @@ public class GeoIpDownloaderTests extends ESTestCase {
         GeoIpTaskState geoIpTaskState = new GeoIpTaskState(databases);
         geoIpDownloader.setState(geoIpTaskState);
         client.addHandler(
+            UpdatePersistentTaskStatusAction.INSTANCE,
+            (UpdatePersistentTaskStatusAction.Request request, ActionListener<PersistentTaskResponse> taskResponseListener) -> {
+
+                PersistentTasksCustomMetadata.Assignment assignment = mock(PersistentTasksCustomMetadata.Assignment.class);
+                PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = new PersistentTasksCustomMetadata.PersistentTask<>(
+                    GeoIpDownloader.GEOIP_DOWNLOADER,
+                    GeoIpDownloader.GEOIP_DOWNLOADER,
+                    new GeoIpTaskParams(),
+                    request.getAllocationId(),
+                    assignment
+                );
+                taskResponseListener.onResponse(new PersistentTaskResponse(new PersistentTask<>(persistentTask, request.getState())));
+            }
+        );
+        client.addHandler(
             DeleteByQueryAction.INSTANCE,
             (DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> flushResponseActionListener) -> {
                 deleteCount.incrementAndGet();
@@ -644,47 +652,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
             } else {
                 throw new IllegalStateException("unexpected action called [" + action.name() + "]");
             }
-        }
-    }
-
-    /*
-     * This is a test implementation of PersistentTasksService that overrides sendUpdateStateRequest to immediately notify its listener of
-     * success, rather than sending the request over the wire.
-     */
-    private static class TestPersistentTasksService extends PersistentTasksService {
-
-        private final String taskName;
-        private final PersistentTaskParams persistentTaskParams;
-
-        TestPersistentTasksService(
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            Client client,
-            String taskName,
-            PersistentTaskParams persistentTaskParams
-        ) {
-            super(clusterService, threadPool, client);
-            this.taskName = taskName;
-            this.persistentTaskParams = persistentTaskParams;
-        }
-
-        @Override
-        protected void sendUpdateStateRequest(
-            final String taskId,
-            final long taskAllocationID,
-            final PersistentTaskState taskState,
-            final @Nullable TimeValue timeout,
-            final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
-        ) {
-            PersistentTasksCustomMetadata.Assignment assignment = mock(PersistentTasksCustomMetadata.Assignment.class);
-            PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = new PersistentTasksCustomMetadata.PersistentTask<>(
-                taskId,
-                taskName,
-                persistentTaskParams,
-                taskAllocationID,
-                assignment
-            );
-            listener.onResponse(new PersistentTasksCustomMetadata.PersistentTask<>(persistentTask, taskState));
         }
     }
 }

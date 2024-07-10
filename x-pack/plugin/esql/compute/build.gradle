@@ -401,6 +401,11 @@ tasks.named('stringTemplates').configure {
   }
   File stateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-State.java.st")
   template {
+    it.properties = booleanProperties
+    it.inputFile =  stateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/BooleanState.java"
+  }
+  template {
     it.properties = intProperties
     it.inputFile =  stateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/IntState.java"
@@ -453,6 +458,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/data/BooleanLookup.java"
   }
   File arrayStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ArrayState.java.st")
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  arrayStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/BooleanArrayState.java"
+  }
   template {
     it.properties = intProperties
     it.inputFile =  arrayStateInputFile

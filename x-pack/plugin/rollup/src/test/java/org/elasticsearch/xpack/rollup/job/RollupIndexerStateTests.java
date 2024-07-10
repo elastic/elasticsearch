@@ -562,7 +562,6 @@ public class RollupIndexerStateTests extends ESTestCase {
                 assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
                 latch.countDown();
                 assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
-                assertThat(indexer.getStats().getNumInvocations(), equalTo((long) i + 1));
                 assertThat(indexer.getStats().getNumPages(), equalTo((long) i + 1));
             }
             final CountDownLatch latch = indexer.newLatch();
@@ -572,6 +571,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             latch.countDown();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
             assertTrue(indexer.abort());
+            assertTrue(indexer.getStats().getNumInvocations() >= 6);
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }

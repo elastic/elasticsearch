@@ -65,31 +65,10 @@ public class BooleanBucketedSort implements Releasable {
             grow(requiredSize);
         }
 
-        int falseValues = values.get(rootIndex);
-        int trueValues = values.get(rootIndex + 1);
-        long totalValues = (long) falseValues + trueValues;
-
-        // Free space in the bucket, just increment the count
-        if (totalValues < bucketSize) {
-            if (value) {
-                values.increment(rootIndex + 1, 1);
-            } else {
-                values.increment(rootIndex, 1);
-            }
-            return;
-        }
-
-        // Bucket full, increment only the "best" value based on the sort order, if it's not full of them already
-        if (order == SortOrder.ASC) {
-            if (trueValues > 0 && value == false) {
-                values.increment(rootIndex, 1);
-                values.increment(rootIndex + 1, -1);
-            }
+        if (value) {
+            values.increment(rootIndex + 1, 1);
         } else {
-            if (falseValues > 0 && value) {
-                values.increment(rootIndex + 1, 1);
-                values.increment(rootIndex, -1);
-            }
+            values.increment(rootIndex, 1);
         }
     }
 
@@ -117,15 +96,22 @@ public class BooleanBucketedSort implements Releasable {
             return;
         }
 
-        int otherFalseValues = other.values.get(otherRootIndex);
-        int otherTrueValues = other.values.get(otherRootIndex + 1);
+        int falseValues = other.values.get(otherRootIndex);
+        int trueValues = other.values.get(otherRootIndex + 1);
 
-        for (long i = 0; i < otherFalseValues; i++) {
-            collect(false, groupId);
+        if (falseValues + trueValues == 0) {
+            return;
         }
-        for (long i = 0; i < otherTrueValues; i++) {
-            collect(true, groupId);
+
+        long rootIndex = (long) groupId * 2;
+
+        long requiredSize = rootIndex + 2;
+        if (values.size() < requiredSize) {
+            grow(requiredSize);
         }
+
+        values.increment(rootIndex, falseValues);
+        values.increment(rootIndex + 1, trueValues);
     }
 
     /**
@@ -133,7 +119,7 @@ public class BooleanBucketedSort implements Releasable {
      */
     public Block toBlock(BlockFactory blockFactory, IntVector selected) {
         // Check if the selected groups are all empty, to avoid allocating extra memory
-        if (IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
+        if (bucketSize == 0 || IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
             long rootIndex = (long) bucket * 2;
 
             if (values.size() < rootIndex + 2) {
@@ -173,17 +159,21 @@ public class BooleanBucketedSort implements Releasable {
 
                 builder.beginPositionEntry();
                 if (order == SortOrder.ASC) {
-                    for (int i = 0; i < falseValues; i++) {
+                    int falseValuesToAdd = Math.min(falseValues, bucketSize);
+                    int trueValuesToAdd = Math.min(trueValues, bucketSize - falseValuesToAdd);
+                    for (int i = 0; i < falseValuesToAdd; i++) {
                         builder.appendBoolean(false);
                     }
-                    for (int i = 0; i < trueValues; i++) {
+                    for (int i = 0; i < trueValuesToAdd; i++) {
                         builder.appendBoolean(true);
                     }
                 } else {
-                    for (int i = 0; i < trueValues; i++) {
+                    int trueValuesToAdd = Math.min(trueValues, bucketSize);
+                    int falseValuesToAdd = Math.min(falseValues, bucketSize - trueValuesToAdd);
+                    for (int i = 0; i < trueValuesToAdd; i++) {
                         builder.appendBoolean(true);
                     }
-                    for (int i = 0; i < falseValues; i++) {
+                    for (int i = 0; i < falseValuesToAdd; i++) {
                         builder.appendBoolean(false);
                     }
                 }

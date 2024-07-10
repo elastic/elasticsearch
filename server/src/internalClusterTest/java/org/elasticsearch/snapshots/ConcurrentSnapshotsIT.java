@@ -47,7 +47,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -788,18 +787,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(3);
 
         awaitNoMoreRunningOperations();
-        var innerException = expectThrows(ExecutionException.class, RuntimeException.class, deleteFuture::get);
-
-        // There may be many layers of RTE to unwrap here, see https://github.com/elastic/elasticsearch/issues/102351.
-        // ExceptionsHelper#unwrapCause gives up at 10 layers of wrapping so we must unwrap more tenaciously by hand here:
-        while (true) {
-            if (innerException instanceof RemoteTransportException remoteTransportException) {
-                innerException = asInstanceOf(RuntimeException.class, remoteTransportException.getCause());
-            } else {
-                assertThat(innerException, instanceOf(RepositoryException.class));
-                break;
-            }
-        }
+        expectThrows(RepositoryException.class, deleteFuture::actionGet);
     }
 
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOver() throws Exception {

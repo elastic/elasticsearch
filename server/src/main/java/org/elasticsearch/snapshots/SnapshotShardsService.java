@@ -241,7 +241,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 }
 
                 if (removingLocalNode) {
-                    pauseShardSnapshots(localNodeId, entry);
+                    pauseShardSnapshotsForNodeRemoval(localNodeId, entry);
                 } else {
                     startNewShardSnapshots(localNodeId, entry);
                 }
@@ -318,7 +318,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> shardSnapshotTasks.forEach(Runnable::run));
     }
 
-    private void pauseShardSnapshots(String localNodeId, SnapshotsInProgress.Entry entry) {
+    private void pauseShardSnapshotsForNodeRemoval(String localNodeId, SnapshotsInProgress.Entry entry) {
         final var localShardSnapshots = shardSnapshots.getOrDefault(entry.snapshot(), Map.of());
 
         for (final Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
@@ -545,8 +545,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     public static String getShardStateId(IndexShard indexShard, IndexCommit snapshotIndexCommit) throws IOException {
         final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
         final SequenceNumbers.CommitInfo seqNumInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userCommitData.entrySet());
-        final long maxSeqNo = seqNumInfo.maxSeqNo;
-        if (maxSeqNo != seqNumInfo.localCheckpoint || maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint()) {
+        final long maxSeqNo = seqNumInfo.maxSeqNo();
+        if (maxSeqNo != seqNumInfo.localCheckpoint() || maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint()) {
             return null;
         }
         return userCommitData.get(Engine.HISTORY_UUID_KEY)
@@ -606,8 +606,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                         } else if (stage == Stage.PAUSED) {
                             // but we think the shard has paused - we need to make new master know that
                             logger.debug("""
-                                [{}] new master thinks the shard [{}] is still running but the shard paused locally, updating status on \
-                                master""", snapshot.snapshot(), shardId);
+                                new master thinks that shard [{}] snapshot [{}], with shard generation [{}], is still running, but the \
+                                shard snapshot is paused locally, updating status on master
+                                """, shardId, snapshot.snapshot(), localShard.getValue().generation());
                             notifyUnsuccessfulSnapshotShard(
                                 snapshot.snapshot(),
                                 shardId,
@@ -648,6 +649,14 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             shardId,
             new ShardSnapshotStatus(clusterService.localNode().getId(), shardState, generation, failure)
         );
+        if (shardState == ShardState.PAUSED_FOR_NODE_REMOVAL) {
+            logger.debug(
+                "Pausing shard [{}] snapshot [{}], with shard generation [{}], because this node is marked for removal",
+                shardId,
+                snapshot,
+                generation
+            );
+        }
     }
 
     /** Updates the shard snapshot status by sending a {@link UpdateIndexShardSnapshotStatusRequest} to the master node */

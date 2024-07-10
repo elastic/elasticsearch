@@ -65,12 +65,7 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
 
     private final Expression function;
 
-    public ToPartial(Source source, AggregateFunction function) {
-        super(source, function.field(), List.of(function));
-        this.function = function;
-    }
-
-    private ToPartial(Source source, Expression field, Expression function) {
+    public ToPartial(Source source, Expression field, Expression function) {
         super(source, field, List.of(function));
         this.function = function;
     }

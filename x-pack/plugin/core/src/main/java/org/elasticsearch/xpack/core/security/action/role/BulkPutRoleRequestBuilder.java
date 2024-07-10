@@ -44,7 +44,7 @@ public class BulkPutRoleRequestBuilder extends ActionRequestBuilder<BulkPutRoles
     }
 
     public BulkPutRoleRequestBuilder(ElasticsearchClient client) {
-        super(client, ActionTypes.BULK_PUT_ROLES, new BulkPutRolesRequest());
+        super(client, ActionTypes.BULK_PUT_ROLES, new BulkPutRolesRequest(List.of()));
     }
 
     public BulkPutRoleRequestBuilder content(BytesReference content, XContentType xContentType) throws IOException {

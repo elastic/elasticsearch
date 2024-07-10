@@ -173,7 +173,11 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                     logger.info("A new database appeared! [{}]", database.name());
 
                     try (HttpClient.PasswordAuthenticationHolder holder = credentialsSupplier.get()) {
-                        processDatabase(holder.get(), id, database);
+                        if (holder == null) {
+                            logger.warn("No credentials found to download database [{}], skipping download...", id);
+                        } else {
+                            processDatabase(holder.get(), id, database);
+                        }
                     }
 
                     addedSomething = true;
@@ -213,7 +217,11 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                 DatabaseConfiguration database = entry.getValue().database();
 
                 try (HttpClient.PasswordAuthenticationHolder holder = credentialsSupplier.get()) {
-                    processDatabase(holder.get(), id, database);
+                    if (holder == null) {
+                        logger.warn("No credentials found to download database [{}], skipping download...", id);
+                    } else {
+                        processDatabase(holder.get(), id, database);
+                    }
                 }
             }
         }

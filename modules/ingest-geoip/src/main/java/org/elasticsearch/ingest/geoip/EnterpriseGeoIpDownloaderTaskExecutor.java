@@ -106,10 +106,25 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
     }
 
     private HttpClient.PasswordAuthenticationHolder buildCredentials() {
-        return new HttpClient.PasswordAuthenticationHolder(
-            this.defaultMaxmindAccountId,
-            cachedSecureSettings.getString(MAXMIND_DEFAULT_LICENSE_KEY_SETTING.getKey()).getChars()
-        );
+        final String username = this.defaultMaxmindAccountId;
+        final char[] passwordChars;
+        if (cachedSecureSettings.getSettingNames().contains(MAXMIND_DEFAULT_LICENSE_KEY_SETTING.getKey())) {
+            passwordChars = cachedSecureSettings.getString(MAXMIND_DEFAULT_LICENSE_KEY_SETTING.getKey()).getChars();
+        } else {
+            passwordChars = null;
+        }
+
+        // if the username is missing, empty, or blank, return null as 'no auth'
+        if (username == null || username.isEmpty() || username.isBlank()) {
+            return null;
+        }
+
+        // likewise if the password chars array is missing or empty, return null as 'no auth'
+        if (passwordChars == null || passwordChars.length == 0) {
+            return null;
+        }
+
+        return new HttpClient.PasswordAuthenticationHolder(username, passwordChars);
     }
 
     @Override

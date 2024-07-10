@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.features;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.features.NodeFeatures;
@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
@@ -124,18 +123,24 @@ public class NodeFeaturesFixListener implements ClusterStateListener {
         if (event.nodesDelta().masterNodeChanged() && event.localNodeMaster()) {
             /*
              * Execute this if we have just become master.
-             * Check if there are any nodes that understand the nodes features action, but don't have any features
-             * added to cluster state, and so do a query to get the node features separately.
+             * Check if there are any nodes that should have features in cluster state, but don't.
+             * This can happen if the master was upgraded from before 8.13, and one or more non-master nodes
+             * were already upgraded. They don't re-join the cluster with the new master, so never get their features
+             * (which the master now understands) added to cluster state.
+             * So we need to do a separate transport call to get the node features and add them to cluster state.
              * We can't use features to determine when this should happen, as the features are incorrect.
-             * So use transport version as a proxy instead.
+             * We also can't use transport version, as that is unreliable for upgrades
+             * from versions before 8.8 (see TransportVersionFixupListener).
+             * So the only thing we can use is release version.
+             * This is ok here, as Serverless will never hit this case, so the node feature fetch action will never be called on Serverless.
+             * This whole class will be removed in ES v9.
              */
             ClusterFeatures nodeFeatures = event.state().clusterFeatures();
-            Map<String, CompatibilityVersions> nodeVersions = getCompatibilityVersions(event.state());
             Set<String> queryNodes = event.state()
                 .nodes()
                 .stream()
+                .filter(n -> n.getVersion().onOrAfter(Version.V_8_15_0))
                 .map(DiscoveryNode::getId)
-                .filter(n -> nodeVersions.get(n).transportVersion().onOrAfter(TransportVersions.NODE_FEATURES_QUERY_ACTION))
                 .filter(n -> getNodeFeatures(nodeFeatures, n).isEmpty())
                 .collect(Collectors.toSet());
 
@@ -143,11 +148,6 @@ public class NodeFeaturesFixListener implements ClusterStateListener {
                 queryNodesFeatures(queryNodes, 0);
             }
         }
-    }
-
-    @SuppressForbidden(reason = "Can't use cluster features, need to use transport version")
-    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState state) {
-        return state.compatibilityVersions();
     }
 
     @SuppressForbidden(reason = "Need to access a specific node's features")

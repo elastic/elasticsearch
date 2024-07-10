@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -748,5 +749,35 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
             return params.get(nameOrPosition);
         }
+    }
+
+    @Override
+    public Expression visitSearchLogicalBinary(EsqlBaseParser.SearchLogicalBinaryContext ctx) {
+        int type = ctx.operator.getType();
+        Source source = source(ctx);
+        Expression left = expression(ctx.left);
+        Expression right = expression(ctx.right);
+
+        return type == EsqlBaseParser.AND ? new And(source, left, right) : new Or(source, left, right);
+    }
+
+    @Override
+    public Expression visitSearchParenthesizedExpression(EsqlBaseParser.SearchParenthesizedExpressionContext ctx) {
+        return expression(ctx.searchQueryExpression());
+    }
+
+    @Override
+    public Not visitSearchLogicalNot(EsqlBaseParser.SearchLogicalNotContext ctx) {
+        return new Not(source(ctx), expression(ctx.searchQueryExpression()));
+    }
+
+    @Override
+    public Object visitSearchMatchQuery(EsqlBaseParser.SearchMatchQueryContext ctx) {
+        return new MatchQueryPredicate(
+            source(ctx),
+            visitQualifiedName(ctx.singleField),
+            visitString(ctx.queryString).fold().toString(),
+            null
+        );
     }
 }

@@ -23,6 +23,7 @@ import static java.util.Collections.emptySet;
 public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     private final List<Attribute> attributesToExtract;
     private final Attribute sourceAttribute;
+    private final Attribute scoreAttribute;
     // attributes to extract as doc values
     private final Set<Attribute> docValuesAttributes;
 
@@ -36,12 +37,22 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
         this.sourceAttribute = extractSourceAttributesFrom(child);
+        this.scoreAttribute = extractScoreAttributesFrom(child);
         this.docValuesAttributes = docValuesAttributes;
     }
 
     public static Attribute extractSourceAttributesFrom(PhysicalPlan plan) {
         for (Attribute attribute : plan.outputSet()) {
             if (EsQueryExec.isSourceAttribute(attribute)) {
+                return attribute;
+            }
+        }
+        return null;
+    }
+
+    public static Attribute extractScoreAttributesFrom(PhysicalPlan plan) {
+        for (Attribute attribute : plan.outputSet()) {
+            if (EsQueryExec.isScoreAttribute(attribute)) {
                 return attribute;
             }
         }
@@ -63,6 +74,10 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     }
 
     public Attribute sourceAttribute() {
+        return sourceAttribute;
+    }
+
+    public Attribute scoreAttribute() {
         return sourceAttribute;
     }
 

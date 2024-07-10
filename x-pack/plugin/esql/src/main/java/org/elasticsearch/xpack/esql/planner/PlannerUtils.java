@@ -243,7 +243,7 @@ public class PlannerUtils {
 
         return switch (dataType) {
             case LONG, DATETIME, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
-            case INTEGER, COUNTER_INTEGER -> ElementType.INT;
+            case INTEGER, FLOAT, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef
             case KEYWORD, TEXT, IP, SOURCE, VERSION, UNSUPPORTED -> ElementType.BYTES_REF;
@@ -254,8 +254,8 @@ public class PlannerUtils {
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
             case GEO_SHAPE, CARTESIAN_SHAPE -> ElementType.BYTES_REF;
             case PARTIAL_AGG -> ElementType.COMPOSITE;
-            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, NESTED, FLOAT, HALF_FLOAT, SCALED_FLOAT ->
-                throw EsqlIllegalArgumentException.illegalDataType(dataType);
+            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, NESTED, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
+                .illegalDataType(dataType);
         };
     }
 

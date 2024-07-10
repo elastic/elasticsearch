@@ -14,6 +14,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RankExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
@@ -81,6 +84,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -122,6 +126,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
+            esSourceRules.add(new PushRankToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushStatsToSource());
@@ -166,9 +171,22 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 }
                 return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), List.of(docId, tsid, timestamp), plan.query());
             } else {
-                return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), List.of(docId), plan.query());
+                List<Attribute> attributes = new ArrayList<>();
+                attributes.add(docId);
+                attributes = maybeAddScore(attributes, plan);
+                return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), attributes, plan.query());
             }
         }
+    }
+
+    static List<Attribute> maybeAddScore(List<Attribute> attrs, EsSourceExec plan) {
+        var l = plan.output().stream().filter(a -> a.name().equals(EsQueryExec.SCORE_FIELD.getName())).toList();
+        assert l.isEmpty() || l.size() == 1;
+        if (l.isEmpty() == false) {
+            Attribute scoreId = l.get(0);
+            attrs.add(scoreId);
+        }
+        return Collections.unmodifiableList(attrs);
     }
 
     // Materialize the concrete fields that need to be extracted from the storage until the last possible moment.
@@ -249,7 +267,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 if (pushable.size() > 0) { // update the executable with pushable conditions
                     Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable));
                     QueryBuilder planQuery = queryDSL.asBuilder();
-                    var query = Queries.combine(Clause.FILTER, asList(queryExec.query(), planQuery));
+                    var baseQuery = queryExec.scoring() && queryExec.query() == null ? new BoolQueryBuilder() : queryExec.query();
+                    var query = Queries.combine(Clause.FILTER, asList(baseQuery, planQuery));
                     queryExec = new EsQueryExec(
                         queryExec.source(),
                         queryExec.index(),
@@ -258,7 +277,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                         query,
                         queryExec.limit(),
                         queryExec.sorts(),
-                        queryExec.estimatedRowSize()
+                        queryExec.estimatedRowSize(),
+                        queryExec.rescorers()
                     );
                     if (nonPushable.size() > 0) { // update filter with remaining non-pushable conditions
                         plan = new FilterExec(filterExec.source(), queryExec, Predicates.combineAnd(nonPushable));
@@ -296,6 +316,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     && Expressions.foldable(cidrMatch.matches());
             } else if (exp instanceof SpatialRelatesFunction bc) {
                 return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
+            } else if (exp instanceof MatchQueryPredicate) {
+                return true;
             }
             return false;
         }
@@ -339,6 +361,79 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 plan = exchangeExec.replaceChild(queryExec.withLimit(limitExec.limit()));
             }
             return plan;
+        }
+    }
+
+    // ####: just hard coded in something. limit should be pushed up from search
+    public static final Literal DEFAULT_RANK_LIMIT = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+
+    private static class PushRankToSource extends OptimizerRule<RankExec> {
+        @Override
+        protected PhysicalPlan rule(RankExec rankExec) {
+            PhysicalPlan plan = rankExec;
+            PhysicalPlan child = rankExec.child();
+            if (child instanceof EsQueryExec queryExec) {
+                if (rankAlreadyPushedToQuery(queryExec)) {
+                    plan = pushRankToRescorers(queryExec, rankExec);
+                } else {
+                    plan = pushRankToQuery(queryExec, rankExec);
+                }
+                assert ((EsQueryExec) plan).scoring();
+                // TODO: what there child types, if any?
+            }
+            return plan;
+        }
+
+        /**
+         * This method checks whether a previous RANK was already pushed to source by checking if the boolean query already
+         * has a should clause. In this case the current rankExec can be pushed to re-scorers.
+        */
+        protected boolean rankAlreadyPushedToQuery(EsQueryExec queryExec) {
+            var query = queryExec.query();
+            return query != null && query instanceof BoolQueryBuilder && ((BoolQueryBuilder) query).should().isEmpty() == false;
+        }
+
+        private PhysicalPlan pushRankToRescorers(EsQueryExec queryExec, RankExec rankExec) {
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(rankExec.expressions()));
+
+            List<QueryBuilder> rescorers = new ArrayList<>();
+            if (queryExec.rescorers() != null) {
+                rescorers.addAll(queryExec.rescorers());
+            }
+            rescorers.add(queryDSL.asBuilder());
+
+            var esQueryExec = new EsQueryExec(
+                queryExec.source(),
+                queryExec.index(),
+                queryExec.indexMode(),
+                queryExec.output(),
+                queryExec.query(),
+                queryExec.limit(),
+                queryExec.sorts(),
+                queryExec.estimatedRowSize(),
+                rescorers
+            );
+            return esQueryExec;
+        }
+
+        private PhysicalPlan pushRankToQuery(EsQueryExec queryExec, RankExec rankExec) {
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(rankExec.expressions())); // HEGO: why expressions
+            QueryBuilder planQuery = queryDSL.asBuilder();
+            var baseQuery = queryExec.query() != null ? queryExec.query() : new BoolQueryBuilder();
+            BoolQueryBuilder query = (BoolQueryBuilder) Queries.combine(Clause.SHOULD, asList(baseQuery, planQuery));
+            query.minimumShouldMatch(1);
+            var esQueryExec = new EsQueryExec(
+                queryExec.source(),
+                queryExec.index(),
+                queryExec.indexMode(),
+                queryExec.output(),
+                query,
+                DEFAULT_RANK_LIMIT,
+                queryExec.sorts(),
+                queryExec.estimatedRowSize(),
+                queryExec.rescorers()
+            );
+            return esQueryExec;
         }
     }
 
@@ -476,6 +571,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     public static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
+        // TODO: consider if we want to allow explicit sorting on _Score
+        // if (exp instanceof MetadataAttribute ma && ma.name().equals("_score")) ...
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
             return fa.dataType() != DataType.TEXT || hasIdenticalDelegate.test(fa);
         }

@@ -1,4 +1,3 @@
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -24,6 +23,7 @@ sourceCommand
     | fromCommand
     | rowCommand
     | metricsCommand
+    | searchCommand
     | showCommand
     | metaCommand
     ;
@@ -291,4 +291,53 @@ enrichWithClause
 
 lookupCommand
     : LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    ;
+
+searchCommand
+    : SEARCH searchIndexPattern (COMMA searchIndexPattern)* (OPENING_BRACKET (PIPE searchSubCommand)* CLOSING_BRACKET)*
+    ;
+
+searchIndexPattern
+    : clusterString COLON indexString
+    | indexString
+    ;
+
+searchSubCommand
+    : searchFilterCommand
+    | searchLimitCommand
+    | searchRankCommand
+    | searchSortCommmand
+    ;
+
+searchFilterCommand
+    : WHERE searchFilterExpression
+    ;
+
+searchFilterExpression
+    : searchQueryExpression
+    ;
+
+searchLimitCommand
+    : LIMIT INTEGER_LITERAL
+    ;
+
+searchRankCommand
+    : RANK searchRankExpression
+    ;
+
+searchRankExpression
+    : searchQueryExpression
+    ;
+
+searchSortCommmand
+    : sortCommand
+    ;
+
+searchQueryExpression
+    : NOT searchQueryExpression                                                     #searchLogicalNot
+    | valueExpression                                                               #searchBooleanDefault
+    | LP searchQueryExpression RP                                                   #searchParenthesizedExpression
+    | SEARCH_EXPR_MATCH LP singleField=qualifiedName COMMA queryString=string RP    #searchMatchQuery
+    | left=searchQueryExpression operator=AND right=searchQueryExpression           #searchLogicalBinary
+    | left=searchQueryExpression operator=OR right=searchQueryExpression            #searchLogicalBinary
     ;

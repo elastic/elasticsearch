@@ -134,7 +134,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public static Operator.OperatorFactory factory(IndexReader reader, MappedFieldType ft, ElementType elementType) {
-        return factory(reader, ft.name(), elementType, ft.blockLoader(null));
+        return factory(reader, ft.name(), elementType, ft.blockLoader(blContext()));
     }
 
     static Operator.OperatorFactory factory(IndexReader reader, String name, ElementType elementType, BlockLoader loader) {

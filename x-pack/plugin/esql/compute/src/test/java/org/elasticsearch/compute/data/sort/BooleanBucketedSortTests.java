@@ -57,6 +57,6 @@ public class BooleanBucketedSortTests extends BucketedSortTestCase<BooleanBucket
     }
 
     private boolean toBoolean(double value) {
-        return ((long) value % 2) == 0;
+        return value > 0;
     }
 }

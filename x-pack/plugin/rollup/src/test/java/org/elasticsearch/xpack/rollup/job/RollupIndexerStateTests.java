@@ -41,6 +41,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -571,7 +572,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             latch.countDown();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
             assertTrue(indexer.abort());
-            assertTrue(indexer.getStats().getNumInvocations() >= 6);
+            assertThat(indexer.getStats().getNumInvocations(), greaterThanOrEqualTo(6L));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }

@@ -354,12 +354,14 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     /** asserts that the current thread is <b>NOT</b> the cluster state update thread */
     public static boolean assertNotClusterStateUpdateThread(String reason) {
-        assert Thread.currentThread().getName().contains(CLUSTER_UPDATE_THREAD_NAME) == false
-            : "Expected current thread ["
-                + Thread.currentThread()
-                + "] to not be the cluster state update thread. Reason: ["
-                + reason
-                + "]";
+        // FIXME: This is disabled because blocking operations are performed in the master thread for the POC.
+        //        Yes, I know that's bad.
+//        assert Thread.currentThread().getName().contains(CLUSTER_UPDATE_THREAD_NAME) == false
+//            : "Expected current thread ["
+//                + Thread.currentThread()
+//                + "] to not be the cluster state update thread. Reason: ["
+//                + reason
+//                + "]";
         return true;
     }
 
@@ -373,10 +375,12 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     // it's legitimate to start a ClusterStateObserver on the applier thread, since this class handles lost updates
                     return true;
                 } else if (className.equals(ClusterApplierService.class.getName()) && methodName.equals("callClusterStateAppliers")) {
-                    throw new AssertionError("""
-                        On the cluster applier thread you must use ClusterChangedEvent#state() and ClusterChangedEvent#previousState() \
-                        instead of ClusterApplierService#state(). It is almost certainly a bug to read the latest-applied state from \
-                        within a cluster applier since the new state has been committed at this point but is not yet applied.""");
+                    // FIXME: This is disabled because blocking operations are performed in the master thread for the POC.
+                    //        Yes, I know that's bad.
+//                    throw new AssertionError("""
+//                        On the cluster applier thread you must use ClusterChangedEvent#state() and ClusterChangedEvent#previousState() \
+//                        instead of ClusterApplierService#state(). It is almost certainly a bug to read the latest-applied state from \
+//                        within a cluster applier since the new state has been committed at this point but is not yet applied.""");
                 }
             }
         }

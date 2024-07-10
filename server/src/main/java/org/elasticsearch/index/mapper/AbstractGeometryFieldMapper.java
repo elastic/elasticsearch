@@ -36,7 +36,7 @@ import java.util.function.Function;
  */
 public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
-    // The GeoShapeFieldMapper class does not exist in server any more, we keep the longer.
+    // The GeoShapeFieldMapper class does not exist in server any more.
     // For backwards compatibility we add the name of the class manually.
     protected static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(
         "org.elasticsearch.index.mapper.GeoShapeFieldMapper"

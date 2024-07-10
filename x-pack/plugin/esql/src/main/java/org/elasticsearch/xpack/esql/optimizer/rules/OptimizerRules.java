@@ -6,116 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
-import java.util.function.BiFunction;
-
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 
 public final class OptimizerRules {
-
-    // a IS NULL AND a IS NOT NULL -> FALSE
-    // a IS NULL AND a > 10 -> a IS NULL and FALSE
-    // can be extended to handle null conditions where available
-    public static class PropagateNullable extends OptimizerExpressionRule<And> {
-
-        public PropagateNullable() {
-            super(TransformDirection.DOWN);
-        }
-
-        @Override
-        public Expression rule(And and) {
-            List<Expression> splits = Predicates.splitAnd(and);
-
-            Set<Expression> nullExpressions = new LinkedHashSet<>();
-            Set<Expression> notNullExpressions = new LinkedHashSet<>();
-            List<Expression> others = new LinkedList<>();
-
-            // first find isNull/isNotNull
-            for (Expression ex : splits) {
-                if (ex instanceof IsNull isn) {
-                    nullExpressions.add(isn.field());
-                } else if (ex instanceof IsNotNull isnn) {
-                    notNullExpressions.add(isnn.field());
-                }
-                // the rest
-                else {
-                    others.add(ex);
-                }
-            }
-
-            // check for is isNull and isNotNull --> FALSE
-            if (Sets.haveNonEmptyIntersection(nullExpressions, notNullExpressions)) {
-                return Literal.of(and, Boolean.FALSE);
-            }
-
-            // apply nullability across relevant/matching expressions
-
-            // first against all nullable expressions
-            // followed by all not-nullable expressions
-            boolean modified = replace(nullExpressions, others, splits, this::nullify);
-            modified |= replace(notNullExpressions, others, splits, this::nonNullify);
-            if (modified) {
-                // reconstruct the expression
-                return Predicates.combineAnd(splits);
-            }
-            return and;
-        }
-
-        /**
-         * Replace the given 'pattern' expressions against the target expression.
-         * If a match is found, the matching expression will be replaced by the replacer result
-         * or removed if null is returned.
-         */
-        private static boolean replace(
-            Iterable<Expression> pattern,
-            List<Expression> target,
-            List<Expression> originalExpressions,
-            BiFunction<Expression, Expression, Expression> replacer
-        ) {
-            boolean modified = false;
-            for (Expression s : pattern) {
-                for (int i = 0; i < target.size(); i++) {
-                    Expression t = target.get(i);
-                    // identify matching expressions
-                    if (t.anyMatch(s::semanticEquals)) {
-                        Expression replacement = replacer.apply(t, s);
-                        // if the expression has changed, replace it
-                        if (replacement != t) {
-                            modified = true;
-                            target.set(i, replacement);
-                            originalExpressions.replaceAll(e -> t.semanticEquals(e) ? replacement : e);
-                        }
-                    }
-                }
-            }
-            return modified;
-        }
-
-        // default implementation nullifies all nullable expressions
-        protected Expression nullify(Expression exp, Expression nullExp) {
-            return exp.nullable() == Nullability.TRUE ? Literal.of(exp, null) : exp;
-        }
-
-        // placeholder for non-null
-        protected Expression nonNullify(Expression exp, Expression nonNullExp) {
-            return exp;
-        }
-    }
 
     public abstract static class OptimizerRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 

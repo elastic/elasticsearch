@@ -8,7 +8,6 @@
 
 package org.elasticsearch.plugins.internal;
 
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.xcontent.XContentParser;
 
 /**
@@ -30,8 +29,6 @@ public interface DocumentSizeObserver {
             return 0;
         }
 
-        @Override
-        public void setNormalisedBytesParsedOn(IndexRequest indexRequest) {}
     };
 
     /**
@@ -50,11 +47,10 @@ public interface DocumentSizeObserver {
     long normalisedBytesParsed();
 
     /**
-     * Enriches the index request with the number of bytes observed when parsing a document
-     * @param indexRequest
+     * Indicates if an observer was used on an update request with script
+     *
+     * @return true if update was done by script, false otherwise
      */
-    void setNormalisedBytesParsedOn(IndexRequest indexRequest);
-
     default boolean isUpdateByScript() {
         return false;
     }

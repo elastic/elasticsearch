@@ -225,8 +225,8 @@ public class UpdateHelper {
                 .setIfPrimaryTerm(getResult.getPrimaryTerm())
                 .waitForActiveShards(request.waitForActiveShards())
                 .timeout(request.timeout())
-                .setRefreshPolicy(request.getRefreshPolicy());
-            documentSizeObserver.setNormalisedBytesParsedOn(finalIndexRequest);
+                .setRefreshPolicy(request.getRefreshPolicy())
+                .setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
 
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }

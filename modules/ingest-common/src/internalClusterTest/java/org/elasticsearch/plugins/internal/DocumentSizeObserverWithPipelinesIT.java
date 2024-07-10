@@ -138,10 +138,6 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
             return mapCounter;
         }
 
-        @Override
-        public void setNormalisedBytesParsedOn(IndexRequest indexRequest) {
-            indexRequest.setNormalisedBytesParsed(mapCounter);
-        }
     }
 
 }

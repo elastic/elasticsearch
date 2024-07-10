@@ -1188,11 +1188,6 @@ public class IngestServiceTests extends ESTestCase {
                         return 0;
                     }
 
-                    @Override
-                    public void setNormalisedBytesParsedOn(IndexRequest indexRequest) {
-                        parsedValueWasUsed.incrementAndGet();
-                        indexRequest.setNormalisedBytesParsed(0L);
-                    }
                 };
             }
         };

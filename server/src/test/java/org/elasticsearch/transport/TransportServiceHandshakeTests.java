@@ -46,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -306,7 +307,18 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             ConnectTransportException.class,
             () -> AbstractSimpleTransportTestCase.connectToNode(transportServiceA, discoveryNode, TestProfiles.LIGHT_PROFILE)
         );
-        assertThat(ex.getMessage(), containsString("unexpected remote node"));
+        assertThat(
+            ex.getMessage(),
+            allOf(
+                containsString("Connecting to [" + discoveryNode.getAddress() + "] failed"),
+                containsString("expected to connect to [" + discoveryNode.descriptionWithoutAttributes() + "]"),
+                containsString("found [" + transportServiceB.getLocalNode().descriptionWithoutAttributes() + "] instead"),
+                containsString("Ensure that each node has its own distinct publish address"),
+                containsString("routed to the correct node"),
+                containsString("https://www.elastic.co/guide/en/elasticsearch/reference/"),
+                containsString("modules-network.html")
+            )
+        );
         assertFalse(transportServiceA.nodeConnected(discoveryNode));
     }
 

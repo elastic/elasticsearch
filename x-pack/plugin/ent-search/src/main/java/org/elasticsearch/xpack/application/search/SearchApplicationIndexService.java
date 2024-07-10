@@ -250,7 +250,7 @@ public class SearchApplicationIndexService {
             Set<String> currentAliases = metadata.aliasedIndices(searchAliasName).stream().map(Index::getName).collect(Collectors.toSet());
             Set<String> targetAliases = Set.of(app.indices());
 
-            requestBuilder = updateAliasIndices(currentAliases, targetAliases, searchAliasName);
+            requestBuilder = updateAliasIndices(Set.of(app.indices()), targetAliases, searchAliasName);
 
         } else {
             requestBuilder = client.admin().indices().prepareAliases().addAlias(app.indices(), searchAliasName, true);
@@ -259,9 +259,9 @@ public class SearchApplicationIndexService {
         requestBuilder.execute(listener);
     }
 
-    private IndicesAliasesRequestBuilder updateAliasIndices(Set<String> currentAliases, Set<String> targetAliases, String searchAliasName) {
+    private IndicesAliasesRequestBuilder updateAliasIndices(Set<String> currentIndices, Set<String> targetAliases, String searchAliasName) {
 
-        Set<String> deleteIndices = new HashSet<>(currentAliases);
+        Set<String> deleteIndices = new HashSet<>(currentIndices);
         deleteIndices.removeAll(targetAliases);
 
         IndicesAliasesRequestBuilder aliasesRequestBuilder = client.admin().indices().prepareAliases();
@@ -332,7 +332,7 @@ public class SearchApplicationIndexService {
 
     private void removeAlias(String searchAliasName, ActionListener<AcknowledgedResponse> listener) {
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
-            IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*")
+            IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*").autoExpandAliases(true)
         );
         client.admin().indices().aliases(aliasesRequest, new ActionListener<>() {
             @Override

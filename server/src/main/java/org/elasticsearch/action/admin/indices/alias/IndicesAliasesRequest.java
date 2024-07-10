@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -194,6 +195,12 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::isHidden, XContentParser::booleanValue, IS_HIDDEN, ValueType.BOOLEAN);
             ADD_PARSER.declareField(AliasActions::autoExpandAliases, XContentParser::booleanValue, AUTO_EXPAND_ALIASES, ValueType.BOOLEAN);
             REMOVE_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
+            REMOVE_PARSER.declareField(
+                AliasActions::autoExpandAliases,
+                XContentParser::booleanValue,
+                AUTO_EXPAND_ALIASES,
+                ValueType.BOOLEAN
+            );
         }
 
         /**
@@ -475,7 +482,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
 
         public AliasActions autoExpandAliases(Boolean autoExpandAliases) {
-            if (type != Type.ADD) {
+            if (Set.of(Type.ADD, Type.REMOVE).contains(type) == false) {
                 throw new IllegalArgumentException("[" + AUTO_EXPAND_ALIASES.getPreferredName() + "] is unsupported for [" + type + "]");
             }
             this.autoExpandAliases = autoExpandAliases;

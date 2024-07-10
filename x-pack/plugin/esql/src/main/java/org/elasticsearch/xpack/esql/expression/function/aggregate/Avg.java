@@ -88,19 +88,22 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     public Expression surrogate() {
         var s = source();
         var field = field();
+        if (field.foldable()) {
+            return new MvAvg(s, field);
+        }
 
-        final Sum sum;
-        final Count count;
+        final Expression sum;
+        final Expression count;
         if (field instanceof AggregateDoubleMetricAttribute aggregateDoubleMetricAttribute) {
             FieldAttribute sumField = aggregateDoubleMetricAttribute.getSumSubField();
             sum = new Sum(s, sumField);
             FieldAttribute countField = aggregateDoubleMetricAttribute.getValueCountSubField();
-            count = new Count(s, countField);
+            count = new Sum(s, countField);
         } else {
             sum = new Sum(s, field);
             count = new Count(s, field);
         }
 
-        return field().foldable() ? new MvAvg(s, field) : new Div(s, sum, count, dataType());
+        return new Div(s, sum, count, dataType());
     }
 }

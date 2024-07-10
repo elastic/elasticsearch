@@ -20,6 +20,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
@@ -129,7 +131,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    public void testCreateSnapshotOnTrigger() {
+    public void testCreateSnapshotOnTrigger() throws Exception {
         final String id = randomAlphaOfLength(4);
         final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
         final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(
@@ -140,6 +142,12 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, meta).build())
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.builder("nodeId").name("nodeId").build())
+                    .localNodeId("nodeId")
+                    .masterNodeId("nodeId")
+            )
             .build();
 
         final ThreadPool threadPool = new TestThreadPool("test");
@@ -220,11 +228,13 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 new SchedulerEngine.Event(SnapshotLifecycleService.getJobId(slpm), System.currentTimeMillis(), System.currentTimeMillis())
             );
 
-            assertTrue("snapshot should be triggered once", clientCalled.get());
-            assertTrue("history store should be called once", historyStoreCalled.get());
+            assertBusy(() -> {
+                assertTrue("snapshot should be triggered once", clientCalled.get());
+                assertTrue("history store should be called once", historyStoreCalled.get());
+            });
+        } finally {
+            threadPool.shutdownNow();
         }
-
-        threadPool.shutdownNow();
     }
 
     public void testPartialFailureSnapshot() throws Exception {
@@ -238,6 +248,12 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, meta).build())
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.builder("nodeId").name("nodeId").build())
+                    .localNodeId("nodeId")
+                    .masterNodeId("nodeId")
+            )
             .build();
 
         final ThreadPool threadPool = new TestThreadPool("test");
@@ -307,11 +323,13 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 new SchedulerEngine.Event(SnapshotLifecycleService.getJobId(slpm), System.currentTimeMillis(), System.currentTimeMillis())
             );
 
-            assertTrue("snapshot should be triggered once", clientCalled.get());
-            assertTrue("history store should be called once", historyStoreCalled.get());
+            assertBusy(() -> {
+                assertTrue("snapshot should be triggered once", clientCalled.get());
+                assertTrue("history store should be called once", historyStoreCalled.get());
+            });
+        } finally {
+            threadPool.shutdownNow();
         }
-
-        threadPool.shutdownNow();
     }
 
     /**

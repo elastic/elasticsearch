@@ -19,6 +19,7 @@ import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.StructLayout;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 
 import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
@@ -67,11 +68,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
     static {
         MethodHandle fstat;
         try {
-            fstat = downcallHandleWithErrno("fstat", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+            fstat = downcallHandleWithErrno("fstat64", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
         } catch (LinkageError e) {
             // Due to different sizes of the stat structure for 32 vs 64 bit machines, on some systems fstat actually points to
             // an internal symbol. So we fall back to looking for that symbol.
-            fstat = downcallHandleWithErrno("__fxstat", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+            int fstat_version = System.getProperty("os.arch").equals("aarch64") ? 0 : 1;
+            fstat = MethodHandles.insertArguments(downcallHandleWithErrno("__fxstat", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS)), 1, fstat_version);
         }
         fstat$mh = fstat;
     }

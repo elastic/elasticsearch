@@ -117,9 +117,9 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
      * can be reused across different build invocations.
      * */
     private void setupDefaultEnvironment(ProviderFactory providerFactory) {
-        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("BUILDKITE").orElse(Map.of()));
-        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("GRADLE_BUILD_CACHE").orElse(Map.of()));
-        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("VAULT").orElse(Map.of()));
+        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("BUILDKITE"));
+        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("GRADLE_BUILD_CACHE"));
+        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("VAULT"));
         Provider<String> javaToolchainHome = providerFactory.environmentVariable("JAVA_TOOLCHAIN_HOME");
         if (javaToolchainHome.isPresent()) {
             getEnvironment().put("JAVA_TOOLCHAIN_HOME", javaToolchainHome);

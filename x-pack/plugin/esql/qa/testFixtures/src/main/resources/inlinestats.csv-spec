@@ -1,20 +1,29 @@
 maxOfInt
+required_capability: inlinestats
+
+// tag::max-languages[]
 FROM employees
-| KEEP emp_no, languages, gender
+| KEEP emp_no, languages
 | INLINESTATS max_lang = MAX(languages) 
 | WHERE max_lang == languages
 | SORT emp_no ASC
-| LIMIT 5;
+| LIMIT 5
+// end::max-languages[]
+;
 
-emp_no:integer | languages:integer | gender:keyword | max_lang:integer
-         10002 |                 5 | F              | 5
-         10004 |                 5 | M              | 5
-         10011 |                 5 | null           | 5
-         10012 |                 5 | null           | 5
-         10014 |                 5 | null           | 5
+// tag::max-languages-result[]
+emp_no:integer | languages:integer | max_lang:integer
+         10002 |                 5 | 5
+         10004 |                 5 | 5
+         10011 |                 5 | 5
+         10012 |                 5 | 5
+         10014 |                 5 | 5
+// end::max-languages-result[]
 ;
 
 maxOfIntByKeyword
+required_capability: inlinestats
+
 FROM employees
 | KEEP emp_no, languages, gender
 | INLINESTATS max_lang = MAX(languages) BY gender 
@@ -31,6 +40,8 @@ emp_no:integer | languages:integer | gender:keyword | max_lang:integer
 ;
 
 maxOfLongByKeyword
+required_capability: inlinestats
+
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY gender 
@@ -44,6 +55,8 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
 ;
 
 maxOfLong
+required_capability: inlinestats
+
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) 
@@ -54,26 +67,34 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
          10030 |               394597613 | M              | 394597613
 ;
 
-
 // TODO allow inline calculation like BY l = SUBSTRING(
 maxOfLongByCalculatedKeyword
+required_capability: inlinestats
+
+// tag::longest-tenured-by-first[]
 FROM employees
 | EVAL l = SUBSTRING(last_name, 0, 1)
 | KEEP emp_no, avg_worked_seconds, l
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l 
 | WHERE max_avg_worked_seconds == avg_worked_seconds
-| SORT emp_no ASC
-| LIMIT 5;
+| SORT l ASC
+| LIMIT 5
+// end::longest-tenured-by-first[]
+;
 
+// tag::longest-tenured-by-first-result[]
 emp_no:integer | avg_worked_seconds:long | l:keyword | max_avg_worked_seconds:long
-         10006 |               372957040 | P         | 372957040
-         10007 |               393084805 | Z         | 393084805
-         10015 |               390266432 | N         | 390266432
-         10020 |               373309605 | W         | 373309605
-         10025 |               371270797 | H         | 371270797
+         10065 |               372660279 | A         | 372660279
+         10074 |               382397583 | B         | 382397583
+         10044 |               387408356 | C         | 387408356
+         10030 |               394597613 | D         | 394597613
+         10087 |               305782871 | E         | 305782871
+// end::longest-tenured-by-first-result[]
 ;
 
 maxOfLongByInt
+required_capability: inlinestats
+
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY languages
@@ -90,6 +111,8 @@ emp_no:integer | avg_worked_seconds:long | languages:integer | max_avg_worked_se
 ;
 
 maxOfLongByIntDouble
+required_capability: inlinestats
+
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages, height
 | EVAL height=ROUND(height, 1)
@@ -107,6 +130,8 @@ emp_no:integer | avg_worked_seconds:long | languages:integer | height:double | m
 
 
 two
+required_capability: inlinestats
+
 FROM employees
 | KEEP emp_no, languages, avg_worked_seconds, gender
 | INLINESTATS avg_avg_worked_seconds = AVG(avg_worked_seconds) BY languages
@@ -119,4 +144,78 @@ emp_no:integer | languages:integer | avg_worked_seconds:long | gender:keyword | 
          10002 |                 5 |               328922887 | F              | 3.133013149047619E8           | 5
          10006 |                 3 |               372957040 | F              | 2.978159518235294E8           | 5
          10007 |                 4 |               393084805 | F              | 2.863684210555556E8           | 5
+;
+
+byMultivaluedSimple
+required_capability: inlinestats
+
+// tag:mv-simple
+FROM airports
+| INLINESTATS min_scalerank=MIN(scalerank) BY type
+| EVAL type=MV_SORT(type), min_scalerank=MV_SORT(min_scalerank)
+| KEEP abbrev, type, scalerank, min_scalerank
+| WHERE abbrev == "GWL"
+// tag:mv-simple
+;
+
+// tag:mv-simple-result
+abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
+           GWL | [mid, military] | 9                 | [2, 4]
+// end:mv-simple-result
+;
+
+byMultivaluedMvExpand
+required_capability: inlinestats
+
+FROM airports
+| KEEP abbrev, type, scalerank
+| MV_EXPAND type
+| INLINESTATS min_scalerank=MIN(scalerank) BY type
+| SORT min_scalerank ASC
+| WHERE abbrev == "GWL";
+
+abbrev:keyword | type:keyword | scalerank:integer | min_scalerank:integer
+           GWL |          mid | 9                 | 2
+           GWL |     military | 9                 | 4
+;
+
+byMvExpand
+required_capability: inlinestats
+
+// tag::extreme-airports[]
+FROM airports
+| MV_EXPAND type
+| EVAL lat = ST_Y(location)
+| INLINESTATS most_northern=MAX(lat), most_southern=MIN(lat) BY type
+| WHERE lat == most_northern OR lat == most_southern
+| SORT lat DESC
+| KEEP type, name, location
+// end::extreme-airports[]
+;
+
+// tag::extreme-airports-result[]
+ type:keyword |           name:text           | location:geo_point
+          mid |             Svalbard Longyear | POINT (15.495229 78.246717)
+        major |                Tromsø Langnes | POINT (18.9072624292132 69.6796790473478)
+     military | Severomorsk-3 (Murmansk N.E.) | POINT (33.2903527616285 69.0168711826804)
+    spaceport |           Baikonur Cosmodrome | POINT (63.307354423875 45.9635739403124)
+        small |                       Dhamial | POINT (73.0320498392002 33.5614146278861)
+        small |                      Sahnewal | POINT (75.9570722403652 30.8503598561702)
+    spaceport |       Centre Spatial Guyanais | POINT (-52.7684296893452 5.23941001258035)
+     military |         Santos Air Force Base | POINT (-46.3052704931003 -23.9237590410637)
+        major |            Christchurch Int'l | POINT (172.538675565223 -43.4885486784104)
+          mid |          Hermes Quijada Int'l | POINT (-67.7530268462675 -53.7814746058316)
+// end::extreme-airports-result[]
+;
+
+brokenwhy-Ignore
+required_capability: inlinestats
+
+FROM airports
+| INLINESTATS min_scalerank=MIN(scalerank) BY type
+| MV_EXPAND type
+| WHERE scalerank == MV_MIN(scalerank);
+
+abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
+           GWL | [mid, military] | 9                 | [2, 4]
 ;

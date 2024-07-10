@@ -6,7 +6,7 @@
 
 [source,esql]
 ----
-STATS [column1 =] expression1[, ..., [columnN =] expressionN] 
+STATS [column1 =] expression1[, ..., [columnN =] expressionN]
 [BY grouping_expression1[, ..., grouping_expressionN]]
 ----
 
@@ -39,8 +39,8 @@ NOTE: `STATS` without any groups is much much faster than adding a group.
 
 NOTE: Grouping on a single expression is currently much more optimized than grouping
       on many expressions. In some tests we have seen grouping on a single `keyword`
-      column to be five times faster than grouping on two `keyword` columns. Do 
-      not try to work around this by combining the two columns together with 
+      column to be five times faster than grouping on two `keyword` columns. Do
+      not try to work around this by combining the two columns together with
       something like <<esql-concat>> and then grouping - that is not going to be
       faster.
 
@@ -80,8 +80,7 @@ include::{esql-specs}/stats.csv-spec[tag=statsCalcMultipleValues]
 include::{esql-specs}/stats.csv-spec[tag=statsCalcMultipleValues-result]
 |===
 
-It's also possible to group by multiple values (only supported for long and
-keyword family fields):
+It's also possible to group by multiple values:
 
 [source,esql]
 ----
@@ -139,3 +138,4 @@ include::{esql-specs}/stats.csv-spec[tag=statsUnnamedColumnEval]
 |===
 include::{esql-specs}/stats.csv-spec[tag=statsUnnamedColumnEval-result]
 |===
+

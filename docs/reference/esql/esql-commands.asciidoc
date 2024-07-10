@@ -37,6 +37,7 @@ image::images/esql/processing-command.svg[A processing command changing an input
 * <<esql-enrich>>
 * <<esql-eval>>
 * <<esql-grok>>
+* experimental:[] <<esql-inlinestats-by>>
 * <<esql-keep>>
 * <<esql-limit>>
 ifeval::["{release-state}"=="unreleased"]
@@ -59,6 +60,7 @@ include::processing-commands/drop.asciidoc[]
 include::processing-commands/enrich.asciidoc[]
 include::processing-commands/eval.asciidoc[]
 include::processing-commands/grok.asciidoc[]
+include::processing-commands/inlinestats.asciidoc[]
 include::processing-commands/keep.asciidoc[]
 include::processing-commands/limit.asciidoc[]
 ifeval::["{release-state}"=="unreleased"]

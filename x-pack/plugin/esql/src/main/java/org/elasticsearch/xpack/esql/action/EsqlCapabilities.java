@@ -120,6 +120,11 @@ public class EsqlCapabilities {
         GROK_VALIDATION,
 
         /**
+         * Fix for union-types when aggregating over an inline conversion with conversion function. Done in #110652.
+         */
+        UNION_TYPES_INLINE_FIX,
+
+        /**
          * Fix for non-unique attribute names in ROW.
          * https://github.com/elastic/elasticsearch/issues/110541
          */

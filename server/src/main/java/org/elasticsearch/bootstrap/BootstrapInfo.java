@@ -28,27 +28,10 @@ public final class BootstrapInfo {
     private BootstrapInfo() {}
 
     /**
-     * Returns true if we successfully loaded native libraries.
-     * <p>
-     * If this returns false, then native operations such as locking
-     * memory did not work.
-     */
-    public static boolean isNativesAvailable() {
-        return Natives.JNA_AVAILABLE;
-    }
-
-    /**
      * Returns true if we were able to lock the process's address space.
      */
     public static boolean isMemoryLocked() {
         return NativeAccess.instance().isMemoryLocked();
-    }
-
-    /**
-     * Returns true if system call filter is installed (supported systems only)
-     */
-    public static boolean isSystemCallFilterInstalled() {
-        return Natives.isSystemCallFilterInstalled();
     }
 
     /**

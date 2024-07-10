@@ -991,10 +991,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     start,
                     Math.toIntExact(gap.end() - start),
                     progress -> gap.onProgress(start + progress),
-                    ActionListener.running(() -> {
+                    ActionListener.wrap(unused -> {
                         writeCount.increment();
                         gap.onCompletion();
-                    })
+                    }, gap::onFailure)
                 );
             });
         }

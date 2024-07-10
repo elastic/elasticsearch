@@ -58,6 +58,7 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
     /** corresponds to struct stat64 */
     interface Stat64 {
         long st_size();
+
         long st_blocks();
     }
 

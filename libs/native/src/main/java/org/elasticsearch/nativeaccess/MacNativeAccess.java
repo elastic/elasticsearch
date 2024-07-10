@@ -28,7 +28,6 @@ class MacNativeAccess extends PosixNativeAccess {
     private static final int F_ALLOCATEALL = 0x4; // allocate all the requested space or no space at all
     private static final int F_PEOFPOSMODE = 3; // allocate from the physical end of the file
 
-
     /** The only supported flag... */
     static final int SANDBOX_NAMED = 1;
     /** Allow everything except process fork and execution */

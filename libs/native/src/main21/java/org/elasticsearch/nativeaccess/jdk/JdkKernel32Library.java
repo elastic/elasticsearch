@@ -26,7 +26,6 @@ import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.MemoryLayout.paddingLayout;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
-import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_CHAR;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
@@ -61,7 +60,8 @@ class JdkKernel32Library implements Kernel32Library {
     );
     private static final MethodHandle GetCompressedFileSizeW$mh = downcallHandleWithError(
         "GetCompressedFileSizeW",
-        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS)
+    );
     private static final MethodHandle GetShortPathNameW$mh = downcallHandleWithError(
         "GetShortPathNameW",
         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT)

@@ -151,7 +151,6 @@ class WindowsNativeAccess extends AbstractNativeAccess {
         return OptionalLong.of(allocatedSize);
     }
 
-
     @Override
     public void tryPreallocate(Path file, long size) {
         logger.warn("Cannot preallocate file size because operation is not available on Windows");

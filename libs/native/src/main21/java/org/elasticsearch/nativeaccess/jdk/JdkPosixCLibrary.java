@@ -43,7 +43,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
         "getrlimit",
         FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS)
     );
+    private static final MethodHandle setrlimit$mh = downcallHandleWithErrno(
+        "setrlimit",
+        FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS)
+    );
     private static final MethodHandle mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+    private static final MethodHandle fcntl$mh = downcallHandle("fcntl", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
 
     static final MemorySegment errnoState = Arena.ofAuto().allocate(CAPTURE_ERRNO_LAYOUT);
 
@@ -92,9 +97,36 @@ class JdkPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
+    public int setrlimit(int resource, RLimit rlimit) {
+        assert rlimit instanceof JdkRLimit;
+        var jdkRlimit = (JdkRLimit) rlimit;
+        try {
+            return (int) setrlimit$mh.invokeExact(errnoState, resource, jdkRlimit.segment);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
     public int mlockall(int flags) {
         try {
             return (int) mlockall$mh.invokeExact(errnoState, flags);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public FStore newFStore() {
+        return new JdkFStore();
+    }
+
+    @Override
+    public int fcntl(int fd, int cmd, FStore fst) {
+        assert fst instanceof JdkFStore;
+        var jdkFst = (JdkFStore) fst;
+        try {
+            return (int) fcntl$mh.invokeExact(errnoState, fd, cmd, jdkFst.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -123,8 +155,59 @@ class JdkPosixCLibrary implements PosixCLibrary {
         }
 
         @Override
+        public void rlim_cur(long v) {
+            rlim_cur$vh.set(segment, v);
+        }
+
+        @Override
+        public void rlim_max(long v) {
+            rlim_max$vh.set(segment, v);
+        }
+
+        @Override
         public String toString() {
             return "JdkRLimit[rlim_cur=" + rlim_cur() + ", rlim_max=" + rlim_max();
+        }
+    }
+
+    private static class JdkFStore implements FStore {
+        private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_LONG);
+        private static final VarHandle st_flags$vh = layout.varHandle(groupElement(0));
+        private static final VarHandle st_posmode$vh = layout.varHandle(groupElement(1));
+        private static final VarHandle st_offset$vh = layout.varHandle(groupElement(2));
+        private static final VarHandle st_length$vh = layout.varHandle(groupElement(3));
+        private static final VarHandle st_bytesalloc$vh = layout.varHandle(groupElement(4));
+
+        private final MemorySegment segment;
+
+        JdkFStore() {
+            var arena = Arena.ofAuto();
+            this.segment = arena.allocate(layout);
+        }
+
+        @Override
+        public void set_flags(int flags) {
+            st_flags$vh.set(segment, flags);
+        }
+
+        @Override
+        public void set_posmode(int posmode) {
+            st_posmode$vh.set(segment, posmode);
+        }
+
+        @Override
+        public void set_offset(long offset) {
+            st_offset$vh.get(segment, offset);
+        }
+
+        @Override
+        public void set_length(long length) {
+            st_length$vh.set(segment, length);
+        }
+
+        @Override
+        public long bytesalloc() {
+            return (long) st_bytesalloc$vh.get(segment);
         }
     }
 }

@@ -183,12 +183,12 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
         @Override
         public long raiNormalisedBytes() {
-            return 0;
+            return counter;
         }
 
         @Override
         public long rasNormalisedBytes() {
-            return 0;
+            return counter;
         }
     }
 }

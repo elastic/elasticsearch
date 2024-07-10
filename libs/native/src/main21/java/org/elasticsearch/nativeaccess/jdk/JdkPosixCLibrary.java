@@ -52,6 +52,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
     private static final MethodHandle ftruncate$mh = downcallHandle("ftruncate", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG));
     private static final MethodHandle open$mh = downcallHandle(
         "open",
+        FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT),
+        CAPTURE_ERRNO_OPTION,
+        Linker.Option.firstVariadicArg(2)
+    );
+    private static final MethodHandle openWithMode$mh = downcallHandle(
+        "open",
         FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT),
         CAPTURE_ERRNO_OPTION,
         Linker.Option.firstVariadicArg(2)
@@ -180,7 +186,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     public int open(String pathname, int flags, int mode) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment nativePathname = MemorySegmentUtil.allocateString(arena, pathname);
-            return (int) open$mh.invokeExact(errnoState, nativePathname, flags, mode);
+            return (int) openWithMode$mh.invokeExact(errnoState, nativePathname, flags, mode);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

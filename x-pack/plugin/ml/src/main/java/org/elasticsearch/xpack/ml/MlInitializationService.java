@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
@@ -123,13 +124,17 @@ public final class MlInitializationService implements ClusterStateListener {
 
     public void onMaster() {
         mlDailyMaintenanceService.start();
-        adaptiveAllocationsScalerService.start();
+        if (AdaptiveAllocationsFeatureFlag.isEnabled()) {
+            adaptiveAllocationsScalerService.start();
+        }
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlInternalIndicesHidden);
     }
 
     public void offMaster() {
         mlDailyMaintenanceService.stop();
-        adaptiveAllocationsScalerService.stop();
+        if (AdaptiveAllocationsFeatureFlag.isEnabled()) {
+            adaptiveAllocationsScalerService.stop();
+        }
     }
 
     @Override

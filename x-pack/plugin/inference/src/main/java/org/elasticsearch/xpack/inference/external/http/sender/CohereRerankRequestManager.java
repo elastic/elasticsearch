@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.request.cohere.CohereRerankReq
 import org.elasticsearch.xpack.inference.external.response.cohere.CohereRankedResponseEntity;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -44,13 +43,13 @@ public class CohereRerankRequestManager extends CohereRequestManager {
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        CohereRerankRequest request = new CohereRerankRequest(query, input, model);
+        var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
+        CohereRerankRequest request = new CohereRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

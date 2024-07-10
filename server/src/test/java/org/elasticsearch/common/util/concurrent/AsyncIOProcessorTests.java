@@ -54,32 +54,19 @@ public class AsyncIOProcessorTests extends ESTestCase {
         };
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
         final int count = randomIntBetween(1000, 20000);
-        Thread[] thread = new Thread[randomIntBetween(3, 10)];
-        CountDownLatch latch = new CountDownLatch(thread.length);
-        for (int i = 0; i < thread.length; i++) {
-            thread[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        latch.countDown();
-                        latch.await();
-                        for (int i = 0; i < count; i++) {
-                            semaphore.acquire();
-                            processor.put(new Object(), (ex) -> semaphore.release());
-                        }
-                    } catch (Exception ex) {
-                        throw new RuntimeException(ex);
-                    }
+        final int threads = randomIntBetween(3, 10);
+        startInParallel(threads, t -> {
+            for (int i = 0; i < count; i++) {
+                try {
+                    semaphore.acquire();
+                    processor.put(new Object(), (ex) -> semaphore.release());
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
                 }
-            };
-            thread[i].start();
-        }
-
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
-        }
+            }
+        });
         safeAcquire(10, semaphore);
-        assertEquals(count * thread.length, received.get());
+        assertEquals(count * threads, received.get());
     }
 
     public void testRandomFail() throws InterruptedException {
@@ -102,37 +89,24 @@ public class AsyncIOProcessorTests extends ESTestCase {
         };
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
         final int count = randomIntBetween(1000, 20000);
-        Thread[] thread = new Thread[randomIntBetween(3, 10)];
-        CountDownLatch latch = new CountDownLatch(thread.length);
-        for (int i = 0; i < thread.length; i++) {
-            thread[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        latch.countDown();
-                        latch.await();
-                        for (int i = 0; i < count; i++) {
-                            semaphore.acquire();
-                            processor.put(new Object(), (ex) -> {
-                                if (ex != null) {
-                                    actualFailed.incrementAndGet();
-                                }
-                                semaphore.release();
-                            });
+        final int threads = randomIntBetween(3, 10);
+        startInParallel(threads, t -> {
+            try {
+                for (int i = 0; i < count; i++) {
+                    semaphore.acquire();
+                    processor.put(new Object(), (ex) -> {
+                        if (ex != null) {
+                            actualFailed.incrementAndGet();
                         }
-                    } catch (Exception ex) {
-                        throw new RuntimeException(ex);
-                    }
+                        semaphore.release();
+                    });
                 }
-            };
-            thread[i].start();
-        }
-
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
-        }
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
+        });
         safeAcquire(Integer.MAX_VALUE, semaphore);
-        assertEquals(count * thread.length, received.get());
+        assertEquals(count * threads, received.get());
         assertEquals(actualFailed.get(), failed.get());
     }
 
@@ -226,7 +200,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
         threads.forEach(t -> assertFalse(t.isAlive()));
     }
 
-    public void testSlowConsumer() {
+    public void testSlowConsumer() throws InterruptedException {
         AtomicInteger received = new AtomicInteger(0);
         AtomicInteger notified = new AtomicInteger(0);
 
@@ -240,39 +214,23 @@ public class AsyncIOProcessorTests extends ESTestCase {
         int threadCount = randomIntBetween(2, 10);
         CyclicBarrier barrier = new CyclicBarrier(threadCount);
         Semaphore serializePutSemaphore = new Semaphore(1);
-        List<Thread> threads = IntStream.range(0, threadCount).<Thread>mapToObj(i -> new Thread(getTestName() + "_" + i) {
-            {
-                setDaemon(true);
-            }
-
-            @Override
-            public void run() {
-                try {
-                    assertTrue(serializePutSemaphore.tryAcquire(10, TimeUnit.SECONDS));
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                processor.put(new Object(), (e) -> {
-                    serializePutSemaphore.release();
-                    try {
-                        barrier.await(10, TimeUnit.SECONDS);
-                    } catch (InterruptedException | BrokenBarrierException | TimeoutException ex) {
-                        throw new RuntimeException(ex);
-                    }
-                    notified.incrementAndGet();
-                });
-            }
-        }).toList();
-        threads.forEach(Thread::start);
-        threads.forEach(t -> {
+        runInParallel(threadCount, t -> {
             try {
-                t.join(20000);
+                assertTrue(serializePutSemaphore.tryAcquire(10, TimeUnit.SECONDS));
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+            processor.put(new Object(), (e) -> {
+                serializePutSemaphore.release();
+                try {
+                    barrier.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException | BrokenBarrierException | TimeoutException ex) {
+                    throw new RuntimeException(ex);
+                }
+                notified.incrementAndGet();
+            });
         });
         assertEquals(threadCount, notified.get());
         assertEquals(threadCount, received.get());
-        threads.forEach(t -> assertFalse(t.isAlive()));
     }
 }

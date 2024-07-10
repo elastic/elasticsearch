@@ -1687,12 +1687,13 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
         @Override
         public boolean supportsOrdinals() {
-            return delegate.supportsOrdinals();
+            // Fields with mismatching types cannot use ordinals for uniqueness determination, but must convert the values first
+            return false;
         }
 
         @Override
-        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-            return delegate.ordinals(context);
+        public SortedSetDocValues ordinals(LeafReaderContext context) {
+            throw new IllegalArgumentException("Ordinals are not supported for type conversion");
         }
 
         @Override

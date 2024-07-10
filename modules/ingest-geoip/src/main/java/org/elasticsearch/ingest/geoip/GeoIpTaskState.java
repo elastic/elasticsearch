@@ -84,14 +84,6 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         return databases;
     }
 
-    public boolean contains(String name) {
-        return databases.containsKey(name);
-    }
-
-    public Metadata get(String name) {
-        return databases.get(name);
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -142,7 +134,13 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     record Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck) implements ToXContentObject {
 
-        static final String NAME = GEOIP_DOWNLOADER + "-metadata";
+        /**
+         * An empty Metadata object useful for getOrDefault -type calls. Crucially, the 'lastChunk' is -1, so it's safe to use
+         * with logic that says the new firstChunk is the old lastChunk + 1.
+         */
+        static Metadata EMPTY = new Metadata(-1, -1, -1, "", -1);
+
+        private static final String NAME = GEOIP_DOWNLOADER + "-metadata";
         private static final ParseField LAST_CHECK = new ParseField("last_check");
         private static final ParseField LAST_UPDATE = new ParseField("last_update");
         private static final ParseField FIRST_CHUNK = new ParseField("first_chunk");

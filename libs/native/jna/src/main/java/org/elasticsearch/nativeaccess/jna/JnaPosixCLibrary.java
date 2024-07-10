@@ -205,6 +205,11 @@ class JnaPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
+    public int open(String pathname, int flags) {
+        return functions.open(pathname, flags);
+    }
+
+    @Override
     public int open(String pathname, int flags, int mode) {
         return functions.open(pathname, flags, mode);
     }

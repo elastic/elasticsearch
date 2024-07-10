@@ -131,7 +131,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         assert Files.isRegularFile(path) : path;
         var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
 
-        int fd = libc.open(path.toAbsolutePath().toString(), O_RDONLY, 0);
+        int fd = libc.open(path.toAbsolutePath().toString(), O_RDONLY);
         if (fd == -1) {
             logger.warn("Could not open file [" + path + "] to get allocated size: " + libc.strerror(libc.errno()));
             return OptionalLong.empty();

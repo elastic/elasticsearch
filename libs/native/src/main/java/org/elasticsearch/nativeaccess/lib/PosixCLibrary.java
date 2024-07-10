@@ -66,6 +66,8 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
 
     int open(String pathname, int flags, int mode);
 
+    int open(String pathname, int flags);
+
     int close(int fd);
 
     int fstat64(int fd, Stat64 stats);

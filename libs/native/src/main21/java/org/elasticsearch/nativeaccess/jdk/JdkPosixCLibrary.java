@@ -167,6 +167,16 @@ class JdkPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
+    public int open(String pathname, int flags) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment nativePathname = MemorySegmentUtil.allocateString(arena, pathname);
+            return (int) open$mh.invokeExact(errnoState, nativePathname, flags);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
     public int open(String pathname, int flags, int mode) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment nativePathname = MemorySegmentUtil.allocateString(arena, pathname);

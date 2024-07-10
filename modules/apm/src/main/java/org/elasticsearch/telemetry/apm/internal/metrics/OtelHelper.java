@@ -46,6 +46,14 @@ class OtelHelper {
                 builder.put(k, value);
             } else if (v instanceof Boolean value) {
                 builder.put(k, value);
+            } else if (v instanceof String[] value) {
+                builder.put(k, value);
+            } else if (v instanceof boolean[] value) {
+                builder.put(k, value);
+            } else if (v instanceof double[] value) {
+                builder.put(k, value);
+            } else if (v instanceof long[] value) {
+                builder.put(k, value);
             } else {
                 throw new IllegalArgumentException("attributes do not support value type of [" + v.getClass().getCanonicalName() + "]");
             }

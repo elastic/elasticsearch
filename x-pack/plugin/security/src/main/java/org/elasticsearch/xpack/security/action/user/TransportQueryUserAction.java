@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -49,7 +50,7 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
         ProfileService profileService,
         Realms realms
     ) {
-        super(ActionTypes.QUERY_USER_ACTION.name(), actionFilters, transportService.getTaskManager());
+        super(ActionTypes.QUERY_USER_ACTION.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.usersStore = usersStore;
         this.profileService = profileService;
         this.nativeRealmRef = realms.getNativeRealmRef();

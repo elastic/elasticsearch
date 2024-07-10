@@ -212,7 +212,14 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    public CsvTests(String fileName, String groupName, String testName, Integer lineNumber, CsvSpecReader.CsvTestCase testCase, String instructions) {
+    public CsvTests(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvSpecReader.CsvTestCase testCase,
+        String instructions
+    ) {
         this.fileName = fileName;
         this.groupName = groupName;
         this.testName = testName;

@@ -21,6 +21,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     public static final int MCL_CURRENT = 1;
     public static final int ENOMEM = 12;
+    public static final int O_RDONLY = 0;
     public static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
@@ -130,7 +131,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         assert Files.isRegularFile(path) : path;
         var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
 
-        int fd = libc.open(path.toAbsolutePath().toString(), O_WRONLY, constants.O_CREAT());
+        int fd = libc.open(path.toAbsolutePath().toString(), O_RDONLY, 0);
         if (fd == -1) {
             logger.warn("Could not open file [" + path + "] to get allocated size: " + libc.strerror(libc.errno()));
             return OptionalLong.empty();
@@ -139,6 +140,9 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         if (libc.fstat64(fd, stats) != 0) {
             logger.warn("Could not get stats for file [" + path + "] to get allocated size: " + libc.strerror(libc.errno()));
             return OptionalLong.empty();
+        }
+        if (libc.close(fd) != 0) {
+            logger.warn("Failed to close file [" + path + "] after getting stats: " + libc.strerror(libc.errno()));
         }
         return OptionalLong.of(stats.st_blocks() * 512);
     }

@@ -197,10 +197,8 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     public static boolean assertNotMasterUpdateThread(String reason) {
-        // FIXME: This is disabled because blocking operations are performed in the master thread for the POC.
-        //        Yes, I know that's bad.
-//        assert isMasterUpdateThread() == false
-//            : "Expected current thread [" + Thread.currentThread() + "] to not be the master service thread. Reason: [" + reason + "]";
+        assert isMasterUpdateThread() == false
+            : "Expected current thread [" + Thread.currentThread() + "] to not be the master service thread. Reason: [" + reason + "]";
         return true;
     }
 

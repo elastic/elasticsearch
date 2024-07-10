@@ -117,7 +117,12 @@ public class EsqlCapabilities {
          * Fix to GROK validation in case of multiple fields with same name and different types
          * https://github.com/elastic/elasticsearch/issues/110533
          */
-        GROK_VALIDATION;
+        GROK_VALIDATION,
+
+        /**
+         * Use RangeQuery for BinaryComparison on DateTime fields.
+         */
+        RANGEQUERY_FOR_DATETIME;
 
         private final boolean snapshotOnly;
 

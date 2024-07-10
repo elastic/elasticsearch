@@ -1173,7 +1173,7 @@ null
 ;
 
 ImplicitCastingEqual
-required_capability: string_literal_auto_casting_extended
+required_capability: rangequery_for_datetime
 from employees
 | where birth_date == "1957-05-23T00:00:00Z"
 | keep emp_no, birth_date
@@ -1184,7 +1184,7 @@ emp_no:integer | birth_date:datetime
 ;
 
 ImplicitCastingIn
-required_capability: string_literal_auto_casting_extended
+required_capability: rangequery_for_datetime
 from employees
 | where birth_date IN ("1957-05-23T00:00:00Z", "1958-02-19T00:00:00Z")
 | keep emp_no, birth_date

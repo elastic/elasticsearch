@@ -490,19 +490,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         });
         final SearchSourceBuilder source = original.source();
         if (shouldOpenPIT(source)) {
-            openPIT(original, searchService.getDefaultKeepAliveInMillis(), listener.delegateFailureAndWrap((delegate, resp) -> {
+            openPIT(client, original, searchService.getDefaultKeepAliveInMillis(), listener.delegateFailureAndWrap((delegate, resp) -> {
+                // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
+                // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
                 source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
                 executeRequest(task, original, new ActionListener<>() {
                     @Override
                     public void onResponse(SearchResponse response) {
                         // we need to close the PIT first so we delay the release of the response to after the closing
                         response.incRef();
-                        closePIT(original.source().pointInTimeBuilder(), () -> ActionListener.respondAndRelease(listener, response));
+                        closePIT(
+                            client,
+                            original.source().pointInTimeBuilder(),
+                            () -> ActionListener.respondAndRelease(listener, response)
+                        );
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        closePIT(original.source().pointInTimeBuilder(), () -> listener.onFailure(e));
+                        closePIT(client, original.source().pointInTimeBuilder(), () -> listener.onFailure(e));
                     }
                 }, searchPhaseProvider);
             }));
@@ -529,7 +535,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return retriever != null && retriever.isCompound();
     }
 
-    private void openPIT(SearchRequest request, long keepAliveMillis, ActionListener<OpenPointInTimeResponse> listener) {
+    static void openPIT(Client client, SearchRequest request, long keepAliveMillis, ActionListener<OpenPointInTimeResponse> listener) {
         OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(request.indices()).indicesOptions(request.indicesOptions())
             .preference(request.preference())
             .routing(request.routing())
@@ -537,7 +543,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         client.execute(TransportOpenPointInTimeAction.TYPE, pitReq, listener);
     }
 
-    private void closePIT(PointInTimeBuilder pit, Runnable next) {
+    static void closePIT(Client client, PointInTimeBuilder pit, Runnable next) {
         client.execute(
             TransportClosePointInTimeAction.TYPE,
             new ClosePointInTimeRequest(pit.getEncodedId()),

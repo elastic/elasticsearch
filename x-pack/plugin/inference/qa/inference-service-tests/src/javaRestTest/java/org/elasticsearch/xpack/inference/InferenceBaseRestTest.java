@@ -126,6 +126,25 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         assertOkOrCreated(response);
     }
 
+    protected void putSemanticText(String endpointId, String indexName) throws IOException {
+        var request = new Request("PUT", Strings.format("%s", indexName));
+        String body = Strings.format("""
+            {
+                "mappings": {
+                "properties": {
+                    "inference_field": {
+                        "type": "semantic_text",
+                            "inference_id": "%s"
+                    }
+                }
+                }
+            }
+            """, endpointId);
+        request.setJsonEntity(body);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+    }
+
     protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
         String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         return putRequest(endpoint, modelConfig);

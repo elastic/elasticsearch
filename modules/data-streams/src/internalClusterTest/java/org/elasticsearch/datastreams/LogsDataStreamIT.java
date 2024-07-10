@@ -62,7 +62,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
               "@timestamp" : {
                 "type": "date"
               },
-              "hostname": {
+              "host.name": {
                 "type": "keyword"
               },
               "pid": {
@@ -86,7 +86,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
               "@timestamp" : {
                 "type": "date"
               },
-              "hostname": {
+              "host.name": {
                 "type": "keyword",
                 "time_series_dimension": "true"
               },
@@ -110,7 +110,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
     private static final String LOG_DOC_TEMPLATE = """
         {
             "@timestamp": "%s",
-            "hostname": "%s",
+            "host.name": "%s",
             "pid": "%d",
             "method": "%s",
             "message": "%s",
@@ -121,7 +121,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
     private static final String TIME_SERIES_DOC_TEMPLATE = """
         {
             "@timestamp": "%s",
-            "hostname": "%s",
+            "host.name": "%s",
             "pid": "%d",
             "method": "%s",
             "ip_address": "%s",
@@ -207,7 +207,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         final String dataStreamName = generateDataStreamName("custom");
         final List<String> indexPatterns = List.of("custom-*-*");
         final Map<String, String> logsSettings = Map.of("index.mode", "logs");
-        final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series", "index.routing_path", "hostname");
+        final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series", "index.routing_path", "host.name");
 
         putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
         createDataStream(client(), dataStreamName);
@@ -224,7 +224,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         assertDataStreamBackingIndicesModes(dataStreamName, List.of(IndexMode.LOGS, IndexMode.TIME_SERIES, IndexMode.LOGS));
     }
 
-    public void testInvalidIndexModeTimeSeriesSwitchWithoutROutingPath() throws IOException, ExecutionException, InterruptedException {
+    public void testInvalidIndexModeTimeSeriesSwitchWithoutRoutingPath() throws IOException, ExecutionException, InterruptedException {
         final String dataStreamName = generateDataStreamName("custom");
         final List<String> indexPatterns = List.of("custom-*-*");
         final Map<String, String> logsSettings = Map.of("index.mode", "logs");
@@ -250,7 +250,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         final String dataStreamName = generateDataStreamName("custom");
         final List<String> indexPatterns = List.of("custom-*-*");
         final Map<String, String> logsSettings = Map.of("index.mode", "logs");
-        final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series", "index.routing_path", "hostname");
+        final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series", "index.routing_path", "host.name");
 
         putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
         createDataStream(client(), dataStreamName);
@@ -269,8 +269,9 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         assertThat(
             exception.getCause().getCause().getMessage(),
             Matchers.equalTo(
-                "All fields that match routing_path must be configured with [time_series_dimension: true] or flattened fields with "
-                    + "a list of dimensions in [time_series_dimensions] and without the [script] parameter. [hostname] was not a dimension."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] or flattened fields "
+                    + "with a list of dimensions in [time_series_dimensions] and without the [script] parameter. [host.name] was not a "
+                    + "dimension."
             )
         );
     }

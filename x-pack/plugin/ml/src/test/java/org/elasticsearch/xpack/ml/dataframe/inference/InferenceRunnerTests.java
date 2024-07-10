@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.DocValueFormat;
@@ -61,13 +62,18 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -115,7 +121,7 @@ public class InferenceRunnerTests extends ESTestCase {
             return null;
         }).when(modelLoadingService).getModelForInternalInference(anyString(), any());
 
-        createInferenceRunner(extractedFields, testDocsIterator).run("model id");
+        run(createInferenceRunner(extractedFields, testDocsIterator)).assertSuccess();
 
         var argumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
 
@@ -146,8 +152,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
         InferenceRunner inferenceRunner = createInferenceRunner(extractedFields, infiniteDocsIterator);
         inferenceRunner.cancel();
-
-        inferenceRunner.run("model id");
+        run(inferenceRunner).assertSuccess();
 
         Mockito.verifyNoMoreInteractions(localModel, resultsPersisterService);
         assertThat(progressTracker.getInferenceProgressPercent(), equalTo(0));
@@ -178,7 +183,14 @@ public class InferenceRunnerTests extends ESTestCase {
         return localModel;
     }
 
+    private InferenceRunner createInferenceRunner(ExtractedFields extractedFields) {
+        return createInferenceRunner(extractedFields, mock(TestDocsIterator.class));
+    }
+
     private InferenceRunner createInferenceRunner(ExtractedFields extractedFields, TestDocsIterator testDocsIterator) {
+        var threadpool = mock(ThreadPool.class);
+        when(threadpool.executor(any())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadpool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         return new InferenceRunner(
             Settings.EMPTY,
             client,
@@ -189,8 +201,50 @@ public class InferenceRunnerTests extends ESTestCase {
             extractedFields,
             progressTracker,
             new DataCountsTracker(new DataCounts(config.getId())),
-            id -> testDocsIterator
+            id -> testDocsIterator,
+            threadpool
         );
+    }
+
+    private TestListener run(InferenceRunner inferenceRunner) {
+        var listener = new TestListener();
+        inferenceRunner.run("id", listener);
+        return listener;
+    }
+
+    /**
+     * When an exception is returned in a chained listener's onFailure call
+     * Then InferenceRunner should wrap it in an ElasticsearchException
+     */
+    public void testModelLoadingServiceResponseWithAnException() {
+        var expectedCause = new IllegalArgumentException("this is a test");
+        doAnswer(ans -> {
+            ActionListener<LocalModel> responseListener = ans.getArgument(1);
+            responseListener.onFailure(expectedCause);
+            return null;
+        }).when(modelLoadingService).getModelForInternalInference(anyString(), any());
+
+        var actualException = run(createInferenceRunner(mock(ExtractedFields.class))).assertFailure();
+        inferenceRunnerHandledException(actualException, expectedCause);
+    }
+
+    /**
+     * When an exception is thrown within InferenceRunner
+     * Then InferenceRunner should wrap it in an ElasticsearchException
+     */
+    public void testExceptionCallingModelLoadingService() {
+        var expectedCause = new IllegalArgumentException("this is a test");
+
+        doThrow(expectedCause).when(modelLoadingService).getModelForInternalInference(anyString(), any());
+
+        var actualException = run(createInferenceRunner(mock(ExtractedFields.class))).assertFailure();
+        inferenceRunnerHandledException(actualException, expectedCause);
+    }
+
+    private void inferenceRunnerHandledException(Exception actual, Exception expectedCause) {
+        assertThat(actual, instanceOf(ElasticsearchException.class));
+        assertThat(actual.getCause(), is(expectedCause));
+        assertThat(actual.getMessage(), equalTo("[test] failed running inference on model [id]; cause was [this is a test]"));
     }
 
     private Client mockClient() {
@@ -245,5 +299,29 @@ public class InferenceRunnerTests extends ESTestCase {
                 return searchResponse.get();
             }
         };
+    }
+
+    private static class TestListener implements ActionListener<Void> {
+        private final AtomicBoolean success = new AtomicBoolean(false);
+        private final AtomicReference<Exception> failure = new AtomicReference<>();
+
+        @Override
+        public void onResponse(Void t) {
+            success.set(true);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            failure.set(e);
+        }
+
+        public void assertSuccess() {
+            assertTrue(success.get());
+        }
+
+        public Exception assertFailure() {
+            assertNotNull(failure.get());
+            return failure.get();
+        }
     }
 }

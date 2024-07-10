@@ -103,22 +103,63 @@ public class EsExecutors {
         TimeUnit unit,
         boolean rejectAfterShutdown,
         ThreadFactory threadFactory,
-        ThreadContext contextHolder
+        ThreadContext contextHolder,
+        TaskTrackingConfig config
     ) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(
+        EsThreadPoolExecutor executor;
+        if (config.trackExecutionTime()) {
+            executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+                name,
+                min,
+                max,
+                keepAliveTime,
+                unit,
+                queue,
+                TimedRunnable::new,
+                threadFactory,
+                new ForceQueuePolicy(rejectAfterShutdown),
+                contextHolder,
+                config
+            );
+        } else {
+            executor = new EsThreadPoolExecutor(
+                name,
+                min,
+                max,
+                keepAliveTime,
+                unit,
+                queue,
+                threadFactory,
+                new ForceQueuePolicy(rejectAfterShutdown),
+                contextHolder
+            );
+        }
+        queue.executor = executor;
+        return executor;
+    }
+
+    public static EsThreadPoolExecutor newScaling(
+        String name,
+        int min,
+        int max,
+        long keepAliveTime,
+        TimeUnit unit,
+        boolean rejectAfterShutdown,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
+        return newScaling(
             name,
             min,
             max,
             keepAliveTime,
             unit,
-            queue,
+            rejectAfterShutdown,
             threadFactory,
-            new ForceQueuePolicy(rejectAfterShutdown),
-            contextHolder
+            contextHolder,
+            TaskTrackingConfig.DO_NOT_TRACK
         );
-        queue.executor = executor;
-        return executor;
     }
 
     public static EsThreadPoolExecutor newFixed(

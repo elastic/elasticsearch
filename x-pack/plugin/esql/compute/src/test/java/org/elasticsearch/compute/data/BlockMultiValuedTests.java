@@ -66,6 +66,7 @@ public class BlockMultiValuedTests extends ESTestCase {
             }
 
             assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
+            assertThat(b.block().doesHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
         } finally {
             b.block().close();
         }
@@ -151,6 +152,8 @@ public class BlockMultiValuedTests extends ESTestCase {
                 filtered.close();
             }
             assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
+            assertThat(b.block().doesHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
+
         } finally {
             b.block().close();
         }

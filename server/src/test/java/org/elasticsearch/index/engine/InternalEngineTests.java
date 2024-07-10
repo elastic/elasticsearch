@@ -1249,7 +1249,7 @@ public class InternalEngineTests extends EngineTestCase {
                 SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
                     safeCommit.getIndexCommit().getUserData().entrySet()
                 );
-                assertThat(commitInfo.localCheckpoint, equalTo(engine.getProcessedLocalCheckpoint()));
+                assertThat(commitInfo.localCheckpoint(), equalTo(engine.getProcessedLocalCheckpoint()));
             }
         };
         final Thread[] threads = new Thread[randomIntBetween(2, 4)];
@@ -3414,7 +3414,7 @@ public class InternalEngineTests extends EngineTestCase {
                 final long localCheckpoint = Long.parseLong(
                     engine.getLastCommittedSegmentInfos().userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
                 );
-                final long committedGen = engine.getTranslog().getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration;
+                final long committedGen = engine.getTranslog().getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration();
                 for (int gen = 1; gen < committedGen; gen++) {
                     final Path genFile = translogPath.resolve(Translog.getFilename(gen));
                     assertFalse(genFile + " wasn't cleaned up", Files.exists(genFile));
@@ -3601,7 +3601,7 @@ public class InternalEngineTests extends EngineTestCase {
             seqNo -> {}
         );
         translog.add(TranslogOperationsUtils.indexOp("SomeBogusId", 0, primaryTerm.get()));
-        assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
+        assertEquals(generation.translogFileGeneration(), translog.currentFileGeneration());
         translog.close();
 
         EngineConfig config = engine.config();
@@ -3639,7 +3639,8 @@ public class InternalEngineTests extends EngineTestCase {
             null,
             config.getRelativeTimeInNanosSupplier(),
             null,
-            true
+            true,
+            config.getMapperService()
         );
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
@@ -5231,7 +5232,7 @@ public class InternalEngineTests extends EngineTestCase {
                  * This sequence number landed in the last generation, but the lower and upper bounds for an earlier generation straddle
                  * this sequence number.
                  */
-                assertThat(translog.getMinGenerationForSeqNo(3 * i + 1).translogFileGeneration, equalTo(i + generation));
+                assertThat(translog.getMinGenerationForSeqNo(3 * i + 1).translogFileGeneration(), equalTo(i + generation));
             }
 
             int i = 0;
@@ -5854,7 +5855,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Translog translog = engine.getTranslog();
         final IntSupplier uncommittedTranslogOperationsSinceLastCommit = () -> {
             long localCheckpoint = Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            return translog.totalOperationsByMinGen(translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration);
+            return translog.totalOperationsByMinGen(translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration());
         };
         final long extraTranslogSizeInNewEngine = engine.getTranslog().stats().getUncommittedSizeInBytes()
             - Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
@@ -7320,7 +7321,8 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
-                config.isPromotableToPrimary()
+                config.isPromotableToPrimary(),
+                config.getMapperService()
             );
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
@@ -7415,7 +7417,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertNotNull(result.getFailure());
                     assertThat(
                         result.getFailure().getMessage(),
-                        containsString("Number of documents in the index can't exceed [" + maxDocs + "]")
+                        containsString("Number of documents in the shard cannot exceed [" + maxDocs + "]")
                     );
                     assertThat(result.getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
                     assertThat(engine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(maxSeqNo));
@@ -7734,6 +7736,80 @@ public class InternalEngineTests extends EngineTestCase {
             assertTrue(future2.isDone());
             assertThat(future2.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
 
+        }
+    }
+
+    public void testFlushListenerWithConcurrentIndexing() throws IOException, InterruptedException {
+        engine.close();
+        final var barrierReference = new AtomicReference<CyclicBarrier>();
+        engine = new InternalTestEngine(engine.config()) {
+            @Override
+            protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+                final CyclicBarrier barrier = barrierReference.get();
+                if (barrier != null) {
+                    safeAwait(barrier);
+                    safeAwait(barrier);
+                }
+                super.commitIndexWriter(writer, translog);
+                if (barrier != null) {
+                    safeAwait(barrier);
+                    safeAwait(barrier);
+                }
+            }
+        };
+        recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
+        final var barrier = new CyclicBarrier(2);
+        barrierReference.set(barrier);
+
+        // (1) Indexing the 1st doc before flush and it should be visible after flush
+        final Engine.IndexResult result1 = engine.index(indexForDoc(createParsedDoc(randomIdentifier(), null)));
+        final PlainActionFuture<Long> future1 = new PlainActionFuture<>();
+        engine.addFlushListener(result1.getTranslogLocation(), future1);
+        assertFalse(future1.isDone());
+        final Thread flushThread = new Thread(() -> engine.flush());
+        flushThread.start();
+
+        // (2) Wait till flush thread block before commitIndexWriter and indexing the 2nd doc
+        safeAwait(barrier);
+        final Engine.IndexResult result2 = engine.index(indexForDoc(createParsedDoc(randomIdentifier(), null)));
+        final PlainActionFuture<Long> future2 = new PlainActionFuture<>();
+        engine.addFlushListener(result2.getTranslogLocation(), future2);
+        assertFalse(future2.isDone());
+
+        // Let flush completes the commit
+        safeAwait(barrier);
+        safeAwait(barrier);
+
+        // Randomly indexing the 3rd doc after commit.
+        final PlainActionFuture<Long> future3;
+        final boolean indexingAfterCommit = randomBoolean();
+        if (indexingAfterCommit) {
+            final Engine.IndexResult result3 = engine.index(indexForDoc(createParsedDoc(randomIdentifier(), null)));
+            future3 = new PlainActionFuture<>();
+            engine.addFlushListener(result3.getTranslogLocation(), future3);
+            assertFalse(future3.isDone());
+        } else {
+            future3 = null;
+        }
+        safeAwait(barrier);
+        flushThread.join();
+
+        // The translog location before flush (1st doc) is always visible
+        assertThat(safeGet(future1), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
+
+        if (indexingAfterCommit) {
+            // Indexing after the commit makes indexWriter.hasUncommittedChanges() return true which in turn makes
+            // it unsafe to advance flushListener's commitLocation after commit. That is, the flushListener
+            // will not learn the translog location of the 2nd doc.
+            assertFalse(future2.isDone());
+            // It requires a 2nd flush to make all translog locations to be visible
+            barrierReference.set(null); // remove the flush barrier
+            engine.flush();
+            assertThat(safeGet(future2), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
+            assertThat(safeGet(future3), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
+        } else {
+            // If no indexing after commit, translog location of the 2nd doc should be visible.
+            assertThat(safeGet(future2), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
         }
     }
 

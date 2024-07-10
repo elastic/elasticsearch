@@ -1276,6 +1276,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
     }
 
+    public boolean hasAllocationFailures() {
+        return unassignedShards.stream().anyMatch((shardRouting -> {
+            if (shardRouting.unassignedInfo() == null) {
+                return false;
+            }
+            return shardRouting.unassignedInfo().failedAllocations() > 0;
+        }));
+    }
+
     public void resetFailedCounter(RoutingChangesObserver routingChangesObserver) {
         final var unassignedIterator = unassigned().iterator();
         while (unassignedIterator.hasNext()) {

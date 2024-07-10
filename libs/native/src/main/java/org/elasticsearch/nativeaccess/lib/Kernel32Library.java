@@ -101,4 +101,65 @@ public non-sealed interface Kernel32Library extends NativeLibrary {
      * @see <a href="https://learn.microsoft.com/en-us/windows/console/setconsolectrlhandler">SetConsoleCtrlHandler docs</a>
      */
     boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add);
+
+    /**
+     * Creates or opens a new job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms682409%28v=vs.85%29.aspx
+     * Note: the two params to this are omitted because all implementations pass null for them both
+     *
+     * @return job handle if the function succeeds
+     */
+    Handle CreateJobObjectW();
+
+    /**
+     * Associates a process with an existing job
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms681949%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param process process handle
+     * @return true if the function succeeds
+     */
+    boolean AssignProcessToJobObject(Handle job, Handle process);
+
+    /**
+     * Basic limit information for a job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
+     */
+    interface JobObjectBasicLimitInformation {
+        void setLimitFlags(int v);
+
+        void setActiveProcessLimit(int v);
+    }
+
+    JobObjectBasicLimitInformation newJobObjectBasicLimitInformation();
+
+    /**
+     * Get job limit and state information
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684925%28v=vs.85%29.aspx
+     * Note: The infoLength parameter is omitted because implementions handle passing it
+     * Note: The returnLength parameter is omitted because all implementations pass null
+     *
+     * @param job job handle
+     * @param infoClass information class constant
+     * @param info pointer to information structure
+     * @return true if the function succeeds
+     */
+    boolean QueryInformationJobObject(Handle job, int infoClass, JobObjectBasicLimitInformation info);
+
+    /**
+     * Set job limit and state information
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms686216%28v=vs.85%29.aspx
+     * Note: The infoLength parameter is omitted because implementions handle passing it
+     *
+     * @param job job handle
+     * @param infoClass information class constant
+     * @param info pointer to information structure
+     * @return true if the function succeeds
+     */
+    boolean SetInformationJobObject(Handle job, int infoClass, JobObjectBasicLimitInformation info);
 }

@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 public record AnalyzerContext(
     EsqlConfiguration configuration,
-    FunctionRegistry functionRegistry,
+    EsqlFunctionRegistry functionRegistry,
     IndexResolution indexResolution,
     EnrichResolution enrichResolution
 ) {}

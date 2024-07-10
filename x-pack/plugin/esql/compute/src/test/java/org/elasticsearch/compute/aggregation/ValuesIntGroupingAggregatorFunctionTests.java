@@ -15,7 +15,9 @@ import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Tuple;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -49,7 +51,12 @@ public class ValuesIntGroupingAggregatorFunctionTests extends GroupingAggregator
         switch (values.length) {
             case 0 -> assertThat(resultValue, nullValue());
             case 1 -> assertThat(resultValue, equalTo(values[0]));
-            default -> assertThat((List<?>) resultValue, containsInAnyOrder(values));
+            default -> {
+                TreeSet<?> set = new TreeSet<>((List<?>) resultValue);
+                if (false == set.containsAll(Arrays.asList(values))) {
+                    assertThat(set, containsInAnyOrder(values));
+                }
+            }
         }
     }
 }

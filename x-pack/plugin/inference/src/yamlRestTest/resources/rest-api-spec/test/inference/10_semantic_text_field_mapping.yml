@@ -88,6 +88,7 @@ setup:
                 task_type: text_embedding
                 dimensions: 4
                 similarity: cosine
+                element_type: float
               chunks:
                 - text: "these are not the droids you're looking for"
                   embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
@@ -156,11 +157,12 @@ setup:
                   type: keyword
 
 ---
-"Can be used as a nested field":
+"Cannot be used directly as a nested field":
 
     - do:
+        catch: /semantic_text field \[nested.semantic\] cannot be nested/
         indices.create:
-          index: test-copy_to-index
+          index: test-nested-index
           body:
             mappings:
               properties:
@@ -173,3 +175,24 @@ setup:
                     another_field:
                       type: keyword
 
+---
+"Cannot be used as a nested field on nested objects":
+
+    - do:
+        catch: /semantic_text field \[nested.nested_object.semantic\] cannot be nested/
+        indices.create:
+          index: test-nested-index
+          body:
+            mappings:
+              properties:
+                nested:
+                  type: nested
+                  properties:
+                    nested_object:
+                      type: object
+                      properties:
+                        semantic:
+                          type: semantic_text
+                          inference_id: sparse-inference-id
+                        another_field:
+                          type: keyword

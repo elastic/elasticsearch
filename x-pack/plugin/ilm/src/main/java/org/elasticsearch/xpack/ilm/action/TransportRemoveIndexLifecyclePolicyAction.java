@@ -61,7 +61,13 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        final Index[] indices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), true, request.indices());
+        final Index[] indices = indexNameExpressionResolver.concreteIndices(
+            state,
+            request.indicesOptions(),
+            true,
+            false,
+            request.indices()
+        );
         submitUnbatchedTask("remove-lifecycle-for-index", new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private final List<String> failedIndexes = new ArrayList<>();

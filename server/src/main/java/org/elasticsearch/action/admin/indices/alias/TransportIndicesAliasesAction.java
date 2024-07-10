@@ -131,7 +131,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                 Index[] unprocessedConcreteIndices = indexNameExpressionResolver.concreteIndices(
                     state,
                     request.indicesOptions(),
-                    action.autoExpandAliases(),
+                    true,
+                    action.autoExpandAliases() != null ? action.autoExpandAliases() : false,
                     action.indices()
                 );
                 List<Index> nonBackingIndices = Arrays.stream(unprocessedConcreteIndices).filter(index -> {
@@ -194,6 +195,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                 concreteIndices = indexNameExpressionResolver.concreteIndices(
                     state,
                     request.indicesOptions(),
+                    false,
                     action.autoExpandAliases() != null ? action.autoExpandAliases() : false,
                     action.indices()
                 );

@@ -290,10 +290,6 @@ public class IndexNameExpressionResolver {
         return concreteIndices(state, options, false, false, indexExpressions);
     }
 
-    public Index[] concreteIndices(ClusterState state, IndicesOptions options, boolean autoExpandAliases, String... indexExpressions) {
-        return concreteIndices(state, options, false, autoExpandAliases, indexExpressions);
-    }
-
     public Index[] concreteIndices(
         ClusterState state,
         IndicesOptions options,

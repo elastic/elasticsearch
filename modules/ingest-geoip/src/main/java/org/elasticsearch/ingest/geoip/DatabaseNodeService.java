@@ -64,6 +64,7 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpTaskState.getEnterpriseGeoIpTaskState;
 import static org.elasticsearch.ingest.geoip.GeoIpTaskState.getGeoIpTaskState;
 
 /**
@@ -183,6 +184,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         if (state == null) {
             return true;
         }
+
         GeoIpTaskState.Metadata metadata = state.getDatabases().get(databaseFile);
         // we never remove metadata from cluster state, if metadata is null we deal with built-in database, which is always valid
         if (metadata == null) {
@@ -238,7 +240,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         IOUtils.close(databases.values());
     }
 
-    void checkDatabases(ClusterState state) {
+    void checkDatabases(ClusterState state) { // cluster state listener
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
@@ -269,40 +271,92 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             }
         }
 
-        GeoIpTaskState taskState = getGeoIpTaskState(state);
-        if (taskState == null) {
-            // Note: an empty state will purge stale entries in databases map
-            taskState = GeoIpTaskState.EMPTY;
+        if (false) {
+            GeoIpTaskState taskState = getGeoIpTaskState(state);
+            if (taskState == null) {
+                // Note: an empty state will purge stale entries in databases map
+                taskState = GeoIpTaskState.EMPTY;
+            }
+
+            taskState.getDatabases().entrySet().stream().filter(e -> e.getValue().isValid(state.getMetadata().settings())).forEach(e -> {
+                String name = e.getKey();
+                GeoIpTaskState.Metadata metadata = e.getValue();
+                DatabaseReaderLazyLoader reference = databases.get(name);
+                String remoteMd5 = metadata.md5();
+                String localMd5 = reference != null ? reference.getMd5() : null;
+                if (Objects.equals(localMd5, remoteMd5)) {
+                    logger.debug("[{}] is up to date [{}] with cluster state [{}]", name, localMd5, remoteMd5);
+                    return;
+                }
+
+                try {
+                    retrieveAndUpdateDatabase(name, metadata);
+                } catch (Exception ex) {
+                    logger.error(() -> "failed to retrieve database [" + name + "]", ex);
+                }
+            });
+
+            // start with the list of all databases we currently know about in this service,
+            // then look at the task state to determine which of those are still valid,
+            // then drop the ones that didn't check out as valid from the task state
+            List<String> staleEntries = new ArrayList<>(databases.keySet());
+            staleEntries.removeAll(
+                taskState.getDatabases()
+                    .entrySet()
+                    .stream()
+                    .filter(e -> e.getValue().isValid(state.getMetadata().settings()))
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toSet())
+            );
+            removeStaleEntries(staleEntries);
         }
 
-        taskState.getDatabases().entrySet().stream().filter(e -> e.getValue().isValid(state.getMetadata().settings())).forEach(e -> {
-            String name = e.getKey();
-            GeoIpTaskState.Metadata metadata = e.getValue();
-            DatabaseReaderLazyLoader reference = databases.get(name);
-            String remoteMd5 = metadata.md5();
-            String localMd5 = reference != null ? reference.getMd5() : null;
-            if (Objects.equals(localMd5, remoteMd5)) {
-                logger.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
-                return;
+        // TODO argh, we need to do more work to prevent these two from stomping each other, this is going to be annoying.
+
+        {
+            // TODO we need to handle the license flap persistent task state better than we do
+            // right now it would nuke all the databases and we don't want that because it seems a bit ridiculous
+
+            EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(state);
+            if (taskState == null) {
+                // Note: an empty state will purge stale entries in databases map
+                taskState = EnterpriseGeoIpTaskState.EMPTY;
             }
 
-            try {
-                retrieveAndUpdateDatabase(name, metadata);
-            } catch (Exception ex) {
-                logger.error(() -> "failed to retrieve database [" + name + "]", ex);
-            }
-        });
+            taskState.getDatabases().entrySet().stream().filter(e -> e.getValue().isValid(state.getMetadata().settings())).forEach(e -> {
+                String name = e.getKey();
+                GeoIpTaskState.Metadata metadata = e.getValue();
+                DatabaseReaderLazyLoader reference = databases.get(name);
+                String remoteMd5 = metadata.md5();
+                String localMd5 = reference != null ? reference.getMd5() : null;
+                if (Objects.equals(localMd5, remoteMd5)) {
+                    logger.debug("[{}] is up to date [{}] with cluster state [{}]", name, localMd5, remoteMd5);
+                    return;
+                }
 
-        List<String> staleEntries = new ArrayList<>(databases.keySet());
-        staleEntries.removeAll(
-            taskState.getDatabases()
-                .entrySet()
-                .stream()
-                .filter(e -> e.getValue().isValid(state.getMetadata().settings()))
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet())
-        );
-        removeStaleEntries(staleEntries);
+                try {
+                    retrieveAndUpdateDatabase(name, metadata);
+                } catch (Exception ex) {
+                    logger.error(() -> "failed to retrieve database [" + name + "]", ex);
+                }
+            });
+
+            // start with the list of all databases we currently know about in this service,
+            // then look at the task state to determine which of those are still valid,
+            // then drop the ones that didn't check out as valid from the task state
+            logger.info("databases.keySet(): {}", databases.keySet());
+            List<String> staleEntries = new ArrayList<>(databases.keySet());
+            staleEntries.removeAll(
+                taskState.getDatabases()
+                    .entrySet()
+                    .stream()
+                    .filter(e -> e.getValue().isValid(state.getMetadata().settings()))
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toSet())
+            );
+            logger.info("staleEntries: {}", staleEntries);
+            removeStaleEntries(staleEntries);
+        }
     }
 
     void retrieveAndUpdateDatabase(String databaseName, GeoIpTaskState.Metadata metadata) throws IOException {
@@ -424,6 +478,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
     }
 
     void removeStaleEntries(Collection<String> staleEntries) {
+        // this is what nukes them -- they're considered 'stale'
         for (String staleEntry : staleEntries) {
             try {
                 logger.debug("database [{}] no longer exists, cleaning up...", staleEntry);

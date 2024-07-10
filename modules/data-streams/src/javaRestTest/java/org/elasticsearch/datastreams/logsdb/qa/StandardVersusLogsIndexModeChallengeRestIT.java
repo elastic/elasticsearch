@@ -8,39 +8,69 @@
 
 package org.elasticsearch.datastreams.logsdb.qa;
 
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.datastreams.logsdb.qa.adaptors.MatcherAdaptor;
 import org.elasticsearch.datastreams.logsdb.qa.exceptions.MatcherException;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 
-public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTest {
+public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
 
-    public StandardVersusLogsIndexModeChallengeIT() {
-        super("oracle-data-stream", "challenge-data-stream", "oracle-template", "challenge-template");
+    @ClassRule()
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .module("constant-keyword")
+        .module("data-streams")
+        .module("mapper-extras")
+        .module("x-pack-aggregate-metric")
+        .module("x-pack-stack")
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("cluster.logsdb.enabled", "true")
+        .build();
+
+    public StandardVersusLogsIndexModeChallengeRestIT() {
+        super("baseline-ds", "contender-ds", "baseline-template", "contender-template", 100, 100);
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Override
+    public void oracleMappings(XContentBuilder builder) throws IOException {
+        mappings(builder);
+    }
+
+    @Override
+    public void challengeMappings(XContentBuilder builder) throws IOException {
+        mappings(builder);
     }
 
     private static void mappings(final XContentBuilder builder) throws IOException {
@@ -75,23 +105,14 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
     }
 
     @Override
-    public void oracleMappings(final XContentBuilder builder) throws IOException {
-        mappings(builder);
-    }
-
-    @Override
-    public void challengeMappings(XContentBuilder builder) throws IOException {
-        mappings(builder);
-    }
-
-    @Override
     public void challengeSettings(Settings.Builder builder) {
         builder.put("index.mode", "logs");
     }
 
+    @SuppressWarnings("unchecked")
     public void testMatchAllQuery() throws IOException, MatcherException {
         final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
             documents.add(
                 XContentFactory.jsonBuilder()
@@ -101,45 +122,27 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
                         DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName())
                             .format(Instant.now().plus(i, ChronoUnit.SECONDS))
                     )
-                    .field("host.name", randomFrom("foo", "bar", "baz"))
-                    .field("message", randomFrom("a message", "another message", "still another message", "one more message"))
-                    .field("method", randomFrom("put", "post", "get"))
-                    .field("memory_usage_bytes", randomLongBetween(1000, 2000))
+                    .field("host.name", ESTestCase.randomFrom("foo", "bar", "baz"))
+                    .field("message", ESTestCase.randomFrom("a message", "another message", "still another message", "one more message"))
+                    .field("method", ESTestCase.randomFrom("put", "post", "get"))
+                    .field("memory_usage_bytes", ESTestCase.randomLongBetween(1000, 2000))
                     .endObject()
             );
         }
 
-        final Tuple<BulkResponse, BulkResponse> tuple = indexDocuments(() -> documents, () -> documents);
-        refresh();
-        assertThat(tuple.v1().hasFailures(), Matchers.equalTo(false));
-        assertThat(tuple.v2().hasFailures(), Matchers.equalTo(tuple.v1().hasFailures()));
+        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
+        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments);
 
-        SearchResponse oracleResponse = null;
-        SearchResponse challengeResponse = null;
-        try {
-            oracleResponse = queryOracle(searchSourceBuilder);
-            challengeResponse = queryChallenge(searchSourceBuilder);
-            MatcherAdaptor<SearchHit[], Object[]> adaptor = hits -> Arrays.stream(hits)
-                .map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()))
-                .toArray();
-
-            Matcher.mappings(getChallengeMappings(), getOracleMappings())
-                .settings(getChallengeSettings(), getOracleSettings())
-                .actual(adaptor.adapt(oracleResponse.getHits().getHits()))
-                .expected(adaptor.adapt(challengeResponse.getHits().getHits()))
-                .ignoreSorting(true)
-                .isEqual();
-        } finally {
-            if (oracleResponse != null) {
-                oracleResponse.decRef();
-            }
-            if (challengeResponse != null) {
-                challengeResponse.decRef();
-            }
-        }
+        Matcher.mappings(getChallengeMappings(), getOracleMappings())
+            .settings(getChallengeSettings(), getOracleSettings())
+            .actual(getResponseSourceAsMap(queryChallenge(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryOracle(searchSourceBuilder)))
+            .ignoreSorting(true)
+            .isEqual();
     }
 
     public void testTermsQuery() throws IOException, MatcherException {
@@ -163,36 +166,19 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             );
         }
 
-        final Tuple<BulkResponse, BulkResponse> tuple = indexDocuments(() -> documents, () -> documents);
-        refresh();
-        assertThat(tuple.v1().hasFailures(), Matchers.equalTo(false));
-        assertThat(tuple.v2().hasFailures(), Matchers.equalTo(tuple.v1().hasFailures()));
+        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
+        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
             .size(numberOfDocuments);
-        SearchResponse oracleResponse = null;
-        SearchResponse challengeResponse = null;
-        try {
-            oracleResponse = queryOracle(searchSourceBuilder);
-            challengeResponse = queryChallenge(searchSourceBuilder);
-            MatcherAdaptor<SearchHit[], Object[]> adaptor = hits -> Arrays.stream(hits)
-                .map(searchHit -> Objects.requireNonNull(searchHit.getSourceAsMap()))
-                .toArray();
 
-            Matcher.mappings(getChallengeMappings(), getOracleMappings())
-                .settings(getChallengeSettings(), getOracleSettings())
-                .actual(adaptor.adapt(oracleResponse.getHits().getHits()))
-                .expected(adaptor.adapt(challengeResponse.getHits().getHits()))
-                .ignoreSorting(true)
-                .isEqual();
-        } finally {
-            if (oracleResponse != null) {
-                oracleResponse.decRef();
-            }
-            if (challengeResponse != null) {
-                challengeResponse.decRef();
-            }
-        }
+        Matcher.mappings(getChallengeMappings(), getOracleMappings())
+            .settings(getChallengeSettings(), getOracleSettings())
+            .actual(getResponseSourceAsMap(queryChallenge(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryOracle(searchSourceBuilder)))
+            .ignoreSorting(true)
+            .isEqual();
     }
 
     public void testHistogramAggregation() throws IOException, MatcherException {
@@ -215,36 +201,20 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             );
         }
 
-        final Tuple<BulkResponse, BulkResponse> tuple = indexDocuments(() -> documents, () -> documents);
-        refresh();
-        assertThat(tuple.v1().hasFailures(), Matchers.equalTo(false));
-        assertThat(tuple.v2().hasFailures(), Matchers.equalTo(tuple.v1().hasFailures()));
+        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
+        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
 
-        final HistogramAggregationBuilder histogramAggregation = new HistogramAggregationBuilder("agg").field("memory_usage_bytes");
-        histogramAggregation.interval(100.0D);
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments)
-            .aggregation(histogramAggregation);
-        SearchResponse oracleResponse = null;
-        SearchResponse challengeResponse = null;
-        try {
-            oracleResponse = queryOracle(searchSourceBuilder);
-            challengeResponse = queryChallenge(searchSourceBuilder);
+            .aggregation(new HistogramAggregationBuilder("agg").field("memory_usage_bytes").interval(100.0D));
 
-            Matcher.mappings(getChallengeMappings(), getOracleMappings())
-                .settings(getChallengeSettings(), getOracleSettings())
-                .actual(oracleResponse.getAggregations().get("agg"))
-                .expected(challengeResponse.getAggregations().get("agg"))
-                .ignoreSorting(true)
-                .isEqual();
-        } finally {
-            if (oracleResponse != null) {
-                oracleResponse.decRef();
-            }
-            if (challengeResponse != null) {
-                challengeResponse.decRef();
-            }
-        }
+        Matcher.mappings(getChallengeMappings(), getOracleMappings())
+            .settings(getChallengeSettings(), getOracleSettings())
+            .actual(getResponseSourceAsMap(queryChallenge(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryOracle(searchSourceBuilder)))
+            .ignoreSorting(true)
+            .isEqual();
     }
 
     public void testTermsAggregation() throws IOException, MatcherException {
@@ -267,36 +237,21 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             );
         }
 
-        final Tuple<BulkResponse, BulkResponse> tuple = indexDocuments(() -> documents, () -> documents);
-        refresh();
-        assertThat(tuple.v1().hasFailures(), Matchers.equalTo(false));
-        assertThat(tuple.v2().hasFailures(), Matchers.equalTo(tuple.v1().hasFailures()));
+        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
+        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
 
-        final TermsAggregationBuilder termsAggregation = new TermsAggregationBuilder("agg").field("host.name");
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments)
             .size(0)
-            .aggregation(termsAggregation);
-        SearchResponse oracleResponse = null;
-        SearchResponse challengeResponse = null;
-        try {
-            oracleResponse = queryOracle(searchSourceBuilder);
-            challengeResponse = queryChallenge(searchSourceBuilder);
+            .aggregation(new TermsAggregationBuilder("agg").field("host.name"));
 
-            Matcher.mappings(getChallengeMappings(), getOracleMappings())
-                .settings(getChallengeSettings(), getOracleSettings())
-                .actual(oracleResponse.getAggregations().get("agg"))
-                .expected(challengeResponse.getAggregations().get("agg"))
-                .ignoreSorting(true)
-                .isEqual();
-        } finally {
-            if (oracleResponse != null) {
-                oracleResponse.decRef();
-            }
-            if (challengeResponse != null) {
-                challengeResponse.decRef();
-            }
-        }
+        Matcher.mappings(getChallengeMappings(), getOracleMappings())
+            .settings(getChallengeSettings(), getOracleSettings())
+            .actual(getResponseSourceAsMap(queryChallenge(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryOracle(searchSourceBuilder)))
+            .ignoreSorting(true)
+            .isEqual();
     }
 
     public void testDateHistogramAggregation() throws IOException, MatcherException {
@@ -319,38 +274,32 @@ public class StandardVersusLogsIndexModeChallengeIT extends AbstractChallengeTes
             );
         }
 
-        final Tuple<BulkResponse, BulkResponse> tuple = indexDocuments(() -> documents, () -> documents);
-        refresh();
-        assertThat(tuple.v1().hasFailures(), Matchers.equalTo(false));
-        assertThat(tuple.v2().hasFailures(), Matchers.equalTo(tuple.v1().hasFailures()));
+        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
+        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
 
-        final DateHistogramAggregationBuilder dateHisto = AggregationBuilders.dateHistogram("agg")
-            .field("@timestamp")
-            .calendarInterval(DateHistogramInterval.SECOND);
-
-        final SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
-            .aggregation(dateHisto)
+        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
+            .aggregation(AggregationBuilders.dateHistogram("agg").field("@timestamp").calendarInterval(DateHistogramInterval.SECOND))
             .size(0);
-        SearchResponse oracleResponse = null;
-        SearchResponse challengeResponse = null;
-        try {
-            oracleResponse = queryOracle(sourceBuilder);
-            challengeResponse = queryChallenge(sourceBuilder);
 
-            Matcher.mappings(getChallengeMappings(), getOracleMappings())
-                .settings(getChallengeSettings(), getOracleSettings())
-                .actual(oracleResponse.getAggregations().get("agg"))
-                .expected(challengeResponse.getAggregations().get("agg"))
-                .ignoreSorting(true)
-                .isEqual();
-        } finally {
-            if (oracleResponse != null) {
-                oracleResponse.decRef();
-            }
-            if (challengeResponse != null) {
-                challengeResponse.decRef();
-            }
-        }
+        Matcher.mappings(getChallengeMappings(), getOracleMappings())
+            .settings(getChallengeSettings(), getOracleSettings())
+            .actual(getResponseSourceAsMap(queryChallenge(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryOracle(searchSourceBuilder)))
+            .ignoreSorting(true)
+            .isEqual();
     }
 
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> getResponseSourceAsMap(final Response response) throws IOException {
+        final Map<String, Object> oracleResponseMap = XContentHelper.convertToMap(
+            XContentType.JSON.xContent(),
+            response.getEntity().getContent(),
+            true
+        );
+        final Map<String, Object> hitsMap = (Map<String, Object>) oracleResponseMap.get("hits");
+        final List<Map<String, Object>> hitsList = (List<Map<String, Object>>) hitsMap.get("hits");
+
+        return hitsList.stream().map(hit -> (Map<String, Object>) hit.get("_source")).toList();
+    }
 }

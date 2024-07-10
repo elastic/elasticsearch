@@ -12,15 +12,18 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
@@ -1380,45 +1383,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMetricsWithoutStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
 
-        assertStatement(
-            "METRICS foo",
-            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), false, List.of(), IndexMode.TIME_SERIES, null)
-        );
-        assertStatement(
-            "METRICS foo,bar",
-            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), false, List.of(), IndexMode.TIME_SERIES, null)
-        );
-        assertStatement(
-            "METRICS foo*,bar",
-            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), false, List.of(), IndexMode.TIME_SERIES, null)
-        );
-        assertStatement(
-            "METRICS foo-*,bar",
-            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), false, List.of(), IndexMode.TIME_SERIES, null)
-        );
-        assertStatement(
-            "METRICS foo-*,bar+*",
-            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), false, List.of(), IndexMode.TIME_SERIES, null)
-        );
+        assertStatement("METRICS foo", unresolvedRelation("foo"));
+        assertStatement("METRICS foo,bar", unresolvedRelation("foo,bar"));
+        assertStatement("METRICS foo*,bar", unresolvedRelation("foo*,bar"));
+        assertStatement("METRICS foo-*,bar", unresolvedRelation("foo-*,bar"));
+        assertStatement("METRICS foo-*,bar+*", unresolvedRelation("foo-*,bar+*"));
     }
 
     public void testMetricsIdentifiers() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        Map<String, String> patterns = Map.of(
-            "metrics foo,test-*",
-            "foo,test-*",
-            "metrics 123-test@foo_bar+baz1",
-            "123-test@foo_bar+baz1",
-            "metrics foo,   test,xyz",
-            "foo,test,xyz",
-            "metrics <logstash-{now/M{yyyy.MM}}>>",
-            "<logstash-{now/M{yyyy.MM}}>>"
+        Map<String, String> patterns = Map.ofEntries(
+            Map.entry("metrics foo,test-*", "foo,test-*"),
+            Map.entry("metrics 123-test@foo_bar+baz1", "123-test@foo_bar+baz1"),
+            Map.entry("metrics foo,   test,xyz", "foo,test,xyz"),
+            Map.entry("metrics <logstash-{now/M{yyyy.MM}}>>", "<logstash-{now/M{yyyy.MM}}>>")
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
-            assertStatement(
-                e.getKey(),
-                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), false, List.of(), IndexMode.TIME_SERIES, null)
-            );
+            assertStatement(e.getKey(), unresolvedRelation(e.getValue()));
         }
     }
 
@@ -1428,7 +1409,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo load=avg(cpu) BY ts",
             new Aggregate(
                 EMPTY,
-                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), false, List.of(), IndexMode.TIME_SERIES, null),
+                unresolvedTSRelation("foo"),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
@@ -1438,7 +1419,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo,bar load=avg(cpu) BY ts",
             new Aggregate(
                 EMPTY,
-                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), false, List.of(), IndexMode.TIME_SERIES, null),
+                unresolvedTSRelation("foo,bar"),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
@@ -1448,7 +1429,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo,bar load=avg(cpu),max(rate(requests)) BY ts",
             new Aggregate(
                 EMPTY,
-                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), false, List.of(), IndexMode.TIME_SERIES, null),
+                unresolvedTSRelation("foo,bar"),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(
@@ -1471,7 +1452,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo* count(errors)",
             new Aggregate(
                 EMPTY,
-                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), false, List.of(), IndexMode.TIME_SERIES, null),
+                unresolvedTSRelation("foo*"),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
@@ -1481,7 +1462,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo* a(b)",
             new Aggregate(
                 EMPTY,
-                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), false, List.of(), IndexMode.TIME_SERIES, null),
+                unresolvedTSRelation("foo*"),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
@@ -1491,7 +1472,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo* a(b)",
             new Aggregate(
                 EMPTY,
-                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), false, List.of(), IndexMode.TIME_SERIES, null),
+                unresolvedTSRelation("foo*"),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
@@ -1501,7 +1482,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo* a1(b2)",
             new Aggregate(
                 EMPTY,
-                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), false, List.of(), IndexMode.TIME_SERIES, null),
+                unresolvedTSRelation("foo*"),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
@@ -1511,7 +1492,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo*,bar* b = min(a) by c, d.e",
             new Aggregate(
                 EMPTY,
-                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), false, List.of(), IndexMode.TIME_SERIES, null),
+                unresolvedTSRelation("foo*,bar*"),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
@@ -1521,6 +1502,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             )
         );
+    }
+
+    private LogicalPlan unresolvedRelation(String index) {
+        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null);
+    }
+
+    private LogicalPlan unresolvedTSRelation(String index) {
+        List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
+        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, metadata, IndexMode.TIME_SERIES, null);
     }
 
     public void testMetricWithGroupKeyAsAgg() {

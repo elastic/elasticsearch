@@ -89,7 +89,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotInvocationRecord::parse, LAST_SUCCESS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotInvocationRecord::parse, LAST_FAILURE);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), INVOCATIONS_SINCE_LAST_SUCCESS);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), SnapshotId::parse, PRE_REGISTERED_SNAPSHOTS);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), SnapshotId::parse, PRE_REGISTERED_SNAPSHOTS);
     }
 
     public static SnapshotLifecyclePolicyMetadata parse(XContentParser parser, String name) {

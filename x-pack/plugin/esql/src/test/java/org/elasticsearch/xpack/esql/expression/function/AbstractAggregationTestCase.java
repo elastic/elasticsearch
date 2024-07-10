@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -54,7 +57,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      * </p>
      */
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
-        // TODO: Add case with no input expecting null
         return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
 
@@ -98,6 +100,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
         resolveExpression(expression, this::aggregateSingleMode, this::evaluate);
+    }
+
+    public void testGroupingAggregate() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+
+        resolveExpression(expression, this::aggregateGroupingSingleMode, this::evaluate);
     }
 
     public void testAggregateIntermediate() {
@@ -152,6 +160,54 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         assertThat(result, testCase.getMatcher());
         if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());
+        }
+    }
+
+    private void aggregateGroupingSingleMode(Expression expression) {
+        List<Object> results;
+        try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+            var groupCount = randomIntBetween(1, 1000);
+                var groupSliceSize = 1;
+                for (int currentGroupOffset = 0; currentGroupOffset < groupCount; currentGroupOffset += groupSliceSize) {
+                    var seenGroupIds = new SeenGroupIds.Range(0, currentGroupOffset + groupSliceSize);
+                    for (Page inputPage : rows(testCase.getMultiRowFields())) {
+                        try {
+                            var addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage);
+
+                            // Make a groupsId block with all the groups in the range for each page position
+                            try (var groupsBuilder = driverContext().blockFactory().newIntBlockBuilder(groupSliceSize)) {
+                                for (var i = 0; i < inputPage.getPositionCount(); i++) {
+                                    groupsBuilder.beginPositionEntry();
+                                    for (int groupId = currentGroupOffset; groupId < currentGroupOffset + groupSliceSize; groupId++) {
+                                        groupsBuilder.appendInt(groupId);
+                                    }
+                                    groupsBuilder.endPositionEntry();
+                                }
+                                try (var groups = groupsBuilder.build()) {
+                                    addInput.add(0, groups);
+                                }
+                            }
+                        } finally {
+                            inputPage.releaseBlocks();
+                        }
+                    }
+                    currentGroupOffset += groupSliceSize;
+                    groupSliceSize = randomIntBetween(1, Math.max(100, groupCount - currentGroupOffset));
+                }
+
+            results = extractResultsFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()), groupCount);
+        }
+
+        for (var result : results) {
+            assertThat(result, not(equalTo(Double.NaN)));
+            assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
+            assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+            assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
+            assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
+            assertThat(result, testCase.getMatcher());
+            if (testCase.getExpectedWarnings() != null) {
+                assertWarnings(testCase.getExpectedWarnings());
+            }
         }
     }
 
@@ -293,6 +349,26 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
     }
 
+    private List<Object> extractResultsFromAggregator(GroupingAggregator aggregator, ElementType expectedElementType, int groupCount) {
+        var blocksArraySize = randomIntBetween(1, 10);
+        var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);
+        var blocks = new Block[blocksArraySize];
+        try (var groups = IntVector.range(0, groupCount, driverContext().blockFactory())) {
+            aggregator.evaluate(blocks, resultBlockIndex, groups, driverContext());
+
+            var block = blocks[resultBlockIndex];
+
+            // For null blocks, the element type is NULL, so if the provided matcher matches, the type works too
+            assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
+
+            return IntStream.range(resultBlockIndex, groupCount)
+                .mapToObj(position -> toJavaObject(blocks[resultBlockIndex], position))
+                .toList();
+        } finally {
+            Releasables.close(blocks);
+        }
+    }
+
     private List<Integer> initialInputChannels() {
         // TODO: Randomize channels
         // TODO: If surrogated, channels may change
@@ -337,5 +413,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
 
         return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), mode);
+    }
+
+    private GroupingAggregator groupingAggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
+        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
+
+        return new GroupingAggregator(aggregatorFunctionSupplier.groupingAggregator(driverContext()), mode);
     }
 }

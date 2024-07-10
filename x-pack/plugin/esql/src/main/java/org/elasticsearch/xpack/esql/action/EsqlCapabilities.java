@@ -50,6 +50,11 @@ public class EsqlCapabilities {
         AGG_TOP,
 
         /**
+         * Support for booleans in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_BOOLEAN_SUPPORT,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -120,8 +125,13 @@ public class EsqlCapabilities {
         GROK_VALIDATION,
 
         /**
-         * Use RangeQuery for BinaryComparison on DateTime fields.
+         * Fix for union-types when aggregating over an inline conversion with conversion function. Done in #110652.
          */
+        UNION_TYPES_INLINE_FIX,
+
+        /**
+         * Use RangeQuery for BinaryComparison on DateTime fields.
+         * */
         RANGEQUERY_FOR_DATETIME;
 
         private final boolean snapshotOnly;

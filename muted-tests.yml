@@ -76,6 +76,12 @@ tests:
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
+- class: "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/110719"
+  method: "test {p0=search.vectors/45_knn_search_byte/Test nonexistent field}"
+- class: "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/110720"
+  method: "test {p0=search.vectors/40_knn_search/Test nonexistent field}"
 
 # Examples:
 #

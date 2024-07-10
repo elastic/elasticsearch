@@ -265,9 +265,9 @@ public class Mapper {
 
     private PhysicalPlan map(BinaryPlan p, PhysicalPlan lhs, PhysicalPlan rhs) {
         if (p instanceof Join join) {
-            PhysicalPlan mapped = tryHashJoin(join, lhs, rhs);
-            if (mapped != null) {
-                return mapped;
+            PhysicalPlan hash = tryHashJoin(join, lhs, rhs);
+            if (hash != null) {
+                return hash;
             }
         }
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");

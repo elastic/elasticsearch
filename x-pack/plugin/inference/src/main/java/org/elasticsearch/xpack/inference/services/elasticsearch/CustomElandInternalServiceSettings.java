@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -61,14 +60,9 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
         Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
             map,
-            ADAPTIVE_ALLOCATIONS
+            ADAPTIVE_ALLOCATIONS,
+            validationException
         );
-        if (adaptiveAllocationsSettings != null) {
-            ActionRequestValidationException exception = adaptiveAllocationsSettings.validate();
-            if (exception != null) {
-                validationException.addValidationErrors(exception.validationErrors());
-            }
-        }
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {

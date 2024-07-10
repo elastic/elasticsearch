@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -85,14 +84,9 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
         Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
             map,
-            ADAPTIVE_ALLOCATIONS
+            ADAPTIVE_ALLOCATIONS,
+            validationException
         );
-        if (adaptiveAllocationsSettings != null) {
-            ActionRequestValidationException exception = adaptiveAllocationsSettings.validate();
-            if (exception != null) {
-                validationException.addValidationErrors(exception.validationErrors());
-            }
-        }
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(
                 ServiceUtils.missingOneOfSettingsErrorMsg(

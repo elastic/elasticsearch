@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -130,15 +131,28 @@ public final class ServiceUtils {
         return null;
     }
 
-    public static AdaptiveAllocationsSettings removeAsAdaptiveAllocationsSettings(Map<String, Object> sourceMap, String key) {
+    public static AdaptiveAllocationsSettings removeAsAdaptiveAllocationsSettings(
+        Map<String, Object> sourceMap,
+        String key,
+        ValidationException validationException
+    ) {
         Map<String, Object> settingsMap = ServiceUtils.removeFromMap(sourceMap, key);
-        return settingsMap == null
-            ? null
-            : new AdaptiveAllocationsSettings(
-                ServiceUtils.removeAsType(settingsMap, ENABLED.getPreferredName(), Boolean.class),
-                ServiceUtils.removeAsType(settingsMap, MIN_NUMBER_OF_ALLOCATIONS.getPreferredName(), Integer.class),
-                ServiceUtils.removeAsType(settingsMap, MAX_NUMBER_OF_ALLOCATIONS.getPreferredName(), Integer.class)
-            );
+        if (settingsMap == null) {
+            return null;
+        }
+        AdaptiveAllocationsSettings settings = new AdaptiveAllocationsSettings(
+            ServiceUtils.removeAsType(settingsMap, ENABLED.getPreferredName(), Boolean.class, validationException),
+            ServiceUtils.removeAsType(settingsMap, MIN_NUMBER_OF_ALLOCATIONS.getPreferredName(), Integer.class, validationException),
+            ServiceUtils.removeAsType(settingsMap, MAX_NUMBER_OF_ALLOCATIONS.getPreferredName(), Integer.class, validationException)
+        );
+        for (String settingName : settingsMap.keySet()) {
+            validationException.addValidationError(invalidSettingError(settingName, key));
+        }
+        ActionRequestValidationException exception = settings.validate();
+        if (exception != null) {
+            validationException.addValidationErrors(exception.validationErrors());
+        }
+        return settings;
     }
 
     @SuppressWarnings("unchecked")

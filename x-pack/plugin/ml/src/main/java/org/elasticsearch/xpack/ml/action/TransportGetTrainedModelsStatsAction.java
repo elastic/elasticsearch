@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
@@ -96,24 +95,33 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         TrainedModelProvider trainedModelProvider,
         Client client
     ) {
-        super(GetTrainedModelsStatsAction.NAME, actionFilters, transportService.getTaskManager());
+        this(
+            transportService,
+            actionFilters,
+            clusterService,
+            trainedModelProvider,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+        );
+    }
+
+    private TransportGetTrainedModelsStatsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        TrainedModelProvider trainedModelProvider,
+        Client client,
+        Executor executor
+    ) {
+        super(GetTrainedModelsStatsAction.NAME, actionFilters, transportService.getTaskManager(), executor);
         this.client = client;
         this.clusterService = clusterService;
         this.trainedModelProvider = trainedModelProvider;
-        this.executor = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
+        this.executor = executor;
     }
 
     @Override
     protected void doExecute(
-        Task task,
-        GetTrainedModelsStatsAction.Request request,
-        ActionListener<GetTrainedModelsStatsAction.Response> listener
-    ) {
-        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        executor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
-    }
-
-    protected void doExecuteForked(
         Task task,
         GetTrainedModelsStatsAction.Request request,
         ActionListener<GetTrainedModelsStatsAction.Response> listener

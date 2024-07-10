@@ -48,7 +48,10 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("[search_after] cannot be used in children of compound retrievers", iae.getMessage());
         }
 
@@ -60,7 +63,10 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("[terminate_after] cannot be used in children of compound retrievers", iae.getMessage());
         }
 
@@ -71,7 +77,10 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("[sort] cannot be used in children of compound retrievers", iae.getMessage());
         }
 
@@ -82,7 +91,10 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("[min_score] cannot be used in children of compound retrievers", iae.getMessage());
         }
 
@@ -94,7 +106,10 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("[collapse] cannot be used in children of compound retrievers", iae.getMessage());
         }
 
@@ -105,7 +120,10 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("[rank] cannot be used in children of compound retrievers", iae.getMessage());
         }
     }
@@ -119,7 +137,10 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ssb.parseXContent(parser, true, nf -> true).rewrite(null)
+            );
             assertEquals("[1:65] [rrf] failed to parse field [retrievers]", iae.getMessage());
             assertEquals(
                 "the nested depth of the [standard] retriever exceeds the maximum nested depth [2] for retrievers",

@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -954,21 +953,7 @@ public final class DateFieldMapper extends FieldMapper {
         // DataStreamTimestampFieldMapper is present and enabled both
         // in data streams and standalone indices in time_series mode
         if (isDataStreamTimestampField && context.mappingLookup().isDataStreamTimestampFieldEnabled()) {
-            var existingField = context.doc().getByKey(DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY);
-            if (existingField == null) {
-                context.doc()
-                    .onlyAddKey(
-                        DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY,
-                        new LongField(DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY, timestamp, Field.Store.NO)
-                    );
-            } else if (context.doc().getByKey(DataStreamTimestampFieldMapper.TIMESTAMP_MULTIPLE_VALUES_FLAG) == null) {
-                // Multiple timestamp values are not supported, we need to pass that knowledge along.
-                context.doc()
-                    .onlyAddKey(
-                        DataStreamTimestampFieldMapper.TIMESTAMP_MULTIPLE_VALUES_FLAG,
-                        new StoredField(DataStreamTimestampFieldMapper.TIMESTAMP_MULTIPLE_VALUES_FLAG, new byte[0])
-                    );
-            }
+            DataStreamTimestampFieldMapper.storeTimestampValueForReuse(context.doc(), timestamp);
         }
 
         if (indexed && hasDocValues) {

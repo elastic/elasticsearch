@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,7 +37,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_data_stream_timestamp";
     public static final String DEFAULT_PATH = "@timestamp";
     public static final String TIMESTAMP_VALUE_KEY = "@timestamp._value";
-    public static final String TIMESTAMP_MULTIPLE_VALUES_FLAG = "@timestamp._multi_flag";
 
     public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE = new DataStreamTimestampFieldMapper(true);
     private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE = new DataStreamTimestampFieldMapper(false);
@@ -189,6 +190,27 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
+    public static void storeTimestampValueForReuse(LuceneDocument document, long timestamp) {
+        var existingField = document.getByKey(DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY);
+        if (existingField != null) {
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] encountered multiple values");
+        }
+
+        document.onlyAddKey(
+            DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY,
+            new LongField(DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY, timestamp, Field.Store.NO)
+        );
+    }
+
+    public static long extractTimestampValue(LuceneDocument document) {
+        IndexableField timestampValueField = document.getByKey(TIMESTAMP_VALUE_KEY);
+        if (timestampValueField == null) {
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
+        }
+
+        return timestampValueField.numericValue().longValue();
+    }
+
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
         if (enabled == false) {
@@ -196,20 +218,12 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        IndexableField multipleValuesFlag = context.doc().getByKey(TIMESTAMP_MULTIPLE_VALUES_FLAG);
-        if (multipleValuesFlag != null) {
-            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] encountered multiple values");
-        }
-
-        IndexableField timestampValueField = context.doc().getByKey(TIMESTAMP_VALUE_KEY);
-        if (timestampValueField == null) {
-            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
-        }
+        long timestamp = extractTimestampValue(context.doc());
 
         var indexMode = context.indexSettings().getMode();
         if (indexMode.shouldValidateTimestamp()) {
             TimestampBounds bounds = context.indexSettings().getTimestampBounds();
-            validateTimestamp(bounds, timestampValueField.numericValue().longValue(), context);
+            validateTimestamp(bounds, timestamp, context);
         }
     }
 

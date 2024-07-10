@@ -514,6 +514,21 @@ mc:l | count:l
 7    | 2
 ;
 
+multiIndexTsLongStatsStats
+required_capability: union_types
+required_capability: union_types_agg_cast
+
+FROM sample_data, sample_data_ts_long
+| EVAL ts = TO_STRING(@timestamp)
+| STATS count = COUNT(*) BY ts
+| STATS mc = COUNT(count) BY count
+| SORT mc DESC, count ASC
+;
+
+mc:l | count:l
+14   | 1
+;
+
 multiIndexTsLongRenameStats
 required_capability: union_types
 

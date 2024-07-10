@@ -35,18 +35,18 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Holds the geoip databases that are available in the cluster
+ * Holds the ingest-geoip databases that are available in the cluster state.
  */
 public final class IngestGeoIpMetadata implements Metadata.Custom {
 
-    public static final String TYPE = "geoip";
-    private static final ParseField DATABASES_FIELD = new ParseField("database");
+    public static final String TYPE = "ingest_geoip";
+    private static final ParseField DATABASES_FIELD = new ParseField("databases");
 
     public static final IngestGeoIpMetadata EMPTY = new IngestGeoIpMetadata(Map.of());
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<IngestGeoIpMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "ingest_metadata",
+        "ingest_geoip_metadata",
         a -> new IngestGeoIpMetadata(
             ((List<DatabaseConfigurationMetadata>) a[1]).stream().collect(Collectors.toMap((m) -> m.database().id(), Function.identity()))
         )

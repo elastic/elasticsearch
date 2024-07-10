@@ -40,9 +40,9 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
@@ -111,7 +111,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(),
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getDefault(Settings.EMPTY)
             )
-            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(500, 2000)))
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofBytes(between(0, 256)))
             .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofBytes(between(0, 1024)))
             // allow reading pages from network can trip the circuit breaker
@@ -166,15 +166,17 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             client().prepareIndex("songs").setSource("song_id", s.id, "title", s.title, "artist", s.artist, "length", s.length).get();
         }
         client().admin().indices().prepareRefresh("songs").get();
-        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("songs", policy)).actionGet();
-        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("songs")).actionGet();
+        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs", policy))
+            .actionGet();
+        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs"))
+            .actionGet();
         assertAcked(client().admin().indices().prepareDelete("songs"));
     }
 
     @After
     public void cleanEnrichPolicies() {
         cluster().wipe(Set.of());
-        client().execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request("songs"));
+        client().execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs"));
     }
 
     @Before
@@ -224,12 +226,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     public void testSumDurationByArtist() {
         Function<EsqlQueryResponse, Map<String, Double>> extractStats = resp -> {
-            List<ColumnInfo> columns = resp.columns();
+            List<ColumnInfoImpl> columns = resp.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("sum(duration)"));
-            assertThat(columns.get(0).type(), equalTo("double"));
+            assertThat(columns.get(0).type(), equalTo(DataType.DOUBLE));
             assertThat(columns.get(1).name(), equalTo("artist"));
-            assertThat(columns.get(1).type(), equalTo("keyword"));
+            assertThat(columns.get(1).type(), equalTo(DataType.KEYWORD));
             Iterator<Iterator<Object>> rows = resp.values();
             Map<String, Double> actualValues = new HashMap<>();
             while (rows.hasNext()) {
@@ -254,12 +256,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     public void testAvgDurationByArtist() {
         Function<EsqlQueryResponse, Map<String, Double>> extractStats = resp -> {
-            List<ColumnInfo> columns = resp.columns();
+            List<ColumnInfoImpl> columns = resp.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("avg(duration)"));
-            assertThat(columns.get(0).type(), equalTo("double"));
+            assertThat(columns.get(0).type(), equalTo(DataType.DOUBLE));
             assertThat(columns.get(1).name(), equalTo("artist"));
-            assertThat(columns.get(1).type(), equalTo("keyword"));
+            assertThat(columns.get(1).type(), equalTo(DataType.KEYWORD));
             Iterator<Iterator<Object>> rows = resp.values();
             Map<String, Double> actualValues = new HashMap<>();
             while (rows.hasNext()) {
@@ -280,12 +282,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     public void testListeningRatio() {
         Function<EsqlQueryResponse, Map<String, Double>> extractStats = resp -> {
-            List<ColumnInfo> columns = resp.columns();
+            List<ColumnInfoImpl> columns = resp.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("ratio"));
-            assertThat(columns.get(0).type(), equalTo("double"));
+            assertThat(columns.get(0).type(), equalTo(DataType.DOUBLE));
             assertThat(columns.get(1).name(), equalTo("artist"));
-            assertThat(columns.get(1).type(), equalTo("keyword"));
+            assertThat(columns.get(1).type(), equalTo(DataType.KEYWORD));
             Iterator<Iterator<Object>> rows = resp.values();
             Map<String, Double> actualValues = new HashMap<>();
             while (rows.hasNext()) {
@@ -328,7 +330,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProfile() {
-        EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.pragmas(randomPragmas());
         request.query("from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist");
         request.profile(true);

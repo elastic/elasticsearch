@@ -7,28 +7,27 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.ratelimit.RateLimitable;
 
-import java.util.List;
 import java.util.function.Supplier;
 
 /**
  * A contract for constructing a {@link Runnable} to handle sending an inference request to a 3rd party service.
  */
 public interface RequestManager extends RateLimitable {
-    Runnable create(
-        @Nullable String query,
-        List<String> input,
+    void execute(
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
-        HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     );
+
+    // TODO For batching we'll add 2 new method: prepare(query, input, ...) which will allow the individual
+    // managers to implement their own batching
+    // executePreparedRequest() which will execute all prepared requests aka sends the batch
 
     String inferenceEntityId();
 }

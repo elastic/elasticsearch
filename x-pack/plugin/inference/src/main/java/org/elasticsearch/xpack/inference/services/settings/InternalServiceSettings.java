@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,35 +22,23 @@ public abstract class InternalServiceSettings implements ServiceSettings {
     public static final String NUM_ALLOCATIONS = "num_allocations";
     public static final String NUM_THREADS = "num_threads";
     public static final String MODEL_ID = "model_id";
+    public static final String ADAPTIVE_ALLOCATIONS = "adaptive_allocations";
 
     private final int numAllocations;
     private final int numThreads;
     private final String modelId;
+    private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
 
-    public InternalServiceSettings(int numAllocations, int numThreads, String modelId) {
+    public InternalServiceSettings(
+        int numAllocations,
+        int numThreads,
+        String modelId,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings
+    ) {
         this.numAllocations = numAllocations;
         this.numThreads = numThreads;
         this.modelId = modelId;
-    }
-
-    protected static void validateParameters(Integer numAllocations, ValidationException validationException, Integer numThreads) {
-        if (numAllocations == null) {
-            validationException.addValidationError(
-                ServiceUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS)
-            );
-        } else if (numAllocations < 1) {
-            validationException.addValidationError(
-                ServiceUtils.mustBeAPositiveIntegerErrorMessage(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS, numAllocations)
-            );
-        }
-
-        if (numThreads == null) {
-            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS));
-        } else if (numThreads < 1) {
-            validationException.addValidationError(
-                ServiceUtils.mustBeAPositiveIntegerErrorMessage(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, numThreads)
-            );
-        }
+        this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
     }
 
     public int getNumAllocations() {
@@ -66,26 +53,38 @@ public abstract class InternalServiceSettings implements ServiceSettings {
         return modelId;
     }
 
+    public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
+        return adaptiveAllocationsSettings;
+    }
+
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InternalServiceSettings that = (InternalServiceSettings) o;
-        return numAllocations == that.numAllocations && numThreads == that.numThreads && Objects.equals(modelId, that.modelId);
+        return numAllocations == that.numAllocations
+            && numThreads == that.numThreads
+            && Objects.equals(modelId, that.modelId)
+            && Objects.equals(adaptiveAllocationsSettings, that.adaptiveAllocationsSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numAllocations, numThreads, modelId);
+        return Objects.hash(numAllocations, numThreads, modelId, adaptiveAllocationsSettings);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        addXContentFragment(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public void addXContentFragment(XContentBuilder builder, Params params) throws IOException {
         builder.field(NUM_ALLOCATIONS, getNumAllocations());
         builder.field(NUM_THREADS, getNumThreads());
         builder.field(MODEL_ID, getModelId());
-        builder.endObject();
-        return builder;
+        builder.field(ADAPTIVE_ALLOCATIONS, getAdaptiveAllocationsSettings());
     }
 
     @Override
@@ -103,12 +102,16 @@ public abstract class InternalServiceSettings implements ServiceSettings {
         out.writeVInt(getNumAllocations());
         out.writeVInt(getNumThreads());
         out.writeString(getModelId());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
+        }
     }
 
     public abstract static class Builder {
         private int numAllocations;
         private int numThreads;
         private String modelId;
+        private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
 
         public abstract InternalServiceSettings build();
 
@@ -124,6 +127,10 @@ public abstract class InternalServiceSettings implements ServiceSettings {
             this.modelId = modelId;
         }
 
+        public void setAdaptiveAllocationsSettings(AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
+            this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
+        }
+
         public String getModelId() {
             return modelId;
         }
@@ -134,6 +141,10 @@ public abstract class InternalServiceSettings implements ServiceSettings {
 
         public int getNumThreads() {
             return numThreads;
+        }
+
+        public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
+            return adaptiveAllocationsSettings;
         }
     }
 }

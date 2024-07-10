@@ -103,15 +103,7 @@ public class SequenceNumbers {
         }
     }
 
-    public static final class CommitInfo {
-        public final long maxSeqNo;
-        public final long localCheckpoint;
-
-        public CommitInfo(long maxSeqNo, long localCheckpoint) {
-            this.maxSeqNo = maxSeqNo;
-            this.localCheckpoint = localCheckpoint;
-        }
-
+    public record CommitInfo(long maxSeqNo, long localCheckpoint) {
         @Override
         public String toString() {
             return "CommitInfo{maxSeqNo=" + maxSeqNo + ", localCheckpoint=" + localCheckpoint + '}';

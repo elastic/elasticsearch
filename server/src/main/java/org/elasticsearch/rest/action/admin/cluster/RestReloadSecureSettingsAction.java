@@ -62,8 +62,9 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final NodesReloadSecureSettingsRequest reloadSecureSettingsRequest = new NodesReloadSecureSettingsRequest();
-        reloadSecureSettingsRequest.nodesIds(Strings.splitStringByCommaToArray(request.param("nodeId")));
+        final NodesReloadSecureSettingsRequest reloadSecureSettingsRequest = new NodesReloadSecureSettingsRequest(
+            Strings.splitStringByCommaToArray(request.param("nodeId"))
+        );
         reloadSecureSettingsRequest.timeout(getTimeout(request));
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {

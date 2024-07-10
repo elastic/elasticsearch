@@ -56,12 +56,14 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
 
     @Override
     protected UnpairedTTestState getState(long bucket) {
-        return new UnpairedTTestState(a.get(bucket), b.get(bucket), homoscedastic, tails);
+        final TTestStats aTTestStats = a.getSize() > bucket ? a.get(bucket) : TTestStats.EMPTY;
+        final TTestStats bTTestStats = b.getSize() > bucket ? b.get(bucket) : TTestStats.EMPTY;
+        return new UnpairedTTestState(aTTestStats, bTTestStats, homoscedastic, tails);
     }
 
     @Override
     protected UnpairedTTestState getEmptyState() {
-        return new UnpairedTTestState(new TTestStats(0, 0, 0), new TTestStats(0, 0, 0), homoscedastic, tails);
+        return new UnpairedTTestState(TTestStats.EMPTY, TTestStats.EMPTY, homoscedastic, tails);
     }
 
     @Override

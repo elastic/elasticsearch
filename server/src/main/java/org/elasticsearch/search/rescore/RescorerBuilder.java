@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -118,6 +120,10 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         return builder;
     }
 
+    public ActionRequestValidationException validate(SearchRequest searchRequest, ActionRequestValidationException validationException) {
+        return validationException;
+    }
+
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
     /**
@@ -136,8 +142,8 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
             assert windowSize != null;
         }
         int finalWindowSize = windowSize == null ? DEFAULT_WINDOW_SIZE : windowSize;
-        RescoreContext rescoreContext = innerBuildContext(finalWindowSize, context);
-        return rescoreContext;
+
+        return innerBuildContext(finalWindowSize, context);
     }
 
     /**

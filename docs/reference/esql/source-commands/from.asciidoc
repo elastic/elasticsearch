@@ -82,3 +82,11 @@ Use the optional `METADATA` directive to enable <<esql-metadata-fields,metadata 
 ----
 FROM employees METADATA _id
 ----
+
+Use enclosing double quotes (`"`) or three enclosing double quotes (`"""`) to escape index names
+that contain special characters:
+
+[source,esql]
+----
+FROM "this=that", """this[that"""
+----

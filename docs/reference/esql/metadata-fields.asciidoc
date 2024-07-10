@@ -17,6 +17,9 @@ supported ones are:
   * `_version`: the source document's version. The field is of the type
   <<number,long>>.
 
+  * <<mapping-ignored-field,`_ignored`>>: the ignored source document fields. The field is of the type
+  <<keyword,keyword>>.
+
 To enable the access to these fields, the <<esql-from,`FROM`>> source command needs
 to be provided with a dedicated directive:
 

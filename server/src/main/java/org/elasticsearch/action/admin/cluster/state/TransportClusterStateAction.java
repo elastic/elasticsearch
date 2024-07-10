@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -153,6 +154,16 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
         ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT); // too heavy to construct & serialize cluster state without forking
+
+        if (request.blocks() == false) {
+            final var blockException = currentState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+            if (blockException != null) {
+                // There's a METADATA_READ block in place, but we aren't returning it to the caller, and yet the caller needs to know that
+                // this block exists (e.g. it's the STATE_NOT_RECOVERED_BLOCK, so the rest of the state is known to be incomplete). Thus we
+                // must fail the request:
+                throw blockException;
+            }
+        }
 
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());

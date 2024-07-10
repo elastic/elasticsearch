@@ -25,9 +25,9 @@ final class HostMetadata implements ToXContentObject {
     final int profilingNumCores; // number of cores on the profiling host machine
 
     HostMetadata(String hostID, InstanceType instanceType, String hostArchitecture, Integer profilingNumCores) {
-        this.hostID = hostID;
-        this.instanceType = instanceType;
-        this.hostArchitecture = hostArchitecture;
+        this.hostID = hostID != null ? hostID : "";
+        this.instanceType = instanceType != null ? instanceType : new InstanceType("", "", "");
+        this.hostArchitecture = hostArchitecture != null ? hostArchitecture : "";
         this.profilingNumCores = profilingNumCores != null ? profilingNumCores : DEFAULT_PROFILING_NUM_CORES;
     }
 

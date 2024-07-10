@@ -21,8 +21,10 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
@@ -37,9 +39,12 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.ENABLED;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
-public class ServiceUtils {
+public final class ServiceUtils {
     /**
      * Remove the object from the map and cast to the expected type.
      * If the object cannot be cast to type an ElasticsearchStatusException
@@ -126,6 +131,20 @@ public class ServiceUtils {
         return null;
     }
 
+    public static AdaptiveAllocationsSettings removeAsAdaptiveAllocationsSettings(Map<String, Object> sourceMap, String key) {
+        if (AdaptiveAllocationsFeatureFlag.isEnabled() == false) {
+            return null;
+        }
+        Map<String, Object> settingsMap = ServiceUtils.removeFromMap(sourceMap, key);
+        return settingsMap == null
+            ? null
+            : new AdaptiveAllocationsSettings(
+                ServiceUtils.removeAsType(settingsMap, ENABLED.getPreferredName(), Boolean.class),
+                ServiceUtils.removeAsType(settingsMap, MIN_NUMBER_OF_ALLOCATIONS.getPreferredName(), Integer.class),
+                ServiceUtils.removeAsType(settingsMap, MAX_NUMBER_OF_ALLOCATIONS.getPreferredName(), Integer.class)
+            );
+    }
+
     @SuppressWarnings("unchecked")
     public static Map<String, Object> removeFromMap(Map<String, Object> sourceMap, String fieldName) {
         return (Map<String, Object>) sourceMap.remove(fieldName);
@@ -196,8 +215,8 @@ public class ServiceUtils {
         );
     }
 
-    public static String invalidUrlErrorMsg(String url, String settingName, String settingScope) {
-        return Strings.format("[%s] Invalid url [%s] received for field [%s]", settingScope, url, settingName);
+    public static String invalidUrlErrorMsg(String url, String settingName, String settingScope, String error) {
+        return Strings.format("[%s] Invalid url [%s] received for field [%s]. Error: %s", settingScope, url, settingName, error);
     }
 
     public static String mustBeNonEmptyString(String settingName, String scope) {
@@ -231,16 +250,11 @@ public class ServiceUtils {
         return Strings.format("[%s] does not allow the setting [%s]", scope, settingName);
     }
 
-    // TODO improve URI validation logic
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
-            if (url == null) {
-                return null;
-            }
-
-            return createUri(url);
-        } catch (IllegalArgumentException ignored) {
-            validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope));
+            return createOptionalUri(url);
+        } catch (IllegalArgumentException cause) {
+            validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope, cause.getMessage()));
             return null;
         }
     }
@@ -251,7 +265,7 @@ public class ServiceUtils {
         try {
             return new URI(url);
         } catch (URISyntaxException e) {
-            throw new IllegalArgumentException(format("unable to parse url [%s]", url), e);
+            throw new IllegalArgumentException(format("unable to parse url [%s]. Reason: %s", url, e.getReason()), e);
         }
     }
 
@@ -354,6 +368,32 @@ public class ServiceUtils {
         }
 
         return optionalField;
+    }
+
+    public static Integer extractRequiredPositiveInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        Integer field = ServiceUtils.removeAsType(map, settingName, Integer.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (field == null) {
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
+        } else if (field <= 0) {
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, field));
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return field;
     }
 
     public static Integer extractOptionalPositiveInteger(
@@ -607,7 +647,7 @@ public class ServiceUtils {
                         new ElasticsearchStatusException(
                             "Could not determine embedding size. "
                                 + "Expected a result of type ["
-                                + TextEmbeddingResults.NAME
+                                + InferenceTextEmbeddingFloatResults.NAME
                                 + "] got ["
                                 + r.getWriteableName()
                                 + "]",
@@ -625,4 +665,10 @@ public class ServiceUtils {
         // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
         return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
     }
+
+    public static <T> T nonNullOrDefault(@Nullable T requestValue, @Nullable T originalSettingsValue) {
+        return requestValue == null ? originalSettingsValue : requestValue;
+    }
+
+    private ServiceUtils() {}
 }

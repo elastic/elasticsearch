@@ -8,12 +8,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
@@ -32,6 +35,12 @@ import java.util.function.Function;
  * Base field mapper class for all spatial field types
  */
 public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
+
+    // The GeoShapeFieldMapper class does not exist in server any more.
+    // For backwards compatibility we add the name of the class manually.
+    protected static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(
+        "org.elasticsearch.index.mapper.GeoShapeFieldMapper"
+    );
 
     public static Parameter<Explicit<Boolean>> ignoreMalformedParam(
         Function<FieldMapper, Explicit<Boolean>> initializer,
@@ -52,12 +61,12 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
          * Parse the given xContent value to one or more objects of type {@link T}. The value can be
          * in any supported format.
          */
-        public abstract void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, Consumer<Exception> onMalformed)
+        public abstract void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, MalformedValueHandler malformedHandler)
             throws IOException;
 
         private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
             try (XContentParser parser = wrapObject(sourceMap)) {
-                parse(parser, v -> consumer.accept(normalizeFromSource(v)), e -> {}); /* ignore malformed */
+                parse(parser, v -> consumer.accept(normalizeFromSource(v)), NoopMalformedValueHandler.INSTANCE);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -81,6 +90,36 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             parser.nextToken(); // field name
             parser.nextToken(); // field value
             return parser;
+        }
+    }
+
+    public interface MalformedValueHandler {
+        void notify(Exception parsingException) throws IOException;
+
+        void notify(Exception parsingException, XContentBuilder malformedDataForSyntheticSource) throws IOException;
+    }
+
+    public record NoopMalformedValueHandler() implements MalformedValueHandler {
+        public static final NoopMalformedValueHandler INSTANCE = new NoopMalformedValueHandler();
+
+        @Override
+        public void notify(Exception parsingException) {}
+
+        @Override
+        public void notify(Exception parsingException, XContentBuilder malformedDataForSyntheticSource) {}
+    }
+
+    public record DefaultMalformedValueHandler(CheckedBiConsumer<Exception, XContentBuilder, IOException> consumer)
+        implements
+            MalformedValueHandler {
+        @Override
+        public void notify(Exception parsingException) throws IOException {
+            consumer.accept(parsingException, null);
+        }
+
+        @Override
+        public void notify(Exception parsingException, XContentBuilder malformedDataForSyntheticSource) throws IOException {
+            consumer.accept(parsingException, malformedDataForSyntheticSource);
         }
     }
 
@@ -220,17 +259,20 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                 new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter")
             );
         }
-        parser.parse(context.parser(), v -> index(context, v), e -> {
-            if (ignoreMalformed()) {
-                context.addIgnoredField(fieldType().name());
-            } else {
-                throw new DocumentParsingException(
-                    context.parser().getTokenLocation(),
-                    "failed to parse field [" + fieldType().name() + "] of type [" + contentType() + "]",
-                    e
-                );
-            }
-        });
+        parser.parse(context.parser(), v -> index(context, v), new DefaultMalformedValueHandler((e, b) -> onMalformedValue(context, b, e)));
+    }
+
+    protected void onMalformedValue(DocumentParserContext context, XContentBuilder malformedDataForSyntheticSource, Exception cause)
+        throws IOException {
+        if (ignoreMalformed()) {
+            context.addIgnoredField(fieldType().name());
+        } else {
+            throw new DocumentParsingException(
+                context.parser().getTokenLocation(),
+                "failed to parse field [" + fieldType().name() + "] of type [" + contentType() + "]",
+                cause
+            );
+        }
     }
 
     @Override

@@ -30,7 +30,7 @@ import java.util.Arrays;
 /**
  * Helper class for processing field data of any type, as provided by the {@link XContentParser}.
  */
-final class XContentDataHelper {
+public final class XContentDataHelper {
     /**
      * Build a {@link StoredField} for the value on which the parser is
      * currently positioned.
@@ -46,6 +46,13 @@ final class XContentDataHelper {
     }
 
     /**
+     * Build a {@link StoredField} for the value provided in a {@link XContentBuilder}.
+     */
+    static StoredField storedField(String name, XContentBuilder builder) throws IOException {
+        return new StoredField(name, TypeUtils.encode(builder));
+    }
+
+    /**
      * Build a {@link BytesRef} wrapping a byte array containing an encoded form
      * the value on which the parser is currently positioned.
      */
@@ -57,7 +64,7 @@ final class XContentDataHelper {
      * Build a {@link BytesRef} wrapping a byte array containing an encoded form
      * of the passed XContentBuilder contents.
      */
-    static BytesRef encodeXContentBuilder(XContentBuilder builder) throws IOException {
+    public static BytesRef encodeXContentBuilder(XContentBuilder builder) throws IOException {
         return new BytesRef(TypeUtils.encode(builder));
     }
 
@@ -80,8 +87,21 @@ final class XContentDataHelper {
             case LONG_ENCODING -> TypeUtils.LONG.decodeAndWrite(b, r);
             case DOUBLE_ENCODING -> TypeUtils.DOUBLE.decodeAndWrite(b, r);
             case FLOAT_ENCODING -> TypeUtils.FLOAT.decodeAndWrite(b, r);
+            case NULL_ENCODING -> TypeUtils.NULL.decodeAndWrite(b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
         }
+    }
+
+    /**
+     * Returns the {@link XContentType} to use for creating an XContentBuilder to decode the passed value.
+     */
+    public static XContentType getXContentType(BytesRef r) {
+        return switch ((char) r.bytes[r.offset]) {
+            case JSON_OBJECT_ENCODING -> XContentType.JSON;
+            case YAML_OBJECT_ENCODING -> XContentType.YAML;
+            case SMILE_OBJECT_ENCODING -> XContentType.SMILE;
+            default -> XContentType.CBOR;  // CBOR can parse all other encoded types.
+        };
     }
 
     /**
@@ -148,6 +168,7 @@ final class XContentDataHelper {
                 case BIG_DECIMAL -> visitor.apply(TypeUtils.BIG_DECIMAL);
             };
             case VALUE_BOOLEAN -> visitor.apply(TypeUtils.BOOLEAN);
+            case VALUE_NULL -> visitor.apply(TypeUtils.NULL);
             case VALUE_EMBEDDED_OBJECT -> visitor.apply(TypeUtils.EMBEDDED_OBJECT);
             case START_OBJECT, START_ARRAY -> visitor.apply(TypeUtils.START);
             default -> throw new IllegalArgumentException("synthetic _source doesn't support malformed objects");
@@ -164,6 +185,7 @@ final class XContentDataHelper {
     private static final char FALSE_ENCODING = 'f';
     private static final char TRUE_ENCODING = 't';
     private static final char BINARY_ENCODING = 'b';
+    private static final char NULL_ENCODING = 'n';
     private static final char CBOR_OBJECT_ENCODING = 'c';
     private static final char JSON_OBJECT_ENCODING = 'j';
     private static final char YAML_OBJECT_ENCODING = 'y';
@@ -331,6 +353,24 @@ final class XContentDataHelper {
                 }
                 assert r.bytes[r.offset] == 't' || r.bytes[r.offset] == 'f' : r.bytes[r.offset];
                 b.value(r.bytes[r.offset] == 't');
+            }
+        },
+        NULL(NULL_ENCODING) {
+            @Override
+            StoredField buildStoredField(String name, XContentParser parser) throws IOException {
+                return new StoredField(name, encode(parser));
+            }
+
+            @Override
+            byte[] encode(XContentParser parser) throws IOException {
+                byte[] bytes = new byte[] { getEncoding() };
+                assertValidEncoding(bytes);
+                return bytes;
+            }
+
+            @Override
+            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+                b.nullValue();
             }
         },
         EMBEDDED_OBJECT(BINARY_ENCODING) {

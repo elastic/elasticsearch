@@ -33,7 +33,8 @@ tasks.register("bwcTest") {
 
 plugins.withType(ElasticsearchTestBasePlugin) {
   tasks.withType(Test).matching { it.name ==~ /v[0-9\.]+#.*/ }.configureEach {
-    onlyIf("BWC tests enabled") { project.bwc_tests_enabled }
+    boolean bwcEnabled = project.bwc_tests_enabled
+    onlyIf("BWC tests enabled") { bwcEnabled }
     nonInputProperties.systemProperty 'tests.bwc', 'true'
   }
 }
@@ -50,5 +51,5 @@ plugins.withType(InternalJavaRestTestPlugin) {
   }
 }
 
-tasks.matching { it.name.equals("check") }.configureEach {dependsOn(bwcTestSnapshots) }
-tasks.matching { it.name.equals("test") }.configureEach {enabled = false}
+tasks.matching { it.name.equals("check") }.configureEach { dependsOn(bwcTestSnapshots) }
+tasks.matching { it.name.equals("test") }.configureEach { enabled = false }

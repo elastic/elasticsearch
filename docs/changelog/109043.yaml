@@ -1,0 +1,5 @@
+pr: 109043
+summary: "Apm-data: set concrete values for `metricset.interval`"
+area: Data streams
+type: bug
+issues: []

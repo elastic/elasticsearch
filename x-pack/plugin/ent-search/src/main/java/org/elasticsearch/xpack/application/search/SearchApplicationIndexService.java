@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -32,7 +33,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -78,7 +78,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -242,21 +241,50 @@ public class SearchApplicationIndexService {
 
     private void createOrUpdateAlias(SearchApplication app, ActionListener<IndicesAliasesResponse> listener) {
 
-        final Metadata metadata = clusterService.state().metadata();
+        final String searchApplicationName = app.name();
         final String searchAliasName = getSearchAliasName(app);
 
-        IndicesAliasesRequestBuilder requestBuilder = null;
-        if (metadata.hasAlias(searchAliasName)) {
-            Set<String> currentAliases = metadata.aliasedIndices(searchAliasName).stream().map(Index::getName).collect(Collectors.toSet());
-            Set<String> targetAliases = Set.of(app.indices());
+        final GetRequest getRequest = new GetRequest(SEARCH_APPLICATION_ALIAS_NAME).id(searchApplicationName).realtime(true);
 
-            requestBuilder = updateAliasIndices(Set.of(app.indices()), targetAliases, searchAliasName);
+        // Before, we were looking at aliases through existing metadata.
+        // However, because we now expand aliases, this could result in indices incorrectly being removed from the alias.
+        // Now, we pull the existing search application, get the indices associated with it, and then update accordingly.
+        // There may be a better way to do this less prone to race conditions.
 
-        } else {
-            requestBuilder = client.admin().indices().prepareAliases().addAlias(app.indices(), searchAliasName, true);
-        }
+        clientWithOrigin.get(getRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(GetResponse getResponse) {
+                IndicesAliasesRequestBuilder requestBuilder = null;
+                if (getResponse.isExists() == false) {
+                    requestBuilder = client.admin().indices().prepareAliases().addAlias(app.indices(), searchAliasName, true);
+                } else {
+                    final BytesReference source = getResponse.getSourceInternal();
+                    SearchApplication existingSearchApplication = parseSearchApplicationBinaryFromSource(
+                        source,
+                        getAliasIndices(searchApplicationName)
+                    );
+                    requestBuilder = updateAliasIndices(
+                        Set.of(existingSearchApplication.indices()),
+                        Set.of(app.indices()),
+                        searchAliasName
+                    );
+                }
+                requestBuilder.execute(listener);
+            }
 
-        requestBuilder.execute(listener);
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof ResourceNotFoundException) {
+                    IndicesAliasesRequestBuilder requestBuilder = client.admin()
+                        .indices()
+                        .prepareAliases()
+                        .addAlias(app.indices(), searchAliasName, true);
+                    requestBuilder.execute(listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
     private IndicesAliasesRequestBuilder updateAliasIndices(Set<String> currentIndices, Set<String> targetAliases, String searchAliasName) {

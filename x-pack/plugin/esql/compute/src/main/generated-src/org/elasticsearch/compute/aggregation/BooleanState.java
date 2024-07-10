@@ -11,30 +11,26 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * Aggregator state for a single $type$.
+ * Aggregator state for a single boolean.
  * This class is generated. Do not edit it.
  */
-final class $Type$State implements AggregatorState {
-    private $type$ value;
+final class BooleanState implements AggregatorState {
+    private boolean value;
     private boolean seen;
 
-    $Type$State() {
-$if(boolean)$
+    BooleanState() {
         this(false);
-$else$
-        this(0);
-$endif$
     }
 
-    $Type$State($type$ init) {
+    BooleanState(boolean init) {
         this.value = init;
     }
 
-    $type$ $type$Value() {
+    boolean booleanValue() {
         return value;
     }
 
-    void $type$Value($type$ value) {
+    void booleanValue(boolean value) {
         this.value = value;
     }
 
@@ -50,7 +46,7 @@ $endif$
     @Override
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
         assert blocks.length >= offset + 2;
-        blocks[offset + 0] = driverContext.blockFactory().newConstant$Type$BlockWith(value, 1);
+        blocks[offset + 0] = driverContext.blockFactory().newConstantBooleanBlockWith(value, 1);
         blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
     }
 

@@ -8,27 +8,15 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
-$if(boolean)$
 import org.elasticsearch.common.util.BitArray;
-$else$
-import org.elasticsearch.common.util.$Type$Array;
-$endif$
 import org.elasticsearch.compute.data.Block;
-$if(long)$
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
-$endif$
-import org.elasticsearch.compute.data.$Type$Block;
-$if(int)$
-import org.elasticsearch.compute.data.$Type$Vector;
-$endif$
-$if(boolean||double||float)$
-import org.elasticsearch.compute.data.IntVector;
-$endif$
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Aggregator state for an array of $type$s. It is created in a mode where it
+ * Aggregator state for an array of booleans. It is created in a mode where it
  * won't track the {@code groupId}s that are sent to it and it is the
  * responsibility of the caller to only fetch values for {@code groupId}s
  * that it has sent using the {@code selected} parameter when building the
@@ -42,65 +30,48 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Do not edit it.
  * </p>
  */
-final class $Type$ArrayState extends AbstractArrayState implements GroupingAggregatorState {
-    private final $type$ init;
+final class BooleanArrayState extends AbstractArrayState implements GroupingAggregatorState {
+    private final boolean init;
 
-$if(boolean)$
     private BitArray values;
     private int size;
 
-$else$
-    private $Type$Array values;
-$endif$
-
-    $Type$ArrayState(BigArrays bigArrays, $type$ init) {
+    BooleanArrayState(BigArrays bigArrays, boolean init) {
         super(bigArrays);
-$if(boolean)$
         this.values = new BitArray(1, bigArrays);
         this.size = 1;
-$else$
-        this.values = bigArrays.new$Type$Array(1, false);
-$endif$
         this.values.set(0, init);
         this.init = init;
     }
 
-    $type$ get(int groupId) {
+    boolean get(int groupId) {
         return values.get(groupId);
     }
 
-    $type$ getOrDefault(int groupId) {
+    boolean getOrDefault(int groupId) {
         return groupId < values.size() ? values.get(groupId) : init;
     }
 
-    void set(int groupId, $type$ value) {
+    void set(int groupId, boolean value) {
         ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);
     }
 
-$if(long)$
-    void increment(int groupId, long value) {
-        ensureCapacity(groupId);
-        values.increment(groupId, value);
-        trackGroupId(groupId);
-    }
-$endif$
-
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            try (var builder = driverContext.blockFactory().new$Type$VectorFixedBuilder(selected.getPositionCount())) {
+            try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.append$Type$(i, values.get(selected.getInt(i)));
+                    builder.appendBoolean(i, values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
         }
-        try ($Type$Block.Builder builder = driverContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount())) {
+        try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (hasValue(group)) {
-                    builder.append$Type$(values.get(group));
+                    builder.appendBoolean(values.get(group));
                 } else {
                     builder.appendNull();
                 }
@@ -110,18 +81,10 @@ $endif$
     }
 
     private void ensureCapacity(int groupId) {
-$if(boolean)$
         if (groupId >= size) {
             values.fill(size, groupId + 1, init);
             size = groupId + 1;
         }
-$else$
-        if (groupId >= values.size()) {
-            long prevSize = values.size();
-            values = bigArrays.grow(values, groupId + 1);
-            values.fill(prevSize, values.size(), init);
-        }
-$endif$
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
@@ -134,15 +97,15 @@ $endif$
     ) {
         assert blocks.length >= offset + 2;
         try (
-            var valuesBuilder = driverContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount());
+            var valuesBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
             var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (group < values.size()) {
-                    valuesBuilder.append$Type$(values.get(group));
+                    valuesBuilder.appendBoolean(values.get(group));
                 } else {
-                    valuesBuilder.append$Type$($if(boolean)$false$else$0$endif$); // TODO can we just use null?
+                    valuesBuilder.appendBoolean(false); // TODO can we just use null?
                 }
                 hasValueBuilder.appendBoolean(i, hasValue(group));
             }

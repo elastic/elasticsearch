@@ -49,8 +49,7 @@ will return an error.
 [[search-settings-allowed-inline-scripts]]
 `search.aggs.allowed_inline_metric_scripts`::
 (<<cluster-update-settings,Dynamic>>, list of strings)
-The list of inline scripts that can be used in scripted metrics
-aggregations when
+List of inline scripts that can be used in scripted metrics aggregations when
 <<search-settings-only-allowed-scripts,`search.aggs.only_allowed_metric_scripts`>>
 is set to `true`.
 Defaults to an empty list.
@@ -60,8 +59,7 @@ Requests using other inline scripts will return an error.
 [[search-settings-allowed-stored-scripts]]
 `search.aggs.allowed_stored_metric_scripts`::
 (<<cluster-update-settings,Dynamic>>, list of strings)
-The list of ids of stored scripts that can be used in
-scripted metrics aggregations when
+List of ids of stored scripts that can be used in scripted metrics aggregations when
 <<search-settings-only-allowed-scripts,`search.aggs.only_allowed_metric_scripts`>>
 is set to `true`.
 Defaults to an empty list.

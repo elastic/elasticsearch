@@ -78,8 +78,14 @@ To restrict the set of allowed scripts, set
 <<search-settings-only-allowed-scripts,`search.aggs.only_allowed_metric_scripts`>>
 to `true` and provide the allowed scripts using
 <<search-settings-allowed-inline-scripts,`search.aggs.allowed_inline_metric_scripts`>>
-and
+and/or
 <<search-settings-allowed-stored-scripts,`search.aggs.allowed_stored_metric_scripts`>>.
+
+To disallow certain script types, omit the corresponding script list
+(`search.aggs.allowed_inline_metric_scripts` or
+`search.aggs.allowed_stored_metric_scripts`) or set it to an empty array.
+When both script lists are not empty, the given stored scripts and the given inline scripts
+will be allowed.
 
 The following example permits only 4 specific stored scripts to be used, and no inline scripts:
 

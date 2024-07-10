@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -258,10 +259,11 @@ public class WordListsIndexService {
         }
     }
 
-    // Copied from ClientHelper to avoid more refactoring for the moment. This class and all other customized filters should probably move
-    // to the core plugin though.
+    // Copied (and modified) from ClientHelper to avoid more refactoring for the moment. This class and all other customized filters should
+    // probably move to the core plugin though.
     private static <Request, Response> void executeAsyncWithOrigin(
         ThreadContext threadContext,
+        Executor executor,
         String origin,
         Request request,
         ActionListener<Response> listener,
@@ -269,7 +271,7 @@ public class WordListsIndexService {
     ) {
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {
-            consumer.accept(request, new ContextPreservingActionListener<>(supplier, listener));
+            executor.execute(() -> consumer.accept(request, new ContextPreservingActionListener<>(supplier, listener)));
         }
     }
 
@@ -280,6 +282,6 @@ public class WordListsIndexService {
         Request request,
         ActionListener<Response> listener
     ) {
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), origin, request, listener, (r, l) -> client.execute(action, r, l));
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), client.threadPool().generic(), origin, request, listener, (r, l) -> client.execute(action, r, l));
     }
 }

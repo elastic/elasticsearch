@@ -24,6 +24,6 @@ public class RolloverRestCancellationIT extends BlockedSearcherRestCancellationT
                 .setSettings(Settings.builder().put(BLOCK_SEARCHER_SETTING.getKey(), true))
         );
         ensureGreen("test-000001");
-        runTest(new Request(HttpPost.METHOD_NAME, "test-alias/_rollover"), RolloverAction.NAME);
+        runTest("rollover-rest-cancellation", new Request(HttpPost.METHOD_NAME, "test-alias/_rollover"), RolloverAction.NAME);
     }
 }

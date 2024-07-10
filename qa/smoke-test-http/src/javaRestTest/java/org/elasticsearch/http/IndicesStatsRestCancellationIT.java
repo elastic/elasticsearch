@@ -26,6 +26,6 @@ public class IndicesStatsRestCancellationIT extends BlockedSearcherRestCancellat
     }
 
     public void testIndicesStatsRestCancellation() throws Exception {
-        runTest(new Request(HttpGet.METHOD_NAME, "/_stats"), IndicesStatsAction.NAME);
+        runTest("indices-stats-rest-cancellation", new Request(HttpGet.METHOD_NAME, "/_stats"), IndicesStatsAction.NAME);
     }
 }

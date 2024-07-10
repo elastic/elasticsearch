@@ -19,9 +19,9 @@ import java.util.Map;
  */
 public class CancellableTask extends Task {
 
+    private final SubscribableListener<Void> listeners = new SubscribableListener<>();
     private volatile String reason;
     private volatile boolean isCancelled;
-    private final SubscribableListener<Void> listeners = new SubscribableListener<>();
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);
@@ -107,6 +107,11 @@ public class CancellableTask extends Task {
         } // NB releasing the mutex before notifying the listener
         listener.onFailure(taskCancelledException);
         return true;
+    }
+
+    @Override
+    public String toString() {
+        return "CancellableTask{" + super.toString() + ", reason='" + reason + '\'' + ", isCancelled=" + isCancelled + '}';
     }
 
     private TaskCancelledException getTaskCancelledException() {

@@ -14,20 +14,20 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static junit.framework.TestCase.assertTrue;
-import static junit.framework.TestCase.assertEquals;
+import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.fail;
 import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
-
 
 public class TaskAssertions {
     private static final Logger logger = LogManager.getLogger(TaskAssertions.class);
@@ -66,28 +66,17 @@ public class TaskAssertions {
         logger.info("--> checking that all tasks with prefix {} are marked as cancelled", actionPrefix);
 
         assertBusy(() -> {
-            boolean foundTask = false;
+            var tasks = new ArrayList<CancellableTask>();
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                final TaskManager taskManager = transportService.getTaskManager();
+                var taskManager = transportService.getTaskManager();
                 assertTrue(taskManager.assertCancellableTaskConsistency());
-                for (CancellableTask cancellableTask : taskManager.getCancellableTasks().values()) {
-                    if (cancellableTask.getAction().startsWith(actionPrefix)) {
-                        logger.trace("--> found task with prefix [{}]: [{}]", actionPrefix, cancellableTask);
-                        assertEquals(
-                            Task.X_OPAQUE_ID_HTTP_HEADER + " does not match",
-                            opaqueId,
-                            cancellableTask.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER)
-                        );
-                        assertTrue(
-                            "task " + cancellableTask.getId() + "/" + cancellableTask.getAction() + " not cancelled",
-                            cancellableTask.isCancelled()
-                        );
-                        foundTask = true;
-                        logger.trace("--> Task with prefix [{}] is marked as cancelled: [{}]", actionPrefix, cancellableTask);
-                    }
-                }
+                taskManager.getCancellableTasks().values().stream().filter(t -> t.getAction().startsWith(actionPrefix)).forEach(tasks::add);
             }
-            assertTrue("found no cancellable tasks", foundTask);
+            assertFalse("no tasks found for action: " + actionPrefix, tasks.isEmpty());
+            assertTrue(
+                tasks.toString(),
+                tasks.stream().allMatch(t -> t.isCancelled() && Objects.equals(t.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), opaqueId))
+            );
         }, 30, TimeUnit.SECONDS);
     }
 

@@ -72,13 +72,14 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
         return false;
     }
 
-    void runTest(Request request, String actionPrefix) throws Exception {
+    void runTest(String testName, Request request, String actionPrefix) throws Exception {
+        assertNotNull(testName);
 
         createIndex("test", Settings.builder().put(BLOCK_SEARCHER_SETTING.getKey(), true).build());
         ensureGreen("test");
 
         assert request.getOptions().containsHeader(Task.X_OPAQUE_ID_HTTP_HEADER) == false;
-        final var opaqueId = randomUUID();
+        final var opaqueId = testName + "-" + randomUUID();
         request.setOptions(request.getOptions().toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId));
 
         final List<Semaphore> searcherBlocks = new ArrayList<>();

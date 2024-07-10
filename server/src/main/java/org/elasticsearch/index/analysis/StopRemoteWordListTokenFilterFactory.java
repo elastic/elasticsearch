@@ -9,18 +9,21 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
+import java.util.List;
 import java.util.Set;
+
+import static org.apache.lucene.analysis.StopFilter.makeStopSet;
 
 public class StopRemoteWordListTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final CharArraySet stopWords;
+    private final SetOnce<CharArraySet> stopWordsHolder = new SetOnce<>();
 
     private final boolean ignoreCase;
 
@@ -33,19 +36,39 @@ public class StopRemoteWordListTokenFilterFactory extends AbstractTokenFilterFac
     ) {
         super(name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
-        this.stopWords = Analysis.parseStopWords(env, settings, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET, ignoreCase, wordListsIndexService);
         if (settings.get("enable_position_increments") != null) {
             throw new IllegalArgumentException("enable_position_increments is not supported anymore. Please fix your analysis chain");
         }
+
+        Analysis.getWordListAsync(
+            indexSettings.getIndex().getName(),
+            env,
+            settings,
+            "stopwords_path",
+            "stopwords",
+            true,
+            wordListsIndexService,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(List<String> wordList) {
+                    stopWordsHolder.set(makeStopSet(wordList, ignoreCase));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // TODO: Propagate error to token filter
+                }
+            }
+        );
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new StopFilter(tokenStream, stopWords);
+        return new StopRemoteWordListFilter(tokenStream, stopWordsHolder);
     }
 
     public Set<?> stopWords() {
-        return stopWords;
+        return stopWordsHolder.get();
     }
 
     public boolean ignoreCase() {

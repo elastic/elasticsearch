@@ -133,11 +133,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     private void aggregateSingleMode(Expression expression) {
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
-            Page inputPage = rows(testCase.getMultiRowFields());
-            try {
-                aggregator.processPage(inputPage);
-            } finally {
-                inputPage.releaseBlocks();
+            for (Page inputPage : rows(testCase.getMultiRowFields())) {
+                try {
+                    aggregator.processPage(inputPage);
+                } finally {
+                    inputPage.releaseBlocks();
+                }
             }
 
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
@@ -166,11 +167,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             int intermediateBlockExtraSize = randomIntBetween(0, 10);
             intermediateBlocks = new Block[intermediateBlockOffset + intermediateStates + intermediateBlockExtraSize];
 
-            Page inputPage = rows(testCase.getMultiRowFields());
-            try {
-                aggregator.processPage(inputPage);
-            } finally {
-                inputPage.releaseBlocks();
+            for (Page inputPage : rows(testCase.getMultiRowFields())) {
+                try {
+                    aggregator.processPage(inputPage);
+                } finally {
+                    inputPage.releaseBlocks();
+                }
             }
 
             aggregator.evaluate(intermediateBlocks, intermediateBlockOffset, driverContext());
@@ -197,7 +199,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         ) {
             Page inputPage = new Page(intermediateBlocks);
             try {
-                aggregator.processPage(inputPage);
+                if (inputPage.getPositionCount() > 0) {
+                    aggregator.processPage(inputPage);
+                }
             } finally {
                 inputPage.releaseBlocks();
             }

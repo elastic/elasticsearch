@@ -26,7 +26,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-@UpdateForV9    // this is not needed in v9+, all applicable versions support features
+@UpdateForV9
+// @UpdateForV10 // this can be removed in v10. It may be called by v8 nodes to v9 nodes.
 public class TransportNodesFeaturesAction extends TransportNodesAction<
     NodesFeaturesRequest,
     NodesFeaturesResponse,

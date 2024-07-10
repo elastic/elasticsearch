@@ -27,7 +27,7 @@ public class NodeFeatures extends BaseNodeResponse {
 
     public NodeFeatures(Set<String> features, DiscoveryNode node) {
         super(node);
-        this.features = features;
+        this.features = Set.copyOf(features);
     }
 
     public Set<String> nodeFeatures() {

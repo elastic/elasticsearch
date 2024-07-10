@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction.Request;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportException;
@@ -68,7 +69,7 @@ public class VerifyNodeRepositoryCoordinationAction {
             ClusterService clusterService,
             NodeClient client
         ) {
-            super(NAME, actionFilters, transportService.getTaskManager());
+            super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.transportService = transportService;
             this.clusterService = clusterService;
             this.client = client;

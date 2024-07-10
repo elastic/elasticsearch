@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -38,7 +39,10 @@ public class TransportActionTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionTests").build());
+        threadPool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionTests").build(),
+            MeterRegistry.NOOP
+        );
     }
 
     @After
@@ -58,7 +62,7 @@ public class TransportActionTests extends ESTestCase {
 
         var transportAction = getTestTransportAction(actionName, testExecutor);
 
-        PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<TestResponse> future = new PlainActionFuture<>();
 
         transportAction.executeDirect(null, new TestRequest(), future);
 
@@ -83,7 +87,7 @@ public class TransportActionTests extends ESTestCase {
 
         var transportAction = getTestTransportAction(actionName, testExecutor);
 
-        PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<TestResponse> future = new PlainActionFuture<>();
 
         ActionTestUtils.execute(transportAction, null, new TestRequest(), future);
 
@@ -97,7 +101,7 @@ public class TransportActionTests extends ESTestCase {
         String actionName = randomAlphaOfLength(randomInt(30));
         var transportAction = getTestTransportAction(actionName, threadPool.executor(ThreadPool.Names.GENERIC));
 
-        PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<TestResponse> future = new PlainActionFuture<>();
 
         ActionTestUtils.execute(transportAction, null, new TestRequest(), future);
 
@@ -113,7 +117,7 @@ public class TransportActionTests extends ESTestCase {
         String actionName = randomAlphaOfLength(randomInt(30));
         var transportAction = getTestTransportAction(actionName, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
-        PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<TestResponse> future = new PlainActionFuture<>();
 
         ActionTestUtils.execute(transportAction, null, new TestRequest(), future);
 

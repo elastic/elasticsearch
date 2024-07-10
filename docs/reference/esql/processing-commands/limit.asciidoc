@@ -9,6 +9,9 @@
 LIMIT max_number_of_rows
 ----
 
+The `LIMIT` processing command enables you to limit the number of rows that are
+returned.
+
 *Parameters*
 
 `max_number_of_rows`::

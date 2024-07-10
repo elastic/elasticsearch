@@ -9,6 +9,9 @@
 ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2, ...]
 ----
 
+`ENRICH` enables you to add data from existing indices as new columns using an
+enrich policy.
+
 *Parameters*
 
 `policy`::

@@ -9,6 +9,9 @@
 GROK input "pattern"
 ----
 
+`GROK` enables you to <<esql-process-data-with-dissect-and-grok,extract
+structured data out of a string>>.
+
 *Parameters*
 
 `input`::

@@ -9,6 +9,8 @@
 SORT column1 [ASC/DESC][NULLS FIRST/NULLS LAST][, ..., columnN [ASC/DESC][NULLS FIRST/NULLS LAST]]
 ----
 
+The `SORT` processing command sorts a table on one or more columns.
+
 *Parameters*
 
 `columnX`::

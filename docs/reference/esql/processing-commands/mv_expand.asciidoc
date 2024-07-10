@@ -11,15 +11,13 @@ preview::[]
 MV_EXPAND column
 ----
 
+The `MV_EXPAND` processing command expands multivalued columns into one row per
+value, duplicating other columns.
+
 *Parameters*
 
 `column`::
 The multivalued column to expand.
-
-*Description*
-
-The `MV_EXPAND` processing command expands multivalued columns into one row per
-value, duplicating other columns.
 
 *Example*
 

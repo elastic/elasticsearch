@@ -11,8 +11,6 @@ import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
-
 public final class OptimizerRules {
 
     public abstract static class OptimizerRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {

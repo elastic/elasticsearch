@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
@@ -18,13 +18,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineAnd;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineOr;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.inCommon;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitOr;
-import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.subtract;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 

@@ -219,3 +219,6 @@ FROM airports
 abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
            GWL | [mid, military] | 9                 | [2, 4]
 ;
+
+
+// NOCOMMIT INLINESTATS before and after a bunch of stuff

@@ -90,7 +90,7 @@ public class PhasedTests extends ESTestCase {
         assertThat(Phased.extractFirstPhase(finalPhase), nullValue());
     }
 
-    private class Dummy extends UnaryPlan implements Phased {
+    public class Dummy extends UnaryPlan implements Phased {
         Dummy(Source source, LogicalPlan child) {
             super(source, child);
         }

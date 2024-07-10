@@ -44,12 +44,6 @@ tests:
 - class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109687"
   method: "test {p0=sql/translate/Translate SQL}"
-- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
-  method: testSearchProgressWithHits
-  issue: https://github.com/elastic/elasticsearch/issues/109830
-- class: "org.elasticsearch.xpack.security.ScrollHelperIntegTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109905"
-  method: "testFetchAllEntities"
 - class: "org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109944"
   method: "testBasicAsyncExecution"
@@ -67,18 +61,12 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/110211
 - class: "org.elasticsearch.rest.RestControllerIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110225"
-- class: "org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/110227"
-  method: "testGetPrivilegesUsesCache"
 - class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
   method: testMetadataMigratedAfterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/110232
 - class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/110244
-- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
-  method: testSearchProgressWithQuery
-  issue: https://github.com/elastic/elasticsearch/issues/109867
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testMinVersionAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/95384
@@ -88,9 +76,6 @@ tests:
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testMinVersionAsOldVersion
   issue: https://github.com/elastic/elasticsearch/issues/109454
-- class: org.elasticsearch.search.aggregations.bucket.terms.RareTermsIT
-  method: testSingleValuedString
-  issue: https://github.com/elastic/elasticsearch/issues/110388
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"

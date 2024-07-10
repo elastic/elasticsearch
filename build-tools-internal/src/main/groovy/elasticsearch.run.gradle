@@ -31,6 +31,11 @@ testClusters.register("runTask") {
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
       numberOfNodes = 1
+
+      setting 'xpack.security.audit.enabled', 'true'
+      keystore 'telemetry.secret_token', 'fHWRkyJET2yd9DvS9m'
+      setting 'telemetry.metrics.enabled', 'true'
+      setting 'telemetry.agent.server_url', 'https://460d4c9cb692485ba3e4b6be78f8c378.apm.us-central1.gcp.cloud.es.io:443'
     }
 }
 

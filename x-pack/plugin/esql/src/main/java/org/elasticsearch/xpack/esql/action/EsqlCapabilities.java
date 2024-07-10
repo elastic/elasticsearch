@@ -117,7 +117,12 @@ public class EsqlCapabilities {
          * Fix to GROK validation in case of multiple fields with same name and different types
          * https://github.com/elastic/elasticsearch/issues/110533
          */
-        GROK_VALIDATION;
+        GROK_VALIDATION,
+
+        /**
+         * Fix for union-types when aggregating over an inline conversion with conversion function. Done in #110652.
+         */
+        UNION_TYPES_INLINE_FIX;
 
         private final boolean snapshotOnly;
 

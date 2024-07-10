@@ -20,6 +20,7 @@
 package co.elastic.elasticsearch.stateless.action;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.apache.logging.log4j.LogManager;
@@ -46,12 +47,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
@@ -65,7 +69,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 
 public class TransportGetVirtualBatchedCompoundCommitChunkAction extends TransportAction<
@@ -79,6 +82,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
     private final IndicesService indicesService;
     private final TransportService transportService;
     private final ClusterService clusterService;
+    private final GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure;
 
     @Inject
     public TransportGetVirtualBatchedCompoundCommitChunkAction(
@@ -86,13 +90,15 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         BigArrays bigArrays,
         TransportService transportService,
         IndicesService indicesService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure
     ) {
         super(NAME, actionFilters, transportService.getTaskManager());
         this.bigArrays = bigArrays;
         this.indicesService = indicesService;
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.vbccChunksPressure = vbccChunksPressure;
         this.transportPrimaryAction = actionName + "[p]";
 
         transportService.registerRequestHandler(
@@ -101,7 +107,15 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             GetVirtualBatchedCompoundCommitChunkRequest::new,
             (request, channel, task) -> {
                 final ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener = new ChannelActionListener<>(channel);
-                ActionListener.run(listener, (l) -> primaryShardOperation(task, request, l));
+                ActionListener.run(listener, (l) -> {
+                    assert transportService.getLocalNode().hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) : "not an indexing node";
+                    assert ThreadPool.assertCurrentThreadPool(Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL);
+                    final ShardId shardId = request.getShardId();
+                    final Index index = shardId.getIndex();
+                    final IndexShard shard = indicesService.indexServiceSafe(index).getShard(request.getShardId().id());
+                    assert shard.routingEntry().primary() : shard + " not primary on node " + transportService.getLocalNode();
+                    primaryShardOperation(request, shard, bigArrays, vbccChunksPressure, l);
+                });
             }
         );
     }
@@ -143,7 +157,15 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                     final boolean shouldRetry = indexService != null && indexService.hasShard(request.getShardId().id());
 
                     return shouldRetry
-                        && ExceptionsHelper.unwrap(e, ConnectTransportException.class, CircuitBreakingException.class) != null;
+                        && ExceptionsHelper.unwrap(
+                            e,
+                            ConnectTransportException.class,
+                            CircuitBreakingException.class,
+                            // Normally we do not expect that the isExecutorShutdown flag of a EsRejectedExecutionException is true.
+                            // But just in case, we retry even if the isExecutorShutdown is true, until findPrimaryNode ultimately does not
+                            // find the node in the cluster state, which ensures the VBCC has been uploaded.
+                            EsRejectedExecutionException.class
+                        ) != null;
                 }
             };
             retryableAction.run();
@@ -184,63 +206,69 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         );
     }
 
-    private void primaryShardOperation(
-        Task task,
+    // package-private for testing
+    static void primaryShardOperation(
         GetVirtualBatchedCompoundCommitChunkRequest request,
+        IndexShard shard,
+        BigArrays bigArrays,
+        GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure,
         ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
-    ) throws IOException {
-        assert transportService.getLocalNode().hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) : "not an indexing node";
-        assert ThreadPool.assertCurrentThreadPool(Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL);
-        Index index = request.getShardId().getIndex();
-        final IndexShard shard = indicesService.indexServiceSafe(index).getShard(request.getShardId().id());
-        assert shard.routingEntry().primary() : shard + " not primary on node " + transportService.getLocalNode();
+    ) {
+        ActionListener.run(listener, (l) -> {
+            final ShardId shardId = request.getShardId();
+            assert shard.shardId().equals(shardId) : "shardId mismatch: " + shard.shardId() + " != " + shardId;
 
-        if (shard.indexSettings().getIndexMetadata().getState() == IndexMetadata.State.CLOSE) {
-            throw new IndexClosedException(request.getShardId().getIndex());
-        }
-        if (request.getPrimaryTerm() != shard.getOperationPrimaryTerm()) {
-            // The primary term of the shard has changed since the request was sent. Send exception to signify the blob has been uploaded.
-            final var exception = new ResourceNotFoundException(
-                "primary term mismatch [request=" + request.getPrimaryTerm() + ", shard=" + shard.getOperationPrimaryTerm() + "]"
-            );
-            throw exception;
-        }
-        final Engine engine = shard.getEngineOrNull();
-        if (engine == null) {
-            throw new ShardNotFoundException(shard.shardId(), "engine not started");
-        }
-        if (engine instanceof IndexEngine == false) {
-            final var exception = new ElasticsearchException("expecting IndexEngine but got " + engine);
-            logger.error("unexpected", exception);
-            assert false : exception;
-            throw exception;
-        }
-        IndexEngine indexEngine = (IndexEngine) engine;
+            if (shard.indexSettings().getIndexMetadata().getState() == IndexMetadata.State.CLOSE) {
+                throw new IndexClosedException(request.getShardId().getIndex());
+            }
+            if (request.getPrimaryTerm() != shard.getOperationPrimaryTerm()) {
+                // The primary term of the shard has changed since the request was sent. Send exception to signify the blob has been
+                // uploaded.
+                final var exception = new ResourceNotFoundException(
+                    "primary term mismatch [request=" + request.getPrimaryTerm() + ", shard=" + shard.getOperationPrimaryTerm() + "]"
+                );
+                throw exception;
+            }
+            final Engine engine = shard.getEngineOrNull();
+            if (engine == null) {
+                throw new ShardNotFoundException(shard.shardId(), "engine not started");
+            }
+            if (engine instanceof IndexEngine == false) {
+                final var exception = new ElasticsearchException("expecting IndexEngine but got " + engine);
+                logger.error("unexpected", exception);
+                assert false : exception;
+                throw exception;
+            }
+            IndexEngine indexEngine = (IndexEngine) engine;
 
-        try {
-            // TODO: should we limit the amount we have outstanding to some number, like 5% of heap or so? By outstanding we mean the amount
-            // of bytes we have allocated but not released yet. Since the release happens async after sending over the wire, we could
-            // exhaust the heap here and limiting that would be good. It could be blocking, though an async mechanism could be preferable.
-
-            ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(request.getLength(), bigArrays);
             try {
-                indexEngine.readVirtualBatchedCompoundCommitChunk(request, output);
-                // Transfer responsibility of releasing the output bytes to a ReleasableBytesReference for the response.
-                var transfer = new ReleasableBytesReference(output.bytes(), output);
-                output = null;
-                ActionListener.respondAndRelease(listener, new GetVirtualBatchedCompoundCommitChunkResponse(transfer));
-            } catch (AlreadyClosedException e) {
-                throw new ShardNotFoundException(shard.shardId(), "Engine already closed", e);
-            } finally {
-                Releasables.close(output);
+                // The pressure releasable is got first, so that we do not allocate memory if the pressure outright rejects the chunk size.
+                final int requestLength = request.getLength();
+                Releasable finalReleasable = vbccChunksPressure.markChunkStarted(requestLength, shardId);
+                try {
+                    // The following allocation may throw a CBE, in which case we release the pressure in the `finally` block.
+                    final ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(requestLength, bigArrays);
+                    // If an exception happens during reading the VBCC, the `finally` block must release both the pressure and the
+                    // allocation
+                    finalReleasable = Releasables.wrap(output, finalReleasable);
+                    indexEngine.readVirtualBatchedCompoundCommitChunk(request, output);
+                    // Transfer responsibility of releasing the pressure and the allocation to a ReleasableBytesReference for the response.
+                    var transfer = new ReleasableBytesReference(output.bytes(), finalReleasable);
+                    finalReleasable = null;
+                    ActionListener.respondAndRelease(l, new GetVirtualBatchedCompoundCommitChunkResponse(transfer));
+                } catch (AlreadyClosedException e) {
+                    throw new ShardNotFoundException(shard.shardId(), "Engine already closed", e);
+                } finally {
+                    Releasables.close(finalReleasable);
+                }
+            } catch (Exception e) {
+                if (ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null) {
+                    shard.failShard("failed to get a virtual batched compound commit chunk", e);
+                    l.onFailure(e);
+                } else {
+                    throw e;
+                }
             }
-        } catch (Exception e) {
-            if (ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null) {
-                shard.failShard("failed to get a virtual batched compound commit chunk", e);
-                listener.onFailure(e);
-            } else {
-                throw e;
-            }
-        }
+        });
     }
 }

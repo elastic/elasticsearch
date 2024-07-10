@@ -55,6 +55,8 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
@@ -96,6 +98,7 @@ import static java.util.Map.entry;
 public class Analysis {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Analysis.class);
+    private static final Logger logger = LogManager.getLogger(Analysis.class);
 
     public static void checkForDeprecatedVersion(String name, Settings settings) {
         String sVersion = settings.get("version");
@@ -381,6 +384,103 @@ public class Analysis {
             throw new IllegalArgumentException(message, ioe);
         } catch (AccessControlException ace) {
             throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, pathValue), ace);
+        }
+    }
+
+    public static void getWordListAsync(
+        String indexName,
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        boolean removeComments,
+        WordListsIndexService wordListIndexService,
+        ActionListener<List<String>> listener
+    ) {
+        String wordListPath = settings.get(settingPath, null);
+
+        if (wordListPath == null) {
+            List<String> explicitWordList = settings.getAsList(settingList, null);
+            listener.onResponse(explicitWordList);
+            return;
+        }
+
+        final URL pathAsUrl = tryToParsePathAsURL(wordListPath);
+        if (pathAsUrl != null) {
+            wordListIndexService.getWordListValue(indexName, wordListPath, new ActionListener<>() {
+                @Override
+                public void onResponse(String s) {
+                    if (s == null) {
+                        try {
+                            s = readFile(pathAsUrl);
+                        } catch (IOException e) {
+                            listener.onFailure(new ElasticsearchStatusException(
+                                "Unable to read file at " + settingPath,
+                                RestStatus.BAD_REQUEST,
+                                e)
+                            );
+                            return;
+                        }
+
+                        // TODO: Force indexing to complete before returning parsed word list to listener
+                        wordListIndexService.putWordList(indexName, wordListPath, s, new ActionListener<>() {
+                            @Override
+                            public void onResponse(WordListsIndexService.PutWordListResult putWordListResult) {
+                                logger.debug("Indexed word list [" + wordListPath + "] for index [" + indexName + "]");
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn("Unable to index word list [" + wordListPath + "] for index [" + indexName + "]", e);
+//                                listener.onFailure(new ElasticsearchStatusException(
+//                                    "Unable to index word list [" + wordListPath + "] for index [" + indexName + "]",
+//                                    RestStatus.INTERNAL_SERVER_ERROR,
+//                                    e
+//                                ));
+                            }
+                        });
+                    }
+
+                    try {
+                        listener.onResponse(loadWordList(s, removeComments));
+                    } catch (IOException e) {
+                        listener.onFailure(new ElasticsearchStatusException(
+                            "Unable to parse word list [" + wordListPath + "] for index [" + indexName + "]",
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            e)
+                        );
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(new ElasticsearchStatusException(
+                        "Unable to get word list [" + wordListPath + "] for index [" + indexName + "]",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        e)
+                    );
+                }
+            });
+        } else {
+            final Path path = env.configFile().resolve(wordListPath);
+            try {
+                listener.onResponse(loadWordList(path, removeComments));
+            } catch (CharacterCodingException ex) {
+                String message = Strings.format(
+                    "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
+                    settingPath,
+                    path
+                );
+                listener.onFailure(new IllegalArgumentException(message, ex));
+            } catch (IOException ioe) {
+                String message = Strings.format("IOException while reading %s: %s", settingPath, path);
+                listener.onFailure(new IllegalArgumentException(message, ioe));
+            } catch (AccessControlException ace) {
+                listener.onFailure(new IllegalArgumentException(
+                    Strings.format("Access denied trying to read file %s: %s", settingPath, path),
+                    ace)
+                );
+            }
         }
     }
 

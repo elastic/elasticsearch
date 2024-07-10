@@ -149,7 +149,7 @@ public class SearchApplicationTests extends ESTestCase {
                     namedWriteableRegistry
                 )
             ) {
-                deserializedInstance = SearchApplicationIndexService.parseSearchApplicationBinaryWithVersion(in, testInstance.indices());
+                deserializedInstance = SearchApplicationIndexService.parseSearchApplicationBinaryWithVersion(in);
             }
         }
         assertNotSame(testInstance, deserializedInstance);

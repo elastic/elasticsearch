@@ -399,11 +399,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
-            if (plan instanceof Aggregate agg) {
-                return resolveStats(agg, childrenOutput);
-            }
-
-            if (plan instanceof InlineStats stats) {
+            if (plan instanceof Stats stats) {
                 return resolveStats(stats, childrenOutput);
             }
 

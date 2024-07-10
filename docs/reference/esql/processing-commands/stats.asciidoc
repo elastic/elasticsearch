@@ -161,4 +161,3 @@ include::{esql-specs}/stats.csv-spec[tag=statsUnnamedColumnEval]
 |===
 include::{esql-specs}/stats.csv-spec[tag=statsUnnamedColumnEval-result]
 |===
-

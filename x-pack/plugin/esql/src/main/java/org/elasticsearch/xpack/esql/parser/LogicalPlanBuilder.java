@@ -146,10 +146,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
+            Source source = source(ctx);
             String pattern = visitString(ctx.string()).fold().toString();
-            Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), Grok.pattern(source(ctx), pattern));
+            Grok.Parser grokParser = Grok.pattern(source, pattern);
+            validateGrokPattern(source, grokParser, pattern);
+            Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
             return result;
         };
+    }
+
+    private void validateGrokPattern(Source source, Grok.Parser grokParser, String pattern) {
+        Map<String, DataType> definedAttributes = new HashMap<>();
+        for (Attribute field : grokParser.extractedFields()) {
+            String name = field.name();
+            DataType type = field.dataType();
+            DataType prev = definedAttributes.put(name, type);
+            if (prev != null) {
+                throw new ParsingException(
+                    source,
+                    "Invalid GROK pattern [" + pattern + "]: the attribute [" + name + "] is defined multiple times with different types"
+                );
+            }
+        }
     }
 
     @Override

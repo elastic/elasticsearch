@@ -352,5 +352,4 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             return BytesReference.bytes(builder).utf8ToString();
         }
     }
-
 }

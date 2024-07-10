@@ -253,7 +253,7 @@ public class SearchApplicationIndexService {
             requestBuilder = updateAliasIndices(currentAliases, targetAliases, searchAliasName);
 
         } else {
-            requestBuilder = client.admin().indices().prepareAliases().addAlias(app.indices(), searchAliasName);
+            requestBuilder = client.admin().indices().prepareAliases().addAlias(app.indices(), searchAliasName, true);
         }
 
         requestBuilder.execute(listener);
@@ -268,10 +268,14 @@ public class SearchApplicationIndexService {
 
         // Always re-add aliases, as an index could have been removed manually and it must be restored
         for (String newIndex : targetAliases) {
-            aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(searchAliasName));
+            aliasesRequestBuilder.addAliasAction(
+                IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(searchAliasName).autoExpandAliases(true)
+            );
         }
         for (String deleteIndex : deleteIndices) {
-            aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(deleteIndex).alias(searchAliasName));
+            aliasesRequestBuilder.addAliasAction(
+                IndicesAliasesRequest.AliasActions.remove().index(deleteIndex).alias(searchAliasName).autoExpandAliases(true)
+            );
         }
 
         return aliasesRequestBuilder;

@@ -194,7 +194,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                 concreteIndices = indexNameExpressionResolver.concreteIndices(
                     state,
                     request.indicesOptions(),
-                    action.autoExpandAliases(),
+                    action.autoExpandAliases() != null ? action.autoExpandAliases() : false,
                     action.indices()
                 );
             }

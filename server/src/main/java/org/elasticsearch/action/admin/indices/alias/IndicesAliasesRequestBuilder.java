@@ -49,6 +49,11 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<
         return this;
     }
 
+    public IndicesAliasesRequestBuilder addAlias(String[] indices, String alias, boolean autoExpandAliases) {
+        request.addAliasAction(AliasActions.add().indices(indices).alias(alias).autoExpandAliases(autoExpandAliases));
+        return this;
+    }
+
     /**
      * Adds an alias to the index.
      *

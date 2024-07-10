@@ -1,0 +1,24 @@
+[[release-notes-8.14.3]]
+== {es} version 8.14.3
+
+coming[8.14.3]
+
+Also see <<breaking-changes-8.14,Breaking changes in 8.14>>.
+
+[[bug-8.14.3]]
+[float]
+=== Bug fixes
+
+Cluster Coordination::
+* Ensure tasks preserve versions in `MasterService` {es-pull}109850[#109850]
+
+ES|QL::
+* Introduce compute listener {es-pull}110400[#110400]
+
+Mapping::
+* Automatically adjust `ignore_malformed` only for the @timestamp {es-pull}109948[#109948]
+
+TSDB::
+* Disallow index.time_series.end_time setting from being set or updated in normal indices {es-pull}110268[#110268] (issue: {es-issue}110265[#110265])
+
+

@@ -16,6 +16,8 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -45,6 +47,9 @@ public class SearchResponseMetrics {
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";
 
+    public static final String HEADERS_ATTRIBUTE_NAME_PREFIX = "request.headers.";
+    public static final String QUERY_CATEGORIES_ATTRIBUTE_NAME = "query_categories";
+
     private final LongHistogram tookDurationTotalMillisHistogram;
     private final LongCounter responseCountTotalCounter;
 
@@ -70,24 +75,36 @@ public class SearchResponseMetrics {
         this.responseCountTotalCounter = responseCountTotalCounter;
     }
 
-    public long recordTookTime(long tookTime, Set<QueryCategory> queryCategories) {
-        Map<String, Object> attributes = categoriesToAttributes(queryCategories);
-        logger.info("Query attributes: {}", attributes);
-        tookDurationTotalMillisHistogram.record(tookTime, attributes);
+    public long recordTookTime(long tookTime, Set<QueryCategory> queryCategories, Map<String, String> headers) {
+        tookDurationTotalMillisHistogram.record(tookTime, queryMetricAttributes(queryCategories, headers));
         return tookTime;
     }
 
-    private static Map<String, Object> categoriesToAttributes(Set<QueryCategory> queryCategories) {
-        return queryCategories.stream().collect(Collectors.toUnmodifiableMap(c -> "query_category." + c.displayName(), c -> true));
-    }
-
-    public void incrementResponseCount(ResponseCountTotalStatus responseCountTotalStatus, Set<QueryCategory> queryCategories) {
-        Map<String, Object> attributes = Maps.copyMapWithAddedEntry(
-            categoriesToAttributes(queryCategories),
-            RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME,
-            responseCountTotalStatus.getDisplayName()
+    private static Map<String, Object> queryMetricAttributes(Set<QueryCategory> queryCategories, Map<String, String> headers) {
+        Map<String, Object> attributes = new HashMap<>(
+            headers.entrySet().stream().collect(Collectors.toMap(e -> HEADERS_ATTRIBUTE_NAME_PREFIX + e.getKey(), Map.Entry::getValue))
+        );
+        attributes.put(
+            QUERY_CATEGORIES_ATTRIBUTE_NAME,
+            queryCategories.stream().map(QueryCategory::displayName).toArray(String[]::new)
         );
         logger.info("Query attributes: {}", attributes);
-        responseCountTotalCounter.incrementBy(1L, attributes);
+        return Collections.unmodifiableMap(attributes);
+
+    }
+
+    public void incrementResponseCount(
+        ResponseCountTotalStatus responseCountTotalStatus,
+        Set<QueryCategory> queryCategories,
+        Map<String, String> headers
+    ) {
+        responseCountTotalCounter.incrementBy(
+            1L,
+            Maps.copyMapWithAddedEntry(
+                queryMetricAttributes(queryCategories, headers),
+                RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME,
+                responseCountTotalStatus.getDisplayName()
+            )
+        );
     }
 }

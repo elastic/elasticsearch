@@ -2,4 +2,4 @@
 
 *Description*
 
-The minimum value of a numeric field.
+The minimum value of a field.

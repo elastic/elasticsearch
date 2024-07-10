@@ -50,6 +50,11 @@ public class EsqlCapabilities {
         AGG_TOP,
 
         /**
+         * Support for booleans in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_BOOLEAN_SUPPORT,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

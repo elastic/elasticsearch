@@ -109,7 +109,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return testcases;
     }
 
-    protected EsqlSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, String instructions, Mode mode) {
+    protected EsqlSpecTestCase(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
         this.fileName = fileName;
         this.groupName = groupName;
         this.testName = testName;

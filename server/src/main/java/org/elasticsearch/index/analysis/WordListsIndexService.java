@@ -11,16 +11,24 @@ package org.elasticsearch.index.analysis;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -29,6 +37,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -130,12 +140,18 @@ public class WordListsIndexService {
 
     public void getWordListValue(String index, String wordListName, ActionListener<String> listener) {
         final String wordListId = generateWordListId(index, wordListName);
-        client.prepareSearch(WORD_LISTS_ALIAS_NAME)
+        SearchRequestBuilder searchRequestBuilder = client.prepareSearch(WORD_LISTS_ALIAS_NAME)
             .setQuery(QueryBuilders.termQuery(WORD_LIST_ID_FIELD, wordListId))
             .setSize(1)
             .setPreference(Preference.LOCAL.type())
-            .setTrackTotalHits(true)
-            .execute(new DelegatingActionListener<>(listener) {
+            .setTrackTotalHits(true);
+
+        executeAsyncWithOrigin(
+            client,
+            WORD_LISTS_ORIGIN,
+            TransportSearchAction.TYPE,
+            searchRequestBuilder.request(),
+            new DelegatingActionListener<>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     final long wordListCount = searchResponse.getHits().getTotalHits().value;
@@ -159,6 +175,37 @@ public class WordListsIndexService {
                     super.onFailure(e);
                 }
             });
+
+
+//        client.prepareSearch(WORD_LISTS_ALIAS_NAME)
+//            .setQuery(QueryBuilders.termQuery(WORD_LIST_ID_FIELD, wordListId))
+//            .setSize(1)
+//            .setPreference(Preference.LOCAL.type())
+//            .setTrackTotalHits(true)
+//            .execute(new DelegatingActionListener<>(listener) {
+//                @Override
+//                public void onResponse(SearchResponse searchResponse) {
+//                    final long wordListCount = searchResponse.getHits().getTotalHits().value;
+//                    if (wordListCount > 1) {
+//                        listener.onFailure(new IllegalStateException(wordListCount + " word lists have ID [" + wordListId + "]"));
+//                    } else if (wordListCount == 1) {
+//                        listener.onResponse((String) searchResponse.getHits().getHits()[0].getSourceAsMap().get(WORD_LIST_VALUE_FIELD));
+//                    } else {
+//                        listener.onResponse(null);
+//                    }
+//                }
+//
+//                @Override
+//                public void onFailure(Exception e) {
+//                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+//                    if (cause instanceof IndexNotFoundException) {
+//                        delegate.onResponse(null);
+//                        return;
+//                    }
+//
+//                    super.onFailure(e);
+//                }
+//            });
     }
 
     public void putWordList(String index, String wordListName, String wordListValue, ActionListener<PutWordListResult> listener) {
@@ -166,13 +213,27 @@ public class WordListsIndexService {
             WriteRequest.RefreshPolicy.IMMEDIATE
         );
 
-        client.index(indexRequest, listener.delegateFailure((l, indexResponse) -> {
-            PutWordListResult result = indexResponse.status() == RestStatus.CREATED
-                ? PutWordListResult.CREATED
-                : PutWordListResult.UPDATED;
+        executeAsyncWithOrigin(
+            client,
+            WORD_LISTS_ORIGIN,
+            TransportIndexAction.TYPE,
+            indexRequest,
+            listener.delegateFailure((l, indexResponse) -> {
+                PutWordListResult result = indexResponse.status() == RestStatus.CREATED
+                    ? PutWordListResult.CREATED
+                    : PutWordListResult.UPDATED;
 
-            l.onResponse(result);
-        }));
+                l.onResponse(result);
+            })
+        );
+
+//        client.index(indexRequest, listener.delegateFailure((l, indexResponse) -> {
+//            PutWordListResult result = indexResponse.status() == RestStatus.CREATED
+//                ? PutWordListResult.CREATED
+//                : PutWordListResult.UPDATED;
+//
+//            l.onResponse(result);
+//        }));
     }
 
     private static String generateWordListId(String index, String wordListName) {
@@ -195,5 +256,30 @@ public class WordListsIndexService {
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to build word list index request", e);
         }
+    }
+
+    // Copied from ClientHelper to avoid more refactoring for the moment. This class and all other customized filters should probably move
+    // to the core plugin though.
+    private static <Request, Response> void executeAsyncWithOrigin(
+        ThreadContext threadContext,
+        String origin,
+        Request request,
+        ActionListener<Response> listener,
+        BiConsumer<Request, ActionListener<Response>> consumer
+    ) {
+        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+        try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {
+            consumer.accept(request, new ContextPreservingActionListener<>(supplier, listener));
+        }
+    }
+
+    private static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
+        Client client,
+        String origin,
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), origin, request, listener, (r, l) -> client.execute(action, r, l));
     }
 }

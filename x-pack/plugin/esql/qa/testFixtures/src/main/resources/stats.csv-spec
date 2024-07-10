@@ -1858,16 +1858,3 @@ w_avg:double
 null
 ;
 
-docsStatsMultiple
-// tag::mv-group[]
-FROM airports
-| STATS min_scalerank=MIN(scalerank) BY type
-| SORT min_scalerank ASC
-// end::mv-group[]
-;
-
-// tag::mv-group-result[]
-min_scalerank:integer | type:keyword
-                    3 | 
-// end::mv-group-result[]
-;

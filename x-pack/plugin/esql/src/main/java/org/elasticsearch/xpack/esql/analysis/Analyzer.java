@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
-import org.elasticsearch.xpack.esql.core.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -1088,7 +1088,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
             // Now that we have resolved those, we need to re-resolve the aggregates.
-            if (plan instanceof EsqlAggregate agg && agg.expressionsResolved() == false) {
+            if (plan instanceof EsqlAggregate agg) {
+                // If the union-types resolution occurred in a child of the aggregate, we need to check the groupings
+                plan = agg.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
+
+                // Aggregates where the grouping key comes from a union-type field need to be resolved against the grouping key
                 Map<Attribute, Expression> resolved = new HashMap<>();
                 for (Expression e : agg.groupings()) {
                     Attribute attr = Expressions.attribute(e);
@@ -1096,7 +1100,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolved.put(attr, e);
                     }
                 }
-                plan = agg.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolved));
+                plan = plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolved));
             }
 
             // Otherwise drop the converted attributes after the alias function, as they are only needed for this function, and
@@ -1222,9 +1226,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
         }
 
-        private static Attribute checkUnresolved(FieldAttribute fa) {
-            var field = fa.field();
-            if (field instanceof InvalidMappedField imf) {
+        static Attribute checkUnresolved(FieldAttribute fa) {
+            if (fa.field() instanceof InvalidMappedField imf) {
                 String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
                 return new UnresolvedAttribute(fa.source(), fa.name(), fa.qualifier(), fa.id(), unresolvedMessage, null);
             }

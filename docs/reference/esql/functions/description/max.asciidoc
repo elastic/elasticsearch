@@ -2,4 +2,4 @@
 
 *Description*
 
-The maximum value of a numeric field.
+The maximum value of a field.

@@ -318,22 +318,19 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     private void cleanDatabases() {
-        long expiredDatabases = state.getDatabases()
+        List<Map.Entry<String, Metadata>> expiredDatabases = state.getDatabases()
             .entrySet()
             .stream()
             .filter(e -> e.getValue().isValid(clusterService.state().metadata().settings()) == false)
-            .peek(e -> {
-                String name = e.getKey();
-                Metadata meta = e.getValue();
-                deleteOldChunks(name, meta.lastChunk() + 1);
-                state = state.put(
-                    name,
-                    new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1)
-                );
-                updateTaskState();
-            })
-            .count();
-        stats = stats.expiredDatabases((int) expiredDatabases);
+            .toList();
+        expiredDatabases.forEach(e -> {
+            String name = e.getKey();
+            Metadata meta = e.getValue();
+            deleteOldChunks(name, meta.lastChunk() + 1);
+            state = state.put(name, new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1));
+            updateTaskState();
+        });
+        stats = stats.expiredDatabases(expiredDatabases.size());
     }
 
     @Override

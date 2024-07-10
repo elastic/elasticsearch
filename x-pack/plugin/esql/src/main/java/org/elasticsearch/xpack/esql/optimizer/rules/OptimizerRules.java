@@ -7,18 +7,14 @@
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -31,43 +27,6 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 
 public final class OptimizerRules {
-
-    public static class FoldNull extends OptimizerExpressionRule<Expression> {
-
-        public FoldNull() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        public Expression rule(Expression e) {
-            Expression result = tryReplaceIsNullIsNotNull(e);
-            if (result != e) {
-                return result;
-            } else if (e instanceof In in) {
-                if (Expressions.isNull(in.value())) {
-                    return Literal.of(in, null);
-                }
-            } else if (e instanceof Alias == false
-                && e.nullable() == Nullability.TRUE
-                && Expressions.anyMatch(e.children(), Expressions::isNull)) {
-                    return Literal.of(e, null);
-                }
-            return e;
-        }
-
-        protected Expression tryReplaceIsNullIsNotNull(Expression e) {
-            if (e instanceof IsNotNull isnn) {
-                if (isnn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.TRUE, DataType.BOOLEAN);
-                }
-            } else if (e instanceof IsNull isn) {
-                if (isn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.FALSE, DataType.BOOLEAN);
-                }
-            }
-            return e;
-        }
-    }
 
     // a IS NULL AND a IS NOT NULL -> FALSE
     // a IS NULL AND a > 10 -> a IS NULL and FALSE

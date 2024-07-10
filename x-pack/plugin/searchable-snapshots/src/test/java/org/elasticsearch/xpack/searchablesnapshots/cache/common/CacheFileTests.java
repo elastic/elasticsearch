@@ -393,15 +393,7 @@ public class CacheFileTests extends ESTestCase {
         }
     }
 
-    private static void assumeLinux64bitsOrWindows() {
-        assumeTrue(
-            "This test uses native methods implemented only for Windows & Linux 64bits",
-            Constants.WINDOWS || Constants.LINUX && Constants.JRE_IS_64BIT
-        );
-    }
-
     public void testCacheFileCreatedAsSparseFile() throws Exception {
-        assumeLinux64bitsOrWindows();
         final long fourKb = 4096L;
         final long oneMb = 1 << 20;
 

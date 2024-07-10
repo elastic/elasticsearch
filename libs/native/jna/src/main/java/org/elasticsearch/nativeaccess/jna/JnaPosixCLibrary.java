@@ -10,8 +10,10 @@ package org.elasticsearch.nativeaccess.jna;
 
 import com.sun.jna.FunctionMapper;
 import com.sun.jna.Library;
+import com.sun.jna.Memory;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
+import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
@@ -53,61 +55,58 @@ class JnaPosixCLibrary implements PosixCLibrary {
         }
     }
 
-    public static final class JnaStat64 extends Structure implements Structure.ByReference, Stat64 {
-        public byte[] _ignore1;
-        public NativeLong st_size = new NativeLong(0);
-        public byte[] _ignore2;
-        public NativeLong st_blocks = new NativeLong(0);
-        public byte[] _ignore3;
+    public static final class JnaStat64 implements Stat64 {
+        final Memory memory;
+        private final int stSizeOffset;
+        private final int stBlocksOffset;
 
         JnaStat64(int sizeof, int stSizeOffset, int stBlocksOffset) {
-            this._ignore1 = new byte[stSizeOffset];
-            this._ignore2 = new byte[stBlocksOffset - stSizeOffset - 8];
-            this._ignore3 = new byte[sizeof - stBlocksOffset - 8];
+            this.memory = new Memory(sizeof);
+            this.stSizeOffset = stSizeOffset;
+            this.stBlocksOffset = stBlocksOffset;
         }
 
         @Override
         public long st_size() {
-            return st_size.longValue();
+            return memory.getLong(stSizeOffset);
         }
 
         @Override
         public long st_blocks() {
-            return st_blocks.longValue();
+            return memory.getLong(stBlocksOffset);
         }
     }
 
-    public static class JnaFStore extends Structure implements Structure.ByReference, FStore {
+    public static class JnaFStore implements FStore {
+        final Memory memory;
 
-        public int fst_flags = 0;
-        public int fst_posmode = 0;
-        public NativeLong fst_offset = new NativeLong(0);
-        public NativeLong fst_length = new NativeLong(0);
-        public NativeLong fst_bytesalloc = new NativeLong(0);
+        JnaFStore() {
+            this.memory = new Memory(32);
+        }
 
         @Override
         public void set_flags(int flags) {
-            this.fst_flags = flags;
+            memory.setInt(0, flags);
         }
 
         @Override
         public void set_posmode(int posmode) {
-            this.fst_posmode = posmode;
+            memory.setInt(4, posmode);
         }
 
         @Override
         public void set_offset(long offset) {
-            fst_offset.setValue(offset);
+            memory.setLong(8, offset);
         }
 
         @Override
         public void set_length(long length) {
-            fst_length.setValue(length);
+            memory.setLong(16, length);
         }
 
         @Override
         public long bytesalloc() {
-            return fst_bytesalloc.longValue();
+            return memory.getLong(24);
         }
     }
 
@@ -120,7 +119,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
 
         int mlockall(int flags);
 
-        int fcntl(int fd, int cmd, JnaFStore fst);
+        int fcntl(int fd, int cmd, Pointer fst);
 
         int ftruncate(int fd, NativeLong length);
 
@@ -132,7 +131,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
     }
 
     private interface FStat64Function extends Library {
-        int fstat64(int fd, JnaStat64 stat);
+        int fstat64(int fd, Pointer stat);
     }
 
     private final NativeFunctions functions;
@@ -197,7 +196,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
     public int fcntl(int fd, int cmd, FStore fst) {
         assert fst instanceof JnaFStore;
         var jnaFst = (JnaFStore) fst;
-        return functions.fcntl(fd, cmd, jnaFst);
+        return functions.fcntl(fd, cmd, jnaFst.memory);
     }
 
     @Override
@@ -219,7 +218,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
     public int fstat64(int fd, Stat64 stats) {
         assert stats instanceof JnaStat64;
         var jnaStats = (JnaStat64) stats;
-        return fstat64.fstat64(fd, jnaStats);
+        return fstat64.fstat64(fd, jnaStats.memory);
     }
 
     @Override

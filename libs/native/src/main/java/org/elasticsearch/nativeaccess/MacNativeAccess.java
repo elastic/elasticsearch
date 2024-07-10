@@ -19,7 +19,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.OptionalLong;
 
 class MacNativeAccess extends PosixNativeAccess {
 
@@ -73,12 +72,6 @@ class MacNativeAccess extends PosixNativeAccess {
             return false;
         }
         return true;
-    }
-
-    @Override
-    public OptionalLong allocatedSizeInBytes(Path path) {
-        // nothing like xstat for macos?
-        return OptionalLong.empty();
     }
 
     /**

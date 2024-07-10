@@ -40,7 +40,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
-import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.OLD_MODEL_ID_FIELD;
 
 public class CohereRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
     public static final String NAME = "cohere_rerank_service_settings";
@@ -58,7 +57,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -66,12 +65,6 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
             CohereService.NAME,
             context
         );
-
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        if (context == ConfigurationParseContext.REQUEST && oldModelId != null) {
-            logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
-        }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

@@ -71,8 +71,7 @@ public final class MlAutoscalingResourceTracker {
         }
     }
 
-    private MlAutoscalingResourceTracker() {
-    }
+    private MlAutoscalingResourceTracker() {}
 
     public static void getMlAutoscalingStats(
         ClusterState clusterState,
@@ -94,7 +93,7 @@ public final class MlAutoscalingResourceTracker {
             : 0L;
         int processorsAvailableFirstNode = (firstMlNode != null)
             ? MlProcessors.get(clusterState.nodes().get(firstMlNode), clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE))
-            .roundUp()
+                .roundUp()
             : 0;
 
         MlDummyAutoscalingEntity mlDummyAutoscalingEntity = new MlDummyAutoscalingEntity(
@@ -341,13 +340,13 @@ public final class MlAutoscalingResourceTracker {
             && modelMemoryBytesSum <= perNodeMemoryInBytes * (numberMlNodes - 1)
             && minNodes < numberMlNodes
             && (perNodeModelMemoryInBytes.size() < numberMlNodes // a node has no assigned jobs
-            || checkIfOneNodeCouldBeRemoved(
-            perNodeModelMemoryInBytes,
-            perNodeAvailableModelMemoryInBytes,
-            perNodeAvailableProcessors,
-            maxOpenJobsPerNode,
-            dummyAutoscalingEntity
-        ))) {
+                || checkIfOneNodeCouldBeRemoved(
+                    perNodeModelMemoryInBytes,
+                    perNodeAvailableModelMemoryInBytes,
+                    perNodeAvailableProcessors,
+                    maxOpenJobsPerNode,
+                    dummyAutoscalingEntity
+                ))) {
             removeNodeMemoryInBytes = perNodeMemoryInBytes;
         }
 

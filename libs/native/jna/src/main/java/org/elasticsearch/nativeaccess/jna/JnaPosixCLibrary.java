@@ -8,7 +8,6 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
-import com.sun.jna.FunctionMapper;
 import com.sun.jna.Library;
 import com.sun.jna.Memory;
 import com.sun.jna.Native;
@@ -20,7 +19,6 @@ import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 class JnaPosixCLibrary implements PosixCLibrary {
 
@@ -133,6 +131,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
     private interface FStat64Function extends Library {
         int fstat64(int fd, Pointer stat);
     }
+
     private interface FXStatFunction extends Library {
         int __fxstat(int version, int fd, Pointer stat);
     }

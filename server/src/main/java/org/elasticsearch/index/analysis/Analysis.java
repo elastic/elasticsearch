@@ -331,7 +331,9 @@ public class Analysis {
             final String fakeIndexName = "hard-coded-index";
             PlainActionFuture<String> wordListLoadingFuture = new PlainActionFuture<>();
             wordListIndexService.getWordListValue(fakeIndexName, wordListPath, wordListLoadingFuture);
+
             stringValue = wordListLoadingFuture.actionGet();
+            boolean writeStringValue = false;
             if (stringValue == null) {
                 try {
                     stringValue = readFile(pathAsUrl);
@@ -339,23 +341,27 @@ public class Analysis {
                     String message = Strings.format("IOException while reading file at %s", settingPath);
                     throw new IllegalArgumentException(message, e);
                 }
+
+                writeStringValue = true;
             }
 
-            wordListIndexService.putWordList(fakeIndexName, wordListPath, stringValue, new ActionListener<>() {
-                @Override
-                public void onResponse(WordListsIndexService.PutWordListResult putWordListResult) {
-                    // TODO: Log result
-                }
+            if (writeStringValue) {
+                wordListIndexService.putWordList(fakeIndexName, wordListPath, stringValue, new ActionListener<>() {
+                    @Override
+                    public void onResponse(WordListsIndexService.PutWordListResult putWordListResult) {
+                        // TODO: Log result
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    throw new ElasticsearchStatusException(
-                        "Unable to index word list [" + wordListPath + "] for index [" + fakeIndexName + "]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        e
-                    );
-                }
-            });
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new ElasticsearchStatusException(
+                            "Unable to index word list [" + wordListPath + "] for index [" + fakeIndexName + "]",
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            e
+                        );
+                    }
+                });
+            }
         } else {
             pathValue = env.configFile().resolve(wordListPath);
         }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
@@ -20,6 +21,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
@@ -140,10 +142,21 @@ public class WordListsIndexService {
                     if (wordListCount > 1) {
                         listener.onFailure(new IllegalStateException(wordListCount + " word lists have ID [" + wordListId + "]"));
                     } else if (wordListCount == 1) {
-                        listener.onResponse(searchResponse.getHits().getHits()[0].field(WORD_LIST_VALUE_FIELD).getValue());
+                        listener.onResponse((String) searchResponse.getHits().getHits()[0].getSourceAsMap().get(WORD_LIST_VALUE_FIELD));
                     } else {
                         listener.onResponse(null);
                     }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof IndexNotFoundException) {
+                        delegate.onResponse(null);
+                        return;
+                    }
+
+                    super.onFailure(e);
                 }
             });
     }

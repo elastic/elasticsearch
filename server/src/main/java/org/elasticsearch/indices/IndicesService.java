@@ -1859,7 +1859,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * @return CachedTimestampFieldInfo holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the index.
+     * @return DateFieldRangeInfo holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the index.
      * or {@code null} if:
      * - the index is not found,
      * - the field is not found, or
@@ -1867,7 +1867,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * - the index does not have a useful timestamp field.
      */
     @Nullable
-    public CachedTimestampFieldInfo getTimestampFieldTypeInfo(Index index) {
+    public DateFieldRangeInfo getTimestampFieldTypeInfo(Index index) {
         return timestampFieldMapperService.getTimestampFieldTypeMap(index);
     }
 

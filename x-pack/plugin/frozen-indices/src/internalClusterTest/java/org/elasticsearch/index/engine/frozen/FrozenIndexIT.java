@@ -30,7 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
-import org.elasticsearch.indices.CachedTimestampFieldInfo;
+import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
@@ -214,7 +214,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             final PlainActionFuture<Map<String, DateFieldMapper.DateFieldType>> future = new PlainActionFuture<>();
             assertBusy(() -> {
-                CachedTimestampFieldInfo timestampsFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(index);
+                DateFieldRangeInfo timestampsFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(index);
                 DateFieldMapper.DateFieldType timestampFieldType = timestampsFieldTypeInfo.getTimestampFieldType();
                 DateFieldMapper.DateFieldType eventIngestedFieldType = timestampsFieldTypeInfo.getEventIngestedFieldType();
                 assertNotNull(eventIngestedFieldType);
@@ -319,7 +319,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             // final PlainActionFuture<DateFieldMapper.DateFieldType> timestampFieldTypeFuture = new PlainActionFuture<>();
             final PlainActionFuture<Map<String, DateFieldMapper.DateFieldType>> future = new PlainActionFuture<>();
             assertBusy(() -> {
-                CachedTimestampFieldInfo timestampsFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(index);
+                DateFieldRangeInfo timestampsFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(index);
                 DateFieldMapper.DateFieldType timestampFieldType = timestampsFieldTypeInfo.getTimestampFieldType();
                 DateFieldMapper.DateFieldType eventIngestedFieldType = timestampsFieldTypeInfo.getEventIngestedFieldType();
                 if (timeField == DataStream.TIMESTAMP_FIELD_NAME) {

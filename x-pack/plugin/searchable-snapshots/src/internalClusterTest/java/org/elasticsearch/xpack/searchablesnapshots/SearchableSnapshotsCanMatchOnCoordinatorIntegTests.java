@@ -29,7 +29,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
-import org.elasticsearch.indices.CachedTimestampFieldInfo;
+import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
@@ -168,7 +168,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
-        CachedTimestampFieldInfo timestampFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(indexMetadata.getIndex());
+        DateFieldRangeInfo timestampFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(indexMetadata.getIndex());
         assertThat(timestampFieldTypeInfo, nullValue());
 
         final boolean includeIndexCoveringSearchRangeInSearchRequest = randomBoolean();
@@ -507,7 +507,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         assertThat(updatedTimestampMillisRange, equalTo(IndexLongFieldRange.UNKNOWN));
         assertThat(updatedEventIngestedMillisRange, not(equalTo(IndexLongFieldRange.UNKNOWN)));
 
-        CachedTimestampFieldInfo timestampFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(updatedIndexMetadata.getIndex());
+        DateFieldRangeInfo timestampFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(updatedIndexMetadata.getIndex());
 
         DateFieldMapper.DateFieldType timestampDataFieldType = timestampFieldTypeInfo.getTimestampFieldType();
         assertThat(timestampDataFieldType, nullValue());
@@ -632,7 +632,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
-        CachedTimestampFieldInfo timestampFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(indexMetadata.getIndex());
+        DateFieldRangeInfo timestampFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(indexMetadata.getIndex());
         assertThat(timestampFieldTypeInfo, nullValue());
 
         final String timestampField = randomFrom(DataStream.TIMESTAMP_FIELD_NAME, IndexMetadata.EVENT_INGESTED_FIELD_NAME);
@@ -833,7 +833,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
-        CachedTimestampFieldInfo timestampFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(indexMetadata.getIndex());
+        DateFieldRangeInfo timestampFieldTypeInfo = indicesService.getTimestampFieldTypeInfo(indexMetadata.getIndex());
         assertThat(timestampFieldTypeInfo, nullValue());
 
         String timeField = randomFrom(IndexMetadata.EVENT_INGESTED_FIELD_NAME, DataStream.TIMESTAMP_FIELD_NAME);

@@ -12,7 +12,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.CachedTimestampFieldInfo;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.function.Function;
@@ -24,14 +26,14 @@ public class CoordinatorRewriteContextProvider {
     private final Client client;
     private final LongSupplier nowInMillis;
     private final Supplier<ClusterState> clusterStateSupplier;
-    private final Function<Index, CachedTimestampFieldInfo> mappingSupplier;
+    private final Function<Index, DateFieldRangeInfo> mappingSupplier;
 
     public CoordinatorRewriteContextProvider(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
         Supplier<ClusterState> clusterStateSupplier,
-        Function<Index, CachedTimestampFieldInfo> mappingSupplier
+        Function<Index, DateFieldRangeInfo> mappingSupplier
     ) {
         this.parserConfig = parserConfig;
         this.client = client;
@@ -48,25 +50,33 @@ public class CoordinatorRewriteContextProvider {
         if (indexMetadata == null) {
             return null;
         }
-        CachedTimestampFieldInfo timestampsFieldInfo = mappingSupplier.apply(index);
-        if (timestampsFieldInfo == null) {
+
+        DateFieldRangeInfo dateFieldRangeInfo = mappingSupplier.apply(index);
+        if (dateFieldRangeInfo == null) {
             return null;
         }
 
-        // ensure the cached info has the latest ranges from cluster state
-        timestampsFieldInfo.setTimestampRange(indexMetadata.getTimestampRange());
-        timestampsFieldInfo.setEventIngestedRange(indexMetadata.getEventIngestedRange());
+        DateFieldMapper.DateFieldType timestampFieldType = dateFieldRangeInfo.getTimestampFieldType();
+        DateFieldMapper.DateFieldType eventIngestedFieldType = dateFieldRangeInfo.getEventIngestedFieldType();
+        IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
+        IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
 
-        if (timestampsFieldInfo.getTimestampRange().containsAllShardRanges() == false) {
+        if (timestampRange.containsAllShardRanges() == false) {
             // if @timestamp range is not present or not ready in cluster state, fallback to using time series range (if present)
-            timestampsFieldInfo.setTimestampRange(indexMetadata.getTimeSeriesTimestampRange(timestampsFieldInfo.getTimestampFieldType()));
+            timestampRange = indexMetadata.getTimeSeriesTimestampRange(timestampFieldType);
             // if timestampRange in the time series is null AND the eventIngestedRange is not ready for use, return null (no coord rewrite)
-            if (timestampsFieldInfo.getTimestampRange() == null
-                && timestampsFieldInfo.getEventIngestedRange().containsAllShardRanges() == false) {
+            if (timestampRange == null && eventIngestedRange.containsAllShardRanges() == false) {
                 return null;
             }
         }
 
-        return new CoordinatorRewriteContext(parserConfig, client, nowInMillis, timestampsFieldInfo);
+        // the DateFieldRangeInfo from the mappingSupplier only has field types, but not ranges
+        // so create a new object with ranges pulled from cluster state
+        return new CoordinatorRewriteContext(
+            parserConfig,
+            client,
+            nowInMillis,
+            new DateFieldRangeInfo(timestampFieldType, timestampRange, eventIngestedFieldType, eventIngestedRange)
+        );
     }
 }

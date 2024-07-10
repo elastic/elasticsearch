@@ -16,7 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
-import org.elasticsearch.indices.CachedTimestampFieldInfo;
+import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.Collections;
@@ -30,20 +30,20 @@ import java.util.function.LongSupplier;
  * and skip the shards that don't hold queried data. See IndexMetadata for more details.
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
-    private final CachedTimestampFieldInfo timestampFieldInfo;
+    private final DateFieldRangeInfo dateFieldRangeInfo;
 
     /**
      * Context for coordinator search rewrites based on time ranges for the @timestamp field and/or 'event.ingested' field
      * @param parserConfig
      * @param client
      * @param nowInMillis
-     * @param timestampFieldInfo range and field type info for @timestamp and 'event.ingested'
+     * @param dateFieldRangeInfo range and field type info for @timestamp and 'event.ingested'
      */
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
-        CachedTimestampFieldInfo timestampFieldInfo
+        DateFieldRangeInfo dateFieldRangeInfo
     ) {
         super(
             parserConfig,
@@ -61,7 +61,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null,
             null
         );
-        this.timestampFieldInfo = timestampFieldInfo;
+        this.dateFieldRangeInfo = dateFieldRangeInfo;
     }
 
     /**
@@ -73,9 +73,9 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
      */
     long getMinTimestamp(String fieldName) {
         if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
-            return timestampFieldInfo.getTimestampRange().getMin();
+            return dateFieldRangeInfo.getTimestampRange().getMin();
         } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
-            return timestampFieldInfo.getEventIngestedRange().getMin();
+            return dateFieldRangeInfo.getEventIngestedRange().getMin();
         } else {
             throw new IllegalArgumentException(
                 Strings.format(
@@ -97,9 +97,9 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
      */
     long getMaxTimestamp(String fieldName) {
         if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
-            return timestampFieldInfo.getTimestampRange().getMax();
+            return dateFieldRangeInfo.getTimestampRange().getMax();
         } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
-            return timestampFieldInfo.getEventIngestedRange().getMax();
+            return dateFieldRangeInfo.getEventIngestedRange().getMax();
         } else {
             throw new IllegalArgumentException(
                 Strings.format(
@@ -122,11 +122,11 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
      */
     boolean hasTimestampData(String fieldName) {
         if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
-            return timestampFieldInfo.getTimestampRange().isComplete()
-                && timestampFieldInfo.getTimestampRange() != IndexLongFieldRange.EMPTY;
+            return dateFieldRangeInfo.getTimestampRange().isComplete()
+                && dateFieldRangeInfo.getTimestampRange() != IndexLongFieldRange.EMPTY;
         } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
-            return timestampFieldInfo.getEventIngestedRange().isComplete()
-                && timestampFieldInfo.getEventIngestedRange() != IndexLongFieldRange.EMPTY;
+            return dateFieldRangeInfo.getEventIngestedRange().isComplete()
+                && dateFieldRangeInfo.getEventIngestedRange() != IndexLongFieldRange.EMPTY;
         } else {
             throw new IllegalArgumentException(
                 Strings.format(
@@ -141,15 +141,15 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
     /**
      * @param fieldName Get MappedFieldType for either '@timestamp' or 'event.ingested' fields.
-     * @return min timestamp for the field from IndexMetadata in cluster state or null if fieldName was not DataStream.TIMESTAMP_FIELD_NAME
-     *         or IndexMetadata.EVENT_INGESTED_FIELD_NAME.
+     * @return min timestamp for the field from IndexMetadata in cluster state or null if fieldName was not
+     *         DataStream.TIMESTAMP_FIELD_NAME or IndexMetadata.EVENT_INGESTED_FIELD_NAME.
      */
     @Nullable
     public MappedFieldType getFieldType(String fieldName) {
         if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
-            return timestampFieldInfo.getTimestampFieldType();
+            return dateFieldRangeInfo.getTimestampFieldType();
         } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
-            return timestampFieldInfo.getEventIngestedFieldType();
+            return dateFieldRangeInfo.getEventIngestedFieldType();
         } else {
             return null;
         }

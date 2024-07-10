@@ -14,14 +14,14 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 /**
  * Data holder of timestamp fields held in cluster state IndexMetadata.
  */
-public class CachedTimestampFieldInfo {
+public final class DateFieldRangeInfo {
 
-    private DateFieldMapper.DateFieldType timestampFieldType;
-    private IndexLongFieldRange timestampRange;
-    private DateFieldMapper.DateFieldType eventIngestedFieldType;
-    private IndexLongFieldRange eventIngestedRange;
+    private final DateFieldMapper.DateFieldType timestampFieldType;
+    private final IndexLongFieldRange timestampRange;
+    private final DateFieldMapper.DateFieldType eventIngestedFieldType;
+    private final IndexLongFieldRange eventIngestedRange;
 
-    public CachedTimestampFieldInfo(
+    public DateFieldRangeInfo(
         DateFieldMapper.DateFieldType timestampFieldType,
         IndexLongFieldRange timestampRange,
         DateFieldMapper.DateFieldType eventIngestedFieldType,
@@ -47,21 +47,5 @@ public class CachedTimestampFieldInfo {
 
     public IndexLongFieldRange getEventIngestedRange() {
         return eventIngestedRange;
-    }
-
-    public void setTimestampFieldType(DateFieldMapper.DateFieldType timestampFieldType) {
-        this.timestampFieldType = timestampFieldType;
-    }
-
-    public void setTimestampRange(IndexLongFieldRange timestampRange) {
-        this.timestampRange = timestampRange;
-    }
-
-    public void setEventIngestedFieldType(DateFieldMapper.DateFieldType eventIngestedFieldType) {
-        this.eventIngestedFieldType = eventIngestedFieldType;
-    }
-
-    public void setEventIngestedRange(IndexLongFieldRange eventIngestedRange) {
-        this.eventIngestedRange = eventIngestedRange;
     }
 }

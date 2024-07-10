@@ -10,7 +10,6 @@ package org.elasticsearch.datastreams.logsdb.qa;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
@@ -65,17 +64,6 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    protected static void waitForLogs(RestClient client) throws Exception {
-        assertBusy(() -> {
-            try {
-                final Request request = new Request("GET", "_index_template/logs");
-                assertOK(client.performRequest(request));
-            } catch (ResponseException e) {
-                fail(e.getMessage());
-            }
-        });
-    }
-
     public AbstractChallengeRestTest(
         final String oracleDataStreamName,
         final String challengeDataStreamName,
@@ -93,21 +81,38 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     }
 
     @Before
-    public void setup() throws Exception {
+    public void beforeTest() throws Exception {
+        beforeStart();
         client = client();
-        waitForLogs(client);
         this.oracleMappings = createOracleMappings();
         this.challengeMappings = createChallengeMappings();
         this.oracleSettings = createOracleSettings();
         this.challengeSettings = createChallengeSettings();
         createTemplates();
         createDataStreams();
+        beforeEnd();
     }
 
     @After
-    public void tearDOwn() throws Exception {
+    public void afterTest() throws Exception {
+        afterStart();
         deleteTemplates();
         deleteDataStreams();
+        afterEnd();
+    }
+
+    public void beforeStart() throws Exception {}
+
+    public void beforeEnd() throws Exception {
+
+    };
+
+    public void afterStart() throws Exception {
+
+    }
+
+    public void afterEnd() throws Exception {
+
     }
 
     private void createTemplates() throws IOException {

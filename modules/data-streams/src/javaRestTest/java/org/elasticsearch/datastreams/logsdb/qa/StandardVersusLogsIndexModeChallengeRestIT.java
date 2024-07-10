@@ -8,7 +8,10 @@
 
 package org.elasticsearch.datastreams.logsdb.qa;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
@@ -107,6 +110,22 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     @Override
     public void challengeSettings(Settings.Builder builder) {
         builder.put("index.mode", "logs");
+    }
+
+    @Override
+    public void beforeStart() throws Exception {
+        waitForLogs(client());
+    }
+
+    protected static void waitForLogs(RestClient client) throws Exception {
+        assertBusy(() -> {
+            try {
+                final Request request = new Request("GET", "_index_template/logs");
+                assertOK(client.performRequest(request));
+            } catch (ResponseException e) {
+                fail(e.getMessage());
+            }
+        });
     }
 
     @SuppressWarnings("unchecked")

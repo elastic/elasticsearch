@@ -211,6 +211,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AMAZON_BEDROCK_ADDED = def(8_702_00_0);
     public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_703_00_0);
     public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_704_00_0);
+    public static final TransportVersion NODE_FEATURES_QUERY_ACTION = def(8_705_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

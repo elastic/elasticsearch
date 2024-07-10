@@ -1,10 +1,10 @@
 // Floating point types-specific tests
 parseLargeMagnitudeValues
 required_capability: fix_parsing_large_negative_numbers
-row a = 92233720368547758090, b = -92233720368547758090;
+row a = 92233720368547758090, b = -9223372036854775809;
 
 a:double              | b:double
-9.223372036854776E+19 | -9.223372036854776E+19
+9.223372036854776E+19 | -9.223372036854776E+18
 ;
 
 inDouble

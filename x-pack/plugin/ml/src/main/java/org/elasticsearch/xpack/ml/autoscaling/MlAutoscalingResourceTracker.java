@@ -71,7 +71,8 @@ public final class MlAutoscalingResourceTracker {
         }
     }
 
-    private MlAutoscalingResourceTracker() {}
+    private MlAutoscalingResourceTracker() {
+    }
 
     public static void getMlAutoscalingStats(
         ClusterState clusterState,
@@ -93,7 +94,7 @@ public final class MlAutoscalingResourceTracker {
             : 0L;
         int processorsAvailableFirstNode = (firstMlNode != null)
             ? MlProcessors.get(clusterState.nodes().get(firstMlNode), clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE))
-                .roundUp()
+            .roundUp()
             : 0;
 
         MlDummyAutoscalingEntity mlDummyAutoscalingEntity = new MlDummyAutoscalingEntity(
@@ -230,17 +231,13 @@ public final class MlAutoscalingResourceTracker {
             final int numberOfAllocations = assignment.getTaskParams().getNumberOfAllocations();
             final int numberOfThreadsPerAllocation = assignment.getTaskParams().getThreadsPerAllocation();
             final long estimatedMemoryUsage = assignment.getTaskParams().estimateMemoryUsageBytes();
-            final int numTargetAllocations = assignment.getNodeRoutingTable()
-                .values()
-                .stream()
-                .mapToInt(RoutingInfo::getTargetAllocations)
-                .sum();
+            final int requiredAllocations = assignment.getTaskParams().getNumberOfAllocations();
             final int numCurrentAllocations = assignment.getNodeRoutingTable()
                 .values()
                 .stream()
                 .mapToInt(RoutingInfo::getCurrentAllocations)
                 .sum();
-            final int numMissingAllocations = numTargetAllocations - numCurrentAllocations;
+            final int numMissingAllocations = requiredAllocations - numCurrentAllocations;
             final int numProcessorsNeeded = numMissingAllocations * numberOfThreadsPerAllocation;
 
             if (AssignmentState.STARTING.equals(assignment.getAssignmentState()) && assignment.getNodeRoutingTable().isEmpty()) {
@@ -344,13 +341,13 @@ public final class MlAutoscalingResourceTracker {
             && modelMemoryBytesSum <= perNodeMemoryInBytes * (numberMlNodes - 1)
             && minNodes < numberMlNodes
             && (perNodeModelMemoryInBytes.size() < numberMlNodes // a node has no assigned jobs
-                || checkIfOneNodeCouldBeRemoved(
-                    perNodeModelMemoryInBytes,
-                    perNodeAvailableModelMemoryInBytes,
-                    perNodeAvailableProcessors,
-                    maxOpenJobsPerNode,
-                    dummyAutoscalingEntity
-                ))) {
+            || checkIfOneNodeCouldBeRemoved(
+            perNodeModelMemoryInBytes,
+            perNodeAvailableModelMemoryInBytes,
+            perNodeAvailableProcessors,
+            maxOpenJobsPerNode,
+            dummyAutoscalingEntity
+        ))) {
             removeNodeMemoryInBytes = perNodeMemoryInBytes;
         }
 
@@ -378,20 +375,20 @@ public final class MlAutoscalingResourceTracker {
     /**
      * Check if the dummy autoscaling entity task can be added by placing
      * the task on the least loaded node.
-     *
+     * <p>
      * If there exists a node that can accommodate the dummy entity then return true (nothing to do),
      * else return false and increment the memory and processor counts accordingly.
-     *
+     * <p>
      * We perform the calculation by identifying the least loaded node in terms of memory
      * and determining if the addition of the dummy entity's memory and processor requirements could
      * be accommodated on it.
-     *
+     * <p>
      * If the calculation returns false then treat the case as for a single trained model job
      * that is already assigned, i.e. increment modelMemoryBytesSum and processorsSum appropriately.
      *
      * @param perNodeJobRequirements per Node lists of requirements
-     * @param perNodeMemoryInBytes total model memory available on every node
-     * @param perNodeProcessors total processors on every node
+     * @param perNodeMemoryInBytes   total model memory available on every node
+     * @param perNodeProcessors      total processors on every node
      * @param dummyAutoscalingEntity "dummy" entity requirements used to potentially trigger a scaling event
      * @return true if the dummy entity can be accommodated, false if not
      */
@@ -470,8 +467,8 @@ public final class MlAutoscalingResourceTracker {
      * Check if one node can be removed by placing the jobs of the least loaded node to others.
      *
      * @param perNodeJobRequirements per Node lists of requirements
-     * @param perNodeMemoryInBytes total model memory available on every node
-     * @param maxOpenJobsPerNode the maximum number of jobs per node
+     * @param perNodeMemoryInBytes   total model memory available on every node
+     * @param maxOpenJobsPerNode     the maximum number of jobs per node
      * @return true if a node can be removed, false if not
      */
     static boolean checkIfOneNodeCouldBeRemoved(
@@ -539,9 +536,9 @@ public final class MlAutoscalingResourceTracker {
      * <p>Because the metric has no influence on how the jobs are placed in the end, it calculates the possibility of moving in the least
      * efficient way. That way we ensure that autoscaling is not looping between scaling down, up, down, up ... </p>
      *
-     * @param candidateJobRequirements list of job requirements given running on the candidate node
+     * @param candidateJobRequirements    list of job requirements given running on the candidate node
      * @param perNodeMlJobRequirementsSum other nodes requirements
-     * @param perNodeMemoryInBytes available memory per node
+     * @param perNodeMemoryInBytes        available memory per node
      * @return remaining memory, that could not be placed on other nodes, 0L if all jobs got placed
      */
     static long checkIfJobsCanBeMovedInLeastEfficientWay(

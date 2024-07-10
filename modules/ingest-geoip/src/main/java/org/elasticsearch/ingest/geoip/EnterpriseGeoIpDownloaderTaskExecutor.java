@@ -51,7 +51,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloader.class);
 
-    private static final String MAXMIND_SETTINGS_PREFIX = "ingest.geoip.downloader.maxmind.";
+    static final String MAXMIND_SETTINGS_PREFIX = "ingest.geoip.downloader.maxmind.";
 
     public static final Setting<String> MAXMIND_DEFAULT_ACCOUNT_ID_SETTING = Setting.simpleString(
         MAXMIND_SETTINGS_PREFIX + "default.account_id",

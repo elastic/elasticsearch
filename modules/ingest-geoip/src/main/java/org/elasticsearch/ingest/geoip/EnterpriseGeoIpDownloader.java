@@ -54,6 +54,8 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_SETTINGS_PREFIX;
+
 /**
  * Main component responsible for downloading new GeoIP databases.
  * New databases are downloaded in chunks and stored in .geoip_databases index
@@ -63,6 +65,30 @@ import java.util.stream.Collectors;
 public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloader.class);
+
+    // for overriding in tests
+    private static final String DEFAULT_MAXMIND_ENDPOINT = System.getProperty(
+        MAXMIND_SETTINGS_PREFIX + "endpoint.default",
+        "https://download.maxmind.com/geoip/databases"
+    );
+    // n.b. a future enhancement might be to allow for a MAXMIND_ENDPOINT_SETTING, but
+    // at the moment this is an unsupported system property for use in tests (only)
+
+    static String downloadUrl(final String name, final String suffix) {
+        String endpointPattern = DEFAULT_MAXMIND_ENDPOINT;
+        if (endpointPattern.contains("%")) {
+            throw new IllegalArgumentException("Invalid endpoint [" + endpointPattern + "]");
+        }
+        if (endpointPattern.endsWith("/") == false) {
+            endpointPattern += "/";
+        }
+        endpointPattern += "%s/download?suffix=%s";
+
+        // at this point the pattern looks like this (in the default case):
+        // https://download.maxmind.com/geoip/databases/%s/download?suffix=%s
+
+        return Strings.format(endpointPattern, name, suffix);
+    }
 
     static final String DATABASES_INDEX = ".geoip_databases";
     static final int MAX_CHUNK_SIZE = 1024 * 1024;
@@ -197,9 +223,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         final String name = database.name();
         logger.info("Lol, off we go, downloading {} / {}", id, name);
 
-        final String downloadUrl = Strings.format("https://download.maxmind.com/geoip/databases/%s/download", name);
-        final String sha256Url = downloadUrl + "?suffix=tar.gz.sha256";
-        final String tgzUrl = downloadUrl + "?suffix=tar.gz";
+        final String sha256Url = downloadUrl(name, "tar.gz.sha256");
+        final String tgzUrl = downloadUrl(name, "tar.gz");
 
         final Pattern checksumPattern = Pattern.compile("(\\w{64})\\s\\s(.*)");
         String result = new String(httpClient.getBytes(auth, sha256Url), StandardCharsets.UTF_8).trim(); // this throws if the auth is bad

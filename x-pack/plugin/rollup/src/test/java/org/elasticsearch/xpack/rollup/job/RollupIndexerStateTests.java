@@ -556,7 +556,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
                 // This may take more than one attempt due to a cleanup/transition phase
                 // that happens after state change to STARTED (`isJobFinishing`).
-                assertBusy(() -> indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+                assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
                 assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
                 assertFalse(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
                 assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
@@ -566,7 +566,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 assertThat(indexer.getStats().getNumPages(), equalTo((long) i + 1));
             }
             final CountDownLatch latch = indexer.newLatch();
-            assertBusy(() -> indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+            assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
             assertThat(indexer.stop(), equalTo(IndexerState.STOPPING));
             assertThat(indexer.getState(), Matchers.either(Matchers.is(IndexerState.STOPPING)).or(Matchers.is(IndexerState.STOPPED)));
             latch.countDown();

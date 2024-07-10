@@ -26,7 +26,6 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Optional;
-import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -103,7 +102,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         assertThat(indexingResult.numFailures, equalTo(rejectedRequests));
         assertThat(indexingResult.numSuccess, equalTo(0));
         final IllegalArgumentException deleteError = expectThrows(IllegalArgumentException.class, client().prepareDelete("test", "any-id"));
-        assertThat(deleteError.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
+        assertThat(deleteError.getMessage(), containsString("Number of documents in the shard cannot exceed [" + maxDocs.get() + "]"));
         indicesAdmin().prepareRefresh("test").get();
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(new MatchAllQueryBuilder()).setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0),
@@ -155,27 +154,18 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         final AtomicInteger completedRequests = new AtomicInteger();
         final AtomicInteger numSuccess = new AtomicInteger();
         final AtomicInteger numFailure = new AtomicInteger();
-        Thread[] indexers = new Thread[numThreads];
-        Phaser phaser = new Phaser(indexers.length);
-        for (int i = 0; i < indexers.length; i++) {
-            indexers[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                while (completedRequests.incrementAndGet() <= numRequests) {
-                    try {
-                        final DocWriteResponse resp = prepareIndex("test").setSource("{}", XContentType.JSON).get();
-                        numSuccess.incrementAndGet();
-                        assertThat(resp.status(), equalTo(RestStatus.CREATED));
-                    } catch (IllegalArgumentException e) {
-                        numFailure.incrementAndGet();
-                        assertThat(e.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
-                    }
+        startInParallel(numThreads, i -> {
+            while (completedRequests.incrementAndGet() <= numRequests) {
+                try {
+                    final DocWriteResponse resp = prepareIndex("test").setSource("{}", XContentType.JSON).get();
+                    numSuccess.incrementAndGet();
+                    assertThat(resp.status(), equalTo(RestStatus.CREATED));
+                } catch (IllegalArgumentException e) {
+                    numFailure.incrementAndGet();
+                    assertThat(e.getMessage(), containsString("Number of documents in the shard cannot exceed [" + maxDocs.get() + "]"));
                 }
-            });
-            indexers[i].start();
-        }
-        for (Thread indexer : indexers) {
-            indexer.join();
-        }
+            }
+        });
         internalCluster().assertNoInFlightDocsInEngine();
         return new IndexingResult(numSuccess.get(), numFailure.get());
     }

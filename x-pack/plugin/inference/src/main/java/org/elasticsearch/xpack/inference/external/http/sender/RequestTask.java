@@ -16,7 +16,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -27,8 +26,7 @@ class RequestTask implements RejectableTask {
 
     private final AtomicBoolean finished = new AtomicBoolean();
     private final RequestManager requestCreator;
-    private final String query;
-    private final List<String> input;
+    private final InferenceInputs inferenceInputs;
     private final ActionListener<InferenceServiceResults> listener;
 
     RequestTask(
@@ -40,16 +38,7 @@ class RequestTask implements RejectableTask {
     ) {
         this.requestCreator = Objects.requireNonNull(requestCreator);
         this.listener = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
-
-        if (inferenceInputs instanceof QueryAndDocsInputs) {
-            this.query = ((QueryAndDocsInputs) inferenceInputs).getQuery();
-            this.input = ((QueryAndDocsInputs) inferenceInputs).getChunks();
-        } else if (inferenceInputs instanceof DocumentsOnlyInput) {
-            this.query = null;
-            this.input = ((DocumentsOnlyInput) inferenceInputs).getInputs();
-        } else {
-            throw new IllegalArgumentException("Unsupported inference inputs type: " + inferenceInputs.getClass());
-        }
+        this.inferenceInputs = Objects.requireNonNull(inferenceInputs);
     }
 
     private ActionListener<InferenceServiceResults> getListener(
@@ -91,13 +80,8 @@ class RequestTask implements RejectableTask {
     }
 
     @Override
-    public List<String> getInput() {
-        return input;
-    }
-
-    @Override
-    public String getQuery() {
-        return query;
+    public InferenceInputs getInferenceInputs() {
+        return inferenceInputs;
     }
 
     @Override

@@ -16,7 +16,7 @@ import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -146,10 +146,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
+            Source source = source(ctx);
             String pattern = visitString(ctx.string()).fold().toString();
-            Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), Grok.pattern(source(ctx), pattern));
+            Grok.Parser grokParser = Grok.pattern(source, pattern);
+            validateGrokPattern(source, grokParser, pattern);
+            Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
             return result;
         };
+    }
+
+    private void validateGrokPattern(Source source, Grok.Parser grokParser, String pattern) {
+        Map<String, DataType> definedAttributes = new HashMap<>();
+        for (Attribute field : grokParser.extractedFields()) {
+            String name = field.name();
+            DataType type = field.dataType();
+            DataType prev = definedAttributes.put(name, type);
+            if (prev != null) {
+                throw new ParsingException(
+                    source,
+                    "Invalid GROK pattern [" + pattern + "]: the attribute [" + name + "] is defined multiple times with different types"
+                );
+            }
+        }
     }
 
     @Override

@@ -66,8 +66,9 @@ public class IndexModeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            final String indexMode = fieldDataContext.indexSettings().getMode().getName();
             return new ConstantIndexFieldData.Builder(
-                fieldDataContext.fullyQualifiedIndexName(),
+                indexMode,
                 name(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(

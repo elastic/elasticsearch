@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.ingest.geoip.GeoIpMetadata;
+import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -65,7 +65,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
         final ClusterState state,
         final ActionListener<GetDatabaseConfigurationAction.Response> listener
     ) {
-        GeoIpMetadata geoIpMeta = state.metadata().custom(GeoIpMetadata.TYPE, GeoIpMetadata.EMPTY);
+        IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
         // halfway serious no-configurations case(s)
         if (geoIpMeta.getDatabases().isEmpty()) {

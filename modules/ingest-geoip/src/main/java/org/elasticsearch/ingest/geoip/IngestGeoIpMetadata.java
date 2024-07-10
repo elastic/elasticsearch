@@ -37,17 +37,17 @@ import java.util.stream.Collectors;
 /**
  * Holds the geoip databases that are available in the cluster
  */
-public final class GeoIpMetadata implements Metadata.Custom {
+public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     public static final String TYPE = "geoip";
     private static final ParseField DATABASES_FIELD = new ParseField("database");
 
-    public static final GeoIpMetadata EMPTY = new GeoIpMetadata(Map.of());
+    public static final IngestGeoIpMetadata EMPTY = new IngestGeoIpMetadata(Map.of());
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<GeoIpMetadata, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<IngestGeoIpMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "ingest_metadata",
-        a -> new GeoIpMetadata(
+        a -> new IngestGeoIpMetadata(
             ((List<DatabaseConfigurationMetadata>) a[1]).stream().collect(Collectors.toMap((m) -> m.database().id(), Function.identity()))
         )
     );
@@ -59,7 +59,7 @@ public final class GeoIpMetadata implements Metadata.Custom {
 
     private final Map<String, DatabaseConfigurationMetadata> databases;
 
-    public GeoIpMetadata(Map<String, DatabaseConfigurationMetadata> databases) {
+    public IngestGeoIpMetadata(Map<String, DatabaseConfigurationMetadata> databases) {
         this.databases = Map.copyOf(databases);
     }
 
@@ -77,7 +77,7 @@ public final class GeoIpMetadata implements Metadata.Custom {
         return databases;
     }
 
-    public GeoIpMetadata(StreamInput in) throws IOException {
+    public IngestGeoIpMetadata(StreamInput in) throws IOException {
         {
             int size = in.readVInt();
             Map<String, DatabaseConfigurationMetadata> databases = Maps.newMapWithExpectedSize(size);
@@ -97,7 +97,7 @@ public final class GeoIpMetadata implements Metadata.Custom {
         }
     }
 
-    public static GeoIpMetadata fromXContent(XContentParser parser) throws IOException {
+    public static IngestGeoIpMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -113,7 +113,7 @@ public final class GeoIpMetadata implements Metadata.Custom {
 
     @Override
     public Diff<Metadata.Custom> diff(Metadata.Custom before) {
-        return new GeoIpMetadataDiff((GeoIpMetadata) before, this);
+        return new GeoIpMetadataDiff((IngestGeoIpMetadata) before, this);
     }
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -124,7 +124,7 @@ public final class GeoIpMetadata implements Metadata.Custom {
 
         final Diff<Map<String, DatabaseConfigurationMetadata>> databases;
 
-        GeoIpMetadataDiff(GeoIpMetadata before, GeoIpMetadata after) {
+        GeoIpMetadataDiff(IngestGeoIpMetadata before, IngestGeoIpMetadata after) {
             this.databases = DiffableUtils.diff(before.databases, after.databases, DiffableUtils.getStringKeySerializer());
         }
 
@@ -139,7 +139,7 @@ public final class GeoIpMetadata implements Metadata.Custom {
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            return new GeoIpMetadata(databases.apply(((GeoIpMetadata) part).databases));
+            return new IngestGeoIpMetadata(databases.apply(((IngestGeoIpMetadata) part).databases));
         }
 
         @Override
@@ -162,7 +162,7 @@ public final class GeoIpMetadata implements Metadata.Custom {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        GeoIpMetadata that = (GeoIpMetadata) o;
+        IngestGeoIpMetadata that = (IngestGeoIpMetadata) o;
         return Objects.equals(databases, that.databases);
     }
 

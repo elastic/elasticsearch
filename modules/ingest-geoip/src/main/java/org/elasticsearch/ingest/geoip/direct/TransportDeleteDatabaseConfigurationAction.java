@@ -29,7 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.ingest.geoip.GeoIpMetadata;
+import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.ingest.geoip.direct.DeleteDatabaseConfigurationAction.Request;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -105,7 +105,7 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
         }
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            GeoIpMetadata geoIpMeta = currentState.metadata().custom(GeoIpMetadata.TYPE, GeoIpMetadata.EMPTY);
+            IngestGeoIpMetadata geoIpMeta = currentState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
             final String id = databaseId;
 
@@ -117,11 +117,11 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
             logger.info("deleting database configuration [{}]", id);
             Map<String, DatabaseConfigurationMetadata> databases = new HashMap<>(geoIpMeta.getDatabases());
             databases.remove(id);
-            geoIpMeta = new GeoIpMetadata(databases);
+            geoIpMeta = new IngestGeoIpMetadata(databases);
 
             Metadata currentMeta = currentState.metadata();
             return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentMeta).putCustom(GeoIpMetadata.TYPE, geoIpMeta))
+                .metadata(Metadata.builder(currentMeta).putCustom(IngestGeoIpMetadata.TYPE, geoIpMeta))
                 .build();
         }
 

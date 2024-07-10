@@ -230,8 +230,8 @@ public class IngestGeoIpPlugin extends Plugin
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         // TODO we're going to need this at some point, too ;)
         return List.of(
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, GeoIpMetadata.TYPE, GeoIpMetadata::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, GeoIpMetadata.TYPE, GeoIpMetadata.GeoIpMetadataDiff::new),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.GeoIpMetadataDiff::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, GEOIP_DOWNLOADER, GeoIpTaskState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, GEOIP_DOWNLOADER, GeoIpTaskParams::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, ENTERPRISE_GEOIP_DOWNLOADER, EnterpriseGeoIpTaskState::new),

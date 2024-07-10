@@ -29,7 +29,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.ingest.geoip.GeoIpMetadata;
+import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction.Request;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -90,7 +90,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         final String id = request.getDatabase().id();
 
         {
-            GeoIpMetadata geoIpMeta = state.metadata().custom(GeoIpMetadata.TYPE, GeoIpMetadata.EMPTY);
+            IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
             final DatabaseConfigurationMetadata existingDatabase = geoIpMeta.getDatabases().get(id);
             // make the request a no-op if the databases match exactly
@@ -122,7 +122,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
 
     private static void validatePrerequisites(DatabaseConfiguration database, ClusterState state) {
         // we need to verify that the database represents a unique file (name) among the various databases for this same provider
-        GeoIpMetadata geoIpMeta = state.metadata().custom(GeoIpMetadata.TYPE, GeoIpMetadata.EMPTY);
+        IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
         Optional<DatabaseConfiguration> sameName = geoIpMeta.getDatabases()
             .values()
@@ -157,7 +157,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         }
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            GeoIpMetadata geoIpMeta = currentState.metadata().custom(GeoIpMetadata.TYPE, GeoIpMetadata.EMPTY);
+            IngestGeoIpMetadata geoIpMeta = currentState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
             String id = database.id();
             final DatabaseConfigurationMetadata existingDatabase = geoIpMeta.getDatabases().get(id);
@@ -177,7 +177,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
                     Instant.now().toEpochMilli()
                 )
             );
-            geoIpMeta = new GeoIpMetadata(databases);
+            geoIpMeta = new IngestGeoIpMetadata(databases);
 
             if (existingDatabase == null) {
                 logger.info("adding new database configuration [{}]", id);
@@ -187,7 +187,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
 
             Metadata currentMeta = currentState.metadata();
             return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentMeta).putCustom(GeoIpMetadata.TYPE, geoIpMeta))
+                .metadata(Metadata.builder(currentMeta).putCustom(IngestGeoIpMetadata.TYPE, geoIpMeta))
                 .build();
         }
 

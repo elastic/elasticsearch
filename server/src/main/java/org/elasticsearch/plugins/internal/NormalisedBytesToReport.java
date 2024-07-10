@@ -8,7 +8,7 @@
 
 package org.elasticsearch.plugins.internal;
 
-public interface NormalisedBytesWrapper {
+public interface NormalisedBytesToReport {
 
     /**
      * Returns the state gathered during parsing

@@ -1193,7 +1193,6 @@ public class IngestServiceTests extends ESTestCase {
                         return xContentParser;
                     }
 
-
                     @Override
                     public void setNormalisedBytesParsedOn(IndexRequest indexRequest) {
                         parsedValueWasUsed.incrementAndGet();

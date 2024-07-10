@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentParser;
  * An interface to allow wrapping an XContentParser and observe the events emitted while parsing
  * A default implementation returns a noop DocumentSizeObserver
  */
-public interface DocumentSizeObserver extends NormalisedBytesWrapper {
+public interface DocumentSizeObserver extends NormalisedBytesToReport {
     /**
      * a default noop implementation
      */

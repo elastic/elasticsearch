@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.NormalisedBytesToReport;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -179,7 +180,7 @@ public class ParsedDocument {
         return "id";
     }
 
-    public DocumentSizeObserver getDocumentSizeObserver() {
+    public NormalisedBytesToReport getDocumentSizeObserver() {
         return documentSizeObserver;
     }
 

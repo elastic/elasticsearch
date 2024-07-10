@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.index.mapper.ParsedDocument;
+
 /**
  * An interface to allow performing an action when parsing and indexing has been completed
  */
@@ -21,10 +23,10 @@ public interface DocumentSizeReporter {
     /**
      * An action to be performed upon finished indexing.
      */
-    default void onParsingCompleted(NormalisedBytesWrapper documentSizeObserver) {}
+    default void onParsingCompleted(ParsedDocument parsedDocument) {}
 
     /**
      * An action to be performed upon finished indexing.
      */
-    default void onIndexingCompleted(NormalisedBytesWrapper documentSizeObserver) {}
+    default void onIndexingCompleted(ParsedDocument parsedDocument) {}
 }

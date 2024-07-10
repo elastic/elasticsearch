@@ -64,6 +64,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbea
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.TransportConsistentClusterStateReadAction;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
+import co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -183,6 +184,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -504,6 +506,11 @@ public class Stateless extends Plugin
         );
         components.add(indicesMappingSizeCollector);
 
+        var vbccChunksPressure = createVirtualBatchedCompoundCommitChunksPressure(
+            settings,
+            services.telemetryProvider().getMeterRegistry()
+        );
+        components.add(vbccChunksPressure);
         var memoryMetricsService = new MemoryMetricsService(threadPool::relativeTimeInNanos, clusterService.getClusterSettings());
         clusterService.addListener(memoryMetricsService);
         components.add(memoryMetricsService);
@@ -760,6 +767,13 @@ public class Stateless extends Plugin
         return new StatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
     }
 
+    protected GetVirtualBatchedCompoundCommitChunksPressure createVirtualBatchedCompoundCommitChunksPressure(
+        Settings settings,
+        MeterRegistry meterRegistry
+    ) {
+        return new GetVirtualBatchedCompoundCommitChunksPressure(settings, meterRegistry);
+    }
+
     protected StatelessCommitService wrapStatelessCommitService(StatelessCommitService instance) {
         return instance;
     }
@@ -847,7 +861,8 @@ public class Stateless extends Plugin
             StatelessIndexSettingProvider.DEFAULT_NUMBER_OF_SHARDS_FOR_REGULAR_INDICES_SETTING,
             TransportStatelessPrimaryRelocationAction.SLOW_SECONDARY_FLUSH_THRESHOLD_SETTING,
             TransportStatelessPrimaryRelocationAction.SLOW_HANDOFF_WARMING_THRESHOLD_SETTING,
-            TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING
+            TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING,
+            GetVirtualBatchedCompoundCommitChunksPressure.CHUNKS_BYTES_LIMIT
         );
     }
 

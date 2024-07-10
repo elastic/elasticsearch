@@ -1,0 +1,5 @@
+pr: 110734
+summary: Trained Models account for partial deployments in serverless
+area: Machine Learning
+type: bug
+issues: []

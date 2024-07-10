@@ -22,8 +22,8 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static junit.framework.TestCase.assertTrue;
 import static junit.framework.TestCase.assertFalse;
+import static junit.framework.TestCase.assertTrue;
 import static junit.framework.TestCase.fail;
 import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.ESIntegTestCase.internalCluster;

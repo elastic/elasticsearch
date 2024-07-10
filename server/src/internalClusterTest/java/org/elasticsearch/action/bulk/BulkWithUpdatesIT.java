@@ -39,7 +39,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CyclicBarrier;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -518,14 +517,8 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex("test");
         indexDoc("test", "1", "field", "1");
         final BulkResponse[] responses = new BulkResponse[30];
-        final CyclicBarrier cyclicBarrier = new CyclicBarrier(responses.length);
 
-        runInParallel(responses.length, threadID -> {
-            try {
-                cyclicBarrier.await();
-            } catch (Exception e) {
-                return;
-            }
+        startInParallel(responses.length, threadID -> {
             BulkRequestBuilder requestBuilder = client().prepareBulk();
             requestBuilder.add(
                 client().prepareUpdate("test", "1")

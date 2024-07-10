@@ -63,17 +63,17 @@ class JdkPosixCLibrary implements PosixCLibrary {
         Linker.Option.firstVariadicArg(2)
     );
     private static final MethodHandle close$mh = downcallHandleWithErrno("close", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
-    private static final MethodHandle fstat64$mh;
+    private static final MethodHandle fstat$mh;
     static {
         MethodHandle fstat;
         try {
-            fstat = downcallHandleWithErrno("fstat64", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+            fstat = downcallHandleWithErrno("fstat", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
         } catch (LinkageError e) {
             // Due to different sizes of the stat structure for 32 vs 64 bit machines, on some systems fstat actually points to
             // an internal symbol. So we fall back to looking for that symbol.
-            fstat = downcallHandleWithErrno("__fxstat64", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+            fstat = downcallHandleWithErrno("__fxstat", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
         }
-        fstat64$mh = fstat;
+        fstat$mh = fstat;
     }
 
     static final MemorySegment errnoState = Arena.ofAuto().allocate(CAPTURE_ERRNO_LAYOUT);
@@ -206,7 +206,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         assert stat64 instanceof JdkStat64;
         var jdkStat = (JdkStat64) stat64;
         try {
-            return (int) fstat64$mh.invokeExact(errnoState, fd, jdkStat.segment);
+            return (int) fstat$mh.invokeExact(errnoState, fd, jdkStat.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

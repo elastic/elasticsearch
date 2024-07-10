@@ -131,7 +131,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
     }
 
     private interface FStat64Function extends Library {
-        int fstat64(int fd, Pointer stat);
+        int fstat(int fd, Pointer stat);
     }
 
     private final NativeFunctions functions;
@@ -147,7 +147,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
             fstat64 = Native.load(
                 "c",
                 FStat64Function.class,
-                Map.of(Library.OPTION_FUNCTION_MAPPER, (FunctionMapper) (lib, method) -> "__fxstat64")
+                Map.of(Library.OPTION_FUNCTION_MAPPER, (FunctionMapper) (lib, method) -> "__fxsta4")
             );
         }
         this.fstat64 = fstat64;
@@ -223,7 +223,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
     public int fstat64(int fd, Stat64 stats) {
         assert stats instanceof JnaStat64;
         var jnaStats = (JnaStat64) stats;
-        return fstat64.fstat64(fd, jnaStats.memory);
+        return fstat64.fstat(fd, jnaStats.memory);
     }
 
     @Override

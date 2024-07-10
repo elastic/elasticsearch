@@ -52,7 +52,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         Settings settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DEFAULT_SETTINGS)
-            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(1000, 2000)))
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .build();
         logger.info("settings {}", settings);
         return settings;

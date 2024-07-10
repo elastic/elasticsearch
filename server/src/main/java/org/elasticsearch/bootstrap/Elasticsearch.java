@@ -293,7 +293,7 @@ class Elasticsearch {
              *
              * TODO: should we fail hard here if system call filters fail to install, or remain lenient in non-production environments?
              */
-            Natives.tryInstallSystemCallFilter(tmpFile);
+            nativeAccess.tryInstallExecSandbox();
         }
 
         // mlockall if requested
@@ -314,13 +314,6 @@ class Elasticsearch {
                     return false;
                 });
             }
-        }
-
-        // force remainder of JNA to be loaded (if available).
-        try {
-            JNAKernel32Library.getInstance();
-        } catch (Exception ignored) {
-            // we've already logged this.
         }
 
         // init lucene random seed. it will use /dev/urandom where available:

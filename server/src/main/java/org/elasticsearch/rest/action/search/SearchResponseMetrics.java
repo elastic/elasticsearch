@@ -86,7 +86,7 @@ public class SearchResponseMetrics {
         );
         attributes.put(
             QUERY_CATEGORIES_ATTRIBUTE_NAME,
-            queryCategories.stream().map(QueryCategory::displayName).toArray(String[]::new)
+            queryCategories.stream().map(QueryCategory::displayName).collect(Collectors.joining(" "))
         );
         logger.info("Query attributes: {}", attributes);
         return Collections.unmodifiableMap(attributes);

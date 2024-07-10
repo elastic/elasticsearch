@@ -8,7 +8,6 @@
 
 package org.elasticsearch.http;
 
-import org.apache.http.NameValuePair;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -73,31 +72,14 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
         return false;
     }
 
-    // add opaque id to http request header if it does not exist
-    // returns new or existing id
-    private static String setOpaqueIdIfNotExists(Request request) {
-        String opaqueId;
-        if (request.getOptions().containsHeader(Task.X_OPAQUE_ID_HTTP_HEADER)) {
-            opaqueId = request.getOptions()
-                .getHeaders()
-                .stream()
-                .filter(h -> h.getName().equals(Task.X_OPAQUE_ID_HTTP_HEADER))
-                .findFirst()
-                .map(NameValuePair::getValue)
-                .get();
-        } else {
-            opaqueId = randomUUID();
-            request.setOptions(request.getOptions().toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId));
-        }
-        return opaqueId;
-    }
-
     void runTest(Request request, String actionPrefix) throws Exception {
 
         createIndex("test", Settings.builder().put(BLOCK_SEARCHER_SETTING.getKey(), true).build());
         ensureGreen("test");
 
-        final var opaqueId = setOpaqueIdIfNotExists(request);
+        assert request.getOptions().containsHeader(Task.X_OPAQUE_ID_HTTP_HEADER) == false;
+        final var opaqueId = randomUUID();
+        request.setOptions(request.getOptions().toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId));
 
         final List<Semaphore> searcherBlocks = new ArrayList<>();
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
@@ -137,7 +119,7 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             Releasables.close(releasables);
         }
 
-        assertAllTasksHaveFinished(actionPrefix, opaqueId);
+        assertAllTasksHaveFinished(actionPrefix);
     }
 
     public static class SearcherBlockingPlugin extends Plugin implements EnginePlugin {

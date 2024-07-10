@@ -18,15 +18,16 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static junit.framework.TestCase.assertTrue;
+import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.fail;
 import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+
 
 public class TaskAssertions {
     private static final Logger logger = LogManager.getLogger(TaskAssertions.class);
@@ -72,19 +73,16 @@ public class TaskAssertions {
                 for (CancellableTask cancellableTask : taskManager.getCancellableTasks().values()) {
                     if (cancellableTask.getAction().startsWith(actionPrefix)) {
                         logger.trace("--> found task with prefix [{}]: [{}]", actionPrefix, cancellableTask);
-                        if (taskOpaqueIdMatches(cancellableTask.headers(), opaqueId) == false) {
-                            logger.info(
-                                "--> task opaque id does not match, skipping; taskId [{}], opaqueId [{}]",
-                                cancellableTask.getId(),
-                                cancellableTask.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER)
-                            );
-                            continue;
-                        }
-                        foundTask = true;
+                        assertEquals(
+                            Task.X_OPAQUE_ID_HTTP_HEADER + " does not match",
+                            opaqueId,
+                            cancellableTask.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER)
+                        );
                         assertTrue(
                             "task " + cancellableTask.getId() + "/" + cancellableTask.getAction() + " not cancelled",
                             cancellableTask.isCancelled()
                         );
+                        foundTask = true;
                         logger.trace("--> Task with prefix [{}] is marked as cancelled: [{}]", actionPrefix, cancellableTask);
                     }
                 }
@@ -97,27 +95,12 @@ public class TaskAssertions {
         assertAllCancellableTasksAreCancelled(actionPrefix, null);
     }
 
-    private static boolean taskOpaqueIdMatches(Map<String, String> taskHeaders, @Nullable String opaqueId) {
-        if (opaqueId == null) {
-            return true;
-        } else {
-            var taskOpaqueId = taskHeaders.get(Task.X_OPAQUE_ID_HTTP_HEADER);
-            return taskOpaqueId != null && taskOpaqueId.equals(opaqueId);
-        }
-    }
-
-    public static void assertAllTasksHaveFinished(String actionPrefix, @Nullable String opaqueId) throws Exception {
+    public static void assertAllTasksHaveFinished(String actionPrefix) throws Exception {
         logger.info("--> checking that all tasks with prefix {} have finished", actionPrefix);
         assertBusy(() -> {
             final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(
-                tasks.toString(),
-                tasks.stream().noneMatch(t -> t.action().startsWith(actionPrefix) && taskOpaqueIdMatches(t.headers(), opaqueId))
-            );
+            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().startsWith(actionPrefix)));
         });
     }
 
-    public static void assertAllTasksHaveFinished(String actionPrefix) throws Exception {
-        assertAllTasksHaveFinished(actionPrefix, null);
-    }
 }

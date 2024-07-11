@@ -559,13 +559,6 @@ per shard. Exceeding this limit will result in errors like the following:
 Elasticsearch exception [type=illegal_argument_exception, reason=Number of documents in the shard cannot exceed [2147483519]]
 ----
 
-or this error's sister stack trace will appear 
-
-[source, txt]
-----
-Caused by: java.lang.IllegalArgumentException: number of documents in the index cannot exceed 2147483519
-----
-
 TIP: This calculation includes nested documents.
 This may differ from the results of the <<search-count,Count API>>.
 Therefore, it's results are not guaranteed to line up to the <<search-count,Count API>> 

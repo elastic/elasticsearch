@@ -853,8 +853,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         listener.onFailure(e);
                     }
                 }
-            }, 30L, TimeUnit.MINUTES, EsExecutors.DIRECT_EXECUTOR_SERVICE); // Wait on current thread because this execution is wrapped by
-                                                                            // CancellableThreads and we want to be able to interrupt it
+            }, EsExecutors.DIRECT_EXECUTOR_SERVICE); // Wait on current thread because this execution is wrapped by CancellableThreads and
+                                                     // we want to be able to interrupt it
         }
     }
 
@@ -3534,11 +3534,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquire all primary operation permits. Once all permits are acquired, the provided ActionListener is called.
      * It is the responsibility of the caller to close the {@link Releasable}.
      */
-    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
+    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
 
-        asyncBlockOperations(wrapPrimaryOperationPermitListener(onPermitAcquired), timeout.duration(), timeout.timeUnit());
+        asyncBlockOperations(wrapPrimaryOperationPermitListener(onPermitAcquired));
     }
 
     /**
@@ -3559,7 +3559,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         });
     }
 
-    private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {
+    private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired) {
         final Releasable forceRefreshes = refreshListeners.forceRefreshes();
         final ActionListener<Releasable> wrappedListener = ActionListener.wrap(r -> {
             forceRefreshes.close();
@@ -3569,7 +3569,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onPermitAcquired.onFailure(e);
         });
         try {
-            indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic());
+            indexShardOperationPermits.blockOperations(wrappedListener, threadPool.generic());
         } catch (Exception e) {
             forceRefreshes.close();
             throw e;
@@ -3606,7 +3606,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert newPrimaryTerm > pendingPrimaryTerm || (newPrimaryTerm >= pendingPrimaryTerm && combineWithAction != null);
         assert getOperationPrimaryTerm() <= pendingPrimaryTerm;
         final CountDownLatch termUpdated = new CountDownLatch(1);
-        asyncBlockOperations(new ActionListener<Releasable>() {
+        asyncBlockOperations(new ActionListener<>() {
             @Override
             public void onFailure(final Exception e) {
                 try {
@@ -3652,7 +3652,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
             }
-        }, 30, TimeUnit.MINUTES);
+        });
         pendingPrimaryTerm = newPrimaryTerm;
         termUpdated.countDown();
     }
@@ -3690,7 +3690,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Acquire all replica operation permits whenever the shard is ready for indexing (see
-     * {@link #acquireAllPrimaryOperationsPermits(ActionListener, TimeValue)}. If the given primary term is lower than then one in
+     * {@link #acquireAllPrimaryOperationsPermits(ActionListener)}. If the given primary term is lower than then one in
      * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
      * {@link IllegalStateException}.
      *
@@ -3699,14 +3699,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates (index operations overwrite Lucene) or deletes captured on the primary
      *                                   after this replication request was executed on it (see {@link #getMaxSeqNoOfUpdatesOrDeletes()}
      * @param onPermitAcquired           the listener for permit acquisition
-     * @param timeout                    the maximum time to wait for the in-flight operations block
      */
     public void acquireAllReplicaOperationsPermits(
         final long opPrimaryTerm,
         final long globalCheckpoint,
         final long maxSeqNoOfUpdatesOrDeletes,
-        final ActionListener<Releasable> onPermitAcquired,
-        final TimeValue timeout
+        final ActionListener<Releasable> onPermitAcquired
     ) {
         innerAcquireReplicaOperationPermit(
             opPrimaryTerm,
@@ -3714,7 +3712,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             maxSeqNoOfUpdatesOrDeletes,
             onPermitAcquired,
             true,
-            listener -> asyncBlockOperations(listener, timeout.duration(), timeout.timeUnit())
+            this::asyncBlockOperations
         );
     }
 

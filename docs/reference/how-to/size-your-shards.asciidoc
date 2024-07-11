@@ -559,22 +559,20 @@ per shard. Exceeding this limit will result in errors like the following:
 Elasticsearch exception [type=illegal_argument_exception, reason=Number of documents in the shard cannot exceed [2147483519]]
 ----
 
-TIP: This calculation includes nested documents.
-This may differ from the results of the <<search-count,Count API>>.
-Therefore, it's results are not guaranteed to line up to the <<search-count,Count API>> 
-which masks nested docs. 
+TIP: This calculation may differ from the <<search-count,Count API's>> calculation, because the Count API does not include nested documents.
 
 
-Try using the <<indices-forcemerge,Force merge API>> to free up space and recover the
-ability to admin the index. For example:
+Try using the <<indices-forcemerge,Force Merge API>> to clear deleted docs. For example:
 
 [source,console]
 ----
 POST my-index-000001/_forcemerge?only_expunge_deletes=true
 ----
 
-This will kick off an asynchronous task which can be monitored via the <<tasks,Task Management API>>. 
+This will launch an asynchronous task which can be monitored via the <<tasks,Task Management API>>. 
 
-Longer-term, this error can usually be resolved by <<docs-delete-by-query,removing unneeded docs>> 
-from the index or by <<indices-split-index,Splitting>> or <<docs-reindex,Reindexing>> the index with 
-corrected shard strategy settings. 
+For a long-term solution try:
+
+* <<docs-delete-by-query,deleting unneeded documents>> 
+* aligning the index to recommendations on this page by either 
+<<indices-split-index,Splitting>> or <<docs-reindex,Reindexing>> the index 

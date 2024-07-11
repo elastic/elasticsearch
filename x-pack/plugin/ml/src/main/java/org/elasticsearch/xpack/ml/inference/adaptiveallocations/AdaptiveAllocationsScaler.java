@@ -21,6 +21,13 @@ public class AdaptiveAllocationsScaler {
     static final double SCALE_UP_THRESHOLD = 0.9;
     private static final double SCALE_DOWN_THRESHOLD = 0.85;
 
+    /**
+     * If the max_number_of_allocations is not set, use this value for now to prevent scaling up
+     * to high numbers due to possible bugs or unexpected behaviour in the scaler.
+     * TODO(jan): remove this safeguard when the scaler behaves as expected in production.
+     */
+    private static final int MAX_NUMBER_OF_ALLOCATIONS_SAFEGUARD = 32;
+
     private static final Logger logger = LogManager.getLogger(AdaptiveAllocationsScaler.class);
 
     private final String deploymentId;
@@ -114,6 +121,9 @@ public class AdaptiveAllocationsScaler {
             numberOfAllocations--;
         }
 
+        if (maxNumberOfAllocations == null) {
+            numberOfAllocations = Math.min(numberOfAllocations, MAX_NUMBER_OF_ALLOCATIONS_SAFEGUARD);
+        }
         if (minNumberOfAllocations != null) {
             numberOfAllocations = Math.max(numberOfAllocations, minNumberOfAllocations);
         }

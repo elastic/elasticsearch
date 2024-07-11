@@ -2,6 +2,9 @@
 [[esql-show]]
 === `SHOW`
 
+The `SHOW` source command returns information about the deployment and
+its capabilities.
+
 **Syntax**
 
 [source,esql]
@@ -14,14 +17,9 @@ SHOW item
 `item`::
 Can only be `INFO`.
 
-*Description*
-
-The `SHOW` source command returns information about the deployment and
-its capabilities:
-
-* Use `SHOW INFO` to return the deployment's version, build date and hash.
-
 *Examples*
+
+Use `SHOW INFO` to return the deployment's version, build date and hash.
 
 [source,esql]
 ----

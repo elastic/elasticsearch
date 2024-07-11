@@ -663,7 +663,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
             mockClusterServiceEmpty()
         );
-        var mockModel = getInvalidModel("modelId", "service_name");
+        var mockModel = getInvalidModel("model_id", "service_name");
 
         try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -680,7 +680,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is("The internal model was invalid, please delete the service [service_name] with id [modelId] and add it again.")
+                is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
             );
 
             verify(factory, times(1)).createSender();

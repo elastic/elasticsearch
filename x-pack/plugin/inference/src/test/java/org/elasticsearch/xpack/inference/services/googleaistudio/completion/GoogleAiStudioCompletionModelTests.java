@@ -27,7 +27,7 @@ public class GoogleAiStudioCompletionModelTests extends ESTestCase {
             "inference entity id",
             TaskType.COMPLETION,
             "service",
-            new HashMap<>(Map.of("modelId", "model")),
+            new HashMap<>(Map.of("model_id", "model")),
             new HashMap<>(Map.of()),
             null,
             ConfigurationParseContext.PERSISTENT

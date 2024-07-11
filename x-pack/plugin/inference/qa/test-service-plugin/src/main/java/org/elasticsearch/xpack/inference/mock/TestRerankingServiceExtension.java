@@ -142,7 +142,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         public static TestServiceSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
 
-            String model = (String) map.remove("modelId");
+            String model = (String) map.remove("model_id");
 
             if (model == null) {
                 validationException.addValidationError("missing model");
@@ -162,7 +162,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("modelId", modelId);
+            builder.field("model_id", modelId);
             builder.endObject();
             return builder;
         }
@@ -191,7 +191,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         public ToXContentObject getFilteredXContentObject() {
             return (builder, params) -> {
                 builder.startObject();
-                builder.field("modelId", modelId);
+                builder.field("model_id", modelId);
                 builder.endObject();
                 return builder;
             };

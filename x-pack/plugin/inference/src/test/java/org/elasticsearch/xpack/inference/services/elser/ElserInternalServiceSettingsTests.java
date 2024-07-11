@@ -63,7 +63,7 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
                         1,
                         ElserInternalServiceSettings.NUM_THREADS,
                         4,
-                        "modelId",
+                        "model_id",
                         ".elser_model_27"
                     )
                 )

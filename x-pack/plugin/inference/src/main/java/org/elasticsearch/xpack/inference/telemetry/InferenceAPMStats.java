@@ -13,13 +13,13 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Objects;
 
-public class InferenceRequestAPMStats extends InferenceRequestStats {
+public class InferenceAPMStats extends InferenceStats {
 
-    private final LongCounter meterCounter;
+    private final LongCounter inferenceAPMRequestCounter;
 
-    public InferenceRequestAPMStats(Model model, MeterRegistry meterRegistry) {
+    public InferenceAPMStats(Model model, MeterRegistry meterRegistry) {
         super(model);
-        this.meterCounter = meterRegistry.registerLongCounter(
+        this.inferenceAPMRequestCounter = meterRegistry.registerLongCounter(
             counterName(),
             "Inference API request counts for a particular service, task type, model ID",
             "operations"
@@ -45,7 +45,7 @@ public class InferenceRequestAPMStats extends InferenceRequestStats {
     @Override
     public void increment() {
         super.increment();
-        meterCounter.increment();
+        inferenceAPMRequestCounter.increment();
     }
 
     public static final class Factory {
@@ -55,8 +55,8 @@ public class InferenceRequestAPMStats extends InferenceRequestStats {
             this.meterRegistry = Objects.requireNonNull(meterRegistry);
         }
 
-        public InferenceRequestAPMStats newInferenceRequestAPMCounter(Model model) {
-            return new InferenceRequestAPMStats(model, meterRegistry);
+        public InferenceAPMStats newInferenceRequestAPMCounter(Model model) {
+            return new InferenceAPMStats(model, meterRegistry);
         }
     }
 }

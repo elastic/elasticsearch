@@ -71,7 +71,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
                         1,
                         MultilingualE5SmallInternalServiceSettings.NUM_THREADS,
                         4,
-                        "modelId",
+                        "model_id",
                         randomModelVariant
                     )
                 )

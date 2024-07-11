@@ -97,7 +97,7 @@ public class ElserInternalServiceTests extends ESTestCase {
                     1,
                     ElserInternalServiceSettings.NUM_THREADS,
                     4,
-                    "modelId",
+                    "model_id",
                     ".elser_model_1"
                 )
             )

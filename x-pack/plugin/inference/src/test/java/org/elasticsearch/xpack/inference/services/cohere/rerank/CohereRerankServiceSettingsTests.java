@@ -41,7 +41,6 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-
         var url = "http://www.abc.com";
         var model = "model";
 

@@ -9,17 +9,14 @@ package org.elasticsearch.xpack.inference.telemetry;
 
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.InferenceRequestStats;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
-public class InferenceRequestStats
-    implements
-        Stats,
-        Transformable<org.elasticsearch.xpack.core.inference.InferenceRequestStats>,
-        Closeable {
+public class InferenceStats implements Stats, Transformable<org.elasticsearch.xpack.core.inference.InferenceRequestStats>, Closeable {
     protected final String service;
     protected final TaskType taskType;
     protected final String modelId;
@@ -39,7 +36,7 @@ public class InferenceRequestStats
         return builder.toString();
     }
 
-    public InferenceRequestStats(Model model) {
+    public InferenceStats(Model model) {
         Objects.requireNonNull(model);
 
         service = model.getConfigurations().getService();
@@ -58,8 +55,8 @@ public class InferenceRequestStats
     }
 
     @Override
-    public org.elasticsearch.xpack.core.inference.InferenceRequestStats transform() {
-        return new org.elasticsearch.xpack.core.inference.InferenceRequestStats(service, taskType, modelId, getCount());
+    public InferenceRequestStats transform() {
+        return new InferenceRequestStats(service, taskType, modelId, getCount());
     }
 
     @Override

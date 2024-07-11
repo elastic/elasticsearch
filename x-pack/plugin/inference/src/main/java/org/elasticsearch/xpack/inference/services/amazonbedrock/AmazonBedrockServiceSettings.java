@@ -108,6 +108,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         return region;
     }
 
+    @Override
     public String modelId() {
         return model;
     }

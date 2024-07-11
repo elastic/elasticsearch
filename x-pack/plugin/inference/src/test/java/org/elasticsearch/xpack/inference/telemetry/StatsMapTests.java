@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.is;
 
 public class StatsMapTests extends ESTestCase {
     public void testAddingEntry_InitializesTheCountToOne() {
-        var stats = new StatsMap<>(InferenceRequestStats::key, InferenceRequestStats::new);
+        var stats = new StatsMap<>(InferenceStats::key, InferenceStats::new);
 
         stats.increment(
             new OpenAiEmbeddingsModel(
@@ -52,7 +52,7 @@ public class StatsMapTests extends ESTestCase {
     }
 
     public void testIncrementingWithSeparateModels_IncrementsTheCounterToTwo() {
-        var stats = new StatsMap<>(InferenceRequestStats::key, InferenceRequestStats::new);
+        var stats = new StatsMap<>(InferenceStats::key, InferenceStats::new);
 
         var model1 = new OpenAiEmbeddingsModel(
             "inference_id",
@@ -91,7 +91,7 @@ public class StatsMapTests extends ESTestCase {
     }
 
     public void testNullModelId_ResultsInKeyWithout() {
-        var stats = new StatsMap<>(InferenceRequestStats::key, InferenceRequestStats::new);
+        var stats = new StatsMap<>(InferenceStats::key, InferenceStats::new);
 
         stats.increment(
             new CohereEmbeddingsModel(
@@ -119,7 +119,7 @@ public class StatsMapTests extends ESTestCase {
     }
 
     public void testCloseClearsMap() throws IOException {
-        var stats = new StatsMap<>(InferenceRequestStats::key, InferenceRequestStats::new);
+        var stats = new StatsMap<>(InferenceStats::key, InferenceStats::new);
 
         stats.increment(
             new CohereEmbeddingsModel(

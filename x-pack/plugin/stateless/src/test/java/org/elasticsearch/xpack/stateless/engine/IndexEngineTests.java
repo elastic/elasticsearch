@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -475,7 +476,8 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mockTranslogReplicator,
                 mock(ObjectStoreService.class),
                 mockCommitService,
-                documentParsingProvider
+                documentParsingProvider,
+                TranslogRecoveryMetrics.NOOP
             )
         ) {
             Engine.Index index = randomDoc("id");
@@ -522,7 +524,8 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mockTranslogReplicator,
                 mock(ObjectStoreService.class),
                 mockCommitService,
-                documentParsingProvider
+                documentParsingProvider,
+                TranslogRecoveryMetrics.NOOP
             )
         ) {
             engine.index(randomDoc(String.valueOf(0)));

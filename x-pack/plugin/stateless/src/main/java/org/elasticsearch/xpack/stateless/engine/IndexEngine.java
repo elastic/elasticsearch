@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
 import co.elastic.elasticsearch.stateless.commits.IndexEngineLocalReaderListener;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
@@ -90,6 +91,7 @@ public class IndexEngine extends InternalEngine {
     private final CommitBCCResolver commitBCCResolver;
     private final DocumentSizeAccumulator documentSizeAccumulator;
     private final DocumentSizeReporter documentParsingReporter;
+    private final TranslogRecoveryMetrics translogRecoveryMetrics;
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
 
@@ -106,7 +108,8 @@ public class IndexEngine extends InternalEngine {
         RefreshThrottler.Factory refreshThrottlerFactory,
         IndexEngineLocalReaderListener localReaderListener,
         CommitBCCResolver commitBCCResolver,
-        DocumentParsingProvider documentParsingProvider
+        DocumentParsingProvider documentParsingProvider,
+        TranslogRecoveryMetrics translogRecoveryMetrics
     ) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
@@ -137,6 +140,7 @@ public class IndexEngine extends InternalEngine {
         } catch (IOException e) {
             throw new EngineCreationFailureException(engineConfig.getShardId(), "Failed to create an index engine", e);
         }
+        this.translogRecoveryMetrics = translogRecoveryMetrics;
     }
 
     @Override
@@ -488,7 +492,8 @@ public class IndexEngine extends InternalEngine {
                 fromSeqNo,
                 toSeqNo,
                 translogRecoveryStartFile,
-                this::isClosing
+                this::isClosing,
+                translogRecoveryMetrics
             );
             return new Translog.Snapshot() {
                 @Override

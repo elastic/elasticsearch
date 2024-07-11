@@ -18,6 +18,8 @@ import java.util.Map;
 
 class LinuxNativeAccess extends PosixNativeAccess {
 
+    private static final int STATX_BLOCKS = 0x400; /* Want/got stx_blocks */
+
     /** the preferred method is seccomp(2), since we can apply to all threads of the process */
     static final int SECCOMP_SET_MODE_FILTER = 1;   // since Linux 3.17
     static final int SECCOMP_FILTER_FLAG_TSYNC = 1;   // since Linux 3.17
@@ -88,7 +90,7 @@ class LinuxNativeAccess extends PosixNativeAccess {
     private final Systemd systemd;
 
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
-        super("Linux", libraryProvider, new PosixConstants(-1L, 9, 1, 8));
+        super("Linux", libraryProvider, new PosixConstants(-1L, 9, 1, 8, 64, 144, 48, 64));
         this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
         this.systemd = new Systemd(libraryProvider.getLibrary(SystemdLibrary.class));
     }
@@ -118,6 +120,16 @@ class LinuxNativeAccess extends PosixNativeAccess {
             \t{} soft memlock unlimited
             \t{} hard memlock unlimited""", user, user, user);
         logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
+    }
+
+    @Override
+    protected boolean nativePreallocate(int fd, long currentSize, long newSize) {
+        final int rc = linuxLibc.fallocate(fd, 0, currentSize, newSize - currentSize);
+        if (rc != 0) {
+            logger.warn("fallocate failed: " + libc.strerror(libc.errno()));
+            return false;
+        }
+        return true;
     }
 
     /**

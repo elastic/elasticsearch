@@ -132,6 +132,7 @@ public final class AnalysisModule {
         StablePluginsRegistry stablePluginRegistry
     ) {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = new NamedRegistry<>("token_filter");
+        tokenFilters.register("stop", StopTokenFilterFactory::new);
         // Add "standard" for old indices (bwc)
         tokenFilters.register("standard", new AnalysisProvider<TokenFilterFactory>() {
             @Override

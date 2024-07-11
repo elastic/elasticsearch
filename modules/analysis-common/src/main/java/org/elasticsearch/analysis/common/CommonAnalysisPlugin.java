@@ -114,7 +114,6 @@ import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.StopRemoteWordListTokenFilterFactory;
-import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.analysis.WordListsIndexService;
@@ -331,9 +330,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("uppercase", UpperCaseTokenFilterFactory::new);
         filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
         filters.put("word_delimiter", WordDelimiterTokenFilterFactory::new);
-        filters.put("stop", requiresAnalysisSettings((i, e, n, s) -> new StopTokenFilterFactory(
-            i, e, n, s, wordListsIndexServiceHolder.get()))
-        );
         filters.put("stop_remote", requiresAnalysisSettings((i, e, n, s) -> new StopRemoteWordListTokenFilterFactory(
             i, e, n, s, wordListsIndexServiceHolder.get()))
         );

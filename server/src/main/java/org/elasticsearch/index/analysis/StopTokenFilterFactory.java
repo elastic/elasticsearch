@@ -27,17 +27,11 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean removeTrailing;
 
-    public StopTokenFilterFactory(
-        IndexSettings indexSettings,
-        Environment env,
-        String name,
-        Settings settings,
-        WordListsIndexService wordListsIndexService
-    ) {
+    public StopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
-        this.stopWords = Analysis.parseStopWords(env, settings, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET, ignoreCase, wordListsIndexService);
+        this.stopWords = Analysis.parseStopWords(env, settings, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET, ignoreCase);
         if (settings.get("enable_position_increments") != null) {
             throw new IllegalArgumentException("enable_position_increments is not supported anymore. Please fix your analysis chain");
         }

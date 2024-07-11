@@ -187,31 +187,6 @@ public class Analysis {
         return defaultWords;
     }
 
-    // FIXME: Factor out this repeated code
-    public static CharArraySet parseWords(
-        Environment env,
-        Settings settings,
-        String name,
-        CharArraySet defaultWords,
-        Map<String, Set<?>> namedWords,
-        boolean ignoreCase,
-        WordListsIndexService wordListsIndexService
-    ) {
-        String value = settings.get(name);
-        if (value != null) {
-            if ("_none_".equals(value)) {
-                return CharArraySet.EMPTY_SET;
-            } else {
-                return resolveNamedWords(settings.getAsList(name), namedWords, ignoreCase);
-            }
-        }
-        List<String> pathLoadedWords = getWordList(env, settings, name, wordListsIndexService);
-        if (pathLoadedWords != null) {
-            return resolveNamedWords(pathLoadedWords, namedWords, ignoreCase);
-        }
-        return defaultWords;
-    }
-
     public static CharArraySet parseCommonWords(Environment env, Settings settings, CharArraySet defaultCommonWords, boolean ignoreCase) {
         return parseWords(env, settings, "common_words", defaultCommonWords, NAMED_STOP_WORDS, ignoreCase);
     }
@@ -223,17 +198,11 @@ public class Analysis {
 
     public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords) {
         boolean stopwordsCase = settings.getAsBoolean("stopwords_case", false);
-        return parseStopWords(env, settings, defaultStopWords, stopwordsCase, null);
+        return parseStopWords(env, settings, defaultStopWords, stopwordsCase);
     }
 
-    public static CharArraySet parseStopWords(
-        Environment env,
-        Settings settings,
-        CharArraySet defaultStopWords,
-        boolean ignoreCase,
-        WordListsIndexService wordListsIndexService
-    ) {
-        return parseWords(env, settings, "stopwords", defaultStopWords, NAMED_STOP_WORDS, ignoreCase, wordListsIndexService);
+    public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords, boolean ignoreCase) {
+        return parseWords(env, settings, "stopwords", defaultStopWords, NAMED_STOP_WORDS, ignoreCase);
     }
 
     private static CharArraySet resolveNamedWords(Collection<String> words, Map<String, Set<?>> namedWords, boolean ignoreCase) {
@@ -268,17 +237,7 @@ public class Analysis {
      *          If the word list cannot be found at either key.
      */
     public static List<String> getWordList(Environment env, Settings settings, String settingPrefix) {
-        return getWordList(env, settings, settingPrefix + "_path", settingPrefix, true, null);
-    }
-
-    // FIXME: Factor out this repeated code
-    public static List<String> getWordList(
-        Environment env,
-        Settings settings,
-        String settingPrefix,
-        WordListsIndexService wordListsIndexService
-    ) {
-        return getWordList(env, settings, settingPrefix + "_path", settingPrefix, true, wordListsIndexService);
+        return getWordList(env, settings, settingPrefix + "_path", settingPrefix, true);
     }
 
     /**
@@ -293,8 +252,7 @@ public class Analysis {
         Settings settings,
         String settingPath,
         String settingList,
-        boolean removeComments,
-        WordListsIndexService wordListIndexService
+        boolean removeComments
     ) {
         String wordListPath = settings.get(settingPath, null);
 
@@ -307,84 +265,22 @@ public class Analysis {
             }
         }
 
-//        final URI pathAsUri = tryToParsePathAsUri(wordListPath);
-//        final Path path;
-//        final boolean deletePath;
-//        if (pathAsUri != null) {
-//            try {
-//                path = downloadFile(pathAsUri);
-//                deletePath = true;
-//            } catch (IOException e) {
-//                String message = Strings.format("IOException while downloading file %s", settingPath);
-//                throw new IllegalArgumentException(message, e);
-//            } catch (InterruptedException e) {
-//                Thread.currentThread().interrupt();
-//                String message = Strings.format("InterruptedException while downloading file %s", settingPath);
-//                throw new IllegalArgumentException(message, e);
-//            }
-//        } else {
-//            path = env.configFile().resolve(wordListPath);
-//            deletePath = false;
-//        }
-
-        final URL pathAsUrl = tryToParsePathAsURL(wordListPath);
-        String stringValue = null;
-        Path pathValue = null;
-        if (pathAsUrl != null) {
-            // TODO: Don't hard-code index name
-            final String fakeIndexName = "hard-coded-index";
-            PlainActionFuture<String> wordListLoadingFuture = new PlainActionFuture<>();
-            wordListIndexService.getWordListValue(fakeIndexName, wordListPath, wordListLoadingFuture);
-
-            stringValue = wordListLoadingFuture.actionGet();
-            boolean writeStringValue = false;
-            if (stringValue == null) {
-                try {
-                    stringValue = readFile(pathAsUrl);
-                } catch (IOException e) {
-                    String message = Strings.format("IOException while reading file at %s", settingPath);
-                    throw new IllegalArgumentException(message, e);
-                }
-
-                writeStringValue = true;
-            }
-
-            if (writeStringValue) {
-                wordListIndexService.putWordList(fakeIndexName, wordListPath, stringValue, new ActionListener<>() {
-                    @Override
-                    public void onResponse(WordListsIndexService.PutWordListResult putWordListResult) {
-                        // TODO: Log result
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new ElasticsearchStatusException(
-                            "Unable to index word list [" + wordListPath + "] for index [" + fakeIndexName + "]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e
-                        );
-                    }
-                });
-            }
-        } else {
-            pathValue = env.configFile().resolve(wordListPath);
-        }
+        final Path path = env.configFile().resolve(wordListPath);
 
         try {
-            // TODO: Clean up error handling
-            return stringValue != null ? loadWordList(stringValue, removeComments) : loadWordList(pathValue, removeComments);
+            return loadWordList(path, removeComments);
         } catch (CharacterCodingException ex) {
             String message = Strings.format(
                 "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
                 settingPath,
-                pathValue
+                path
             );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = Strings.format("IOException while reading %s: %s", settingPath, pathValue);
+            String message = Strings.format("IOException while reading %s: %s", settingPath, path);
             throw new IllegalArgumentException(message, ioe);
         } catch (AccessControlException ace) {
-            throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, pathValue), ace);
+            throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
         }
     }
 
@@ -494,7 +390,7 @@ public class Analysis {
         boolean removeComments,
         boolean checkDuplicate
     ) {
-        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments, null);
+        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
         if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
             checkDuplicateRules(ruleList);
         }

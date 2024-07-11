@@ -150,20 +150,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(
-                        "@timestamp",
-                        DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName())
-                            .format(Instant.now().plus(i, ChronoUnit.SECONDS))
-                    )
-                    .field("host.name", ESTestCase.randomFrom("foo", "bar", "baz"))
-                    .field("message", ESTestCase.randomFrom("a message", "another message", "still another message", "one more message"))
-                    .field("method", ESTestCase.randomFrom("put", "post", "get"))
-                    .field("memory_usage_bytes", ESTestCase.randomLongBetween(1000, 2000))
-                    .endObject()
-            );
+            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
         final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
@@ -186,20 +173,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
             final String method = randomFrom("put", "post", "get");
-            documents.add(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(
-                        "@timestamp",
-                        DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName())
-                            .format(Instant.now().plus(i, ChronoUnit.SECONDS))
-                    )
-                    .field("host.name", randomFrom("foo", "bar", "baz"))
-                    .field("message", randomFrom("a message", "another message", "still another message", "one more message"))
-                    .field("method", method)
-                    .field("memory_usage_bytes", randomLongBetween(1000, 2000))
-                    .endObject()
-            );
+            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
         final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
@@ -221,20 +195,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(
-                        "@timestamp",
-                        DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName())
-                            .format(Instant.now().plus(i, ChronoUnit.SECONDS))
-                    )
-                    .field("host.name", randomFrom("foo", "bar", "baz"))
-                    .field("message", randomFrom("a message", "another message", "still another message", "one more message"))
-                    .field("method", randomFrom("put", "post", "get"))
-                    .field("memory_usage_bytes", randomLongBetween(1000, 2000))
-                    .endObject()
-            );
+            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
         final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
@@ -257,20 +218,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(
-                        "@timestamp",
-                        DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName())
-                            .format(Instant.now().plus(i, ChronoUnit.SECONDS))
-                    )
-                    .field("host.name", randomFrom("foo", "bar", "baz"))
-                    .field("message", randomFrom("a message", "another message", "still another message", "one more message"))
-                    .field("method", randomFrom("put", "post", "get"))
-                    .field("memory_usage_bytes", randomLongBetween(1000, 2000))
-                    .endObject()
-            );
+            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
         final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
@@ -294,20 +242,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(
-                        "@timestamp",
-                        DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName())
-                            .format(Instant.now().plus(i, ChronoUnit.SECONDS))
-                    )
-                    .field("host.name", randomFrom("foo", "bar", "baz"))
-                    .field("message", randomFrom("a message", "another message", "still another message", "one more message"))
-                    .field("method", randomFrom("put", "post", "get"))
-                    .field("memory_usage_bytes", randomLongBetween(1000, 2000))
-                    .endObject()
-            );
+            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
         final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
@@ -324,6 +259,17 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
             .expected(getResponseSourceAsMap(queryBasline(searchSourceBuilder)))
             .ignoreSorting(true)
             .isEqual();
+    }
+
+    private static XContentBuilder generateDocument(final Instant timestamp) throws IOException {
+        return XContentFactory.jsonBuilder()
+            .startObject()
+            .field("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp))
+            .field("host.name", randomFrom("foo", "bar", "baz"))
+            .field("message", randomFrom("a message", "another message", "still another message", "one more message"))
+            .field("method", randomFrom("put", "post", "get"))
+            .field("memory_usage_bytes", randomLongBetween(1000, 2000))
+            .endObject();
     }
 
     @SuppressWarnings("unchecked")

@@ -88,13 +88,13 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         if (end < start || end == Long.MAX_VALUE) {
             throw new IllegalArgumentException("end must be >= start and not Long.MAX_VALUE");
         }
+        this.client = client;
         this.blobId = blobId;
         this.start = start;
         this.end = end;
-        this.client = client;
         this.maxAttempts = client.getOptions().getRetrySettings().getMaxAttempts();
-        this.storage = storage.get();
         SpecialPermission.check();
+        this.storage = storage.get();
         this.currentStream = openStream();
     }
 

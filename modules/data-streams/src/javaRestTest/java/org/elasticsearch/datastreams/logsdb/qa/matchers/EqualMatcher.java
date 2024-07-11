@@ -24,7 +24,7 @@ class EqualMatcher<T> extends Matcher {
     private final Settings.Builder expectedSettings;
     private final T actual;
     private final T expected;
-    private final boolean ignoreSorting;
+    private final boolean ignoringSort;
 
     EqualMatcher(
         XContentBuilder actualMappings,
@@ -33,7 +33,7 @@ class EqualMatcher<T> extends Matcher {
         Settings.Builder expectedSettings,
         T actual,
         T expected,
-        boolean ignoreSorting
+        boolean ignoringSort
     ) {
         this.actualMappings = actualMappings;
         this.actualSettings = actualSettings;
@@ -41,7 +41,7 @@ class EqualMatcher<T> extends Matcher {
         this.expectedSettings = expectedSettings;
         this.actual = actual;
         this.expected = expected;
-        this.ignoreSorting = ignoreSorting;
+        this.ignoringSort = ignoringSort;
     }
 
     @SuppressWarnings("unchecked")
@@ -71,10 +71,10 @@ class EqualMatcher<T> extends Matcher {
             );
         }
         if (actual.getClass().isArray()) {
-            return matchArraysEqual((T[]) actual, (T[]) expected, ignoreSorting);
+            return matchArraysEqual((T[]) actual, (T[]) expected, ignoringSort);
         }
         if (actual instanceof List<?> && expected instanceof List<?>) {
-            return matchArraysEqual((T[]) ((List<?>) actual).toArray(), (T[]) ((List<?>) expected).toArray(), ignoreSorting);
+            return matchArraysEqual((T[]) ((List<?>) actual).toArray(), (T[]) ((List<?>) expected).toArray(), ignoringSort);
         }
         return actual.equals(expected);
     }

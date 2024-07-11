@@ -162,10 +162,9 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .actual(getResponseSourceAsMap(queryContender(searchSourceBuilder)))
             .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
-            .ignoreSorting(true)
-            .isEqual();
+            .ignoringSort(true)
+            .isEqualTo(getResponseSourceAsMap(queryContender(searchSourceBuilder)));
     }
 
     public void testTermsQuery() throws IOException, MatcherException {
@@ -185,10 +184,9 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .actual(getResponseSourceAsMap(queryContender(searchSourceBuilder)))
             .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
-            .ignoreSorting(true)
-            .isEqual();
+            .ignoringSort(true)
+            .isEqualTo(getResponseSourceAsMap(queryContender(searchSourceBuilder)));
     }
 
     public void testHistogramAggregation() throws IOException, MatcherException {
@@ -208,10 +206,9 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .actual(getResponseSourceAsMap(queryContender(searchSourceBuilder)))
             .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
-            .ignoreSorting(true)
-            .isEqual();
+            .ignoringSort(true)
+            .isEqualTo(getResponseSourceAsMap(queryContender(searchSourceBuilder)));
     }
 
     public void testTermsAggregation() throws IOException, MatcherException {
@@ -232,10 +229,9 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .actual(getResponseSourceAsMap(queryContender(searchSourceBuilder)))
             .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
-            .ignoreSorting(true)
-            .isEqual();
+            .ignoringSort(true)
+            .isEqualTo(getResponseSourceAsMap(queryContender(searchSourceBuilder)));
     }
 
     public void testDateHistogramAggregation() throws IOException, MatcherException {
@@ -255,10 +251,9 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .actual(getResponseSourceAsMap(queryContender(searchSourceBuilder)))
             .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
-            .ignoreSorting(true)
-            .isEqual();
+            .ignoringSort(true)
+            .isEqualTo(getResponseSourceAsMap(queryContender(searchSourceBuilder)));
     }
 
     private static XContentBuilder generateDocument(final Instant timestamp) throws IOException {

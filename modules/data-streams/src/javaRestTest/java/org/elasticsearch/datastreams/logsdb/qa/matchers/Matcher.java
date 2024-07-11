@@ -23,26 +23,20 @@ public abstract class Matcher {
     }
 
     public interface SettingsStep<T> {
-        ActualStep<T> settings(Settings.Builder actualSettings, Settings.Builder expectedSettings);
-    }
-
-    public interface ActualStep<T> {
-        ExpectedStep<T> actual(T actual);
+        ExpectedStep<T> settings(Settings.Builder actualSettings, Settings.Builder expectedSettings);
     }
 
     public interface ExpectedStep<T> {
-        IgnoreSortingStep expected(T expected);
+        ActualStep<T> expected(T expected);
     }
 
-    public interface IgnoreSortingStep {
-        CompareStep ignoreSorting(boolean ignoreSorting);
+    public interface ActualStep<T> {
+        void isEqualTo(T actual) throws MatcherException;
+
+        ActualStep<T> ignoringSort(boolean ignoringSort);
     }
 
-    public interface CompareStep {
-        void isEqual() throws MatcherException;
-    }
-
-    private static class Builder<T> implements SettingsStep<T>, ActualStep<T>, ExpectedStep<T>, IgnoreSortingStep, CompareStep {
+    private static class Builder<T> implements SettingsStep<T>, ActualStep<T>, ExpectedStep<T> {
 
         private final XContentBuilder expectedMappings;
         private final XContentBuilder actualMappings;
@@ -50,47 +44,13 @@ public abstract class Matcher {
         private Settings.Builder actualSettings;
         private T expected;
         private T actual;
-        private boolean ignoreSorting;
+        private boolean ignoringSort;
 
         @Override
-        public ActualStep<T> settings(Settings.Builder actualSettings, Settings.Builder expectedSettings) {
+        public ExpectedStep<T> settings(Settings.Builder actualSettings, Settings.Builder expectedSettings) {
             this.actualSettings = actualSettings;
             this.expectedSettings = expectedSettings;
             return this;
-        }
-
-        @Override
-        public ExpectedStep<T> actual(T actual) {
-            this.actual = actual;
-            return this;
-        }
-
-        @Override
-        public IgnoreSortingStep expected(T expected) {
-            this.expected = expected;
-            return this;
-        }
-
-        @Override
-        public void isEqual() throws MatcherException {
-            boolean match = new EqualMatcher<>(
-                actualMappings,
-                actualSettings,
-                expectedMappings,
-                expectedSettings,
-                actual,
-                expected,
-                ignoreSorting
-            ).match();
-            if (match == false) {
-                throw new NotEqualMatcherException(
-                    actualMappings,
-                    actualSettings,
-                    expectedMappings,
-                    expectedSettings,
-                    "actual [" + actual + "] not equal to [" + expected + "]"
-                );
-            }
         }
 
         private Builder(
@@ -103,8 +63,36 @@ public abstract class Matcher {
         }
 
         @Override
-        public CompareStep ignoreSorting(boolean ignoreSorting) {
-            this.ignoreSorting = ignoreSorting;
+        public void isEqualTo(T actual) throws MatcherException {
+            boolean match = new EqualMatcher<>(
+                actualMappings,
+                actualSettings,
+                expectedMappings,
+                expectedSettings,
+                actual,
+                expected,
+                ignoringSort
+            ).match();
+            if (match == false) {
+                throw new NotEqualMatcherException(
+                    actualMappings,
+                    actualSettings,
+                    expectedMappings,
+                    expectedSettings,
+                    "actual [" + actual + "] not equal to [" + expected + "]"
+                );
+            }
+        }
+
+        @Override
+        public ActualStep<T> ignoringSort(boolean ignoringSort) {
+            this.ignoringSort = ignoringSort;
+            return this;
+        }
+
+        @Override
+        public ActualStep<T> expected(T expected) {
+            this.expected = expected;
             return this;
         }
     }

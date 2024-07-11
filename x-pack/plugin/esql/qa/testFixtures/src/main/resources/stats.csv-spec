@@ -31,6 +31,44 @@ MIN(languages):integer
 // end::min-result[]
 ;
 
+maxOfBoolean
+required_capability: agg_max_min_boolean_support
+from employees | stats s = max(still_hired);
+
+s:boolean
+true
+;
+
+maxOfBooleanExpression
+required_capability: agg_max_min_boolean_support
+from employees
+| eval x = salary is not null
+| where emp_no > 10050
+| stats a = max(salary is not null), b = max(x), c = max(case(salary is null, true, false)), d = max(is_rehired);
+
+a:boolean | b:boolean | c:boolean | d:boolean
+true      | true      | false     | true
+;
+
+minOfBooleanExpression
+required_capability: agg_max_min_boolean_support
+from employees
+| eval x = salary is not null
+| where emp_no > 10050
+| stats a = min(salary is not null), b = min(x), c = min(case(salary is null, true, false)), d = min(is_rehired);
+
+a:boolean | b:boolean | c:boolean | d:boolean
+true      | true      | false     | false
+;
+
+minOfBoolean
+required_capability: agg_max_min_boolean_support
+from employees | stats s = min(still_hired);
+
+s:boolean
+false
+;
+
 maxOfShort
 // short becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
 from employees | stats l = max(languages.short);
@@ -1818,4 +1856,32 @@ warning:Line 3:17: java.lang.ArithmeticException: / by zero
 
 w_avg:double
 null
+;
+
+docsStatsMvGroup
+// tag::mv-group[]
+ROW i=1, a=["a", "b"] | STATS MIN(i) BY a | SORT a ASC
+// end::mv-group[]
+;
+
+// tag::mv-group-result[]
+MIN(i):integer | a:keyword
+             1 | a
+             1 | b
+// end::mv-group-result[]
+;
+
+docsStatsMultiMvGroup
+// tag::multi-mv-group[]
+ROW i=1, a=["a", "b"], b=[2, 3] | STATS MIN(i) BY a, b | SORT a ASC, b ASC
+// end::multi-mv-group[]
+;
+
+// tag::multi-mv-group-result[]
+MIN(i):integer | a:keyword | b:integer
+             1 | a         | 2
+             1 | a         | 3
+             1 | b         | 2
+             1 | b         | 3
+// end::multi-mv-group-result[]
 ;

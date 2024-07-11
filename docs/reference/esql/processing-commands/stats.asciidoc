@@ -83,13 +83,35 @@ include::{esql-specs}/stats.csv-spec[tag=statsCalcMultipleValues]
 include::{esql-specs}/stats.csv-spec[tag=statsCalcMultipleValues-result]
 |===
 
-It's also possible to group by multiple values (only supported for long and
-keyword family fields):
+[[esql-stats-mv-group]]
+If the grouping key is multivalued then the input row is in all groups:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=mv-group]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=mv-group-result]
+|===
+
+It's also possible to group by multiple values:
 
 [source,esql]
 ----
 include::{esql-specs}/stats.csv-spec[tag=statsGroupByMultipleValues]
 ----
+
+If the all grouping keys are multivalued then the input row is in all groups:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=multi-mv-group]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=multi-mv-group-result]
+|===
 
 Both the aggregating functions and the grouping expressions accept other
 functions. This is useful for using `STATS...BY` on multivalue columns.

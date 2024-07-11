@@ -711,6 +711,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
+     * Collect remote search shards that we need to search for potential matches.
      * Used for ccs_minimize_roundtrips=false
      */
     static void collectSearchShards(
@@ -988,6 +989,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         };
     }
 
+    /**
+     * Produce a list of {@link SearchShardIterator}s from the set of responses from remote clusters.
+     * Used for ccs_minimize_roundtrips=false.
+     */
     static List<SearchShardIterator> getRemoteShardsIterator(
         Map<String, SearchShardsResponse> searchShardsResponses,
         Map<String, OriginalIndices> remoteIndicesByCluster,
@@ -1085,6 +1090,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             .allMatch(searchContextIdForNode -> searchContextIdForNode.getClusterAlias() == null);
     }
 
+    /**
+     * If any of the indices we are searching are frozen, issue deprecation warning.
+     */
     void frozenIndexCheck(ResolvedIndices resolvedIndices) {
         List<String> frozenIndices = new ArrayList<>();
         Map<Index, IndexMetadata> indexMetadataMap = resolvedIndices.getConcreteLocalIndicesMetadata();
@@ -1104,6 +1112,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
+    /**
+     * Execute search locally and for all given remote shards.
+     * Used when minimize_roundtrips=false or for local search.
+     */
     private void executeSearch(
         SearchTask task,
         SearchTimeProvider timeProvider,
@@ -1500,6 +1512,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
+    /**
+     * {@link ActionListener} suitable for collecting cross-cluster responses.
+     * @param <Response> Response type we're getting as intermediate per-cluster results.
+     * @param <FinalResponse> Response type that the final listener expects.
+     */
     abstract static class CCSActionListener<Response, FinalResponse> implements ActionListener<Response> {
         protected final String clusterAlias;
         protected final boolean skipUnavailable;
@@ -1533,6 +1550,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             maybeFinish();
         }
 
+        /**
+         * Specific listener type will implement this method to process its specific partial response.
+         */
         abstract void innerOnResponse(Response response);
 
         @Override
@@ -1670,6 +1690,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return iterators;
     }
 
+    /**
+     * Create a list of {@link SearchShardIterator}s for the local indices we are searching.
+     * This resolves aliases and index expressions.
+     */
     List<SearchShardIterator> getLocalShardsIterator(
         ClusterState clusterState,
         SearchRequest searchRequest,

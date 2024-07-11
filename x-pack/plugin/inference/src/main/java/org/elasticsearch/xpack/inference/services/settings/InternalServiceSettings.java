@@ -24,13 +24,13 @@ public abstract class InternalServiceSettings implements ServiceSettings {
     public static final String MODEL_ID = "model_id";
     public static final String ADAPTIVE_ALLOCATIONS = "adaptive_allocations";
 
-    private final int numAllocations;
+    private final Integer numAllocations;
     private final int numThreads;
     private final String modelId;
     private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
 
     public InternalServiceSettings(
-        int numAllocations,
+        Integer numAllocations,
         int numThreads,
         String modelId,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings
@@ -41,7 +41,7 @@ public abstract class InternalServiceSettings implements ServiceSettings {
         this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
     }
 
-    public int getNumAllocations() {
+    public Integer getNumAllocations() {
         return numAllocations;
     }
 
@@ -62,7 +62,7 @@ public abstract class InternalServiceSettings implements ServiceSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InternalServiceSettings that = (InternalServiceSettings) o;
-        return numAllocations == that.numAllocations
+        return Objects.equals(numAllocations, that.numAllocations)
             && numThreads == that.numThreads
             && Objects.equals(modelId, that.modelId)
             && Objects.equals(adaptiveAllocationsSettings, that.adaptiveAllocationsSettings);
@@ -82,10 +82,16 @@ public abstract class InternalServiceSettings implements ServiceSettings {
     }
 
     public void addXContentFragment(XContentBuilder builder, Params params) throws IOException {
-        builder.field(NUM_ALLOCATIONS, getNumAllocations());
+        if (numAllocations != null) {
+            builder.field(NUM_ALLOCATIONS, getNumAllocations());
+        }
+
         builder.field(NUM_THREADS, getNumThreads());
         builder.field(MODEL_ID, modelId());
-        builder.field(ADAPTIVE_ALLOCATIONS, getAdaptiveAllocationsSettings());
+
+        if (adaptiveAllocationsSettings != null) {
+            builder.field(ADAPTIVE_ALLOCATIONS, getAdaptiveAllocationsSettings());
+        }
     }
 
     @Override
@@ -100,7 +106,11 @@ public abstract class InternalServiceSettings implements ServiceSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(getNumAllocations());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            out.writeOptionalVInt(getNumAllocations());
+        } else {
+            out.writeVInt(getNumAllocations());
+        }
         out.writeVInt(getNumThreads());
         out.writeString(modelId());
         if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
@@ -109,14 +119,14 @@ public abstract class InternalServiceSettings implements ServiceSettings {
     }
 
     public abstract static class Builder {
-        private int numAllocations;
+        private Integer numAllocations;
         private int numThreads;
         private String modelId;
         private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
 
         public abstract InternalServiceSettings build();
 
-        public void setNumAllocations(int numAllocations) {
+        public void setNumAllocations(Integer numAllocations) {
             this.numAllocations = numAllocations;
         }
 
@@ -136,7 +146,7 @@ public abstract class InternalServiceSettings implements ServiceSettings {
             return modelId;
         }
 
-        public int getNumAllocations() {
+        public Integer getNumAllocations() {
             return numAllocations;
         }
 

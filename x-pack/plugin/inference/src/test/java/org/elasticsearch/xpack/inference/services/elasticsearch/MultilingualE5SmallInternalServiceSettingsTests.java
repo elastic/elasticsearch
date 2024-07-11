@@ -97,7 +97,10 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
             )
         );
 
-        assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_allocations]"));
+        assertThat(
+            e.getMessage(),
+            containsString("[service_settings] does not contain one of the required settings [num_allocations, adaptive_allocations]")
+        );
     }
 
     public void testFromMapInvalidSettings() {

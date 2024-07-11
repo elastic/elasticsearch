@@ -69,21 +69,21 @@ public final class CsvTestUtils {
 
     private CsvTestUtils() {}
 
-    public static boolean isEnabled(String testName, Version version) {
+    public static boolean isEnabled(String testName, String instructions, Version version) {
         if (testName.endsWith("-Ignore")) {
             return false;
         }
-        Tuple<Version, Version> skipRange = skipVersionRange(testName);
+        Tuple<Version, Version> skipRange = skipVersionRange(testName, instructions);
         if (skipRange != null && version.onOrAfter(skipRange.v1()) && version.onOrBefore(skipRange.v2())) {
             return false;
         }
         return true;
     }
 
-    private static final Pattern INSTRUCTION_PATTERN = Pattern.compile("#\\[(.*?)]");
+    private static final Pattern INSTRUCTION_PATTERN = Pattern.compile("\\[(.*?)]");
 
-    public static Map<String, String> extractInstructions(String testName) {
-        Matcher matcher = INSTRUCTION_PATTERN.matcher(testName);
+    public static Map<String, String> parseInstructions(String instructions) {
+        Matcher matcher = INSTRUCTION_PATTERN.matcher(instructions);
         Map<String, String> pairs = new HashMap<>();
         if (matcher.find()) {
             String[] groups = matcher.group(1).split(",");
@@ -98,8 +98,8 @@ public final class CsvTestUtils {
         return pairs;
     }
 
-    public static Tuple<Version, Version> skipVersionRange(String testName) {
-        Map<String, String> pairs = extractInstructions(testName);
+    public static Tuple<Version, Version> skipVersionRange(String testName, String instructions) {
+        Map<String, String> pairs = parseInstructions(instructions);
         String versionRange = pairs.get("skip");
         if (versionRange != null) {
             String[] skipVersions = versionRange.split("-", Integer.MAX_VALUE);

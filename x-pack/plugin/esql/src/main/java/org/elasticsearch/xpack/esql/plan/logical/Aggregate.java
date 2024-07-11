@@ -23,7 +23,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+
 public class Aggregate extends UnaryPlan {
+    private List<Attribute> lazyOutput;
 
     public enum AggregateType {
         STANDARD,
@@ -111,7 +115,10 @@ public class Aggregate extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(aggregates);
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(Expressions.asAttributes(aggregates()), emptyList());
+        }
+        return lazyOutput;
     }
 
     @Override

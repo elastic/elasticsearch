@@ -161,7 +161,9 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
     assert max.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      MaxBooleanAggregator.combineIntermediate(state, groupId, max.getBoolean(groupPosition + positionOffset), seen.getBoolean(groupPosition + positionOffset));
+      if (seen.getBoolean(groupPosition + positionOffset)) {
+        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), max.getBoolean(groupPosition + positionOffset)));
+      }
     }
   }
 

@@ -2331,6 +2331,7 @@ public class MetadataTests extends ESTestCase {
             "reservedStateMetadata"
         );
         Set<String> excludedFromGlobalStateCheck = Set.of(
+            "projectMetadata",
             "version",
             "transientSettings",
             "settings",

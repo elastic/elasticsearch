@@ -745,7 +745,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
-                        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver();
+                        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(indexRequest);
                         final IngestDocument ingestDocument = newIngestDocument(indexRequest, documentSizeObserver);
                         final org.elasticsearch.script.Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can

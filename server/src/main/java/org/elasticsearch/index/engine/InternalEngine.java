@@ -9,6 +9,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -2678,6 +2679,10 @@ public class InternalEngine extends Engine {
     }
 
     private IndexWriterConfig getIndexWriterConfig() {
+        return getIndexWriterConfig(engineConfig.getCodec());
+    }
+
+    protected IndexWriterConfig getIndexWriterConfig(Codec codec) {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
@@ -2716,7 +2721,7 @@ public class InternalEngine extends Engine {
         iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
-        iwc.setCodec(engineConfig.getCodec());
+        iwc.setCodec(codec);
         boolean useCompoundFile = engineConfig.getUseCompoundFile();
         iwc.setUseCompoundFile(useCompoundFile);
         if (useCompoundFile == false) {

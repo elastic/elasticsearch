@@ -19,9 +19,9 @@ import java.util.Map;
  */
 public class CancellableTask extends Task {
 
-    private final SubscribableListener<Void> listeners = new SubscribableListener<>();
     private volatile String reason;
     private volatile boolean isCancelled;
+    private final SubscribableListener<Void> listeners = new SubscribableListener<>();
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);

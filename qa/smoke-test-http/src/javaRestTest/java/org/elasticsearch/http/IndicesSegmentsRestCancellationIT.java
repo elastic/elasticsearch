@@ -14,11 +14,11 @@ import org.elasticsearch.client.Request;
 
 public class IndicesSegmentsRestCancellationIT extends BlockedSearcherRestCancellationTestCase {
     public void testIndicesSegmentsRestCancellation() throws Exception {
-        runTest("indices-segments-rest-cancellation", new Request(HttpGet.METHOD_NAME, "/_segments"), IndicesSegmentsAction.NAME);
+        runTest(new Request(HttpGet.METHOD_NAME, "/_segments"), IndicesSegmentsAction.NAME);
     }
 
     public void testCatSegmentsRestCancellation() throws Exception {
-        runTest("cat-segments-rest-cancellation", new Request(HttpGet.METHOD_NAME, "/_cat/segments"), IndicesSegmentsAction.NAME);
+        runTest(new Request(HttpGet.METHOD_NAME, "/_cat/segments"), IndicesSegmentsAction.NAME);
     }
 
 }

@@ -91,5 +91,4 @@ public class TaskAssertions {
             assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().startsWith(actionPrefix)));
         });
     }
-
 }

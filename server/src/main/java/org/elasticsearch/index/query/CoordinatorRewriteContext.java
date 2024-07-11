@@ -72,9 +72,9 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
      * @return min timestamp for the field from IndexMetadata in cluster state.
      */
     long getMinTimestamp(String fieldName) {
-        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+        if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.getTimestampRange().getMin();
-        } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
+        } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.getEventIngestedRange().getMin();
         } else {
             throw new IllegalArgumentException(

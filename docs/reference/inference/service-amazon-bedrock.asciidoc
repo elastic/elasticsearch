@@ -103,24 +103,24 @@ include::inference-shared.asciidoc[tag=task-settings]
 
 `max_new_tokens`:::
 (Optional, integer)
-Provides a hint for the maximum number of output tokens to be generated.
+Sets the maximum number for the output tokens to be generated.
 Defaults to 64.
 
 `temperature`:::
 (Optional, float)
-A number in the range of 0.0 to 1.0 that specifies the sampling temperature to use that controls the apparent creativity of generated completions.
+A number between 0.0 and 1.0 that controls the apparent creativity of the results. At temperature 0.0 the model is most deterministic, at temperature 1.0 most random.
 Should not be used if `top_p` or `top_k` is specified.
 
 `top_p`:::
 (Optional, float)
-A number in the range of 0.0 to 1.0 that is an alternative value to temperature that causes the model to consider the results of the tokens with nucleus sampling probability.
-Should not be used if `temperature` or `top_k` is specified.
+Alternative to `temperature`. A number in the range of 0.0 to 1.0, to eliminate low-probability tokens. Top-p uses nucleus sampling to select top tokens whose sum of likelihoods does not exceed a certain value, ensuring both variety and coherence.
+Should not be used if `temperature` is specified.
 
-`top_p`:::
+`top_k`:::
 (Optional, float)
 Only available for `anthropic`, `cohere`, and `mistral` providers.
-A number in the range of 0.0 to 1.0 that is an alternative value to temperature or top_p that causes the model to consider the results of the tokens with nucleus sampling probability.
-Should not be used if `temperature` or `top_p` is specified.
+Alternative to `temperature`. Limits samples to the top-K most likely words, balancing coherence and variability.
+Should not be used if `temperature` is specified.
 
 =====
 +
@@ -130,13 +130,15 @@ Should not be used if `temperature` or `top_p` is specified.
 
 There are no `task_settings` available for the `text_embedding` task type.
 
+=====
+
 [discrete]
 [[inference-example-amazonbedrock]]
 ==== Amazon Bedrock service example
 
 The following example shows how to create an {infer} endpoint called `amazon_bedrock_embeddings` to perform a `text_embedding` task type.
 
-The list of chat completion and embeddings models that you can choose from should be a https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html[Amazon Bedrock base model] you have access to.
+Choose chat completion and embeddings models that you have access to from the https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html[Amazon Bedrock base models].
 
 [source,console]
 ------------------------------------------------------------

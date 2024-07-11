@@ -147,8 +147,8 @@ class JnaPosixCLibrary implements PosixCLibrary {
         } catch (UnsatisfiedLinkError e) {
             // TODO: explain
             var fxstat = Native.load("c", FXStatFunction.class);
-            int fstat_version = System.getProperty("os.arch").equals("aarch64") ? 0 : 1;
-            fstat64 = (fd, stat) -> fxstat.__fxstat(fstat_version, fd, stat);
+            int version = System.getProperty("os.arch").equals("aarch64") ? 0 : 1;
+            fstat64 = (fd, stat) -> fxstat.__fxstat(version, fd, stat);
         }
         this.fstat64 = fstat64;
     }

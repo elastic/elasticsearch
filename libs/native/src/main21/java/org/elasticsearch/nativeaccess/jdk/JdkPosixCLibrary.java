@@ -72,11 +72,11 @@ class JdkPosixCLibrary implements PosixCLibrary {
         } catch (LinkageError e) {
             // Due to different sizes of the stat structure for 32 vs 64 bit machines, on some systems fstat actually points to
             // an internal symbol. So we fall back to looking for that symbol.
-            int fstat_version = System.getProperty("os.arch").equals("aarch64") ? 0 : 1;
+            int version = System.getProperty("os.arch").equals("aarch64") ? 0 : 1;
             fstat = MethodHandles.insertArguments(
                 downcallHandleWithErrno("__fxstat", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS)),
                 1,
-                fstat_version
+                version
             );
         }
         fstat$mh = fstat;

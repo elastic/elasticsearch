@@ -10,9 +10,14 @@ package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -23,6 +28,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<KnnRetrieverBuilder> {
 
@@ -34,7 +43,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
     public static KnnRetrieverBuilder createRandomKnnRetrieverBuilder() {
         String field = randomAlphaOfLength(6);
         int dim = randomIntBetween(2, 30);
-        float[] vector = randomBoolean() ? null : randomVector(dim);
+        float[] vector = randomVector(dim);
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k + 20, 1000);
         Float similarity = randomBoolean() ? null : randomFloat();
@@ -68,6 +77,29 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
                 nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == KnnRetrieverBuilder.KNN_RETRIEVER_SUPPORTED
             )
         );
+    }
+
+    public void testRewrite() throws IOException {
+        for (int i = 0; i < 10; i++) {
+            KnnRetrieverBuilder knnRetriever = createRandomKnnRetrieverBuilder();
+            SearchSourceBuilder source = new SearchSourceBuilder().retriever(knnRetriever);
+            QueryRewriteContext queryRewriteContext = mock(QueryRewriteContext.class);
+            source = Rewriteable.rewrite(source, queryRewriteContext);
+            assertNull(source.retriever());
+            assertNull(source.query());
+            assertThat(source.knnSearch().size(), equalTo(1));
+            assertThat(source.knnSearch().get(0).getFilterQueries().size(), equalTo(knnRetriever.preFilterQueryBuilders.size()));
+            for (int j = 0; j < knnRetriever.preFilterQueryBuilders.size(); j++) {
+                assertThat(
+                    source.knnSearch().get(0).getFilterQueries().get(j),
+                    anyOf(
+                        instanceOf(MatchAllQueryBuilder.class),
+                        instanceOf(MatchNoneQueryBuilder.class),
+                        equalTo(knnRetriever.preFilterQueryBuilders.get(j))
+                    )
+                );
+            }
+        }
     }
 
     @Override

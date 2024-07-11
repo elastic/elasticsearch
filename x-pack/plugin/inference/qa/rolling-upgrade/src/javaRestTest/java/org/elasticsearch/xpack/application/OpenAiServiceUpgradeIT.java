@@ -12,6 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +37,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
         super(upgradedNodes);
     }
 
-    // @BeforeClass
+    @BeforeClass
     public static void startWebServer() throws IOException {
         openAiEmbeddingsServer = new MockWebServer();
         openAiEmbeddingsServer.start();
@@ -44,33 +46,37 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
         openAiChatCompletionsServer.start();
     }
 
-    // @AfterClass for the awaits fix
+    @AfterClass
     public static void shutdown() {
         openAiEmbeddingsServer.close();
         openAiChatCompletionsServer.close();
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testOpenAiEmbeddings() throws IOException {
         var openAiEmbeddingsSupported = getOldClusterTestVersion().onOrAfter(OPEN_AI_EMBEDDINGS_ADDED);
+        // `gte_v` indicates that the cluster version is Greater Than or Equal to MODELS_RENAMED_TO_ENDPOINTS
+        String oldClusterEndpointIdentifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
         assumeTrue("OpenAI embedding service added in " + OPEN_AI_EMBEDDINGS_ADDED, openAiEmbeddingsSupported);
 
         final String oldClusterId = "old-cluster-embeddings";
         final String upgradedClusterId = "upgraded-cluster-embeddings";
 
+        var testTaskType = TaskType.TEXT_EMBEDDING;
+
         if (isOldCluster()) {
             String inferenceConfig = oldClusterVersionCompatibleEmbeddingConfig();
             // queue a response as PUT will call the service
             openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
-            put(oldClusterId, inferenceConfig, TaskType.TEXT_EMBEDDING);
+            put(oldClusterId, inferenceConfig, testTaskType);
 
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
+            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(oldClusterEndpointIdentifier);
             assertThat(configs, hasSize(1));
 
             assertEmbeddingInference(oldClusterId);
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
+            var configs = getConfigsWithBreakingChangeHandling(testTaskType, oldClusterId);
+
             assertEquals("openai", configs.get(0).get("service"));
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
@@ -80,7 +86,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertEmbeddingInference(oldClusterId);
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
+            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get("endpoints");
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             // model id is moved to service settings
             assertThat(serviceSettings, hasEntry("model_id", "text-embedding-ada-002"));
@@ -92,9 +98,9 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
 
             String inferenceConfig = embeddingConfigWithModelInServiceSettings(getUrl(openAiEmbeddingsServer));
             openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
-            put(upgradedClusterId, inferenceConfig, TaskType.TEXT_EMBEDDING);
+            put(upgradedClusterId, inferenceConfig, testTaskType);
 
-            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterId).get("endpoints");
+            configs = (List<Map<String, Object>>) get(testTaskType, upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertEmbeddingInference(upgradedClusterId);
@@ -111,23 +117,29 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testOpenAiCompletions() throws IOException {
         var openAiEmbeddingsSupported = getOldClusterTestVersion().onOrAfter(OPEN_AI_COMPLETIONS_ADDED);
+        String old_cluster_endpoint_identifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
         assumeTrue("OpenAI completions service added in " + OPEN_AI_COMPLETIONS_ADDED, openAiEmbeddingsSupported);
 
         final String oldClusterId = "old-cluster-completions";
         final String upgradedClusterId = "upgraded-cluster-completions";
 
-        if (isOldCluster()) {
-            put(oldClusterId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
+        var testTaskType = TaskType.COMPLETION;
 
-            var configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, oldClusterId).get("endpoints");
+        if (isOldCluster()) {
+            put(oldClusterId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), testTaskType);
+
+            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(old_cluster_endpoint_identifier);
             assertThat(configs, hasSize(1));
 
             assertCompletionInference(oldClusterId);
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, oldClusterId).get("endpoints");
+            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get("endpoints");
+            if (oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) == false) {
+                configs.addAll((List<Map<String, Object>>) get(testTaskType, oldClusterId).get(old_cluster_endpoint_identifier));
+                // in version 8.15, there was a breaking change where "models" was renamed to "endpoints"
+            }
             assertEquals("openai", configs.get(0).get("service"));
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "gpt-4"));
@@ -137,7 +149,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertCompletionInference(oldClusterId);
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, oldClusterId).get("endpoints");
+            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get("endpoints");
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "gpt-4"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
@@ -145,8 +157,8 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
 
             assertCompletionInference(oldClusterId);
 
-            put(upgradedClusterId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
-            configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, upgradedClusterId).get("endpoints");
+            put(upgradedClusterId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), testTaskType);
+            configs = (List<Map<String, Object>>) get(testTaskType, upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             // Inference on the new config

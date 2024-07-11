@@ -319,7 +319,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereServiceSettings("url", SimilarityMeasure.COSINE, 5, 10, "model_id", new RateLimitSettings(3)),
+            new CohereServiceSettings("url", SimilarityMeasure.COSINE, 5, 10, "modelId", new RateLimitSettings(3)),
             CohereEmbeddingType.INT8
         );
 
@@ -327,7 +327,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
         assertThat(xContentResult, is("""
-            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"model_id":"model_id",""" + """
+            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"modelId":"modelId",""" + """
             "rate_limit":{"requests_per_minute":3},"embedding_type":"byte"}"""));
     }
 

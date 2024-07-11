@@ -41,4 +41,10 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
     default DenseVectorFieldMapper.ElementType elementType() {
         return null;
     }
+
+    /**
+     * The model to use in the inference endpoint (e.g. text-embedding-ada-002)
+     * @return the model used to perform inference
+     */
+    String modelId();
 }

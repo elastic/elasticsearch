@@ -63,7 +63,7 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
                         1,
                         ElserInternalServiceSettings.NUM_THREADS,
                         4,
-                        "model_id",
+                        "modelId",
                         ".elser_model_27"
                     )
                 )
@@ -127,18 +127,18 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
             case 0 -> new ElserInternalServiceSettings(
                 instance.getNumAllocations() + 1,
                 instance.getNumThreads(),
-                instance.getModelId(),
+                instance.modelId(),
                 null
             );
             case 1 -> new ElserInternalServiceSettings(
                 instance.getNumAllocations(),
                 instance.getNumThreads() + 1,
-                instance.getModelId(),
+                instance.modelId(),
                 null
             );
             case 2 -> {
                 var versions = new HashSet<>(ElserInternalService.VALID_ELSER_MODEL_IDS);
-                versions.remove(instance.getModelId());
+                versions.remove(instance.modelId());
                 yield new ElserInternalServiceSettings(
                     instance.getNumAllocations(),
                     instance.getNumThreads(),

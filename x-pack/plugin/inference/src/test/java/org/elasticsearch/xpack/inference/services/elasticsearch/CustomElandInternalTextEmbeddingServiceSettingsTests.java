@@ -204,7 +204,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         var entity = new CustomElandInternalTextEmbeddingServiceSettings(
             1,
             1,
-            "model_id",
+            "modelId",
             null,
             100,
             SimilarityMeasure.COSINE,
@@ -216,7 +216,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"num_allocations":1,"num_threads":1,"model_id":"model_id","adaptive_allocations":null,"dimensions":100,""" + """
+            {"num_allocations":1,"num_threads":1,"modelId":"modelId","adaptive_allocations":null,"dimensions":100,""" + """
             "similarity":"cosine","element_type":"byte"}"""));
     }
 

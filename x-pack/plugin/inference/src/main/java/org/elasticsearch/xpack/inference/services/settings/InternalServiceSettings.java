@@ -49,7 +49,8 @@ public abstract class InternalServiceSettings implements ServiceSettings {
         return numThreads;
     }
 
-    public String getModelId() {
+    @Override
+    public String modelId() {
         return modelId;
     }
 
@@ -83,7 +84,7 @@ public abstract class InternalServiceSettings implements ServiceSettings {
     public void addXContentFragment(XContentBuilder builder, Params params) throws IOException {
         builder.field(NUM_ALLOCATIONS, getNumAllocations());
         builder.field(NUM_THREADS, getNumThreads());
-        builder.field(MODEL_ID, getModelId());
+        builder.field(MODEL_ID, modelId());
         builder.field(ADAPTIVE_ALLOCATIONS, getAdaptiveAllocationsSettings());
     }
 
@@ -101,7 +102,7 @@ public abstract class InternalServiceSettings implements ServiceSettings {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(getNumAllocations());
         out.writeVInt(getNumThreads());
-        out.writeString(getModelId());
+        out.writeString(modelId());
         if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
             out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
         }

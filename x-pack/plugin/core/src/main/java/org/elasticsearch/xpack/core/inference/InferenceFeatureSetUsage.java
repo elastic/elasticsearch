@@ -19,9 +19,7 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Objects;
 
 public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
@@ -93,33 +91,26 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
 
     private final Collection<ModelStats> modelStats;
 
-    private final List<InferenceRequestStats> modelStats2;
-
     public InferenceFeatureSetUsage(Collection<ModelStats> modelStats) {
         super(XPackField.INFERENCE, true, true);
         this.modelStats = modelStats;
-        // TODO pass this in as a param
-        modelStats2 = new ArrayList<>();
     }
 
     public InferenceFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
         this.modelStats = in.readCollectionAsList(ModelStats::new);
-        this.modelStats2 = in.readCollectionAsList(InferenceRequestStats::new);
     }
 
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
         builder.xContentList("models", modelStats);
-        builder.xContentList("inference_request_counts", modelStats2);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeCollection(modelStats);
-        out.writeCollection(modelStats2);
     }
 
     @Override

@@ -135,14 +135,14 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public record TestServiceSettings(String model_id) implements ServiceSettings {
+    public record TestServiceSettings(String modelId) implements ServiceSettings {
 
         static final String NAME = "test_reranking_service_settings";
 
         public static TestServiceSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
 
-            String model = (String) map.remove("model_id");
+            String model = (String) map.remove("modelId");
 
             if (model == null) {
                 validationException.addValidationError("missing model");
@@ -162,7 +162,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("model_id", model_id);
+            builder.field("modelId", modelId);
             builder.endObject();
             return builder;
         }
@@ -179,14 +179,19 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(model_id);
+            out.writeString(modelId);
+        }
+
+        @Override
+        public String modelId() {
+            return modelId;
         }
 
         @Override
         public ToXContentObject getFilteredXContentObject() {
             return (builder, params) -> {
                 builder.startObject();
-                builder.field("model_id", model_id);
+                builder.field("modelId", modelId);
                 builder.endObject();
                 return builder;
             };

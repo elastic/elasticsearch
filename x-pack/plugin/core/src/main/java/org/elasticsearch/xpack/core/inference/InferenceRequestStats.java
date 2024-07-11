@@ -22,17 +22,13 @@ public class InferenceRequestStats implements ToXContentObject, Writeable {
     private final InferenceFeatureSetUsage.ModelStats modelStats;
     private final String modelId;
 
-    public InferenceRequestStats(String service, TaskType taskType, String modelId) {
-        this(new InferenceFeatureSetUsage.ModelStats(service, taskType, 0L), modelId);
+    public InferenceRequestStats(String service, TaskType taskType, String modelId, long count) {
+        this(new InferenceFeatureSetUsage.ModelStats(service, taskType, count), modelId);
     }
 
     InferenceRequestStats(InferenceFeatureSetUsage.ModelStats modelStats, String modelId) {
         this.modelStats = new InferenceFeatureSetUsage.ModelStats(modelStats);
         this.modelId = modelId;
-    }
-
-    public InferenceRequestStats(InferenceRequestStats stats) {
-        this(stats.modelStats, stats.modelId);
     }
 
     public InferenceRequestStats(StreamInput in) throws IOException {

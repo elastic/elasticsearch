@@ -39,7 +39,7 @@ public class CohereRerankServiceSettingsTests extends AbstractWireSerializingTes
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new CohereRerankServiceSettings(
-            new CohereServiceSettings("url", SimilarityMeasure.COSINE, 5, 10, "model_id", new RateLimitSettings(3))
+            new CohereServiceSettings("url", SimilarityMeasure.COSINE, 5, 10, "modelId", new RateLimitSettings(3))
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -47,7 +47,7 @@ public class CohereRerankServiceSettingsTests extends AbstractWireSerializingTes
         String xContentResult = Strings.toString(builder);
         // TODO we probably shouldn't allow configuring these fields for reranking
         assertThat(xContentResult, is("""
-            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"model_id":"model_id",""" + """
+            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"modelId":"modelId",""" + """
             "rate_limit":{"requests_per_minute":3}}"""));
     }
 

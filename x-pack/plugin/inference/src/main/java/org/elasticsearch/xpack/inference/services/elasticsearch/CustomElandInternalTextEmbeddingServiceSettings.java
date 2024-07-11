@@ -232,6 +232,11 @@ public class CustomElandInternalTextEmbeddingServiceSettings implements ServiceS
     }
 
     @Override
+    public String modelId() {
+        return getElasticsearchInternalServiceSettings().modelId();
+    }
+
+    @Override
     public ToXContentObject getFilteredXContentObject() {
         return this;
     }

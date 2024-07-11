@@ -61,7 +61,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        var mockModel = getInvalidModel("model_id", "service_name");
+        var mockModel = getInvalidModel("modelId", "service_name");
 
         try (var service = new TestService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -78,7 +78,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
+                is("The internal model was invalid, please delete the service [service_name] with id [modelId] and add it again.")
             );
 
             verify(factory, times(1)).createSender();

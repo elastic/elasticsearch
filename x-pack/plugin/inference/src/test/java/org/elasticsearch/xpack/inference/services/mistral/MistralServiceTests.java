@@ -100,7 +100,7 @@ public class MistralServiceTests extends ESTestCase {
 
                 var embeddingsModel = (MistralEmbeddingsModel) model;
                 var serviceSettings = (MistralEmbeddingsServiceSettings) model.getServiceSettings();
-                assertThat(serviceSettings.model(), is("mistral-embed"));
+                assertThat(serviceSettings.modelId(), is("mistral-embed"));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
             }, exception -> fail("Unexpected exception: " + exception));
 
@@ -231,7 +231,7 @@ public class MistralServiceTests extends ESTestCase {
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
             var embeddingsModel = (MistralEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().model(), is("mistral-embed"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -354,7 +354,7 @@ public class MistralServiceTests extends ESTestCase {
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
             var embeddingsModel = (MistralEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().model(), is("mistral-embed"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
         }
@@ -394,7 +394,7 @@ public class MistralServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        var mockModel = getInvalidModel("model_id", "service_name");
+        var mockModel = getInvalidModel("modelId", "service_name");
 
         try (var service = new MistralService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -411,7 +411,7 @@ public class MistralServiceTests extends ESTestCase {
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
+                is("The internal model was invalid, please delete the service [service_name] with id [modelId] and add it again.")
             );
 
             verify(factory, times(1)).createSender();

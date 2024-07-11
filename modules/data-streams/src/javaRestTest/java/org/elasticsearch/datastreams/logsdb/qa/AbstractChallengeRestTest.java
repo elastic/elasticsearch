@@ -152,7 +152,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     ) throws IOException {
         final String template = """
             {
-              "index_patterns": [ \"%s\" ],
+              "index_patterns": [ "%s" ],
               "template": {
                 "settings":%s,
                 "mappings": %s

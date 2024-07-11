@@ -27,16 +27,16 @@ public abstract class Matcher {
     }
 
     public interface ExpectedStep<T> {
-        ActualStep<T> expected(T expected);
+        CompareStep<T> expected(T expected);
     }
 
-    public interface ActualStep<T> {
+    public interface CompareStep<T> {
         void isEqualTo(T actual) throws MatcherException;
 
-        ActualStep<T> ignoringSort(boolean ignoringSort);
+        CompareStep<T> ignoringSort(boolean ignoringSort);
     }
 
-    private static class Builder<T> implements SettingsStep<T>, ActualStep<T>, ExpectedStep<T> {
+    private static class Builder<T> implements SettingsStep<T>, CompareStep<T>, ExpectedStep<T> {
 
         private final XContentBuilder expectedMappings;
         private final XContentBuilder actualMappings;
@@ -85,13 +85,13 @@ public abstract class Matcher {
         }
 
         @Override
-        public ActualStep<T> ignoringSort(boolean ignoringSort) {
+        public CompareStep<T> ignoringSort(boolean ignoringSort) {
             this.ignoringSort = ignoringSort;
             return this;
         }
 
         @Override
-        public ActualStep<T> expected(T expected) {
+        public CompareStep<T> expected(T expected) {
             this.expected = expected;
             return this;
         }

@@ -261,7 +261,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         return new Tuple<>(indexBaselineDocuments(baselineSupplier), indexContenderDocuments(contenderSupplier));
     }
 
-    public Response queryBasline(final SearchSourceBuilder search) throws IOException {
+    public Response queryBaseline(final SearchSourceBuilder search) throws IOException {
         return query(search, this::getBaselineDataStreamName);
     }
 

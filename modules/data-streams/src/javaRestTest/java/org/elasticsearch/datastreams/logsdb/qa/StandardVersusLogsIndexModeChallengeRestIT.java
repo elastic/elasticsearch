@@ -163,7 +163,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .actual(getResponseSourceAsMap(queryContender(searchSourceBuilder)))
-            .expected(getResponseSourceAsMap(queryBasline(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
             .ignoreSorting(true)
             .isEqual();
     }
@@ -186,7 +186,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .actual(getResponseSourceAsMap(queryContender(searchSourceBuilder)))
-            .expected(getResponseSourceAsMap(queryBasline(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
             .ignoreSorting(true)
             .isEqual();
     }
@@ -209,7 +209,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .actual(getResponseSourceAsMap(queryContender(searchSourceBuilder)))
-            .expected(getResponseSourceAsMap(queryBasline(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
             .ignoreSorting(true)
             .isEqual();
     }
@@ -233,7 +233,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .actual(getResponseSourceAsMap(queryContender(searchSourceBuilder)))
-            .expected(getResponseSourceAsMap(queryBasline(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
             .ignoreSorting(true)
             .isEqual();
     }
@@ -256,7 +256,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .actual(getResponseSourceAsMap(queryContender(searchSourceBuilder)))
-            .expected(getResponseSourceAsMap(queryBasline(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
             .ignoreSorting(true)
             .isEqual();
     }

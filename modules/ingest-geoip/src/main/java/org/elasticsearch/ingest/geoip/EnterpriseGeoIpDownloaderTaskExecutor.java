@@ -59,8 +59,8 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         Setting.Property.NodeScope
     );
 
-    public static final Setting<SecureString> MAXMIND_DEFAULT_LICENSE_KEY_SETTING = SecureSetting.secureString(
-        MAXMIND_SETTINGS_PREFIX + "default.license_key",
+    public static final Setting<SecureString> MAXMIND_LICENSE_KEY_SETTING = SecureSetting.secureString(
+        MAXMIND_SETTINGS_PREFIX + "license_key",
         null
     );
 
@@ -108,8 +108,8 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
     private HttpClient.PasswordAuthenticationHolder buildCredentials() {
         final String username = this.defaultMaxmindAccountId;
         final char[] passwordChars;
-        if (cachedSecureSettings.getSettingNames().contains(MAXMIND_DEFAULT_LICENSE_KEY_SETTING.getKey())) {
-            passwordChars = cachedSecureSettings.getString(MAXMIND_DEFAULT_LICENSE_KEY_SETTING.getKey()).getChars();
+        if (cachedSecureSettings.getSettingNames().contains(MAXMIND_LICENSE_KEY_SETTING.getKey())) {
+            passwordChars = cachedSecureSettings.getString(MAXMIND_LICENSE_KEY_SETTING.getKey()).getChars();
         } else {
             passwordChars = null;
         }
@@ -192,7 +192,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         // `SecureSettings` are available here! cache them as they will be needed
         // whenever dynamic cluster settings change and we have to rebuild the accounts
         try {
-            this.cachedSecureSettings = extractSecureSettings(settings, List.of(MAXMIND_DEFAULT_LICENSE_KEY_SETTING));
+            this.cachedSecureSettings = extractSecureSettings(settings, List.of(MAXMIND_LICENSE_KEY_SETTING));
         } catch (GeneralSecurityException e) {
             logger.error("Keystore exception while reloading enterprise geoip download task executor", e);
             return;

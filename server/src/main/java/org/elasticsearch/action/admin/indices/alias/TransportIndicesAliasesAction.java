@@ -238,11 +238,40 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                                     systemIndices.isSystemName(resolvedName) ? Boolean.TRUE : action.isHidden()
                                 )
                             );
+
+                            if (action.autoExpandAliases()) {
+                                // TODO If we were going to get downstream aliases out of cluster metadata, this is where they would be
+                                // applied.
+                                Set<String> downstreamAliases = Set.of();
+                                for (String downstreamAlias : downstreamAliases) {
+                                    AliasAction downstreamAliasAction = new AliasAction.Add(
+                                        index.getName(),
+                                        downstreamAlias,
+                                        action.filter(),
+                                        action.indexRouting(),
+                                        action.searchRouting(),
+                                        action.writeIndex(),
+                                        systemIndices.isSystemName(resolvedName) ? Boolean.TRUE : action.isHidden()
+                                    );
+                                    finalActions.add(downstreamAliasAction);
+                                }
+                            }
                         }
                         break;
                     case REMOVE:
                         for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
                             finalActions.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
+
+                            if (action.autoExpandAliases()) {
+                                // TODO If we were going to get downstream aliases out of cluster metadata, this is where they would be
+                                // applied.
+                                Set<String> downstreamAliases = Set.of();
+                                for (String downstreamAlias : downstreamAliases) {
+                                    AliasAction downstreamAliasAction = new AliasAction.Remove(index.getName(), downstreamAlias, false);
+                                    finalActions.add(downstreamAliasAction);
+                                }
+                            }
+
                             numAliasesRemoved++;
                         }
                         break;
@@ -256,6 +285,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
 
             Arrays.stream(concreteIndices).map(Index::getName).forEach(resolvedIndices::add);
             actionResults.add(AliasActionResult.build(resolvedIndices, action, numAliasesRemoved));
+
         }
         if (finalActions.isEmpty() && false == actions.isEmpty()) {
             throw new AliasesNotFoundException(aliases.toArray(new String[aliases.size()]));

@@ -2,6 +2,9 @@
 [[esql-enrich]]
 === `ENRICH`
 
+`ENRICH` enables you to add data from existing indices as new columns using an
+enrich policy.
+
 **Syntax**
 
 [source,esql]

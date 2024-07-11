@@ -69,11 +69,6 @@ final class SystemJvmOptions {
                  * parsing will break in an incompatible way for some date patterns and locales.
                  */
                 "-Djava.locale.providers=SPI,COMPAT",
-                /*
-                 * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary
-                 * while we explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
-                 */
-                "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
                 maybeEnableNativeAccess(),
                 maybeOverrideDockerCgroup(distroType),
                 maybeSetActiveProcessorCount(nodeSettings),

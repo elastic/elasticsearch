@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -233,8 +234,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         boolean isUnsupported = attrSource.dataType() == DataType.UNSUPPORTED;
+        var unionTypes = findUnionTypes(attrSource);
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported, NONE),
+            shardIdx -> getBlockLoaderFor(shardIdx, attrSource.name(), isUnsupported, NONE, unionTypes),
             vsShardContexts,
             groupElementType,
             docChannel,
@@ -320,6 +322,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 @Override
                 public String indexName() {
                     return ctx.getFullyQualifiedIndex().getName();
+                }
+
+                @Override
+                public IndexSettings indexSettings() {
+                    return ctx.getIndexSettings();
                 }
 
                 @Override
@@ -434,12 +441,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public boolean supportsOrdinals() {
-            return delegate.supportsOrdinals();
+            // Fields with mismatching types cannot use ordinals for uniqueness determination, but must convert the values first
+            return false;
         }
 
         @Override
-        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-            return delegate.ordinals(context);
+        public SortedSetDocValues ordinals(LeafReaderContext context) {
+            throw new IllegalArgumentException("Ordinals are not supported for type conversion");
         }
 
         @Override

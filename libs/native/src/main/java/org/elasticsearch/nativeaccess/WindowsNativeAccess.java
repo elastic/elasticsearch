@@ -12,7 +12,11 @@ import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library.Handle;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.lang.management.ManagementFactory.getMemoryMXBean;
 
@@ -26,6 +30,18 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     public static final int PAGE_NOACCESS = 0x0001;
     public static final int PAGE_GUARD = 0x0100;
     public static final int MEM_COMMIT = 0x1000;
+
+    private static final int INVALID_FILE_SIZE = -1;
+
+    /**
+     * Constant for JOBOBJECT_BASIC_LIMIT_INFORMATION in Query/Set InformationJobObject
+     */
+    private static final int JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS = 2;
+
+    /**
+     * Constant for LimitFlags, indicating a process limit has been set
+     */
+    private static final int JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 8;
 
     private final Kernel32Library kernel;
     private final WindowsFunctions windowsFunctions;
@@ -66,6 +82,78 @@ class WindowsNativeAccess extends AbstractNativeAccess {
             isMemoryLocked = true;
         }
         // note: no need to close the process handle because GetCurrentProcess returns a pseudo handle
+    }
+
+    /**
+     * Install exec system call filtering on Windows.
+     * <p>
+     * Process creation is restricted with {@code SetInformationJobObject/ActiveProcessLimit}.
+     * <p>
+     * Note: This is not intended as a real sandbox. It is another level of security, mostly intended to annoy
+     * security researchers and make their lives more difficult in achieving "remote execution" exploits.
+     */
+    @Override
+    public void tryInstallExecSandbox() {
+        // create a new Job
+        Handle job = kernel.CreateJobObjectW();
+        if (job == null) {
+            throw new UnsupportedOperationException("CreateJobObject: " + kernel.GetLastError());
+        }
+
+        try {
+            // retrieve the current basic limits of the job
+            int clazz = JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS;
+            var info = kernel.newJobObjectBasicLimitInformation();
+            if (kernel.QueryInformationJobObject(job, clazz, info) == false) {
+                throw new UnsupportedOperationException("QueryInformationJobObject: " + kernel.GetLastError());
+            }
+            // modify the number of active processes to be 1 (exactly the one process we will add to the job).
+            info.setActiveProcessLimit(1);
+            info.setLimitFlags(JOB_OBJECT_LIMIT_ACTIVE_PROCESS);
+            if (kernel.SetInformationJobObject(job, clazz, info) == false) {
+                throw new UnsupportedOperationException("SetInformationJobObject: " + kernel.GetLastError());
+            }
+            // assign ourselves to the job
+            if (kernel.AssignProcessToJobObject(job, kernel.GetCurrentProcess()) == false) {
+                throw new UnsupportedOperationException("AssignProcessToJobObject: " + kernel.GetLastError());
+            }
+        } finally {
+            kernel.CloseHandle(job);
+        }
+
+        execSandboxState = ExecSandboxState.ALL_THREADS;
+        logger.debug("Windows ActiveProcessLimit initialization successful");
+    }
+
+    @Override
+    public OptionalLong allocatedSizeInBytes(Path path) {
+        assert Files.isRegularFile(path) : path;
+        String fileName = "\\\\?\\" + path;
+        AtomicInteger lpFileSizeHigh = new AtomicInteger();
+
+        final int lpFileSizeLow = kernel.GetCompressedFileSizeW(fileName, lpFileSizeHigh::set);
+        if (lpFileSizeLow == INVALID_FILE_SIZE) {
+            logger.warn("Unable to get allocated size of file [{}]. Error code {}", path, kernel.GetLastError());
+            return OptionalLong.empty();
+        }
+
+        // convert lpFileSizeLow to unsigned long and combine with signed/shifted lpFileSizeHigh
+        final long allocatedSize = (((long) lpFileSizeHigh.get()) << Integer.SIZE) | Integer.toUnsignedLong(lpFileSizeLow);
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "executing native method GetCompressedFileSizeW returned [high={}, low={}, allocated={}] for file [{}]",
+                lpFileSizeHigh.get(),
+                lpFileSizeLow,
+                allocatedSize,
+                path
+            );
+        }
+        return OptionalLong.of(allocatedSize);
+    }
+
+    @Override
+    public void tryPreallocate(Path file, long size) {
+        logger.warn("Cannot preallocate file size because operation is not available on Windows");
     }
 
     @Override

@@ -548,8 +548,6 @@ PUT _cluster/settings
 [discrete]
 ==== Number of documents in the index shard cannot exceed [2147483519]
 
-NOTE: Historically, this error reported `Number of documents in the index shard cannot exceed [2147483519]` where 
-`index` was referencing a Lucene index which correlates to an <<glossary-shard,Elasticsearch shard>>. 
 
 Elasticsearch shards reflect Lucene's underlying https://github.com/apache/lucene/issues/5176[index 
 `MAX_DOC` hard limit] of 2,147,483,519 (`(2^31)-129`) docs. This figure calulates 
@@ -559,7 +557,7 @@ will cause error
 
 [source, txt]
 ----
-Elasticsearch exception [type=illegal_argument_exception, reason=Number of documents in the index shard cannot exceed [2147483519]]
+Elasticsearch exception [type=illegal_argument_exception, reason=Number of documents in the shard cannot exceed [2147483519]]
 ----
 
 or this error's sister stack trace will appear 

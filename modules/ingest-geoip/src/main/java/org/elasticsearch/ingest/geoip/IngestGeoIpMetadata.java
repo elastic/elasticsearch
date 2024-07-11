@@ -154,8 +154,8 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.MINIMUM_COMPATIBLE;
-        } // TODO ???
+            return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+        }
     }
 
     @Override

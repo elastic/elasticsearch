@@ -8,8 +8,6 @@
 
 package org.elasticsearch.ingest.geoip.direct;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -34,8 +32,6 @@ import java.util.Set;
 public class TransportGetDatabaseConfigurationAction extends TransportMasterNodeAction<
     GetDatabaseConfigurationAction.Request,
     GetDatabaseConfigurationAction.Response> {
-
-    private static final Logger logger = LogManager.getLogger(TransportGetDatabaseConfigurationAction.class);
 
     @Inject
     public TransportGetDatabaseConfigurationAction(

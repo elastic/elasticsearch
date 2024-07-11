@@ -146,15 +146,9 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         });
     }
 
-    // TODO can be a record?
-    private static class UpdateDatabaseConfigurationTask implements ClusterStateTaskListener {
-        private final ActionListener<AcknowledgedResponse> listener;
-        private final DatabaseConfiguration database;
-
-        UpdateDatabaseConfigurationTask(ActionListener<AcknowledgedResponse> listener, DatabaseConfiguration database) {
-            this.listener = listener;
-            this.database = database;
-        }
+    private record UpdateDatabaseConfigurationTask(ActionListener<AcknowledgedResponse> listener, DatabaseConfiguration database)
+        implements
+            ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
             IngestGeoIpMetadata geoIpMeta = currentState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
@@ -180,9 +174,9 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             geoIpMeta = new IngestGeoIpMetadata(databases);
 
             if (existingDatabase == null) {
-                logger.info("adding new database configuration [{}]", id);
+                logger.debug("adding new database configuration [{}]", id);
             } else {
-                logger.info("updating existing database configuration [{}]", id);
+                logger.debug("updating existing database configuration [{}]", id);
             }
 
             Metadata currentMeta = currentState.metadata();

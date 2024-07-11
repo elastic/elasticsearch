@@ -17,7 +17,7 @@ import java.util.List;
 public class EnterpriseDownloaderPlugin extends Plugin {
 
     private final Settings settings;
-    private EnterpriseGeoIpDownloaderLicenseListener enterpriseGeoIpDownloaderTaskExecutor;
+    private EnterpriseGeoIpDownloaderLicenseListener enterpriseGeoIpDownloaderLicenseListener;
 
     public EnterpriseDownloaderPlugin(final Settings settings) {
         this.settings = settings;
@@ -29,14 +29,13 @@ public class EnterpriseDownloaderPlugin extends Plugin {
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        enterpriseGeoIpDownloaderTaskExecutor = new EnterpriseGeoIpDownloaderLicenseListener(
+        enterpriseGeoIpDownloaderLicenseListener = new EnterpriseGeoIpDownloaderLicenseListener(
             services.client(),
             services.clusterService(),
             services.threadPool(),
             getLicenseState()
         );
-        enterpriseGeoIpDownloaderTaskExecutor.init();
-        // TODO do we even need to return this? is there a benefit or cost to doing or not doing it?
-        return List.of(enterpriseGeoIpDownloaderTaskExecutor);
+        enterpriseGeoIpDownloaderLicenseListener.init();
+        return List.of(enterpriseGeoIpDownloaderLicenseListener);
     }
 }

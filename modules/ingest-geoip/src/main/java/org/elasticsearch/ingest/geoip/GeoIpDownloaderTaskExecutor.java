@@ -99,18 +99,15 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private final AtomicBoolean taskIsBootstrapped = new AtomicBoolean(false);
 
     GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
-        // this registers that the 'geoip-downloader' is the kind of task this thing creates, that is, we could create many of them,
-        // but we happen to only create just the one ('name' is a bit like a 'kind', versus 'id' which identifies a specific one)
         super(GEOIP_DOWNLOADER, threadPool.generic());
         this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
         this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.settings = clusterService.getSettings(); // the javadocs say "the node's settings" -- this is interesting
-        this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client); // amazing
+        this.settings = clusterService.getSettings();
+        this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
-        logger.info("GeoIpDownloaderTaskExecutor#new");
     }
 
     /**
@@ -129,7 +126,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return;
         }
         if (enabled) {
-            logger.info("GeoIpDownloaderTaskExecutor#setEnabled -- true branch");
             startTask(() -> {});
         } else {
             stopTask(() -> {});
@@ -158,15 +154,10 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, GeoIpTaskParams params, PersistentTaskState state) {
-        logger.info("GeoIpDownloaderTaskExecutor#nodeOperation");
-        // this runs on the node that was allocated to have the task,
-        // and runDownloader uses a scheduler to schedule its own next run,
-        // so this kicks things off if the thing is enabled
         GeoIpDownloader downloader = (GeoIpDownloader) task;
         GeoIpTaskState geoIpTaskState = (state == null) ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
         currentTask.set(downloader);
-        // this double-settings check is very unusual
         if (ENABLED_SETTING.get(clusterService.state().metadata().settings(), settings)) {
             downloader.runDownloader();
         }
@@ -174,18 +165,13 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
     @Override
     protected GeoIpDownloader createTask(
-        // called by the persistent tasks node service
-        long id, // just an id
-        String type, // it's the string 'persistent'
+        long id,
+        String type,
         String action,
         TaskId parentTaskId,
         PersistentTasksCustomMetadata.PersistentTask<GeoIpTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
-        logger.info("id [{}], type [{}], action [{}]", id, type, action);
-
-        // called when somebody else asks the persistent node service to kick this bad boy off,
-        // this'll actually get invoked
         return new GeoIpDownloader(
             client,
             httpClient,
@@ -217,14 +203,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return;
         }
 
-        // it seems like this would result in two startTask/stopTask invocations sometimes
-        // the one from the settings change listener and another one from here, too. i'm not sure
-        // why we need to have both. it is interesting.
         if (taskIsBootstrapped.getAndSet(true) == false) {
             this.atLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
-            // this double-settings check is very unusual
             if (ENABLED_SETTING.get(event.state().getMetadata().settings(), settings)) {
-                logger.info("GeoIpDownloaderTaskExecutor#clusterChanged -- true branch");
                 startTask(() -> taskIsBootstrapped.set(false));
             } else {
                 stopTask(() -> taskIsBootstrapped.set(false));
@@ -245,7 +226,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 logger.trace("Scheduling runDownloader because a geoip processor has been added");
                 GeoIpDownloader currentDownloader = getCurrentTask();
                 if (currentDownloader != null) {
-                    currentDownloader.requestReschedule(); // watching the cluster changed events to kick the thing off if it's not running
+                    currentDownloader.requestReschedule();
                 }
             } else {
                 atLeastOneGeoipProcessor = newAtLeastOneGeoipProcessor;
@@ -365,11 +346,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private static final TimeValue MASTER_TIMEOUT = TimeValue.MAX_VALUE;
 
     private void startTask(Runnable onFailure) {
-        logger.info("GeoIpDownloaderTaskExecutor#startTask");
         persistentTasksService.sendStartRequest(
-            // persistentTasksService.sendStartRequest
-            GEOIP_DOWNLOADER, // the 'id' of this one specific task to actually run
-            GEOIP_DOWNLOADER, // the 'kind' of task to start
+            GEOIP_DOWNLOADER,
+            GEOIP_DOWNLOADER,
             new GeoIpTaskParams(),
             MASTER_TIMEOUT,
             ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
@@ -383,7 +362,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     }
 
     private void stopTask(Runnable onFailure) {
-        logger.info("GeoIpDownloaderTaskExecutor#stopTask");
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(
             r -> logger.debug("Stopped geoip downloader task"),
             e -> {
@@ -394,8 +372,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 }
             }
         );
-        // persistentTasksService.sendRemoveRequest
-        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER /* id! */, MASTER_TIMEOUT, ActionListener.runAfter(listener, () -> {
+        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, MASTER_TIMEOUT, ActionListener.runAfter(listener, () -> {
             IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
             if (databasesAbstraction != null) {
                 // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index

@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -170,7 +171,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                 final String id = entry.getKey();
                 DatabaseConfiguration database = entry.getValue().database();
                 if (metas.contains(database.name() + ".mmdb") == false) {
-                    logger.info("A new database appeared! [{}]", database.name());
+                    logger.debug("A new database appeared [{}]", database.name());
 
                     try (HttpClient.PasswordAuthenticationHolder holder = credentialsSupplier.get()) {
                         if (holder == null) {
@@ -201,7 +202,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                 String name = entry.getKey();
                 Metadata meta = entry.getValue();
                 if (databases.contains(name) == false) {
-                    logger.info("Dropping [{}], databases was {}", name, databases);
+                    logger.debug("Dropping [{}], databases was {}", name, databases);
                     _state = _state.remove(name);
                     deleteOldChunks(name, meta.lastChunk() + 1);
                     droppedSomething = true;
@@ -212,6 +213,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         }
 
         if (addedSomething == false && droppedSomething == false) {
+            RuntimeException accumulator = null;
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
                 final String id = entry.getKey();
                 DatabaseConfiguration database = entry.getValue().database();
@@ -222,14 +224,19 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                     } else {
                         processDatabase(holder.get(), id, database);
                     }
+                } catch (Exception e) {
+                    accumulator = ExceptionsHelper.useOrSuppress(accumulator, ExceptionsHelper.convertToRuntime(e));
                 }
+            }
+            if (accumulator != null) {
+                throw accumulator;
             }
         }
     }
 
     void processDatabase(PasswordAuthentication auth, String id, DatabaseConfiguration database) throws IOException {
         final String name = database.name();
-        logger.info("Lol, off we go, downloading {} / {}", id, name);
+        logger.debug("Processing database [{}] for configuration [{}]", name, id);
 
         final String sha256Url = downloadUrl(name, "tar.gz.sha256");
         final String tgzUrl = downloadUrl(name, "tar.gz");
@@ -237,13 +244,14 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         final Pattern checksumPattern = Pattern.compile("(\\w{64})\\s\\s(.*)");
         String result = new String(httpClient.getBytes(auth, sha256Url), StandardCharsets.UTF_8).trim(); // this throws if the auth is bad
         var matcher = checksumPattern.matcher(result);
-        boolean match = matcher.matches(); // TODO this better be true!
-        final String sha256 = matcher.group(1); // no match found!?
-
-        logger.info("off to the races! [{} / {}]", id, name);
-        logger.info("sha256 was [{}]", sha256);
-
-        processDatabase(auth, name + ".mmdb" /* TODO ugh */, sha256, tgzUrl);
+        boolean match = matcher.matches();
+        if (match == false) {
+            throw new RuntimeException("Unexpected sha256 response from [" + sha256Url + "]");
+        }
+        final String sha256 = matcher.group(1);
+        // the name that comes from the enterprise downloader cluster state doesn't include the .mmdb extension,
+        // but the downloading and indexing of database code expects it to be there, so we add it on here before further processing
+        processDatabase(auth, name + ".mmdb", sha256, tgzUrl);
     }
 
     private void processDatabase(PasswordAuthentication auth, String name, String sha256, String url) {
@@ -333,7 +341,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         String actualMd5 = MessageDigests.toHexString(md5.digest());
         String actualChecksum = digest == null ? actualMd5 : MessageDigests.toHexString(digest.digest());
         if (Objects.equals(expectedChecksum, actualChecksum) == false) {
-            throw new IOException("md5 checksum mismatch, expected [" + expectedChecksum + "], actual [" + actualChecksum + "]");
+            throw new IOException("checksum mismatch, expected [" + expectedChecksum + "], actual [" + actualChecksum + "]");
         }
         return Tuple.tuple(chunk, actualMd5);
     }
@@ -373,9 +381,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         // TODO regardless of the above comment, i like the idea of checking the lowest last-checked time and then running the math to get
         // to the next interval from then -- maybe that's a neat future enhancement to add
 
-        logger.info("EnterpriseGeoIpDownloader#runDownloader");
         if (isCancelled() || isCompleted()) {
-            logger.info("EnterpriseGeoIpDownloader#runDownloader -- isCancelled or isCompleted, I'm out! bye!");
             return;
         }
         try {
@@ -397,9 +403,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
      * scheduled run.
      */
     public void requestReschedule() {
-        logger.info("EnterpriseGeoIpDownloader#requestReschedule");
         if (isCancelled() || isCompleted()) {
-            logger.info("EnterpriseGeoIpDownloader#requestReschedule -- isCancelled or isCompleted, I'm out! bye!");
             return;
         }
         if (scheduled != null && scheduled.cancel()) {
@@ -427,9 +431,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     @Override
     protected void onCancelled() {
-        logger.info("EnterpriseGeoIpDownloader#onCancelled");
         if (scheduled != null) {
-            logger.info("EnterpriseGeoIpDownloader#onCancelled -- calling cancel!");
             scheduled.cancel();
         }
         markAsCompleted();

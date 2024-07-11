@@ -238,7 +238,7 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {
                     databaseReader.set(loader.get());
-                    logger.debug("loaded [{}] geo-IP database", databasePath); // TODO not the best logging message ever
+                    logger.debug("loaded [{}] geo-IP database", databasePath);
                 }
             }
         }

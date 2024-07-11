@@ -285,9 +285,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         // by the time we reach here, the state will never be null
         assert state != null;
 
-        logger.info("GeoIpDownloader#runDownloader");
         if (isCancelled() || isCompleted()) {
-            logger.info("GeoIpDownloader#runDownloader -- isCancelled or isCompleted, I'm out! bye!");
             return;
         }
         try {
@@ -311,9 +309,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
      * scheduled run.
      */
     public void requestReschedule() {
-        logger.info("GeoIpDownloader#requestReschedule");
         if (isCancelled() || isCompleted()) {
-            logger.info("GeoIpDownloader#requestReschedule -- isCancelled or isCompleted, I'm out! bye!");
             return;
         }
         if (scheduled != null && scheduled.cancel()) {
@@ -322,8 +318,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     private void cleanDatabases() {
-        // this cleanDatabases logic is wrong, it'll deleteOldChunks() repeatedly forever,
-        // and it counts down the lastCheck a millisecond at a time which seems like nonsense to me.
         List<Map.Entry<String, Metadata>> expiredDatabases = state.getDatabases()
             .entrySet()
             .stream()
@@ -333,7 +327,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             String name = e.getKey();
             Metadata meta = e.getValue();
             deleteOldChunks(name, meta.lastChunk() + 1);
-            // the lastCheck() - 1 bit here is a WAT
             state = state.put(name, new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1));
             updateTaskState();
         });
@@ -342,9 +335,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     @Override
     protected void onCancelled() {
-        logger.info("GeoIpDownloader#onCancelled");
         if (scheduled != null) {
-            logger.info("GeoIpDownloader#onCancelled -- calling cancel!");
             scheduled.cancel();
         }
         markAsCompleted();

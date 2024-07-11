@@ -31,8 +31,6 @@ public class NodePersistentTasksExecutor {
             @Override
             protected void doRun() throws Exception {
                 try {
-                    // calls PersistentTasksExecutor nodeOperation
-                    // that is, if you're the lucky node, then this will get called in your jvm
                     executor.nodeOperation(task, params, state);
                 } catch (Exception ex) {
                     task.markAsFailed(ex);

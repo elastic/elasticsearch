@@ -94,15 +94,9 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
         );
     }
 
-    // TODO can be a record?
-    private static class DeleteDatabaseConfigurationTask implements ClusterStateTaskListener {
-        private final ActionListener<AcknowledgedResponse> listener;
-        private final String databaseId;
-
-        DeleteDatabaseConfigurationTask(ActionListener<AcknowledgedResponse> listener, String databaseId) {
-            this.listener = listener;
-            this.databaseId = databaseId;
-        }
+    private record DeleteDatabaseConfigurationTask(ActionListener<AcknowledgedResponse> listener, String databaseId)
+        implements
+            ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
             IngestGeoIpMetadata geoIpMeta = currentState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
@@ -114,7 +108,7 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
             }
 
             // delete
-            logger.info("deleting database configuration [{}]", id);
+            logger.debug("deleting database configuration [{}]", id);
             Map<String, DatabaseConfigurationMetadata> databases = new HashMap<>(geoIpMeta.getDatabases());
             databases.remove(id);
             geoIpMeta = new IngestGeoIpMetadata(databases);

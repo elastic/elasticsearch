@@ -1142,17 +1142,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             };
         }
 
-        private LogicalPlan dropConvertedAttributes(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {
-            List<NamedExpression> projections = new ArrayList<>(plan.output());
-            for (var e : unionFieldAttributes) {
-                projections.removeIf(p -> p.id().equals(e.id()));
-            }
-            if (projections.size() != plan.output().size()) {
-                return new EsqlProject(plan.source(), plan, projections);
-            }
-            return plan;
-        }
-
         private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();

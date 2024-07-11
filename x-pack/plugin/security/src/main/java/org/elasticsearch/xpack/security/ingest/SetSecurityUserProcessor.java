@@ -116,7 +116,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             switch (property) {
                 case USERNAME:
                     if (user.principal() != null) {
-                        userObject.put("username", user.principal());
+                        userObject.put("name", user.principal());
                     }
                     break;
                 case FULL_NAME:

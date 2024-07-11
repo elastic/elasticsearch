@@ -346,6 +346,8 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             )
         );
         var rangeNotSatisfiedException = (RequestedRangeNotSatisfiedException) exception.getCause().getCause();
+        assertThat(rangeNotSatisfiedException.getPosition(), equalTo(position));
+        assertThat(rangeNotSatisfiedException.getLength(), equalTo(length));
         assertThat(responseCodeChecker.test(rangeNotSatisfiedException), is(true));
     }
 

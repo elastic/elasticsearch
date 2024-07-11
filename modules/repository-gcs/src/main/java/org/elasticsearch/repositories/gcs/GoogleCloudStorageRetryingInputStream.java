@@ -33,6 +33,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -70,26 +71,13 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
 
     // both start and end are inclusive bounds, following the definition in https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
     GoogleCloudStorageRetryingInputStream(Storage client, BlobId blobId, long start, long end) throws IOException {
-        if (start < 0L) {
-            throw new IllegalArgumentException("start must be non-negative");
-        }
-        if (end < start || end == Long.MAX_VALUE) {
-            throw new IllegalArgumentException("end must be >= start and not Long.MAX_VALUE");
-        }
-        this.client = client;
-        this.blobId = blobId;
-        this.start = start;
-        this.end = end;
-        this.maxAttempts = client.getOptions().getRetrySettings().getMaxAttempts();
-        SpecialPermission.check();
-        storage = getStorage(client);
-        currentStream = openStream();
+        this(client, () -> getStorage(client), blobId, start, end);
     }
 
     // Used for testing only
     GoogleCloudStorageRetryingInputStream(
         com.google.cloud.storage.Storage client,
-        com.google.api.services.storage.Storage storage,
+        Supplier<com.google.api.services.storage.Storage> storage,
         BlobId blobId,
         long start,
         long end
@@ -105,7 +93,7 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         this.end = end;
         this.client = client;
         this.maxAttempts = client.getOptions().getRetrySettings().getMaxAttempts();
-        this.storage = storage; // bypass static initialization
+        this.storage = storage.get();
         SpecialPermission.check();
         this.currentStream = openStream();
     }

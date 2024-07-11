@@ -53,7 +53,7 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
         }
     }
 
-    public void testReadBeyondBlobLengthThrowsRequestedRangeNotSatisfiedException() throws IOException {
+    public void testReadBeyondBlobLengthThrowsRequestedRangeNotSatisfiedException() {
         byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 512));
         int position = bytes.length + randomIntBetween(0, 100);
         int length = randomIntBetween(1, 100);
@@ -114,7 +114,7 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
             when(get.executeMedia()).thenReturn(httpResponse);
         }
 
-        return new GoogleCloudStorageRetryingInputStream(client, storage, blobId, position, position + length - 1);
+        return new GoogleCloudStorageRetryingInputStream(client, () -> storage, blobId, position, position + length - 1);
     }
 
     private static HttpTransport getMockHttpTransport(byte[] data, Integer position, Integer length) {

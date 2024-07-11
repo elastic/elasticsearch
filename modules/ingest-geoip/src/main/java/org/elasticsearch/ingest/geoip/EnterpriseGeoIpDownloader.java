@@ -358,9 +358,20 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     /**
      * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
      */
-    void runDownloader() {
+    synchronized void runDownloader() {
         // by the time we reach here, the state will never be null
         assert state != null;
+
+        // there's a race condition between here and requestReschedule. originally this scheduleNextRun call was at the end of this
+        // block, but remember that updateDatabases can take seconds to run (it's downloading bytes from the internet), and so during the
+        // very first run there would be no future run scheduled to reschedule in requestReschedule. which meant that if you went from zero
+        // to N(>=2) databases in quick succession, then the all but the first database wouldn't necessarily get downloaded, because the
+        // requestReschedule call in the EnterpriseGeoIpDownloaderTaskExecutor's clusterChanged wouldn't have a scheduled future run to
+        // reschedule. scheduling the next run at the beginning of this run means that there's a much smaller window (milliseconds?, rather
+        // than seconds) in which such a race could occur. technically there's a window here, still, but i think it's _greatly_ reduced.
+        scheduleNextRun(pollIntervalSupplier.get());
+        // TODO regardless of the above comment, i like the idea of checking the lowest last-checked time and then running the math to get
+        // to the next interval from then -- maybe that's a neat future enhancement to add
 
         logger.info("EnterpriseGeoIpDownloader#runDownloader");
         if (isCancelled() || isCompleted()) {
@@ -368,7 +379,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             return;
         }
         try {
-            updateDatabases();
+            updateDatabases(); // n.b. this downloads bytes from the internet, it can take a while
         } catch (Exception e) {
             logger.error("exception during geoip databases update", e);
         }
@@ -377,11 +388,6 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         } catch (Exception e) {
             logger.error("exception during geoip databases cleanup", e);
         }
-
-        // TODO we almost certainly need to do something more clever here
-        // i like the idea of checking the lowest last-checked time and then running the math to get
-        // to the next interval from then
-        scheduleNextRun(pollIntervalSupplier.get());
     }
 
     /**

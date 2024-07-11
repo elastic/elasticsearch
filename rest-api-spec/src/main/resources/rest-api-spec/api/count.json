@@ -60,7 +60,7 @@
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
       "min_score":{
-        "type":"number",
+        "type":"float",
         "description":"Include only documents with a specific `_score` value in the result"
       },
       "preference":{
@@ -101,7 +101,7 @@
         "description":"Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
       },
       "terminate_after":{
-        "type":"number",
+        "type":"int",
         "description":"The maximum count for each shard, upon reaching which the query execution will terminate early"
       }
     },

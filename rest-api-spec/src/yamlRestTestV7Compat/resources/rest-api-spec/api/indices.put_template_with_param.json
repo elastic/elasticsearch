@@ -33,7 +33,7 @@
         "description":"The indices that this template should apply to, replaced by index_patterns within the template definition."
       },
       "order":{
-        "type":"number",
+        "type":"int",
         "description":"The order for this template when merging multiple matching ones (higher numbers are merged later, overriding the lower numbers)"
       },
       "create":{

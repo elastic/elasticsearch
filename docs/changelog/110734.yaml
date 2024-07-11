@@ -1,5 +1,5 @@
 pr: 110734
-summary: Trained Models account for partial deployments in serverless
+summary: Fix bug in autoscaling which prevented processors from being requested after initial scale up
 area: Machine Learning
 type: bug
-issues: []
+issues: [ ]

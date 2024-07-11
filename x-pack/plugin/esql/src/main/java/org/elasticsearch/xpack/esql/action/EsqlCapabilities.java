@@ -133,7 +133,12 @@ public class EsqlCapabilities {
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
-        FIX_PARSING_LARGE_NEGATIVE_NUMBERS;
+        FIX_PARSING_LARGE_NEGATIVE_NUMBERS,
+
+        /**
+         * Fix for union-types when sorting a type-casted field. We changed how we remove synthetic union-types fields.
+         */
+        UNION_TYPES_REMOVE_FIELDS;
 
         private final boolean snapshotOnly;
 

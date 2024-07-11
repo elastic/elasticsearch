@@ -210,6 +210,20 @@ sample_data_str | 2023-10-23T12:27:28.948Z  |  2764889              |  Connected
 sample_data_str | 2023-10-23T12:15:03.360Z  |  3450233              |  Connected to 10.1.0.3
 ;
 
+multiIndexSortIpString
+required_capability: union_types
+required_capability: casting_operator
+required_capability: union_types_remove_fields
+
+FROM sample_data, sample_data_str
+| SORT client_ip::ip
+| LIMIT 1
+;
+
+@timestamp:date           |  client_ip:null  |  event_duration:long  |  message:keyword
+2023-10-23T13:33:34.937Z  |  null            |  1232382              |  Disconnected
+;
+
 multiIndexIpStringStats
 required_capability: union_types
 required_capability: casting_operator

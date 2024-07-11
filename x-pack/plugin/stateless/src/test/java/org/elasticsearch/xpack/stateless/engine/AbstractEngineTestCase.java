@@ -473,6 +473,10 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected static Engine.Index randomDoc(String id) throws IOException {
+        return randomDoc(id, DocumentSizeObserver.EMPTY_INSTANCE);
+    }
+
+    protected static Engine.Index randomDoc(String id, DocumentSizeObserver documentSizeObserver) throws IOException {
         final LuceneDocument document = new LuceneDocument();
         document.add(new StringField("_id", Uid.encodeId(id), Field.Store.YES));
         var version = new NumericDocValuesField("_version", 0);
@@ -497,7 +501,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            documentSizeObserver
         );
         return new Engine.Index(Uid.encodeId(id), 1L, doc);
     }

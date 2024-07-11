@@ -14,6 +14,9 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
@@ -28,15 +31,25 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.core.XPackField;
 
+import java.util.Objects;
+
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 
-public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateListener {
+public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateListener, ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloaderLicenseListener.class);
+    // Note: This custom type is GeoIpMetadata.TYPE, but that class is not exposed to this plugin
+    static final String INGEST_GEOIP_CUSTOM_METADATA_TYPE = "ingest_geoip";
 
     private final PersistentTasksService persistentTasksService;
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
-    private final LicensedFeature.Momentary feature;
+    private static final LicensedFeature.Momentary ENTERPRISE_GEOIP_FEATURE = LicensedFeature.momentary(
+        null,
+        XPackField.ENTERPRISE_GEOIP_DOWNLOADER,
+        License.OperationMode.PLATINUM
+    );
+    private volatile boolean licenseIsValid = false;
+    private volatile boolean hasIngestGeoIpMetadata = false;
 
     protected EnterpriseGeoIpDownloaderLicenseListener(
         Client client,
@@ -46,8 +59,6 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
     ) {
         this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         this.clusterService = clusterService;
-        // TODO maybe a static feature is more conventional? i dunno!
-        this.feature = LicensedFeature.momentary(null, XPackField.ENTERPRISE_GEOIP_DOWNLOADER, License.OperationMode.PLATINUM);
         this.licenseState = licenseState;
     }
 
@@ -58,6 +69,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
     public void init() {
         // TODO alternatively we could have the equivalent of this code in EnterpriseDownloaderPlugin itself... :shrug:
         listenForLicenseStateChanges();
+        clusterService.addListener(this);
     }
 
     void listenForLicenseStateChanges() {
@@ -68,48 +80,76 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
 
     @Override
     public void licenseStateChanged() {
-        if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-            // we should only start/stop task from single node, master is the best as it will go through it anyway
-            return;
-        }
         assert licenseStateListenerRegistered;
-        // TODO remove dev-time only logging
-        // TODO we send a start even if it was already started...
-        // TODO we send a stop even if there was never a start...
-        if (feature.checkWithoutTracking(licenseState)) {
-            logger.debug("License is valid, ensuring enterprise geoip downloader is started");
-            startTask();
-        } else {
-            logger.debug("License is not valid, ensuring enterprise geoip downloader is stopped");
-            stopTask();
+        licenseIsValid = ENTERPRISE_GEOIP_FEATURE.checkWithoutTracking(licenseState);
+        maybeUpdateTaskState(clusterService.state());
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        hasIngestGeoIpMetadata = hasIngestGeoIpMetadata(event.state());
+        final boolean ingestGeoIpCustomMetaChangedInEvent = event.metadataChanged()
+            && event.changedCustomMetadataSet().contains(INGEST_GEOIP_CUSTOM_METADATA_TYPE);
+        final boolean masterNodeChanged = Objects.equals(
+            event.state().nodes().getMasterNode(),
+            event.previousState().nodes().getMasterNode()
+        ) == false;
+        /*
+         * We don't want to potentially start the task on every cluster state change, so only maybeUpdateTaskState if this cluster change
+         * event involved the addition of custom geoip metadata OR a master node change
+         */
+        if (ingestGeoIpCustomMetaChangedInEvent || (masterNodeChanged && hasIngestGeoIpMetadata)) {
+            maybeUpdateTaskState(event.state());
         }
     }
 
-    private void startTask() {
+    private void maybeUpdateTaskState(ClusterState state) {
+        if (onMasterNode(state)) {
+            if (licenseIsValid) {
+                if (hasIngestGeoIpMetadata) {
+                    ensureTaskStarted();
+                }
+            } else {
+                ensureTaskStopped();
+            }
+        }
+    }
+
+    private void ensureTaskStarted() {
+        assert licenseIsValid : "Task should never be started without valid license";
         persistentTasksService.sendStartRequest(
             ENTERPRISE_GEOIP_DOWNLOADER,
             ENTERPRISE_GEOIP_DOWNLOADER,
             new EnterpriseGeoIpTaskParams(),
             MASTER_TIMEOUT,
-            ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
+            ActionListener.wrap(r -> logger.debug("Started enterprise geoip downloader task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
-                    logger.error("failed to create geoip downloader task", e);
+                    logger.error("failed to create enterprise geoip downloader task", e);
                 }
             })
         );
     }
 
-    private void stopTask() {
+    private void ensureTaskStopped() {
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(
-            r -> logger.debug("Stopped geoip downloader task"),
+            r -> logger.debug("Stopped enterprise geoip downloader task"),
             e -> {
                 Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceNotFoundException == false) {
-                    logger.error("failed to remove geoip downloader task", e);
+                    logger.error("failed to remove enterprise geoip downloader task", e);
                 }
             }
         );
         persistentTasksService.sendRemoveRequest(ENTERPRISE_GEOIP_DOWNLOADER, MASTER_TIMEOUT, listener);
+    }
+
+    private boolean hasIngestGeoIpMetadata(ClusterState state) {
+        return state.metadata().custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
+    }
+
+    private boolean onMasterNode(ClusterState state) {
+        // We should only start/stop task from single node, master is the best as it will go through it anyway
+        return state.nodes().isLocalNodeElectedMaster();
     }
 }

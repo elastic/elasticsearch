@@ -72,6 +72,9 @@ public class ExistsIT extends ESIntegTestCase {
             .startObject("vec")
             .field("type", "sparse_vector")
             .endObject()
+            .startObject("rank_feats")
+            .field("type", "rank_features")
+            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -91,6 +94,10 @@ public class ExistsIT extends ESIntegTestCase {
             singletonMap("vec", emptyMap()),
             // sparse_vector field non-empty
             singletonMap("vec", singletonMap("1", 100)),
+            // rank features field empty
+            singletonMap("rank_feats", emptyMap()),
+            // rank_features field non-empty
+            singletonMap("rank_feats", singletonMap("foo", 100)),
             // empty doc
             emptyMap() };
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -112,6 +119,7 @@ public class ExistsIT extends ESIntegTestCase {
         expected.put("bar.bar.bar", 1);
         expected.put("foobar", 0);
         expected.put("vec", 2);
+        expected.put("rank_feats", 2);
 
         final long numDocs = sources.length;
         assertNoFailuresAndResponse(prepareSearch("idx").setSize(sources.length), allDocs -> {

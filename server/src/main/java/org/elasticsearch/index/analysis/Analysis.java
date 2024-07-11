@@ -466,7 +466,7 @@ public class Analysis {
                 });
             }
         } else {
-            // TODO: Throw exceptions synchronously here so that master thread validation can pick them up
+            // Throw exceptions synchronously here so that master thread validation can pick them up
             final Path path = env.configFile().resolve(wordListPath);
             try {
                 listener.onResponse(loadWordList(path, removeComments));
@@ -476,15 +476,12 @@ public class Analysis {
                     settingPath,
                     path
                 );
-                listener.onFailure(new IllegalArgumentException(message, ex));
+                throw new IllegalArgumentException(message, ex);
             } catch (IOException ioe) {
                 String message = Strings.format("IOException while reading %s: %s", settingPath, path);
-                listener.onFailure(new IllegalArgumentException(message, ioe));
+                throw new IllegalArgumentException(message, ioe);
             } catch (AccessControlException ace) {
-                listener.onFailure(new IllegalArgumentException(
-                    Strings.format("Access denied trying to read file %s: %s", settingPath, path),
-                    ace)
-                );
+                throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
             }
         }
     }

@@ -2,15 +2,15 @@
 [[esql-dissect]]
 === `DISSECT`
 
+`DISSECT` enables you to <<esql-process-data-with-dissect-and-grok,extract
+structured data out of a string>>.
+
 **Syntax**
 
 [source,esql]
 ----
 DISSECT input "pattern" [APPEND_SEPARATOR="<separator>"]
 ----
-
-`DISSECT` enables you to <<esql-process-data-with-dissect-and-grok,extract
-structured data out of a string>>.
 
 *Parameters*
 

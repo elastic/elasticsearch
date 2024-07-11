@@ -2,15 +2,15 @@
 [[esql-eval]]
 === `EVAL`
 
+The `EVAL` processing command enables you to append new columns with calculated
+values.
+
 **Syntax**
 
 [source,esql]
 ----
 EVAL [column1 =] value1[, ..., [columnN =] valueN]
 ----
-
-The `EVAL` processing command enables you to append new columns with calculated
-values.
 
 *Parameters*
 

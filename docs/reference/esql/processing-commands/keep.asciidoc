@@ -2,15 +2,15 @@
 [[esql-keep]]
 === `KEEP`
 
+The `KEEP` processing command enables you to specify what columns are returned
+and the order in which they are returned.
+
 **Syntax**
 
 [source,esql]
 ----
 KEEP columns
 ----
-
-The `KEEP` processing command enables you to specify what columns are returned
-and the order in which they are returned.
 
 *Parameters*
 

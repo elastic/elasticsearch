@@ -2,15 +2,15 @@
 [[esql-where]]
 === `WHERE`
 
+The `WHERE` processing command produces a table that contains all the rows from
+the input table for which the provided condition evaluates to `true`.
+
 **Syntax**
 
 [source,esql]
 ----
 WHERE expression
 ----
-
-The `WHERE` processing command produces a table that contains all the rows from
-the input table for which the provided condition evaluates to `true`.
 
 *Parameters*
 

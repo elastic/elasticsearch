@@ -2,15 +2,15 @@
 [[esql-show]]
 === `SHOW`
 
+The `SHOW` source command returns information about the deployment and
+its capabilities.
+
 **Syntax**
 
 [source,esql]
 ----
 SHOW item
 ----
-
-The `SHOW` source command returns information about the deployment and
-its capabilities.
 
 *Parameters*
 

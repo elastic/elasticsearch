@@ -2,6 +2,9 @@
 [[esql-stats-by]]
 === `STATS ... BY`
 
+The `STATS ... BY` processing command groups rows according to a common value
+and calculate one or more aggregated values over the grouped rows.
+
 **Syntax**
 
 [source,esql]
@@ -9,9 +12,6 @@
 STATS [column1 =] expression1[, ..., [columnN =] expressionN]
 [BY grouping_expression1[, ..., grouping_expressionN]]
 ----
-
-The `STATS ... BY` processing command groups rows according to a common value
-and calculate one or more aggregated values over the grouped rows.
 
 *Parameters*
 

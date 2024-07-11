@@ -230,13 +230,12 @@ public final class MlAutoscalingResourceTracker {
             final int numberOfAllocations = assignment.getTaskParams().getNumberOfAllocations();
             final int numberOfThreadsPerAllocation = assignment.getTaskParams().getThreadsPerAllocation();
             final long estimatedMemoryUsage = assignment.getTaskParams().estimateMemoryUsageBytes();
-            final int requiredAllocations = assignment.getTaskParams().getNumberOfAllocations();
             final int numCurrentAllocations = assignment.getNodeRoutingTable()
                 .values()
                 .stream()
-                .mapToInt(RoutingInfo::getCurrentAllocations)
+                .mapToInt(RoutingInfo::getTargetAllocations)
                 .sum();
-            final int numMissingAllocations = requiredAllocations - numCurrentAllocations;
+            final int numMissingAllocations = numberOfAllocations - numCurrentAllocations;
             final int numProcessorsNeeded = numMissingAllocations * numberOfThreadsPerAllocation;
 
             if (AssignmentState.STARTING.equals(assignment.getAssignmentState()) && assignment.getNodeRoutingTable().isEmpty()) {
@@ -348,6 +347,11 @@ public final class MlAutoscalingResourceTracker {
                     dummyAutoscalingEntity
                 ))) {
             removeNodeMemoryInBytes = perNodeMemoryInBytes;
+        }
+
+        if (extraProcessors > 0 && extraSingleNodeProcessors == 0) {
+            // if we need extra processors, we need to tell the elasticsearch-autoscaler that we need at least 1 processor per node
+            extraSingleNodeProcessors = 1;
         }
 
         listener.onResponse(

@@ -85,7 +85,10 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
             () -> ElserInternalServiceSettings.fromMap(new HashMap<>(Map.of(ElserInternalServiceSettings.NUM_THREADS, 1)))
         );
 
-        assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_allocations]"));
+        assertThat(
+            e.getMessage(),
+            containsString("[service_settings] does not contain one of the required settings [num_allocations, adaptive_allocations]")
+        );
     }
 
     public void testBwcWrite() throws IOException {

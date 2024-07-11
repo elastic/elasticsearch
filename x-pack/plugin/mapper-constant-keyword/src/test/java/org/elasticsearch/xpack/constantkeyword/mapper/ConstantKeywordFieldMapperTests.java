@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -237,6 +238,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         BlockLoader loader = mapper.fieldType("field").blockLoader(new MappedFieldType.BlockLoaderContext() {
             @Override
             public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
                 throw new UnsupportedOperationException();
             }
 

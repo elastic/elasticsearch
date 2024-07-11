@@ -75,6 +75,11 @@ For syntax, refer to <<esql-locale-param>>.
 (Optional, array) Values for parameters in the `query`. For syntax, refer to
 <<esql-rest-params>>.
 
+`profile`::
+(Optional, boolean) If provided and `true` the response will include an extra `profile` object
+with information about how the query was executed. It provides insight into the performance
+of each part of the query. This is for human debugging as the object's format might change at any time.
+
 `query`::
 (Required, string) {esql} query to run. For syntax, refer to <<esql-syntax>>.
 
@@ -100,3 +105,8 @@ returned if `drop_null_columns` is sent with the request.
 `rows`::
 (array of arrays)
 Values for the search results.
+
+`profile`::
+(object)
+Profile describing the execution of the query. Only returned if `profile` was sent in the body.
+The object itself is for human debugging and can change at any time.

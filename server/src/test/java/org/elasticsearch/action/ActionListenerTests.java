@@ -23,7 +23,6 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -308,25 +307,13 @@ public class ActionListenerTests extends ESTestCase {
         });
         assertThat(listener.toString(), equalTo("notifyOnce[inner-listener]"));
 
-        final var threads = new Thread[between(1, 10)];
-        final var startBarrier = new CyclicBarrier(threads.length);
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                safeAwait(startBarrier);
-                if (randomBoolean()) {
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(new RuntimeException("test"));
-                }
-            });
-        }
-
-        for (Thread thread : threads) {
-            thread.start();
-        }
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        startInParallel(between(1, 10), i -> {
+            if (randomBoolean()) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(new RuntimeException("test"));
+            }
+        });
 
         assertTrue(completed.get());
     }

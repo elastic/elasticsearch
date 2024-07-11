@@ -10,6 +10,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -157,8 +159,16 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     public void testNonexistentField() {
         SearchExecutionContext context = createSearchExecutionContext();
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5, 10, null);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
-        assertThat(e.getMessage(), containsString("field [nonexistent] does not exist in the mapping"));
+        context.setAllowUnmappedFields(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> query.doToQuery(context));
+        assertThat(e.getMessage(), containsString("No field mapping can be found for the field with name [nonexistent]"));
+    }
+
+    public void testNonexistentFieldReturnEmpty() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5, 10, null);
+        Query queryNone = query.doToQuery(context);
+        assertThat(queryNone, instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testWrongFieldType() {

@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.List;
 
 public class NodesFeaturesResponse extends BaseNodesResponse<NodeFeatures> {
-    protected NodesFeaturesResponse(ClusterName clusterName, List<NodeFeatures> nodes, List<FailedNodeException> failures) {
+    public NodesFeaturesResponse(ClusterName clusterName, List<NodeFeatures> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 

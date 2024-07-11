@@ -43,9 +43,9 @@ import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @UpdateForV9    // this can be removed in v9
-public class NodeFeaturesFixListener implements ClusterStateListener {
+public class NodeFeaturesFixupListener implements ClusterStateListener {
 
-    private static final Logger logger = LogManager.getLogger(NodeFeaturesFixListener.class);
+    private static final Logger logger = LogManager.getLogger(NodeFeaturesFixupListener.class);
 
     private static final TimeValue RETRY_TIME = TimeValue.timeValueSeconds(30);
 
@@ -55,7 +55,7 @@ public class NodeFeaturesFixListener implements ClusterStateListener {
     private final Executor executor;
     private final Set<String> pendingNodes = Collections.synchronizedSet(new HashSet<>());
 
-    public NodeFeaturesFixListener(ClusterService service, ClusterAdminClient client, ThreadPool threadPool) {
+    public NodeFeaturesFixupListener(ClusterService service, ClusterAdminClient client, ThreadPool threadPool) {
         // there tends to be a lot of state operations on an upgrade - this one is not time-critical,
         // so use LOW priority. It just needs to be run at some point after upgrade.
         this(
@@ -66,7 +66,7 @@ public class NodeFeaturesFixListener implements ClusterStateListener {
         );
     }
 
-    NodeFeaturesFixListener(
+    NodeFeaturesFixupListener(
         MasterServiceTaskQueue<NodesFeaturesTask> taskQueue,
         ClusterAdminClient client,
         Scheduler scheduler,
@@ -98,14 +98,15 @@ public class NodeFeaturesFixListener implements ClusterStateListener {
         }
     }
 
-    private static class NodesFeaturesUpdater implements ClusterStateTaskExecutor<NodesFeaturesTask> {
+    static class NodesFeaturesUpdater implements ClusterStateTaskExecutor<NodesFeaturesTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<NodesFeaturesTask> context) {
             ClusterState.Builder builder = ClusterState.builder(context.initialState());
+            var existingFeatures = builder.nodeFeatures();
+
             boolean modified = false;
             for (var c : context.taskContexts()) {
                 for (var e : c.getTask().results().entrySet()) {
-                    var existingFeatures = builder.nodeFeatures();
                     // double check there are still no features for the node
                     if (existingFeatures.getOrDefault(e.getKey(), Set.of()).isEmpty()) {
                         builder.putNodeFeatures(e.getKey(), e.getValue());
@@ -145,6 +146,7 @@ public class NodeFeaturesFixListener implements ClusterStateListener {
                 .collect(Collectors.toSet());
 
             if (queryNodes.isEmpty() == false) {
+                logger.debug("Fetching actual node features for nodes {}", queryNodes);
                 queryNodesFeatures(queryNodes, 0);
             }
         }

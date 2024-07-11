@@ -110,6 +110,29 @@
           }
         },
         {
+          "ecs_process_fields_with_caseless": {
+            "mapping": {
+              "fields": {
+                "caseless": {
+                  "type": "keyword",
+                  "normalizer": "lowercase"
+                },
+                "text": {
+                  "type": "match_only_text"
+                }
+              },
+              "type": "keyword"
+            },
+            "path_match": [
+              "process.executable",
+              "process.*.executable",
+              "process.name",
+              "process.*.name"
+            ],
+            "unmatch_mapping_type": "object"
+          }
+        },
+        {
           "ecs_path_match_keyword_and_match_only_text": {
             "mapping": {
               "fields": {

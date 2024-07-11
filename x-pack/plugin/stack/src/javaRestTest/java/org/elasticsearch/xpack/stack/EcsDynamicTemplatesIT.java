@@ -63,7 +63,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
 
     private static Map<String, Object> ecsDynamicTemplates;
     private static Map<String, Map<String, Object>> ecsFlatFieldDefinitions;
-    private static Map<String, String> ecsFlatMultiFieldDefinitions;
+    private static Map<String, Map<String, Object>> ecsFlatMultiFieldDefinitions;
 
     @BeforeClass
     public static void setupSuiteScopeCluster() throws Exception {
@@ -142,12 +142,11 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                 iterator.remove();
             }
 
-            List<Map<String, String>> multiFields = (List<Map<String, String>>) definitions.get("multi_fields");
+            List<Map<String, Object>> multiFields = (List<Map<String, Object>>) definitions.get("multi_fields");
             if (multiFields != null) {
                 multiFields.forEach(multiFieldsDefinitions -> {
-                    String subfieldFlatName = Objects.requireNonNull(multiFieldsDefinitions.get("flat_name"));
-                    String subfieldType = Objects.requireNonNull(multiFieldsDefinitions.get("type"));
-                    ecsFlatMultiFieldDefinitions.put(subfieldFlatName, subfieldType);
+                    String subfieldFlatName = (String) Objects.requireNonNull(multiFieldsDefinitions.get("flat_name"));
+                    ecsFlatMultiFieldDefinitions.put(subfieldFlatName, multiFieldsDefinitions);
                 });
             }
         }
@@ -191,7 +190,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         verifyEcsMappings(indexName);
     }
 
-    private void assertType(String expectedType, Map<String, Object> actualMappings) throws IOException {
+    private void assertType(String expectedType, Map<String, Object> actualMappings) {
         assertNotNull("expected to get non-null mappings for field", actualMappings);
         assertEquals(expectedType, actualMappings.get("type"));
     }
@@ -406,37 +405,41 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         Map<String, String> fieldToWrongMappingType = new HashMap<>();
         List<String> wronglyIndexedFields = new ArrayList<>();
         List<String> wronglyDocValuedFields = new ArrayList<>();
+        Map<String, String> wronglyNormalizedField2expectedNormalizer = new HashMap<>();
         flatFieldMappings.forEach((fieldName, actualMappings) -> {
             Map<String, Object> expectedMappings = shallowFieldMapCopy.remove(fieldName);
             if (expectedMappings == null) {
                 nonEcsFields.add(fieldName);
             } else {
-                String expectedType = (String) expectedMappings.get("type");
-                String actualMappingType = (String) actualMappings.get("type");
-                if (actualMappingType.equals(expectedType) == false) {
-                    fieldToWrongMappingType.put(fieldName, actualMappingType);
-                }
-                if (expectedMappings.get("index") != actualMappings.get("index")) {
-                    wronglyIndexedFields.add(fieldName);
-                }
-                if (expectedMappings.get("doc_values") != actualMappings.get("doc_values")) {
-                    wronglyDocValuedFields.add(fieldName);
-                }
+                compareExpectedToActualMappings(
+                    fieldName,
+                    actualMappings,
+                    expectedMappings,
+                    fieldToWrongMappingType,
+                    wronglyIndexedFields,
+                    wronglyDocValuedFields,
+                    wronglyNormalizedField2expectedNormalizer
+                );
             }
         });
 
-        Map<String, String> shallowMultiFieldMapCopy = new HashMap<>(ecsFlatMultiFieldDefinitions);
+        Map<String, Map<String, Object>> shallowMultiFieldMapCopy = new HashMap<>(ecsFlatMultiFieldDefinitions);
         logger.info("Testing mapping of {} ECS multi-fields", shallowMultiFieldMapCopy.size());
         flatMultiFieldsMappings.forEach((fieldName, actualMappings) -> {
-            String expectedType = shallowMultiFieldMapCopy.remove(fieldName);
-            if (expectedType != null) {
+            Map<String, Object> expectedMultiFieldMappings = shallowMultiFieldMapCopy.remove(fieldName);
+            if (expectedMultiFieldMappings != null) {
                 // not finding an entry in the expected multi-field mappings map is acceptable: our dynamic templates are required to
                 // ensure multi-field mapping for all fields with such ECS definitions. However, the patterns in these templates may lead
                 // to multi-field mapping for ECS fields for which such are not defined
-                String actualMappingType = (String) actualMappings.get("type");
-                if (actualMappingType.equals(expectedType) == false) {
-                    fieldToWrongMappingType.put(fieldName, actualMappingType);
-                }
+                compareExpectedToActualMappings(
+                    fieldName,
+                    actualMappings,
+                    expectedMultiFieldMappings,
+                    fieldToWrongMappingType,
+                    wronglyIndexedFields,
+                    wronglyDocValuedFields,
+                    wronglyNormalizedField2expectedNormalizer
+                );
             }
         });
 
@@ -460,7 +463,11 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             );
         });
         fieldToWrongMappingType.forEach((fieldName, actualMappingType) -> {
-            String ecsExpectedType = (String) ecsFlatFieldDefinitions.get(fieldName).get("type");
+            Map<String, Object> fieldMappings = ecsFlatFieldDefinitions.get(fieldName);
+            if (fieldMappings == null) {
+                fieldMappings = ecsFlatMultiFieldDefinitions.get(fieldName);
+            }
+            String ecsExpectedType = (String) fieldMappings.get("type");
             logger.error(
                 "ECS field '{}' should be mapped to type '{}' but is mapped to type '{}'. Update {} accordingly.",
                 fieldName,
@@ -472,6 +479,13 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         nonEcsFields.forEach(field -> logger.error("The test document contains '{}', which is not an ECS field", field));
         wronglyIndexedFields.forEach(fieldName -> logger.error("ECS field '{}' should be mapped with \"index: false\"", fieldName));
         wronglyDocValuedFields.forEach(fieldName -> logger.error("ECS field '{}' should be mapped with \"doc_values: false\"", fieldName));
+        wronglyNormalizedField2expectedNormalizer.forEach(
+            (fieldName, expectedNormalizer) -> logger.error(
+                "ECS field '{}' should be mapped with \"normalizer: {}\"",
+                fieldName,
+                expectedNormalizer
+            )
+        );
 
         assertTrue("ECS is not fully covered by the current ECS dynamic templates, see details above", shallowFieldMapCopy.isEmpty());
         assertTrue(
@@ -492,5 +506,36 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                 + "details above",
             wronglyDocValuedFields.isEmpty()
         );
+        assertTrue(
+            "At least one field was not mapped with the correct normalizer as it should according to its ECS definitions, see "
+                + "details above",
+            wronglyNormalizedField2expectedNormalizer.isEmpty()
+        );
+    }
+
+    private static void compareExpectedToActualMappings(
+        String fieldName,
+        Map<String, Object> actualMappings,
+        Map<String, Object> expectedMappings,
+        Map<String, String> fieldToWrongMappingType,
+        List<String> wronglyIndexedFields,
+        List<String> wronglyDocValuedFields,
+        Map<String, String> wronglyNormalizedField2expectedNormalizer
+    ) {
+        String expectedType = (String) expectedMappings.get("type");
+        String actualMappingType = (String) actualMappings.get("type");
+        if (actualMappingType.equals(expectedType) == false) {
+            fieldToWrongMappingType.put(fieldName, actualMappingType);
+        }
+        if (expectedMappings.get("index") != actualMappings.get("index")) {
+            wronglyIndexedFields.add(fieldName);
+        }
+        if (expectedMappings.get("doc_values") != actualMappings.get("doc_values")) {
+            wronglyDocValuedFields.add(fieldName);
+        }
+        String expectedNormalizer = (String) expectedMappings.get("normalizer");
+        if (expectedNormalizer != null && expectedNormalizer.equals(actualMappings.get("normalizer")) == false) {
+            wronglyNormalizedField2expectedNormalizer.put(fieldName, expectedNormalizer);
+        }
     }
 }

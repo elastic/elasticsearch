@@ -41,8 +41,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
         super(upgradedNodes);
     }
 
-    // TODO: disable again
-    @BeforeClass
+    // @BeforeClass
     public static void startWebServer() throws IOException {
         cohereEmbeddingsServer = new MockWebServer();
         cohereEmbeddingsServer.start();
@@ -51,16 +50,14 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
         cohereRerankServer.start();
     }
 
-    // TODO: disable again
-    @AfterClass // for the awaitsfix
+    // @AfterClass // for the awaitsfix
     public static void shutdown() {
         cohereEmbeddingsServer.close();
         cohereRerankServer.close();
     }
 
     @SuppressWarnings("unchecked")
-    // TODO: mute again afterwards
-    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testCohereEmbeddings() throws IOException {
         var embeddingsSupported = getOldClusterTestVersion().onOrAfter(COHERE_EMBEDDINGS_ADDED);
         assumeTrue("Cohere embedding service added in " + COHERE_EMBEDDINGS_ADDED, embeddingsSupported);
@@ -174,8 +171,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    // TODO: mute again afterwards
-    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testRerank() throws IOException {
         var rerankSupported = getOldClusterTestVersion().onOrAfter(COHERE_RERANK_ADDED);
         assumeTrue("Cohere rerank service added in " + COHERE_RERANK_ADDED, rerankSupported);

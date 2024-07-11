@@ -49,6 +49,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -407,61 +408,65 @@ public class Analysis {
 
         final URL pathAsUrl = tryToParsePathAsURL(wordListPath);
         if (pathAsUrl != null) {
-            wordListIndexService.getWordListValue(indexName, wordListPath, new ActionListener<>() {
-                @Override
-                public void onResponse(String s) {
-                    if (s == null) {
-                        try {
-                            s = readFile(pathAsUrl);
-                        } catch (IOException e) {
-                            listener.onFailure(new ElasticsearchStatusException(
-                                "Unable to read file at " + settingPath,
-                                RestStatus.BAD_REQUEST,
-                                e)
-                            );
-                            return;
-                        }
-
-                        // TODO: Force indexing to complete before returning parsed word list to listener
-                        wordListIndexService.putWordList(indexName, wordListPath, s, new ActionListener<>() {
-                            @Override
-                            public void onResponse(WordListsIndexService.PutWordListResult putWordListResult) {
-                                logger.debug("Indexed word list [" + wordListPath + "] for index [" + indexName + "]");
+            // Don't try to read data from URLs in the master update thread because you won't get the async results back in time to use them
+            if (MasterService.isMasterUpdateThread() == false) {
+                wordListIndexService.getWordListValue(indexName, wordListPath, new ActionListener<>() {
+                    @Override
+                    public void onResponse(String s) {
+                        if (s == null) {
+                            try {
+                                s = readFile(pathAsUrl);
+                            } catch (IOException e) {
+                                listener.onFailure(new ElasticsearchStatusException(
+                                    "Unable to read file at " + settingPath,
+                                    RestStatus.BAD_REQUEST,
+                                    e)
+                                );
+                                return;
                             }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.warn("Unable to index word list [" + wordListPath + "] for index [" + indexName + "]", e);
+                            // TODO: Force indexing to complete before returning parsed word list to listener
+                            wordListIndexService.putWordList(indexName, wordListPath, s, new ActionListener<>() {
+                                @Override
+                                public void onResponse(WordListsIndexService.PutWordListResult putWordListResult) {
+                                    logger.debug("Indexed word list [" + wordListPath + "] for index [" + indexName + "]");
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.warn("Unable to index word list [" + wordListPath + "] for index [" + indexName + "]", e);
 //                                listener.onFailure(new ElasticsearchStatusException(
 //                                    "Unable to index word list [" + wordListPath + "] for index [" + indexName + "]",
 //                                    RestStatus.INTERNAL_SERVER_ERROR,
 //                                    e
 //                                ));
-                            }
-                        });
+                                }
+                            });
+                        }
+
+                        try {
+                            listener.onResponse(loadWordList(s, removeComments));
+                        } catch (IOException e) {
+                            listener.onFailure(new ElasticsearchStatusException(
+                                "Unable to parse word list [" + wordListPath + "] for index [" + indexName + "]",
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e)
+                            );
+                        }
                     }
 
-                    try {
-                        listener.onResponse(loadWordList(s, removeComments));
-                    } catch (IOException e) {
+                    @Override
+                    public void onFailure(Exception e) {
                         listener.onFailure(new ElasticsearchStatusException(
-                            "Unable to parse word list [" + wordListPath + "] for index [" + indexName + "]",
+                            "Unable to get word list [" + wordListPath + "] for index [" + indexName + "]",
                             RestStatus.INTERNAL_SERVER_ERROR,
                             e)
                         );
                     }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(new ElasticsearchStatusException(
-                        "Unable to get word list [" + wordListPath + "] for index [" + indexName + "]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        e)
-                    );
-                }
-            });
+                });
+            }
         } else {
+            // TODO: Throw exceptions synchronously here so that master thread validation can pick them up
             final Path path = env.configFile().resolve(wordListPath);
             try {
                 listener.onResponse(loadWordList(path, removeComments));

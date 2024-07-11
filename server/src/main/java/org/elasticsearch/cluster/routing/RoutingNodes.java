@@ -1121,6 +1121,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             return mutableShardRoutings;
         }
 
+        static <T> boolean equalListsWithoutOrder(List<T> a, List<T> b) {
+            return a.size() == b.size() && new HashSet<>(a).containsAll(b);
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -1132,8 +1136,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             UnassignedShards that = (UnassignedShards) o;
             return primaries == that.primaries
                 && ignoredPrimaries == that.ignoredPrimaries
-                && unassigned.equals(that.unassigned)
-                && ignored.equals(that.ignored);
+                && equalListsWithoutOrder(unassigned, that.unassigned)
+                && equalListsWithoutOrder(ignored, that.ignored);
         }
 
         @Override

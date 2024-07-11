@@ -271,7 +271,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         return query(search, this::getBaselineDataStreamName);
     }
 
-    public Response queryCcontender(final SearchSourceBuilder search) throws IOException {
+    public Response queryContender(final SearchSourceBuilder search) throws IOException {
         return query(search, this::getContenderDataStreamName);
     }
 

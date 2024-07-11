@@ -1,5 +1,5 @@
 pr: 110740
-summary: Adjust `ecs@mappings` to latest ECS and tests to consider normalizer
+summary: Adjust `ecs@mappings` to cover `caseless` fields and ECS tests to cover normalizer setting
 area: Data streams
 type: enhancement
 issues: []

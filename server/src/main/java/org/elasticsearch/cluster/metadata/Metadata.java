@@ -209,31 +209,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     private final long version;
 
     private final CoordinationMetadata coordinationMetadata;
+    final ProjectMetadata projectMetadata;
 
     private final Settings transientSettings;
     private final Settings persistentSettings;
     private final Settings settings;
     private final DiffableStringMap hashesOfConsistentSettings;
-    private final ImmutableOpenMap<String, IndexMetadata> indices;
-    private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
-    private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
-    private final ImmutableOpenMap<String, Custom> customs;
     private final Map<String, ReservedStateMetadata> reservedStateMetadata;
-
-    private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
-    private final int totalOpenIndexShards;
-
-    private final String[] allIndices;
-    private final String[] visibleIndices;
-    private final String[] allOpenIndices;
-    private final String[] visibleOpenIndices;
-    private final String[] allClosedIndices;
-    private final String[] visibleClosedIndices;
-
-    private volatile SortedMap<String, IndexAbstraction> indicesLookup;
-    private final Map<String, MappingMetadata> mappingsByHash;
-
-    private final IndexVersion oldestIndexVersion;
 
     // Used in the findAliases and findDataStreamAliases functions
     private interface AliasInfoGetter {
@@ -250,76 +232,49 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         boolean clusterUUIDCommitted,
         long version,
         CoordinationMetadata coordinationMetadata,
+        ProjectMetadata projectMetadata,
         Settings transientSettings,
         Settings persistentSettings,
         Settings settings,
         DiffableStringMap hashesOfConsistentSettings,
-        int totalNumberOfShards,
-        int totalOpenIndexShards,
-        ImmutableOpenMap<String, IndexMetadata> indices,
-        ImmutableOpenMap<String, Set<Index>> aliasedIndices,
-        ImmutableOpenMap<String, IndexTemplateMetadata> templates,
-        ImmutableOpenMap<String, Custom> customs,
-        String[] allIndices,
-        String[] visibleIndices,
-        String[] allOpenIndices,
-        String[] visibleOpenIndices,
-        String[] allClosedIndices,
-        String[] visibleClosedIndices,
-        SortedMap<String, IndexAbstraction> indicesLookup,
-        Map<String, MappingMetadata> mappingsByHash,
-        IndexVersion oldestIndexVersion,
         Map<String, ReservedStateMetadata> reservedStateMetadata
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
         this.version = version;
         this.coordinationMetadata = coordinationMetadata;
+        this.projectMetadata = projectMetadata;
         this.transientSettings = transientSettings;
         this.persistentSettings = persistentSettings;
         this.settings = settings;
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
-        this.indices = indices;
-        this.aliasedIndices = aliasedIndices;
-        this.customs = customs;
-        this.templates = templates;
-        this.totalNumberOfShards = totalNumberOfShards;
-        this.totalOpenIndexShards = totalOpenIndexShards;
-        this.allIndices = allIndices;
-        this.visibleIndices = visibleIndices;
-        this.allOpenIndices = allOpenIndices;
-        this.visibleOpenIndices = visibleOpenIndices;
-        this.allClosedIndices = allClosedIndices;
-        this.visibleClosedIndices = visibleClosedIndices;
-        this.indicesLookup = indicesLookup;
-        this.mappingsByHash = mappingsByHash;
-        this.oldestIndexVersion = oldestIndexVersion;
         this.reservedStateMetadata = reservedStateMetadata;
         assert assertConsistent();
     }
 
     private boolean assertConsistent() {
-        final var lookup = this.indicesLookup;
+        final var lookup = projectMetadata.indicesLookup;
         final var dsMetadata = custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
-        assert lookup == null || lookup.equals(Builder.buildIndicesLookup(dsMetadata, indices));
+        assert lookup == null || lookup.equals(Metadata.Builder.buildIndicesLookup(dsMetadata, projectMetadata.indices));
         try {
-            Builder.ensureNoNameCollisions(aliasedIndices.keySet(), indices, dsMetadata);
+            Metadata.Builder.ensureNoNameCollisions(projectMetadata.aliasedIndices.keySet(), projectMetadata.indices, dsMetadata);
         } catch (Exception e) {
             assert false : e;
         }
-        assert Builder.assertDataStreams(indices, dsMetadata);
-        assert Set.of(allIndices).equals(indices.keySet());
-        final Function<Predicate<IndexMetadata>, Set<String>> indicesByPredicate = predicate -> indices.entrySet()
+        assert Metadata.Builder.assertDataStreams(projectMetadata.indices, dsMetadata);
+        assert Set.of(projectMetadata.allIndices).equals(projectMetadata.indices.keySet());
+        final Function<Predicate<IndexMetadata>, Set<String>> indicesByPredicate = predicate -> projectMetadata.indices.entrySet()
             .stream()
             .filter(entry -> predicate.test(entry.getValue()))
             .map(Map.Entry::getKey)
             .collect(Collectors.toUnmodifiableSet());
-        assert Set.of(allOpenIndices).equals(indicesByPredicate.apply(idx -> idx.getState() == IndexMetadata.State.OPEN));
-        assert Set.of(allClosedIndices).equals(indicesByPredicate.apply(idx -> idx.getState() == IndexMetadata.State.CLOSE));
-        assert Set.of(visibleIndices).equals(indicesByPredicate.apply(idx -> idx.isHidden() == false));
-        assert Set.of(visibleOpenIndices)
+        assert Set.of(projectMetadata.allOpenIndices).equals(indicesByPredicate.apply(idx -> idx.getState() == IndexMetadata.State.OPEN));
+        assert Set.of(projectMetadata.allClosedIndices)
+            .equals(indicesByPredicate.apply(idx -> idx.getState() == IndexMetadata.State.CLOSE));
+        assert Set.of(projectMetadata.visibleIndices).equals(indicesByPredicate.apply(idx -> idx.isHidden() == false));
+        assert Set.of(projectMetadata.visibleOpenIndices)
             .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.OPEN));
-        assert Set.of(visibleClosedIndices)
+        assert Set.of(projectMetadata.visibleClosedIndices)
             .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.CLOSE));
         return true;
     }
@@ -330,25 +285,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             clusterUUIDCommitted,
             version + 1,
             coordinationMetadata,
+            projectMetadata,
             transientSettings,
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
-            totalNumberOfShards,
-            totalOpenIndexShards,
-            indices,
-            aliasedIndices,
-            templates,
-            customs,
-            allIndices,
-            visibleIndices,
-            allOpenIndices,
-            visibleOpenIndices,
-            allClosedIndices,
-            visibleClosedIndices,
-            indicesLookup,
-            mappingsByHash,
-            oldestIndexVersion,
             reservedStateMetadata
         );
     }
@@ -379,7 +320,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap());
 
         // drop it into the indices
-        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
+        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(projectMetadata.indices);
         builder.put(index.getName(), indexMetadataBuilder.build());
 
         // construct a new Metadata object directly rather than using Metadata.builder(this).[...].build().
@@ -391,25 +332,27 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             clusterUUIDCommitted,
             version,
             coordinationMetadata,
+            new ProjectMetadata(
+                builder.build(),
+                projectMetadata.aliasedIndices,
+                projectMetadata.templates,
+                projectMetadata.customs,
+                projectMetadata.totalNumberOfShards,
+                projectMetadata.totalOpenIndexShards,
+                projectMetadata.allIndices,
+                projectMetadata.visibleIndices,
+                projectMetadata.allOpenIndices,
+                projectMetadata.visibleOpenIndices,
+                projectMetadata.allClosedIndices,
+                projectMetadata.visibleClosedIndices,
+                projectMetadata.indicesLookup,
+                projectMetadata.mappingsByHash,
+                projectMetadata.oldestIndexVersion
+            ),
             transientSettings,
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
-            totalNumberOfShards,
-            totalOpenIndexShards,
-            builder.build(),
-            aliasedIndices,
-            templates,
-            customs,
-            allIndices,
-            visibleIndices,
-            allOpenIndices,
-            visibleOpenIndices,
-            allClosedIndices,
-            visibleClosedIndices,
-            indicesLookup,
-            mappingsByHash,
-            oldestIndexVersion,
             reservedStateMetadata
         );
     }
@@ -417,7 +360,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     public Metadata withIndexSettingsUpdates(final Map<Index, Settings> updates) {
         Objects.requireNonNull(updates, "no indices to update settings for");
 
-        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
+        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(projectMetadata.indices);
         updates.forEach((index, settings) -> {
             IndexMetadata previous = builder.remove(index.getName());
             assert previous != null : index;
@@ -431,25 +374,27 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             clusterUUIDCommitted,
             version,
             coordinationMetadata,
+            new ProjectMetadata(
+                builder.build(),
+                projectMetadata.aliasedIndices,
+                projectMetadata.templates,
+                projectMetadata.customs,
+                projectMetadata.totalNumberOfShards,
+                projectMetadata.totalOpenIndexShards,
+                projectMetadata.allIndices,
+                projectMetadata.visibleIndices,
+                projectMetadata.allOpenIndices,
+                projectMetadata.visibleOpenIndices,
+                projectMetadata.allClosedIndices,
+                projectMetadata.visibleClosedIndices,
+                projectMetadata.indicesLookup,
+                projectMetadata.mappingsByHash,
+                projectMetadata.oldestIndexVersion
+            ),
             transientSettings,
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
-            totalNumberOfShards,
-            totalOpenIndexShards,
-            builder.build(),
-            aliasedIndices,
-            templates,
-            customs,
-            allIndices,
-            visibleIndices,
-            allOpenIndices,
-            visibleOpenIndices,
-            allClosedIndices,
-            visibleClosedIndices,
-            indicesLookup,
-            mappingsByHash,
-            oldestIndexVersion,
             reservedStateMetadata
         );
     }
@@ -460,25 +405,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             clusterUUIDCommitted,
             version,
             coordinationMetadata,
+            projectMetadata,
             transientSettings,
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
-            totalNumberOfShards,
-            totalOpenIndexShards,
-            indices,
-            aliasedIndices,
-            templates,
-            customs,
-            allIndices,
-            visibleIndices,
-            allOpenIndices,
-            visibleOpenIndices,
-            allClosedIndices,
-            visibleClosedIndices,
-            indicesLookup,
-            mappingsByHash,
-            oldestIndexVersion,
             reservedStateMetadata
         );
     }
@@ -496,25 +427,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             clusterUUIDCommitted,
             version,
             CoordinationMetadata.builder(coordinationMetadata).lastCommittedConfiguration(lastCommittedConfiguration).build(),
+            projectMetadata,
             transientSettings,
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
-            totalNumberOfShards,
-            totalOpenIndexShards,
-            indices,
-            aliasedIndices,
-            templates,
-            customs,
-            allIndices,
-            visibleIndices,
-            allOpenIndices,
-            visibleOpenIndices,
-            allClosedIndices,
-            visibleClosedIndices,
-            indicesLookup,
-            mappingsByHash,
-            oldestIndexVersion,
             reservedStateMetadata
         );
     }
@@ -530,32 +447,34 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         if (updates.isEmpty()) {
             return this;
         }
-        final var updatedIndicesBuilder = ImmutableOpenMap.builder(indices);
+        final var updatedIndicesBuilder = ImmutableOpenMap.builder(projectMetadata.indices);
         updatedIndicesBuilder.putAllFromMap(updates);
         return new Metadata(
             clusterUUID,
             clusterUUIDCommitted,
             version,
             coordinationMetadata,
+            new ProjectMetadata(
+                updatedIndicesBuilder.build(),
+                projectMetadata.aliasedIndices,
+                projectMetadata.templates,
+                projectMetadata.customs,
+                projectMetadata.totalNumberOfShards,
+                projectMetadata.totalOpenIndexShards,
+                projectMetadata.allIndices,
+                projectMetadata.visibleIndices,
+                projectMetadata.allOpenIndices,
+                projectMetadata.visibleOpenIndices,
+                projectMetadata.allClosedIndices,
+                projectMetadata.visibleClosedIndices,
+                projectMetadata.indicesLookup,
+                projectMetadata.mappingsByHash,
+                projectMetadata.oldestIndexVersion
+            ),
             transientSettings,
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
-            totalNumberOfShards,
-            totalOpenIndexShards,
-            updatedIndicesBuilder.build(),
-            aliasedIndices,
-            templates,
-            customs,
-            allIndices,
-            visibleIndices,
-            allOpenIndices,
-            visibleOpenIndices,
-            allClosedIndices,
-            visibleClosedIndices,
-            indicesLookup,
-            mappingsByHash,
-            oldestIndexVersion,
             reservedStateMetadata
         );
     }
@@ -572,35 +491,35 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         final ImmutableOpenMap<String, Set<Index>> updatedAliases = aliasesAfterAddingIndex(index, aliases);
         final String[] updatedVisibleIndices;
         if (index.isHidden()) {
-            updatedVisibleIndices = visibleIndices;
+            updatedVisibleIndices = projectMetadata.visibleIndices;
         } else {
-            updatedVisibleIndices = ArrayUtils.append(visibleIndices, indexName);
+            updatedVisibleIndices = ArrayUtils.append(projectMetadata.visibleIndices, indexName);
         }
 
-        final String[] updatedAllIndices = ArrayUtils.append(allIndices, indexName);
+        final String[] updatedAllIndices = ArrayUtils.append(projectMetadata.allIndices, indexName);
         final String[] updatedOpenIndices;
         final String[] updatedClosedIndices;
         final String[] updatedVisibleOpenIndices;
         final String[] updatedVisibleClosedIndices;
         switch (index.getState()) {
             case OPEN -> {
-                updatedOpenIndices = ArrayUtils.append(allOpenIndices, indexName);
+                updatedOpenIndices = ArrayUtils.append(projectMetadata.allOpenIndices, indexName);
                 if (index.isHidden() == false) {
-                    updatedVisibleOpenIndices = ArrayUtils.append(visibleOpenIndices, indexName);
+                    updatedVisibleOpenIndices = ArrayUtils.append(projectMetadata.visibleOpenIndices, indexName);
                 } else {
-                    updatedVisibleOpenIndices = visibleOpenIndices;
+                    updatedVisibleOpenIndices = projectMetadata.visibleOpenIndices;
                 }
-                updatedVisibleClosedIndices = visibleClosedIndices;
-                updatedClosedIndices = allClosedIndices;
+                updatedVisibleClosedIndices = projectMetadata.visibleClosedIndices;
+                updatedClosedIndices = projectMetadata.allClosedIndices;
             }
             case CLOSE -> {
-                updatedOpenIndices = allOpenIndices;
-                updatedClosedIndices = ArrayUtils.append(allClosedIndices, indexName);
-                updatedVisibleOpenIndices = visibleOpenIndices;
+                updatedOpenIndices = projectMetadata.allOpenIndices;
+                updatedClosedIndices = ArrayUtils.append(projectMetadata.allClosedIndices, indexName);
+                updatedVisibleOpenIndices = projectMetadata.visibleOpenIndices;
                 if (index.isHidden() == false) {
-                    updatedVisibleClosedIndices = ArrayUtils.append(visibleClosedIndices, indexName);
+                    updatedVisibleClosedIndices = ArrayUtils.append(projectMetadata.visibleClosedIndices, indexName);
                 } else {
-                    updatedVisibleClosedIndices = visibleClosedIndices;
+                    updatedVisibleClosedIndices = projectMetadata.visibleClosedIndices;
                 }
             }
             default -> throw new AssertionError("impossible, index is either open or closed");
@@ -609,18 +528,22 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         final MappingMetadata mappingMetadata = index.mapping();
         final Map<String, MappingMetadata> updatedMappingsByHash;
         if (mappingMetadata == null) {
-            updatedMappingsByHash = mappingsByHash;
+            updatedMappingsByHash = projectMetadata.mappingsByHash;
         } else {
-            final MappingMetadata existingMapping = mappingsByHash.get(mappingMetadata.getSha256());
+            final MappingMetadata existingMapping = projectMetadata.mappingsByHash.get(mappingMetadata.getSha256());
             if (existingMapping != null) {
                 index = index.withMappingMetadata(existingMapping);
-                updatedMappingsByHash = mappingsByHash;
+                updatedMappingsByHash = projectMetadata.mappingsByHash;
             } else {
-                updatedMappingsByHash = Maps.copyMapWithAddedEntry(mappingsByHash, mappingMetadata.getSha256(), mappingMetadata);
+                updatedMappingsByHash = Maps.copyMapWithAddedEntry(
+                    projectMetadata.mappingsByHash,
+                    mappingMetadata.getSha256(),
+                    mappingMetadata
+                );
             }
         }
 
-        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
+        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(projectMetadata.indices);
         builder.put(indexName, index);
         final ImmutableOpenMap<String, IndexMetadata> indicesMap = builder.build();
         for (var entry : updatedAliases.entrySet()) {
@@ -632,38 +555,40 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             clusterUUIDCommitted,
             version,
             coordinationMetadata,
+            new ProjectMetadata(
+                indicesMap,
+                updatedAliases,
+                projectMetadata.templates,
+                projectMetadata.customs,
+                projectMetadata.totalNumberOfShards + index.getTotalNumberOfShards(),
+                projectMetadata.totalOpenIndexShards + (index.getState() == IndexMetadata.State.OPEN ? index.getTotalNumberOfShards() : 0),
+                updatedAllIndices,
+                updatedVisibleIndices,
+                updatedOpenIndices,
+                updatedVisibleOpenIndices,
+                updatedClosedIndices,
+                updatedVisibleClosedIndices,
+                null,
+                updatedMappingsByHash,
+                IndexVersion.min(index.getCompatibilityVersion(), projectMetadata.oldestIndexVersion)
+            ),
             transientSettings,
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
-            totalNumberOfShards + index.getTotalNumberOfShards(),
-            totalOpenIndexShards + (index.getState() == IndexMetadata.State.OPEN ? index.getTotalNumberOfShards() : 0),
-            indicesMap,
-            updatedAliases,
-            templates,
-            customs,
-            updatedAllIndices,
-            updatedVisibleIndices,
-            updatedOpenIndices,
-            updatedVisibleOpenIndices,
-            updatedClosedIndices,
-            updatedVisibleClosedIndices,
-            null,
-            updatedMappingsByHash,
-            IndexVersion.min(index.getCompatibilityVersion(), oldestIndexVersion),
             reservedStateMetadata
         );
     }
 
     private ImmutableOpenMap<String, Set<Index>> aliasesAfterAddingIndex(IndexMetadata index, Map<String, AliasMetadata> aliases) {
         if (aliases.isEmpty()) {
-            return aliasedIndices;
+            return projectMetadata.aliasedIndices;
         }
         final String indexName = index.getIndex().getName();
-        final ImmutableOpenMap.Builder<String, Set<Index>> aliasesBuilder = ImmutableOpenMap.builder(aliasedIndices);
+        final ImmutableOpenMap.Builder<String, Set<Index>> aliasesBuilder = ImmutableOpenMap.builder(projectMetadata.aliasedIndices);
         for (String alias : aliases.keySet()) {
             ensureNoNameCollision(alias);
-            if (aliasedIndices.containsKey(indexName)) {
+            if (projectMetadata.aliasedIndices.containsKey(indexName)) {
                 throw new IllegalArgumentException("alias with name [" + indexName + "] already exists");
             }
             final Set<Index> found = aliasesBuilder.get(alias);
@@ -681,7 +606,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     private void ensureNoNameCollision(String indexName) {
-        if (indices.containsKey(indexName)) {
+        if (projectMetadata.indices.containsKey(indexName)) {
             throw new IllegalArgumentException("index with name [" + indexName + "] already exists");
         }
         if (dataStreams().containsKey(indexName)) {
@@ -732,7 +657,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public IndexVersion oldestIndexVersion() {
-        return this.oldestIndexVersion;
+        return projectMetadata.oldestIndexVersion;
     }
 
     public boolean equalsAliases(Metadata other) {
@@ -763,11 +688,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public boolean indicesLookupInitialized() {
-        return indicesLookup != null;
+        return projectMetadata.indicesLookup != null;
     }
 
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
-        SortedMap<String, IndexAbstraction> lookup = indicesLookup;
+        SortedMap<String, IndexAbstraction> lookup = projectMetadata.indicesLookup;
         if (lookup == null) {
             lookup = buildIndicesLookup();
         }
@@ -775,17 +700,17 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     private synchronized SortedMap<String, IndexAbstraction> buildIndicesLookup() {
-        SortedMap<String, IndexAbstraction> i = indicesLookup;
+        SortedMap<String, IndexAbstraction> i = projectMetadata.indicesLookup;
         if (i != null) {
             return i;
         }
-        i = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
-        indicesLookup = i;
+        i = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), projectMetadata.indices);
+        projectMetadata.indicesLookup = i;
         return i;
     }
 
     public boolean sameIndicesLookup(Metadata other) {
-        return this.indicesLookup == other.indicesLookup;
+        return projectMetadata.indicesLookup == other.projectMetadata.indicesLookup;
     }
 
     /**
@@ -812,7 +737,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     public Map<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
 
-        AliasInfoGetter getter = index -> indices.get(index).getAliases().values().stream().toList();
+        AliasInfoGetter getter = index -> projectMetadata.indices.get(index).getAliases().values().stream().toList();
 
         AliasInfoSetter setter = (index, foundAliases) -> {
             List<AliasMetadata> d = new ArrayList<>();
@@ -933,10 +858,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
 
         ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
-        Set<String> indicesKeys = indices.keySet();
+        Set<String> indicesKeys = projectMetadata.indices.keySet();
         Stream.of(concreteIndices).filter(indicesKeys::contains).forEach(index -> {
             onNextIndex.run();
-            IndexMetadata indexMetadata = indices.get(index);
+            IndexMetadata indexMetadata = projectMetadata.indices.get(index);
             Predicate<String> fieldPredicate = fieldFilter.apply(index);
             indexMapBuilder.put(index, filterFields(indexMetadata.mapping(), fieldPredicate));
         });
@@ -1054,42 +979,42 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      * Returns all the concrete indices.
      */
     public String[] getConcreteAllIndices() {
-        return allIndices;
+        return projectMetadata.allIndices;
     }
 
     /**
      * Returns all the concrete indices that are not hidden.
      */
     public String[] getConcreteVisibleIndices() {
-        return visibleIndices;
+        return projectMetadata.visibleIndices;
     }
 
     /**
      * Returns all of the concrete indices that are open.
      */
     public String[] getConcreteAllOpenIndices() {
-        return allOpenIndices;
+        return projectMetadata.allOpenIndices;
     }
 
     /**
      * Returns all of the concrete indices that are open and not hidden.
      */
     public String[] getConcreteVisibleOpenIndices() {
-        return visibleOpenIndices;
+        return projectMetadata.visibleOpenIndices;
     }
 
     /**
      * Returns all of the concrete indices that are closed.
      */
     public String[] getConcreteAllClosedIndices() {
-        return allClosedIndices;
+        return projectMetadata.allClosedIndices;
     }
 
     /**
      * Returns all of the concrete indices that are closed and not hidden.
      */
     public String[] getConcreteVisibleClosedIndices() {
-        return visibleClosedIndices;
+        return projectMetadata.visibleClosedIndices;
     }
 
     /**
@@ -1188,7 +1113,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      * @return {@code true} if a concrete index with that name exists, {@code false} otherwise.
      */
     public boolean hasIndex(String index) {
-        return indices.containsKey(index);
+        return projectMetadata.indices.containsKey(index);
     }
 
     /**
@@ -1212,7 +1137,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public IndexMetadata index(String index) {
-        return indices.get(index);
+        return projectMetadata.indices.get(index);
     }
 
     public IndexMetadata index(Index index) {
@@ -1225,7 +1150,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     /** Returns true iff existing index has the same {@link IndexMetadata} instance */
     public boolean hasIndexMetadata(final IndexMetadata indexMetadata) {
-        return indices.get(indexMetadata.getIndex().getName()) == indexMetadata;
+        return projectMetadata.indices.get(indexMetadata.getIndex().getName()) == indexMetadata;
     }
 
     /**
@@ -1249,7 +1174,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public Map<String, IndexMetadata> indices() {
-        return this.indices;
+        return projectMetadata.indices;
     }
 
     public Map<String, IndexMetadata> getIndices() {
@@ -1263,7 +1188,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      * @return whether an alias exists with provided alias name
      */
     public boolean hasAlias(String aliasName) {
-        return aliasedIndices.containsKey(aliasName) || dataStreamAliases().containsKey(aliasName);
+        return projectMetadata.aliasedIndices.containsKey(aliasName) || dataStreamAliases().containsKey(aliasName);
     }
 
     /**
@@ -1276,18 +1201,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      */
     public Set<Index> aliasedIndices(String aliasName) {
         Objects.requireNonNull(aliasName);
-        return aliasedIndices.getOrDefault(aliasName, Set.of());
+        return projectMetadata.aliasedIndices.getOrDefault(aliasName, Set.of());
     }
 
     /**
      * @return the names of all indices aliases.
      */
     public Set<String> aliasedIndices() {
-        return aliasedIndices.keySet();
+        return projectMetadata.aliasedIndices.keySet();
     }
 
     public Map<String, IndexTemplateMetadata> templates() {
-        return this.templates;
+        return projectMetadata.templates;
     }
 
     public Map<String, IndexTemplateMetadata> getTemplates() {
@@ -1387,7 +1312,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public Map<String, Custom> customs() {
-        return this.customs;
+        return projectMetadata.customs;
     }
 
     /**
@@ -1408,12 +1333,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     @SuppressWarnings("unchecked")
     public <T extends Custom> T custom(String type) {
-        return (T) customs.get(type);
+        return (T) projectMetadata.customs.get(type);
     }
 
     @SuppressWarnings("unchecked")
     public <T extends Custom> T custom(String type, T defaultValue) {
-        return (T) customs.getOrDefault(type, defaultValue);
+        return (T) projectMetadata.customs.getOrDefault(type, defaultValue);
     }
 
     /**
@@ -1422,7 +1347,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      * @return The total number shards from all indices.
      */
     public int getTotalNumberOfShards() {
-        return this.totalNumberOfShards;
+        return projectMetadata.totalNumberOfShards;
     }
 
     /**
@@ -1431,20 +1356,20 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      * @return The total number of open shards from all indices.
      */
     public int getTotalOpenIndexShards() {
-        return this.totalOpenIndexShards;
+        return projectMetadata.totalOpenIndexShards;
     }
 
     @Override
     public Iterator<IndexMetadata> iterator() {
-        return indices.values().iterator();
+        return projectMetadata.indices.values().iterator();
     }
 
     public Stream<IndexMetadata> stream() {
-        return indices.values().stream();
+        return projectMetadata.indices.values().stream();
     }
 
     public int size() {
-        return indices.size();
+        return projectMetadata.indices.size();
     }
 
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
@@ -1457,7 +1382,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         if (metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings) == false) {
             return false;
         }
-        if (metadata1.templates.equals(metadata2.templates()) == false) {
+        if (metadata1.projectMetadata.templates.equals(metadata2.templates()) == false) {
             return false;
         }
         if (metadata1.clusterUUID.equals(metadata2.clusterUUID) == false) {
@@ -1468,7 +1393,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
-        for (Map.Entry<String, Custom> cursor : metadata1.customs.entrySet()) {
+        for (Map.Entry<String, Custom> cursor : metadata1.projectMetadata.customs.entrySet()) {
             if (cursor.getValue().context().contains(XContentContext.GATEWAY)) {
                 if (cursor.getValue().equals(metadata2.custom(cursor.getKey())) == false) {
                     return false;
@@ -1477,7 +1402,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             }
         }
         int customCount2 = 0;
-        for (Custom custom : metadata2.customs.values()) {
+        for (Custom custom : metadata2.projectMetadata.customs.values()) {
             if (custom.context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
@@ -1543,7 +1468,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             ),
             indices,
             Iterators.flatMap(
-                customs.entrySet().iterator(),
+                projectMetadata.customs.entrySet().iterator(),
                 entry -> entry.getValue().context().contains(context)
                     ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
                     : Collections.emptyIterator()
@@ -1554,7 +1479,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public Map<String, MappingMetadata> getMappingsByHash() {
-        return mappingsByHash;
+        return projectMetadata.mappingsByHash;
     }
 
     private static class MetadataDiff implements Diff<Metadata> {
@@ -1596,11 +1521,19 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 reservedStateMetadata = DiffableUtils.emptyDiff();
             } else {
                 hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
-                indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
-                templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
+                indices = DiffableUtils.diff(
+                    before.projectMetadata.indices,
+                    after.projectMetadata.indices,
+                    DiffableUtils.getStringKeySerializer()
+                );
+                templates = DiffableUtils.diff(
+                    before.projectMetadata.templates,
+                    after.projectMetadata.templates,
+                    DiffableUtils.getStringKeySerializer()
+                );
                 customs = DiffableUtils.diff(
-                    before.customs,
-                    after.customs,
+                    before.projectMetadata.customs,
+                    after.projectMetadata.customs,
                     DiffableUtils.getStringKeySerializer(),
                     CUSTOM_VALUE_SERIALIZER
                 );
@@ -1682,8 +1615,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             }
             // create builder from existing mappings hashes so we don't change existing index metadata instances when deduplicating
             // mappings in the builder
-            final var updatedIndices = indices.apply(part.indices);
-            Builder builder = new Builder(part.mappingsByHash, updatedIndices.size());
+            final var updatedIndices = indices.apply(part.projectMetadata.indices);
+            Builder builder = new Builder(part.projectMetadata.mappingsByHash, updatedIndices.size());
             builder.clusterUUID(clusterUUID);
             builder.clusterUUIDCommitted(clusterUUIDCommitted);
             builder.version(version);
@@ -1692,12 +1625,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             builder.persistentSettings(persistentSettings);
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
             builder.indices(updatedIndices);
-            builder.templates(templates.apply(part.templates));
-            builder.customs(customs.apply(part.customs));
+            builder.templates(templates.apply(part.projectMetadata.templates));
+            builder.customs(customs.apply(part.projectMetadata.customs));
             builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
-            if (part.indices == updatedIndices
+            if (part.projectMetadata.indices == updatedIndices
                 && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
-                builder.previousIndicesLookup = part.indicesLookup;
+                builder.previousIndicesLookup = part.projectMetadata.indicesLookup;
             }
             return builder.build(true);
         }
@@ -1763,15 +1696,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
         // we avoid writing duplicate mappings twice
         if (out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            out.writeMapValues(mappingsByHash);
+            out.writeMapValues(projectMetadata.mappingsByHash);
         }
-        out.writeVInt(indices.size());
+        out.writeVInt(projectMetadata.indices.size());
         final boolean writeMappingsHash = out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);
         for (IndexMetadata indexMetadata : this) {
             indexMetadata.writeTo(out, writeMappingsHash);
         }
-        out.writeCollection(templates.values());
-        VersionedNamedWriteable.writeVersionedWritables(out, customs);
+        out.writeCollection(projectMetadata.templates.values());
+        VersionedNamedWriteable.writeVersionedWritables(out, projectMetadata.customs);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeCollection(reservedStateMetadata.values());
         }
@@ -1832,12 +1765,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             this.persistentSettings = metadata.persistentSettings;
             this.hashesOfConsistentSettings = metadata.hashesOfConsistentSettings;
             this.version = metadata.version;
-            this.indices = ImmutableOpenMap.builder(metadata.indices);
-            this.aliasedIndices = ImmutableOpenMap.builder(metadata.aliasedIndices);
-            this.templates = ImmutableOpenMap.builder(metadata.templates);
-            this.customs = ImmutableOpenMap.builder(metadata.customs);
-            this.previousIndicesLookup = metadata.indicesLookup;
-            this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
+            this.indices = ImmutableOpenMap.builder(metadata.projectMetadata.indices);
+            this.aliasedIndices = ImmutableOpenMap.builder(metadata.projectMetadata.aliasedIndices);
+            this.templates = ImmutableOpenMap.builder(metadata.projectMetadata.templates);
+            this.customs = ImmutableOpenMap.builder(metadata.projectMetadata.customs);
+            this.previousIndicesLookup = metadata.projectMetadata.indicesLookup;
+            this.mappingsByHash = new HashMap<>(metadata.projectMetadata.mappingsByHash);
             this.checkForUnusedMappings = false;
             this.reservedStateMetadata = new HashMap<>(metadata.reservedStateMetadata);
         }
@@ -2433,25 +2366,27 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 clusterUUIDCommitted,
                 version,
                 coordinationMetadata,
+                new ProjectMetadata(
+                    indicesMap,
+                    aliasedIndices,
+                    templates.build(),
+                    customs.build(),
+                    totalNumberOfShards,
+                    totalOpenIndexShards,
+                    allIndicesArray,
+                    visibleIndicesArray,
+                    allOpenIndicesArray,
+                    visibleOpenIndicesArray,
+                    allClosedIndicesArray,
+                    visibleClosedIndicesArray,
+                    indicesLookup,
+                    Collections.unmodifiableMap(mappingsByHash),
+                    IndexVersion.fromId(oldestIndexVersionId)
+                ),
                 transientSettings,
                 persistentSettings,
                 Settings.builder().put(persistentSettings).put(transientSettings).build(),
                 hashesOfConsistentSettings,
-                totalNumberOfShards,
-                totalOpenIndexShards,
-                indicesMap,
-                aliasedIndices,
-                templates.build(),
-                customs.build(),
-                allIndicesArray,
-                visibleIndicesArray,
-                allOpenIndicesArray,
-                visibleOpenIndicesArray,
-                allClosedIndicesArray,
-                visibleClosedIndicesArray,
-                indicesLookup,
-                Collections.unmodifiableMap(mappingsByHash),
-                IndexVersion.fromId(oldestIndexVersionId),
                 Collections.unmodifiableMap(reservedStateMetadata)
             );
         }

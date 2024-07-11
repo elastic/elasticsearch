@@ -32,21 +32,21 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public abstract class AbstractChallengeRestTest extends ESRestTestCase {
-    private final String oracleDataStreamName;
-    private final String challengeDataStreamName;
-    private final String oracleTemplateName;
-    private final String challengeTemplateName;
+    private final String baselineDataStreamName;
+    private final String contenderDataStreamName;
+    private final String baselineTemplateName;
+    private final String contenderTemplateName;
 
-    private final int oracleTemplatePriority;
-    private final int challengeTemplatePriority;
+    private final int baselineTemplatePriority;
+    private final int contenderTemplatePriority;
 
     // NOTE: this is a single node test, having more shards or replicas results in a yellow cluster
     private static final int DEFAULT_NUMBER_OF_SHARDS = 1;
     private static final int DEFAULT_NUMBER_OF_REPLICAS = 1;
-    private XContentBuilder oracleMappings;
-    private XContentBuilder challengeMappings;
-    private Settings.Builder oracleSettings;
-    private Settings.Builder challengeSettings;
+    private XContentBuilder baselineMappings;
+    private XContentBuilder contenderMappings;
+    private Settings.Builder baselineSettings;
+    private Settings.Builder contenderSettings;
     private RestClient client;
 
     @ClassRule()
@@ -65,29 +65,29 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     }
 
     public AbstractChallengeRestTest(
-        final String oracleDataStreamName,
-        final String challengeDataStreamName,
-        final String oracleTemplateName,
-        final String challengeTemplateName,
-        int oracleTemplatePriority,
-        int challengeTemplatePriority
+        final String baselineDataStreamName,
+        final String contenderDataStreamName,
+        final String baselineTemplateName,
+        final String contenderTemplateName,
+        int baselineTemplatePriority,
+        int contenderTemplatePriority
     ) {
-        this.oracleDataStreamName = oracleDataStreamName;
-        this.challengeDataStreamName = challengeDataStreamName;
-        this.oracleTemplateName = oracleTemplateName;
-        this.challengeTemplateName = challengeTemplateName;
-        this.oracleTemplatePriority = oracleTemplatePriority;
-        this.challengeTemplatePriority = challengeTemplatePriority;
+        this.baselineDataStreamName = baselineDataStreamName;
+        this.contenderDataStreamName = contenderDataStreamName;
+        this.baselineTemplateName = baselineTemplateName;
+        this.contenderTemplateName = contenderTemplateName;
+        this.baselineTemplatePriority = baselineTemplatePriority;
+        this.contenderTemplatePriority = contenderTemplatePriority;
     }
 
     @Before
     public void beforeTest() throws Exception {
         beforeStart();
         client = client();
-        this.oracleMappings = createOracleMappings();
-        this.challengeMappings = createChallengeMappings();
-        this.oracleSettings = createOracleSettings();
-        this.challengeSettings = createChallengeSettings();
+        this.baselineMappings = createBaselineMappings();
+        this.contenderMappings = createContenderMappings();
+        this.baselineSettings = createBaselineSettings();
+        this.contenderSettings = createContenderSettings();
         createTemplates();
         createDataStreams();
         beforeEnd();
@@ -116,35 +116,35 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     }
 
     private void createTemplates() throws IOException {
-        final Response createOracleTemplateResponse = createTemplates(
-            getOracleTemplateName(),
-            getOracleDataStreamName() + "*",
-            oracleSettings,
-            oracleMappings,
-            getOracleTemplatePriority()
+        final Response createBaselineTemplateResponse = createTemplates(
+            getBaselineTemplateName(),
+            getBaselineDataStreamName() + "*",
+            baselineSettings,
+            baselineMappings,
+            getBaselineTemplatePriority()
         );
-        assert createOracleTemplateResponse.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
+        assert createBaselineTemplateResponse.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
 
-        final Response createChallengeTemplateResponse = createTemplates(
-            getChallengeTemplateName(),
-            getChallengeDataStreamName() + "*",
-            challengeSettings,
-            challengeMappings,
-            getChallengeTemplatePriority()
+        final Response createContenderTemplateResponse = createTemplates(
+            getContenderTemplateName(),
+            getContenderDataStreamName() + "*",
+            contenderSettings,
+            contenderMappings,
+            getContenderTemplatePriority()
         );
-        assert createChallengeTemplateResponse.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
+        assert createContenderTemplateResponse.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
     }
 
     private void createDataStreams() throws IOException {
-        final Response craeteOracleDataStreamResponse = client.performRequest(
-            new Request("PUT", "_data_stream/" + getOracleDataStreamName())
+        final Response craeteBaselineDataStreamResponse = client.performRequest(
+            new Request("PUT", "_data_stream/" + getBaselineDataStreamName())
         );
-        assert craeteOracleDataStreamResponse.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
+        assert craeteBaselineDataStreamResponse.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
 
-        final Response createChallengeDataStreamResponse = client.performRequest(
-            new Request("PUT", "_data_stream/" + getChallengeDataStreamName())
+        final Response createContenderDataStreamResponse = client.performRequest(
+            new Request("PUT", "_data_stream/" + getContenderDataStreamName())
         );
-        assert createChallengeDataStreamResponse.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
+        assert createContenderDataStreamResponse.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
     }
 
     private Response createTemplates(
@@ -173,23 +173,27 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     }
 
     private void deleteTemplates() throws IOException {
-        final Response deleteOracleDataStream = client.performRequest(new Request("DELETE", "/_data_stream/" + getOracleDataStreamName()));
-        assert deleteOracleDataStream.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
-
-        final Response deleteChallengeDataStream = client.performRequest(
-            new Request("DELETE", "/_data_stream/" + getChallengeDataStreamName())
+        final Response deleteBaselineDataStream = client.performRequest(
+            new Request("DELETE", "/_data_stream/" + getBaselineDataStreamName())
         );
-        assert deleteChallengeDataStream.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
+        assert deleteBaselineDataStream.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
+
+        final Response deleteContenderDataStream = client.performRequest(
+            new Request("DELETE", "/_data_stream/" + getContenderDataStreamName())
+        );
+        assert deleteContenderDataStream.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
     }
 
     private void deleteDataStreams() throws IOException {
-        final Response deleteOracleTemplate = client.performRequest(new Request("DELETE", "/_index_template/" + getOracleTemplateName()));
-        assert deleteOracleTemplate.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
-
-        final Response deleteChallengeTemplate = client.performRequest(
-            new Request("DELETE", "/_index_template/" + getChallengeTemplateName())
+        final Response deleteBaselineTemplate = client.performRequest(
+            new Request("DELETE", "/_index_template/" + getBaselineTemplateName())
         );
-        assert deleteChallengeTemplate.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
+        assert deleteBaselineTemplate.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
+
+        final Response deleteContenderTemplate = client.performRequest(
+            new Request("DELETE", "/_index_template/" + getContenderTemplateName())
+        );
+        assert deleteContenderTemplate.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
     }
 
     private Settings.Builder createSettings(final CheckedConsumer<Settings.Builder, IOException> settingsConsumer) throws IOException {
@@ -200,12 +204,12 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         return settings;
     }
 
-    private Settings.Builder createOracleSettings() throws IOException {
-        return createSettings(this::oracleSettings);
+    private Settings.Builder createBaselineSettings() throws IOException {
+        return createSettings(this::baselineSettings);
     }
 
-    private Settings.Builder createChallengeSettings() throws IOException {
-        return createSettings(this::challengeSettings);
+    private Settings.Builder createContenderSettings() throws IOException {
+        return createSettings(this::contenderSettings);
     }
 
     private XContentBuilder createMappings(final CheckedConsumer<XContentBuilder, IOException> builderConsumer) throws IOException {
@@ -216,21 +220,21 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         return builder;
     }
 
-    private XContentBuilder createOracleMappings() throws IOException {
-        return createMappings(this::oracleMappings);
+    private XContentBuilder createBaselineMappings() throws IOException {
+        return createMappings(this::baselineMappings);
     }
 
-    private XContentBuilder createChallengeMappings() throws IOException {
-        return createMappings(this::challengeMappings);
+    private XContentBuilder createContenderMappings() throws IOException {
+        return createMappings(this::contenderMappings);
     }
 
-    public abstract void oracleMappings(XContentBuilder builder) throws IOException;
+    public abstract void baselineMappings(XContentBuilder builder) throws IOException;
 
-    public abstract void challengeMappings(XContentBuilder builder) throws IOException;
+    public abstract void contenderMappings(XContentBuilder builder) throws IOException;
 
-    public void oracleSettings(Settings.Builder builder) {}
+    public void baselineSettings(Settings.Builder builder) {}
 
-    public void challengeSettings(Settings.Builder builder) {}
+    public void contenderSettings(Settings.Builder builder) {}
 
     private Response indexDocuments(
         final String dataStreamName,
@@ -247,50 +251,34 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         return client.performRequest(request);
     }
 
-    public Response indexOracleDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier) throws IOException {
-        return indexDocuments(getOracleDataStreamName(), documentsSupplier);
+    public Response indexBaselineDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier) throws IOException {
+        return indexDocuments(getBaselineDataStreamName(), documentsSupplier);
     }
 
-    public Response indexChallengeDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
+    public Response indexContenderDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
         throws IOException {
-        return indexDocuments(getChallengeDataStreamName(), documentsSupplier);
+        return indexDocuments(getContenderDataStreamName(), documentsSupplier);
     }
 
     public Tuple<Response, Response> indexDocuments(
-        final CheckedSupplier<List<XContentBuilder>, IOException> oracleSupplier,
-        final CheckedSupplier<List<XContentBuilder>, IOException> challengeSupplier
+        final CheckedSupplier<List<XContentBuilder>, IOException> baselineSupplier,
+        final CheckedSupplier<List<XContentBuilder>, IOException> contenderSupplier
     ) throws IOException {
-        return new Tuple<>(indexOracleDocuments(oracleSupplier), indexChallengeDocuments(challengeSupplier));
+        return new Tuple<>(indexBaselineDocuments(baselineSupplier), indexContenderDocuments(contenderSupplier));
     }
 
-    public Response queryOracle(final SearchSourceBuilder search) throws IOException {
-        return query(search, this::getOracleDataStreamName);
+    public Response queryBasline(final SearchSourceBuilder search) throws IOException {
+        return query(search, this::getBaselineDataStreamName);
     }
 
-    public Response queryChallenge(final SearchSourceBuilder search) throws IOException {
-        return query(search, this::getChallengeDataStreamName);
+    public Response queryCcontender(final SearchSourceBuilder search) throws IOException {
+        return query(search, this::getContenderDataStreamName);
     }
 
     private Response query(final SearchSourceBuilder search, final Supplier<String> dataStreamNameSupplier) throws IOException {
         final Request request = new Request("GET", "/" + dataStreamNameSupplier.get() + "/_search");
         request.setJsonEntity(Strings.toString(search));
         return client.performRequest(request);
-    }
-
-    public Response refreshOracle() throws IOException {
-        return refresh(this::getOracleDataStreamName);
-    }
-
-    public Response refreshChallenge() throws IOException {
-        return refresh(this::getChallengeDataStreamName);
-    }
-
-    private Response refresh(final Supplier<String> dataStreamName) throws IOException {
-        return client.performRequest(new Request("POST", "/" + dataStreamName + "/_refresh"));
-    }
-
-    public Tuple<Response, Response> refresh() throws IOException {
-        return new Tuple<>(refreshOracle(), refreshChallenge());
     }
 
     protected int numberOfShards() {
@@ -301,43 +289,43 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         return DEFAULT_NUMBER_OF_REPLICAS;
     }
 
-    public String getOracleDataStreamName() {
-        return oracleDataStreamName;
+    public String getBaselineDataStreamName() {
+        return baselineDataStreamName;
     }
 
-    public int getOracleTemplatePriority() {
-        return oracleTemplatePriority;
+    public int getBaselineTemplatePriority() {
+        return baselineTemplatePriority;
     }
 
-    public int getChallengeTemplatePriority() {
-        return challengeTemplatePriority;
+    public int getContenderTemplatePriority() {
+        return contenderTemplatePriority;
     }
 
-    public String getChallengeDataStreamName() {
-        return challengeDataStreamName;
+    public String getContenderDataStreamName() {
+        return contenderDataStreamName;
     }
 
-    public String getOracleTemplateName() {
-        return oracleTemplateName;
+    public String getBaselineTemplateName() {
+        return baselineTemplateName;
     }
 
-    public String getChallengeTemplateName() {
-        return challengeTemplateName;
+    public String getContenderTemplateName() {
+        return contenderTemplateName;
     }
 
-    public XContentBuilder getOracleMappings() {
-        return oracleMappings;
+    public XContentBuilder getBaselineMappings() {
+        return baselineMappings;
     }
 
-    public XContentBuilder getChallengeMappings() {
-        return challengeMappings;
+    public XContentBuilder getContenderMappings() {
+        return contenderMappings;
     }
 
-    public Settings.Builder getOracleSettings() {
-        return oracleSettings;
+    public Settings.Builder getBaselineSettings() {
+        return baselineSettings;
     }
 
-    public Settings.Builder getChallengeSettings() {
-        return challengeSettings;
+    public Settings.Builder getContenderSettings() {
+        return contenderSettings;
     }
 }

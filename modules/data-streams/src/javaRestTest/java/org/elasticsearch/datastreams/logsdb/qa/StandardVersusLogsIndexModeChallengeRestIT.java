@@ -67,12 +67,12 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     @Override
-    public void oracleMappings(XContentBuilder builder) throws IOException {
+    public void baselineMappings(XContentBuilder builder) throws IOException {
         mappings(builder);
     }
 
     @Override
-    public void challengeMappings(XContentBuilder builder) throws IOException {
+    public void contenderMappings(XContentBuilder builder) throws IOException {
         mappings(builder);
     }
 
@@ -110,7 +110,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     @Override
-    public void challengeSettings(Settings.Builder builder) {
+    public void contenderSettings(Settings.Builder builder) {
         builder.put("index.mode", "logs");
     }
 
@@ -158,10 +158,10 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments);
 
-        Matcher.mappings(getChallengeMappings(), getOracleMappings())
-            .settings(getChallengeSettings(), getOracleSettings())
-            .actual(getResponseSourceAsMap(queryChallenge(searchSourceBuilder)))
-            .expected(getResponseSourceAsMap(queryOracle(searchSourceBuilder)))
+        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+            .settings(getContenderSettings(), getBaselineSettings())
+            .actual(getResponseSourceAsMap(queryCcontender(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryBasline(searchSourceBuilder)))
             .ignoreSorting(true)
             .isEqual();
     }
@@ -194,10 +194,10 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
             .size(numberOfDocuments);
 
-        Matcher.mappings(getChallengeMappings(), getOracleMappings())
-            .settings(getChallengeSettings(), getOracleSettings())
-            .actual(getResponseSourceAsMap(queryChallenge(searchSourceBuilder)))
-            .expected(getResponseSourceAsMap(queryOracle(searchSourceBuilder)))
+        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+            .settings(getContenderSettings(), getBaselineSettings())
+            .actual(getResponseSourceAsMap(queryCcontender(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryBasline(searchSourceBuilder)))
             .ignoreSorting(true)
             .isEqual();
     }
@@ -230,10 +230,10 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
             .size(numberOfDocuments)
             .aggregation(new HistogramAggregationBuilder("agg").field("memory_usage_bytes").interval(100.0D));
 
-        Matcher.mappings(getChallengeMappings(), getOracleMappings())
-            .settings(getChallengeSettings(), getOracleSettings())
-            .actual(getResponseSourceAsMap(queryChallenge(searchSourceBuilder)))
-            .expected(getResponseSourceAsMap(queryOracle(searchSourceBuilder)))
+        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+            .settings(getContenderSettings(), getBaselineSettings())
+            .actual(getResponseSourceAsMap(queryCcontender(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryBasline(searchSourceBuilder)))
             .ignoreSorting(true)
             .isEqual();
     }
@@ -267,10 +267,10 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
             .size(0)
             .aggregation(new TermsAggregationBuilder("agg").field("host.name"));
 
-        Matcher.mappings(getChallengeMappings(), getOracleMappings())
-            .settings(getChallengeSettings(), getOracleSettings())
-            .actual(getResponseSourceAsMap(queryChallenge(searchSourceBuilder)))
-            .expected(getResponseSourceAsMap(queryOracle(searchSourceBuilder)))
+        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+            .settings(getContenderSettings(), getBaselineSettings())
+            .actual(getResponseSourceAsMap(queryCcontender(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryBasline(searchSourceBuilder)))
             .ignoreSorting(true)
             .isEqual();
     }
@@ -303,22 +303,18 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
             .aggregation(AggregationBuilders.dateHistogram("agg").field("@timestamp").calendarInterval(DateHistogramInterval.SECOND))
             .size(0);
 
-        Matcher.mappings(getChallengeMappings(), getOracleMappings())
-            .settings(getChallengeSettings(), getOracleSettings())
-            .actual(getResponseSourceAsMap(queryChallenge(searchSourceBuilder)))
-            .expected(getResponseSourceAsMap(queryOracle(searchSourceBuilder)))
+        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+            .settings(getContenderSettings(), getBaselineSettings())
+            .actual(getResponseSourceAsMap(queryCcontender(searchSourceBuilder)))
+            .expected(getResponseSourceAsMap(queryBasline(searchSourceBuilder)))
             .ignoreSorting(true)
             .isEqual();
     }
 
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> getResponseSourceAsMap(final Response response) throws IOException {
-        final Map<String, Object> oracleResponseMap = XContentHelper.convertToMap(
-            XContentType.JSON.xContent(),
-            response.getEntity().getContent(),
-            true
-        );
-        final Map<String, Object> hitsMap = (Map<String, Object>) oracleResponseMap.get("hits");
+        final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
+        final Map<String, Object> hitsMap = (Map<String, Object>) map.get("hits");
         final List<Map<String, Object>> hitsList = (List<Map<String, Object>>) hitsMap.get("hits");
 
         return hitsList.stream().map(hit -> (Map<String, Object>) hit.get("_source")).toList();

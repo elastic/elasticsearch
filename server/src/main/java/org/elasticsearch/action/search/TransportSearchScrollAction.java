@@ -62,11 +62,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 try {
-                    searchResponseMetrics.recordTookTime(
-                        searchResponse.getTookInMillis(),
-                        Set.of(QueryCategory.SCROLL),
-                        searchTransportService.getThreadContext().getHeaders()
-                    );
+                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis(), Set.of(QueryCategory.SCROLL));
                     SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                         SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                     if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
@@ -83,11 +79,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     listener.onResponse(searchResponse);
                     // increment after the delegated onResponse to ensure we don't
                     // record both a success and a failure if there is an exception
-                    searchResponseMetrics.incrementResponseCount(
-                        responseCountTotalStatus,
-                        Set.of(QueryCategory.SCROLL),
-                        searchTransportService.getThreadContext().getHeaders()
-                    );
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus, Set.of(QueryCategory.SCROLL));
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -97,8 +89,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             public void onFailure(Exception e) {
                 searchResponseMetrics.incrementResponseCount(
                     SearchResponseMetrics.ResponseCountTotalStatus.FAILURE,
-                    Set.of(QueryCategory.SCROLL),
-                    searchTransportService.getThreadContext().getHeaders()
+                    Set.of(QueryCategory.SCROLL)
                 );
                 listener.onFailure(e);
             }

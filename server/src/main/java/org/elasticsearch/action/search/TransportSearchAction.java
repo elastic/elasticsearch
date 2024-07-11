@@ -298,11 +298,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             public void onResponse(SearchResponse searchResponse) {
                 try {
                     Set<QueryCategory> queryCategories = searchRequest.source().queryCategories();
-                    searchResponseMetrics.recordTookTime(
-                        searchResponse.getTookInMillis(),
-                        queryCategories,
-                        transportService.getThreadPool().getThreadContext().getHeaders()
-                    );
+                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis(), queryCategories);
                     SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                         SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                     if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
@@ -323,11 +319,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     listener.onResponse(searchResponse);
                     // increment after the delegated onResponse to ensure we don't
                     // record both a success and a failure if there is an exception
-                    searchResponseMetrics.incrementResponseCount(
-                        responseCountTotalStatus,
-                        queryCategories,
-                        transportService.getThreadPool().getThreadContext().getHeaders()
-                    );
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus, queryCategories);
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -337,8 +329,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             public void onFailure(Exception e) {
                 searchResponseMetrics.incrementResponseCount(
                     SearchResponseMetrics.ResponseCountTotalStatus.FAILURE,
-                    searchRequest.source().queryCategories(),
-                    transportService.getThreadPool().getThreadContext().getHeaders()
+                    searchRequest.source().queryCategories()
                 );
                 listener.onFailure(e);
             }

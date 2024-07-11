@@ -50,16 +50,6 @@ A data tier's performance depends on its backing hardware profile.
 For example hardware profiles, refer to Elastic Cloud's {cloud}/ec-reference-hardware.html[instance configurations].
 
 Elastic generally assumes that lower temperature data tiers have an increased ratio of data storage to CPU or heap resources. This allows later tiers to gain more space for data storage at the cost of slower response times.
-
-Using the principle that lower-temperature tiers should hold less frequently updated and accessed data, your requests should be distributed to data tiers in the following approximate proportions. These proportions keep your clusters stable and highly responsive.
-	
-	- Search: 85% hot, 10% warm, 5% cold, and 1% frozen
-	- Ingest: 95% hot, 4% warm, 1% cold, and 0% frozen
-	
-	You can check how your access requests are distributed among your data tiers using the {kibana-ref}/xpack-monitoring.html[Stack Monitoring] UI after setting up <<monitoring-overview,{es} monitoring>>.  If your lower temperature tiers are being accessed at higher proportions, then your cluster performance might be impacted. 
-	
-	These proportions are intended to serve as a general baseline that you can apply to your specific 
-	use case, billing requirements, and response time needs. 
 ====
 
 [discrete]

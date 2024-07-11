@@ -22,7 +22,8 @@ import java.util.Arrays;
 import java.util.BitSet;
 
 /**
- * This class is generated. Edit {@code X-In.java.st} instead.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link In}.
+ * This class is generated. Edit {@code InEvaluator.java.st} instead.
  */
 public class InBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
     private final Warnings warnings;
@@ -69,11 +70,13 @@ public class InBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
         }
     }
 
-    public BooleanBlock eval(int positionCount, BooleanBlock lhsBlock, BooleanBlock[] rhsBlocks) {
+    private BooleanBlock eval(int positionCount, BooleanBlock lhsBlock, BooleanBlock[] rhsBlocks) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-            boolean[] rhsValues = new boolean[rhs.length];
+            boolean hasTrue = false;
+            boolean hasFalse = false;
             BitSet nulls = new BitSet(rhs.length);
             BitSet mvs = new BitSet(rhs.length);
+            boolean foundMatch;
             for (int p = 0; p < positionCount; p++) {
                 if (lhsBlock.isNull(p)) {
                     result.appendNull();
@@ -89,6 +92,8 @@ public class InBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
                 // unpack rhsBlocks into rhsValues
                 nulls.clear();
                 mvs.clear();
+                hasTrue = false;
+                hasFalse = false;
                 for (int i = 0; i < rhsBlocks.length; i++) {
                     if (rhsBlocks[i].isNull(p)) {
                         nulls.set(i);
@@ -99,38 +104,54 @@ public class InBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
                         warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
                         continue;
                     }
+                    if (hasTrue && hasFalse) {
+                        continue;
+                    }
                     int o = rhsBlocks[i].getFirstValueIndex(p);
-                    rhsValues[i] = rhsBlocks[i].getBoolean(o);
+                    if (rhsBlocks[i].getBoolean(o)) {
+                        hasTrue = true;
+                    } else {
+                        hasFalse = true;
+                    }
                 }
                 if (nulls.cardinality() == rhsBlocks.length || mvs.cardinality() == rhsBlocks.length) {
                     result.appendNull();
                     continue;
                 }
-                try {
-                    In.process(result, nulls, mvs, lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsValues);
-                } catch (IllegalArgumentException e) {
-                    warnings.registerException(e);
-                    result.appendNull();
+                foundMatch = lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)) ? hasTrue : hasFalse;
+                if (foundMatch) {
+                    result.appendBoolean(true);
+                } else {
+                    if (nulls.cardinality() > 0) {
+                        result.appendNull();
+                    } else {
+                        result.appendBoolean(false);
+                    }
                 }
             }
             return result.build();
         }
     }
 
-    public BooleanBlock eval(int positionCount, BooleanVector lhsVector, BooleanVector[] rhsVectors) {
+    private BooleanBlock eval(int positionCount, BooleanVector lhsVector, BooleanVector[] rhsVectors) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-            boolean[] rhsValues = new boolean[rhs.length];
+            boolean hasTrue = false;
+            boolean hasFalse = false;
             for (int p = 0; p < positionCount; p++) {
                 // unpack rhsVectors into rhsValues
+                hasTrue = false;
+                hasFalse = false;
                 for (int i = 0; i < rhsVectors.length; i++) {
-                    rhsValues[i] = rhsVectors[i].getBoolean(p);
+                    if (hasTrue && hasFalse) {
+                        continue;
+                    }
+                    if (rhsVectors[i].getBoolean(p)) {
+                        hasTrue = true;
+                    } else {
+                        hasFalse = true;
+                    }
                 }
-                try {
-                    In.process(result, null, null, lhsVector.getBoolean(p), rhsValues);
-                } catch (IllegalArgumentException e) {
-                    warnings.registerException(e);
-                    result.appendNull();
-                }
+                result.appendBoolean(lhsVector.getBoolean(p) ? hasTrue : hasFalse);
             }
             return result.build();
         }

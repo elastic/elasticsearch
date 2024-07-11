@@ -23,7 +23,8 @@ import java.util.Arrays;
 import java.util.BitSet;
 
 /**
- * This class is generated. Edit {@code X-In.java.st} instead.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link In}.
+ * This class is generated. Edit {@code InEvaluator.java.st} instead.
  */
 public class InLongEvaluator implements EvalOperator.ExpressionEvaluator {
     private final Warnings warnings;
@@ -70,11 +71,12 @@ public class InLongEvaluator implements EvalOperator.ExpressionEvaluator {
         }
     }
 
-    public BooleanBlock eval(int positionCount, LongBlock lhsBlock, LongBlock[] rhsBlocks) {
+    private BooleanBlock eval(int positionCount, LongBlock lhsBlock, LongBlock[] rhsBlocks) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
             long[] rhsValues = new long[rhs.length];
             BitSet nulls = new BitSet(rhs.length);
             BitSet mvs = new BitSet(rhs.length);
+            boolean foundMatch;
             for (int p = 0; p < positionCount; p++) {
                 if (lhsBlock.isNull(p)) {
                     result.appendNull();
@@ -107,18 +109,22 @@ public class InLongEvaluator implements EvalOperator.ExpressionEvaluator {
                     result.appendNull();
                     continue;
                 }
-                try {
-                    In.process(result, nulls, mvs, lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsValues);
-                } catch (IllegalArgumentException e) {
-                    warnings.registerException(e);
-                    result.appendNull();
+                foundMatch = In.process(nulls, mvs, lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsValues);
+                if (foundMatch) {
+                    result.appendBoolean(true);
+                } else {
+                    if (nulls.cardinality() > 0) {
+                        result.appendNull();
+                    } else {
+                        result.appendBoolean(false);
+                    }
                 }
             }
             return result.build();
         }
     }
 
-    public BooleanBlock eval(int positionCount, LongVector lhsVector, LongVector[] rhsVectors) {
+    private BooleanBlock eval(int positionCount, LongVector lhsVector, LongVector[] rhsVectors) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
             long[] rhsValues = new long[rhs.length];
             for (int p = 0; p < positionCount; p++) {
@@ -126,12 +132,7 @@ public class InLongEvaluator implements EvalOperator.ExpressionEvaluator {
                 for (int i = 0; i < rhsVectors.length; i++) {
                     rhsValues[i] = rhsVectors[i].getLong(p);
                 }
-                try {
-                    In.process(result, null, null, lhsVector.getLong(p), rhsValues);
-                } catch (IllegalArgumentException e) {
-                    warnings.registerException(e);
-                    result.appendNull();
-                }
+                result.appendBoolean(In.process(null, null, lhsVector.getLong(p), rhsValues));
             }
             return result.build();
         }

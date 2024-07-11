@@ -39,7 +39,8 @@ import java.util.Arrays;
 import java.util.BitSet;
 
 /**
- * This class is generated. Edit {@code X-In.java.st} instead.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link In}.
+ * This class is generated. Edit {@code InEvaluator.java.st} instead.
  */
 public class In$Type$Evaluator implements EvalOperator.ExpressionEvaluator {
     private final Warnings warnings;
@@ -86,7 +87,7 @@ public class In$Type$Evaluator implements EvalOperator.ExpressionEvaluator {
         }
     }
 
-    public BooleanBlock eval(int positionCount, $Type$Block lhsBlock, $Type$Block[] rhsBlocks) {
+    private BooleanBlock eval(int positionCount, $Type$Block lhsBlock, $Type$Block[] rhsBlocks) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
 $if(int)$
             int[] rhsValues = new int[rhs.length];
@@ -95,7 +96,8 @@ $elseif(long)$
 $elseif(double)$
             double[] rhsValues = new double[rhs.length];
 $elseif(boolean)$
-            boolean[] rhsValues = new boolean[rhs.length];
+            boolean hasTrue = false;
+            boolean hasFalse = false;
 $elseif(BytesRef)$
             $Type$[] rhsValues = new $Type$[rhs.length];
             BytesRef lhsScratch = new BytesRef();
@@ -106,6 +108,7 @@ $elseif(BytesRef)$
 $endif$
             BitSet nulls = new BitSet(rhs.length);
             BitSet mvs = new BitSet(rhs.length);
+            boolean foundMatch;
             for (int p = 0; p < positionCount; p++) {
                 if (lhsBlock.isNull(p)) {
                     result.appendNull();
@@ -121,6 +124,10 @@ $endif$
                 // unpack rhsBlocks into rhsValues
                 nulls.clear();
                 mvs.clear();
+$if(boolean)$
+                hasTrue = false;
+                hasFalse = false;
+$endif$
                 for (int i = 0; i < rhsBlocks.length; i++) {
                     if (rhsBlocks[i].isNull(p)) {
                         nulls.set(i);
@@ -131,9 +138,20 @@ $endif$
                         warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
                         continue;
                     }
+$if(boolean)$
+                    if (hasTrue && hasFalse) {
+                        continue;
+                    }
+$endif$
                     int o = rhsBlocks[i].getFirstValueIndex(p);
 $if(BytesRef)$
                     rhsValues[i] = rhsBlocks[i].getBytesRef(o, rhsScratch[i]);
+$elseif(boolean)$
+                    if (rhsBlocks[i].getBoolean(o)) {
+                        hasTrue = true;
+                    } else {
+                        hasFalse = true;
+                    }
 $else$
                     rhsValues[i] = rhsBlocks[i].get$Type$(o);
 $endif$
@@ -142,22 +160,28 @@ $endif$
                     result.appendNull();
                     continue;
                 }
-                try {
-$if(BytesRef)$
-                    In.process(result, nulls, mvs, lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsValues);
+$if(boolean)$
+                foundMatch = lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)) ? hasTrue : hasFalse;
+$elseif(BytesRef)$
+                foundMatch = In.process(nulls, mvs, lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsValues);
 $else$
-                    In.process(result, nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
+                foundMatch = In.process(nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
 $endif$
-                } catch (IllegalArgumentException e) {
-                    warnings.registerException(e);
-                    result.appendNull();
+                if (foundMatch) {
+                    result.appendBoolean(true);
+                } else {
+                    if (nulls.cardinality() > 0) {
+                        result.appendNull();
+                    } else {
+                        result.appendBoolean(false);
+                    }
                 }
             }
             return result.build();
         }
     }
 
-    public BooleanBlock eval(int positionCount, $Type$Vector lhsVector, $Type$Vector[] rhsVectors) {
+    private BooleanBlock eval(int positionCount, $Type$Vector lhsVector, $Type$Vector[] rhsVectors) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
 $if(int)$
             int[] rhsValues = new int[rhs.length];
@@ -166,7 +190,8 @@ $elseif(long)$
 $elseif(double)$
             double[] rhsValues = new double[rhs.length];
 $elseif(boolean)$
-            boolean[] rhsValues = new boolean[rhs.length];
+            boolean hasTrue = false;
+            boolean hasFalse = false;
 $elseif(BytesRef)$
             $Type$[] rhsValues = new $Type$[rhs.length];
             BytesRef lhsScratch = new BytesRef();
@@ -177,23 +202,35 @@ $elseif(BytesRef)$
 $endif$
             for (int p = 0; p < positionCount; p++) {
                 // unpack rhsVectors into rhsValues
+$if(boolean)$
+                hasTrue = false;
+                hasFalse = false;
+$endif$
                 for (int i = 0; i < rhsVectors.length; i++) {
+$if(boolean)$
+                    if (hasTrue && hasFalse) {
+                        continue;
+                    }
+$endif$
 $if(BytesRef)$
                     rhsValues[i] = rhsVectors[i].getBytesRef(p, rhsScratch[i]);
+$elseif(boolean)$
+                    if (rhsVectors[i].getBoolean(p)) {
+                        hasTrue = true;
+                    } else {
+                        hasFalse = true;
+                    }
 $else$
                     rhsValues[i] = rhsVectors[i].get$Type$(p);
 $endif$
                 }
-                try {
 $if(BytesRef)$
-                    In.process(result, null, null, lhsVector.getBytesRef(p, lhsScratch), rhsValues);
+                result.appendBoolean(In.process(null, null, lhsVector.getBytesRef(p, lhsScratch), rhsValues));
+$elseif(boolean)$
+                result.appendBoolean(lhsVector.getBoolean(p) ? hasTrue : hasFalse);
 $else$
-                    In.process(result, null, null, lhsVector.get$Type$(p), rhsValues);
+                result.appendBoolean(In.process(null, null, lhsVector.get$Type$(p), rhsValues));
 $endif$
-                } catch (IllegalArgumentException e) {
-                    warnings.registerException(e);
-                    result.appendNull();
-                }
             }
             return result.build();
         }

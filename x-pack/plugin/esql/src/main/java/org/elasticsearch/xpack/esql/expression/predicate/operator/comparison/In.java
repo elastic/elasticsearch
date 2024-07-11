@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -239,7 +238,7 @@ public class In extends EsqlScalarFunction {
         return commonType;
     }
 
-    static void process(BooleanBlock.Builder builder, BitSet nulls, BitSet mvs, boolean lhs, boolean[] rhs) {
+    static boolean process(BitSet nulls, BitSet mvs, boolean lhs, boolean[] rhs) {
         boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
         for (int i = 0; i < rhs.length; i++) {
             if (hasNull && nulls.get(i)) {
@@ -250,18 +249,13 @@ public class In extends EsqlScalarFunction {
             }
             Boolean compResult = Comparisons.eq(lhs, rhs[i]);
             if (compResult == Boolean.TRUE) {
-                builder.appendBoolean(true);
-                return;
+                return true;
             }
         }
-        if (hasNull) {
-            builder.appendNull();
-        } else {
-            builder.appendBoolean(false);
-        }
+        return false;
     }
 
-    static void process(BooleanBlock.Builder builder, BitSet nulls, BitSet mvs, int lhs, int[] rhs) {
+    static boolean process(BitSet nulls, BitSet mvs, int lhs, int[] rhs) {
         boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
         for (int i = 0; i < rhs.length; i++) {
             if (hasNull && nulls.get(i)) {
@@ -272,18 +266,13 @@ public class In extends EsqlScalarFunction {
             }
             Boolean compResult = Comparisons.eq(lhs, rhs[i]);
             if (compResult == Boolean.TRUE) {
-                builder.appendBoolean(true);
-                return;
+                return true;
             }
         }
-        if (hasNull) {
-            builder.appendNull();
-        } else {
-            builder.appendBoolean(false);
-        }
+        return false;
     }
 
-    static void process(BooleanBlock.Builder builder, BitSet nulls, BitSet mvs, long lhs, long[] rhs) {
+    static boolean process(BitSet nulls, BitSet mvs, long lhs, long[] rhs) {
         boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
         for (int i = 0; i < rhs.length; i++) {
             if (hasNull && nulls.get(i)) {
@@ -294,18 +283,13 @@ public class In extends EsqlScalarFunction {
             }
             Boolean compResult = Comparisons.eq(lhs, rhs[i]);
             if (compResult == Boolean.TRUE) {
-                builder.appendBoolean(true);
-                return;
+                return true;
             }
         }
-        if (hasNull) {
-            builder.appendNull();
-        } else {
-            builder.appendBoolean(false);
-        }
+        return false;
     }
 
-    static void process(BooleanBlock.Builder builder, BitSet nulls, BitSet mvs, double lhs, double[] rhs) {
+    static boolean process(BitSet nulls, BitSet mvs, double lhs, double[] rhs) {
         boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
         for (int i = 0; i < rhs.length; i++) {
             if (hasNull && nulls.get(i)) {
@@ -316,18 +300,13 @@ public class In extends EsqlScalarFunction {
             }
             Boolean compResult = Comparisons.eq(lhs, rhs[i]);
             if (compResult == Boolean.TRUE) {
-                builder.appendBoolean(true);
-                return;
+                return true;
             }
         }
-        if (hasNull) {
-            builder.appendNull();
-        } else {
-            builder.appendBoolean(false);
-        }
+        return false;
     }
 
-    static void process(BooleanBlock.Builder builder, BitSet nulls, BitSet mvs, BytesRef lhs, BytesRef[] rhs) {
+    static boolean process(BitSet nulls, BitSet mvs, BytesRef lhs, BytesRef[] rhs) {
         boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
         for (int i = 0; i < rhs.length; i++) {
             if (hasNull && nulls.get(i)) {
@@ -338,14 +317,9 @@ public class In extends EsqlScalarFunction {
             }
             Boolean compResult = Comparisons.eq(lhs, rhs[i]);
             if (compResult == Boolean.TRUE) {
-                builder.appendBoolean(true);
-                return;
+                return true;
             }
         }
-        if (hasNull) {
-            builder.appendNull();
-        } else {
-            builder.appendBoolean(false);
-        }
+        return false;
     }
 }

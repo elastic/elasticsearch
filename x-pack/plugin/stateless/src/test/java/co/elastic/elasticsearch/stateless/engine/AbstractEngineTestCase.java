@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -200,7 +201,14 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         final ObjectStoreService objectStoreService,
         final StatelessCommitService commitService
     ) {
-        return newIndexEngine(indexConfig, translogReplicator, objectStoreService, commitService, DocumentParsingProvider.EMPTY_INSTANCE);
+        return newIndexEngine(
+            indexConfig,
+            translogReplicator,
+            objectStoreService,
+            commitService,
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            TranslogRecoveryMetrics.NOOP
+        );
     }
 
     protected IndexEngine newIndexEngine(
@@ -208,7 +216,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         TranslogReplicator translogReplicator,
         ObjectStoreService objectStoreService,
         StatelessCommitService commitService,
-        DocumentParsingProvider documentParsingProvider
+        DocumentParsingProvider documentParsingProvider,
+        TranslogRecoveryMetrics translogRecoveryMetrics
     ) {
         var indexEngine = new IndexEngine(
             indexConfig,
@@ -218,7 +227,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             RefreshThrottler.Noop::new,
             commitService.getIndexEngineLocalReaderListenerForShard(indexConfig.getShardId()),
             commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
-            documentParsingProvider
+            documentParsingProvider,
+            translogRecoveryMetrics
         ) {
 
             @Override

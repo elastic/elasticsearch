@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
@@ -66,7 +67,10 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     private final int estimatedOperations;
     private final List<BlobMetadata> blobsToRead;
     private final long startNanos;
+    private final TranslogRecoveryMetrics translogRecoveryMetrics;
     private long operationsReadNanos;
+    private long createPlanNanos;
+    private long listUnfilteredFilesNanos;
     private long filesWithShardOperations = 0;
     private long operationBytesRead = 0;
     private long operationsRead = 0;
@@ -74,6 +78,8 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     private long indexOperationsWithIDProcessed = 0;
     private long deleteOperationsProcessed = 0;
     private long noOpOperationsProcessed = 0;
+    private long unreferencedBlobCount;
+    private long unreferencedBlobSizeInBytes;
 
     /**
      * Creates the reader and captures the compound translog files from the object store that will be read when iterating.
@@ -84,6 +90,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
      * @param toSeqNo                   each returned operation is equal or smaller than this seq no
      * @param translogRecoveryStartFile the translog file to initiate recovery from
      * @param isClosing                 indicates if the recovery should be cancelled because of engine shutdown
+     * @param translogRecoveryMetrics   metrics counter container
      * @throws IOException                related to listing blobs from the object store
      * @throws TranslogCorruptedException in case the checksum of the checkpoints of a compound translog file is incorrect, or an inner
      *                                    {@link IOException} occurred while reading from the translog file and/or the object store
@@ -94,7 +101,8 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         final long fromSeqNo,
         final long toSeqNo,
         final long translogRecoveryStartFile,
-        BooleanSupplier isClosing
+        final BooleanSupplier isClosing,
+        final TranslogRecoveryMetrics translogRecoveryMetrics
     ) throws IOException {
         this.translogRecoveryStartFile = translogRecoveryStartFile;
         this.isClosing = isClosing;
@@ -113,6 +121,8 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             .map(e -> Map.entry(Long.parseLong(e.getKey()), e.getValue()))
             .filter(e -> e.getKey() >= translogRecoveryStartFile)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        listUnfilteredFilesNanos = System.nanoTime() - startNanos;
+
         RecoveryPlan recoveryPlan = createPlan(unFilteredBlobs, translogRecoveryStartFile);
         estimatedOperations = recoveryPlan.estimatedOps();
 
@@ -144,6 +154,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         logger.debug(
             () -> format("translog replicator reader opened for recovery %s", blobsToRead.stream().map(BlobMetadata::name).toList())
         );
+        this.translogRecoveryMetrics = translogRecoveryMetrics;
         this.operations = Iterators.flatMap(blobsToRead.iterator(), this::readBlobTranslogOperations);
     }
 
@@ -156,7 +167,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
      */
     // This ctor is only used in tests
     public TranslogReplicatorReader(final BlobContainer translogBlobContainer, final ShardId shardId) throws IOException {
-        this(translogBlobContainer, shardId, 0, Long.MAX_VALUE, 0, () -> false);
+        this(translogBlobContainer, shardId, 0, Long.MAX_VALUE, 0, () -> false, TranslogRecoveryMetrics.NOOP);
     }
 
     @Override
@@ -171,12 +182,14 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         for (int i = sorted.size() - 1; i >= 0; i--) {
             Long translogGeneration = sorted.get(i);
             BlobMetadata blobMetadata = listedBlobsAboveStartFile.get(translogGeneration);
+            long createPlanStartNanos = System.nanoTime();
             try (
                 StreamInput streamInput = new InputStreamStreamInput(
                     translogBlobContainer.readBlob(OperationPurpose.TRANSLOG, blobMetadata.name())
                 )
             ) {
                 CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);
+                createPlanNanos += System.nanoTime() - createPlanStartNanos;
                 TranslogMetadata metadata = translogHeader.metadata().get(shardId);
                 if (metadata != null) {
                     assert metadata.directory() != null;
@@ -191,6 +204,9 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                         referenced.add(translogGeneration);
                     }
                     return new RecoveryPlan(Math.toIntExact(metadata.directory().estimatedOperationsToRecover()), referenced);
+                } else {
+                    unreferencedBlobCount++;
+                    unreferencedBlobSizeInBytes += blobMetadata.length();
                 }
             } catch (NoSuchFileException e) {
                 // It is possible for an indexing shard to delete a file since we listed files. This is valid as it is possible this file
@@ -270,6 +286,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                 filesWithShardOperations++;
                 operationsRead += numOps;
                 operationBytesRead += translogMetadata.size();
+
                 return eligibleOperations.iterator();
             }
         }
@@ -289,30 +306,59 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
 
     @Override
     public void close() throws IOException {
-        TimeValue recoveryTime = TimeValue.timeValueNanos(System.nanoTime() - startNanos);
-        if (recoveryTime.compareTo(SIXTY_SECONDS_SLOW_RECOVERY_THRESHOLD) >= 0) {
-            int blobCount = blobsToRead.size();
+
+        var translogReplayTime = TimeValue.timeValueNanos(System.nanoTime() - startNanos);
+        var networkTime = TimeValue.timeValueNanos(listUnfilteredFilesNanos + createPlanNanos + operationsReadNanos);
+        var blobCount = blobsToRead.size();
+        var blobSizeInBytes = new ByteSizeValue(blobsToRead.stream().mapToLong(BlobMetadata::length).sum(), ByteSizeUnit.BYTES);
+
+        if (translogReplayTime.compareTo(SIXTY_SECONDS_SLOW_RECOVERY_THRESHOLD) >= 0) {
             logger.warn(
                 "[{}] slow stateless translog recovery [translogRecoveryStartFile={}, blobsToRead_count={}, blobsToRead_first={}, "
-                    + "blobsToRead_last={}, operationsReadNanos={}, blobsToRead_bytes={}, filesWithShardOperations={}, operationsRead={}, "
+                    + "blobsToRead_last={}, networkTime={}, blobsToRead_bytes={}, filesWithShardOperations={}, operationsRead={}, "
                     + "operationBytesRead={}, indexOperationsProcessed={}, indexOperationsWithIdProcessed={}, "
-                    + "deleteOperationsProcessed={}, noOpOperationsProcessed={}]",
-                recoveryTime,
+                    + "deleteOperationsProcessed={}, noOpOperationsProcessed={}, unreferencedBlobCount={}, unreferencedBlobSizeInBytes={}]",
+                translogReplayTime,
                 translogRecoveryStartFile,
                 blobCount,
                 blobCount > 0 ? blobsToRead.get(0).name() : "N/A",
                 blobCount > 0 ? blobsToRead.get(blobCount - 1).name() : "N/A",
-                TimeValue.timeValueNanos(operationsReadNanos),
-                new ByteSizeValue(blobsToRead.stream().mapToLong(BlobMetadata::length).sum(), ByteSizeUnit.BYTES),
+                networkTime,
+                blobSizeInBytes,
                 filesWithShardOperations,
                 operationsRead,
                 new ByteSizeValue(operationBytesRead, ByteSizeUnit.BYTES),
                 indexOperationsProcessed,
                 indexOperationsWithIDProcessed,
                 deleteOperationsProcessed,
-                noOpOperationsProcessed
+                noOpOperationsProcessed,
+                unreferencedBlobCount,
+                unreferencedBlobSizeInBytes
             );
         }
 
+        var attributes = Map.<String, Object>of("index_name", shardId.getIndexName(), "shard_id", shardId.id());
+
+        translogRecoveryMetrics.getTranslogReplayTimeHistogram().record(translogReplayTime.millis(), attributes);
+        translogRecoveryMetrics.getTranslogFilesNetworkTimeHistogram().record(networkTime.millis(), attributes);
+
+        translogRecoveryMetrics.getTranslogFilesTotalCounter()
+            .incrementBy(blobCount, Maps.copyMapWithAddedEntry(attributes, "translog_blob_type", "referenced"));
+        translogRecoveryMetrics.getTranslogFilesTotalCounter()
+            .incrementBy(unreferencedBlobCount, Maps.copyMapWithAddedEntry(attributes, "translog_blob_type", "unreferenced"));
+
+        translogRecoveryMetrics.getTranslogFilesSizeCounter()
+            .incrementBy(blobSizeInBytes.getBytes(), Maps.copyMapWithAddedEntry(attributes, "translog_blob_type", "referenced"));
+        translogRecoveryMetrics.getTranslogFilesSizeCounter()
+            .incrementBy(unreferencedBlobSizeInBytes, Maps.copyMapWithAddedEntry(attributes, "translog_blob_type", "unreferenced"));
+
+        translogRecoveryMetrics.getTranslogOperationsTotalCounter()
+            .incrementBy(indexOperationsProcessed, Maps.copyMapWithAddedEntry(attributes, "translog_op_type", "index"));
+        translogRecoveryMetrics.getTranslogOperationsTotalCounter()
+            .incrementBy(deleteOperationsProcessed, Maps.copyMapWithAddedEntry(attributes, "translog_op_type", "delete"));
+        translogRecoveryMetrics.getTranslogOperationsTotalCounter()
+            .incrementBy(noOpOperationsProcessed, Maps.copyMapWithAddedEntry(attributes, "translog_op_type", "noop"));
+
+        translogRecoveryMetrics.getTranslogOperationsSizeCounter().incrementBy(operationBytesRead, attributes);
     }
 }

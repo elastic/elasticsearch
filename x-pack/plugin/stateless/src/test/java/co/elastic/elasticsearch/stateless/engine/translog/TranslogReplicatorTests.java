@@ -39,6 +39,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,11 +52,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
+import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_FILES_NETWORK_TIME_METRIC;
+import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_FILES_SIZE_METRIC;
+import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_FILES_TOTAL_METRIC;
+import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_SIZE_METRIC;
+import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_TOTAL_METRIC;
+import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_REPLAY_TIME_METRIC;
 import static org.elasticsearch.indices.recovery.RecoverySourceHandlerTests.generateOperation;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -129,8 +139,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
-            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
+            objectStoreService.getTranslogBlobContainer(),
+            shardId,
+            operations[0],
+            operations[1],
+            operations[3],
+            operations[2]
         );
     }
 
@@ -181,7 +195,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, 5, 0, () -> false),
+            objectStoreService.getTranslogBlobContainer(),
+            shardId,
+            0,
+            5,
+            0,
+            () -> false,
             operations[0],
             operations[1],
             operations[3],
@@ -189,22 +208,21 @@ public class TranslogReplicatorTests extends ESTestCase {
             operations[2],
             operations[4]
         );
+
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, 1, 1, 0, () -> false, operations[1]);
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 1, 1, 0, () -> false),
-            operations[1]
-        );
-        assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 1, 3, 0, () -> false),
+            objectStoreService.getTranslogBlobContainer(),
+            shardId,
+            1,
+            3,
+            0,
+            () -> false,
             operations[1],
             operations[3],
             operations[2]
         );
-        assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 4, 5, 0, () -> false),
-            operations[5],
-            operations[4]
-        );
-        assertTranslogContains(new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 8, 10, 0, () -> false));
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, 4, 5, 0, () -> false, operations[5], operations[4]);
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, 8, 10, 0, () -> false);
     }
 
     public void testTranslogReplicatorReaderStartingTranslogFile() throws IOException {
@@ -240,12 +258,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.sync(shardId, intermediateLocation, future);
         future.actionGet();
 
-        assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 0, () -> false),
-            operations[0],
-            operations[1],
-            operations[2]
-        );
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, operations[0], operations[1], operations[2]);
 
         assertThat(
             translogReplicator.getMaxUploadedFile(),
@@ -270,7 +283,8 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 0, () -> false),
+            objectStoreService.getTranslogBlobContainer(),
+            shardId,
             operations[0],
             operations[1],
             operations[2],
@@ -280,14 +294,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
 
         assertTranslogContains(
-            new TranslogReplicatorReader(
-                objectStoreService.getTranslogBlobContainer(),
-                shardId,
-                0,
-                Long.MAX_VALUE,
-                startRecoveryFile,
-                () -> false
-            ),
+            objectStoreService.getTranslogBlobContainer(),
+            shardId,
+            0,
+            Long.MAX_VALUE,
+            startRecoveryFile,
+            () -> false,
             operations[3],
             operations[4],
             operations[5]
@@ -326,12 +338,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.syncAll(shardId, future);
         future.actionGet();
 
-        assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 0, () -> false),
-            operations[0],
-            operations[1],
-            operations[2]
-        );
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, operations[0], operations[1], operations[2]);
 
         assertThat(
             translogReplicator.getMaxUploadedFile(),
@@ -354,7 +361,8 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 0, () -> false),
+            objectStoreService.getTranslogBlobContainer(),
+            shardId,
             operations[0],
             operations[1],
             operations[2],
@@ -377,12 +385,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             equalTo((long) objectStoreService.getTranslogBlobContainer().listBlobs(OperationPurpose.TRANSLOG).size() - 1)
         );
 
-        assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 0, () -> false),
-            operations[3],
-            operations[4],
-            operations[5]
-        );
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, operations[3], operations[4], operations[5]);
     }
 
     public void testListenerThreadContextPreserved() throws IOException {
@@ -486,10 +489,8 @@ public class TranslogReplicatorTests extends ESTestCase {
         future.actionGet();
 
         assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
-        assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
-            operations.toArray(new Translog.Operation[0])
-        );
+        Translog.Operation[] expectedOperations = operations.toArray(new Translog.Operation[0]);
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, expectedOperations);
 
     }
 
@@ -556,7 +557,8 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
+            objectStoreService.getTranslogBlobContainer(),
+            shardId,
             operations[0],
             operations[1],
             operations[3],
@@ -762,17 +764,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.syncAll(shardId2, future2);
         future2.actionGet();
 
-        assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId1),
-            operations[0],
-            operations[1]
-        );
-        assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId2),
-            operations[0],
-            operations[1],
-            operations[3]
-        );
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId1, operations[0], operations[1]);
+
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId2, operations[0], operations[1], operations[3]);
 
         Translog.Location finalLocationShard2 = new Translog.Location(0, currentLocation, operationsBytes[2].length());
 
@@ -781,13 +775,11 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.sync(shardId2, finalLocationShard2, future3);
         future3.actionGet();
 
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId1, operations[0], operations[1]);
+
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId1),
-            operations[0],
-            operations[1]
-        );
-        assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId2),
+            objectStoreService.getTranslogBlobContainer(),
+            shardId2,
             operations[0],
             operations[1],
             operations[3],
@@ -831,10 +823,8 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
 
-        assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
-            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
-        );
+        Translog.Operation[] expectedOperations = { operations[0], operations[1], operations[3], operations[2] };
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, expectedOperations);
     }
 
     public void testCheckShardStillAllocated() throws Exception {
@@ -865,7 +855,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertBusy(() -> {
             assertThat(compoundFiles.size(), equalTo(1));
-            assertTranslogContains(new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId), operations[0]);
+            assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, operations[0]);
         });
 
         // This sync should never complete. The actual sync will be failed when the shard is closed.
@@ -919,7 +909,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, 3, 0, () -> false),
+            objectStoreService.getTranslogBlobContainer(),
+            shardId,
+            0,
+            3,
+            0,
+            () -> false,
             operations[0],
             operations[1],
             operations[2],
@@ -932,14 +927,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         expectThrows(
             AlreadyClosedException.class,
             () -> assertTranslogContains(
-                new TranslogReplicatorReader(
-                    objectStoreService.getTranslogBlobContainer(),
-                    shardId,
-                    0,
-                    3,
-                    0,
-                    () -> isClosing.get(n.getAndIncrement())
-                ),
+                objectStoreService.getTranslogBlobContainer(),
+                shardId,
+                0,
+                3,
+                0,
+                () -> isClosing.get(n.getAndIncrement()),
                 operations[0],
                 operations[1],
                 operations[2],
@@ -1072,7 +1065,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         compoundFiles.set(2, null);
 
         // If the translog recovery start file has advanced past the missing hole, then we get all the operations
-        assertTranslogContains(reader, operations[0], operations[1]);
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, operations[0], operations[1]);
     }
 
     public void testReplicatorReaderStopsRecoveringWhenMissingExpectedDirectoryFilesWhenAtTheBeginning() throws IOException {
@@ -1127,11 +1120,16 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         compoundFiles.set(0, null);
 
-        assertTranslogContains(new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId));
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId);
 
         // If the translog recovery start file has advanced past the missing hole, then we get all the operations
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 1, () -> false),
+            objectStoreService.getTranslogBlobContainer(),
+            shardId,
+            0,
+            Long.MAX_VALUE,
+            1,
+            () -> false,
             operations[1],
             operations[3],
             operations[2]
@@ -1190,7 +1188,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         compoundFiles.set(1, null);
 
-        assertTranslogContains(new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId), operations[0]);
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, operations[0]);
     }
 
     public void testClosedShardSyncTriggersListener() throws IOException {
@@ -1300,12 +1298,58 @@ public class TranslogReplicatorTests extends ESTestCase {
         return consistencyService;
     }
 
-    private static void assertTranslogContains(TranslogReplicatorReader reader, Translog.Operation... operations) throws IOException {
-        for (int i = 0; i < operations.length; i++) {
-            Translog.Operation operation = reader.next();
-            assertThat("Reader does not have a next operation", operation, notNullValue());
-            assertThat("Next operation is not equal to expected operation", operation, equalTo(operations[i]));
+    private static Map<InstrumentType, List<String>> metricsByType = Map.of(
+        InstrumentType.LONG_COUNTER,
+        List.of(TRANSLOG_OPERATIONS_TOTAL_METRIC, TRANSLOG_OPERATIONS_SIZE_METRIC, TRANSLOG_FILES_TOTAL_METRIC, TRANSLOG_FILES_SIZE_METRIC),
+        InstrumentType.LONG_HISTOGRAM,
+        List.of(TRANSLOG_REPLAY_TIME_METRIC, TRANSLOG_FILES_NETWORK_TIME_METRIC)
+    );
+
+    private static void assertTranslogContains(
+        final BlobContainer blobContainer,
+        final ShardId shardId,
+        final long fromSeqNo,
+        final long toSeqNo,
+        final long translogRecoveryStartFile,
+        final BooleanSupplier isClosing,
+        Translog.Operation... operations
+    ) throws IOException {
+        var recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            var reader = new TranslogReplicatorReader(
+                blobContainer,
+                shardId,
+                fromSeqNo,
+                toSeqNo,
+                translogRecoveryStartFile,
+                isClosing,
+                new TranslogRecoveryMetrics(recordingMeterRegistry)
+            )
+        ) {
+            for (Translog.Operation value : operations) {
+                Translog.Operation operation = reader.next();
+                assertThat("Reader does not have a next operation", operation, notNullValue());
+                assertThat("Next operation is not equal to expected operation", operation, equalTo(value));
+            }
+            assertThat("Reader has unexpected extra entries", reader.next(), equalTo(null));
         }
-        assertThat("Reader has unexpected extra entries", reader.next(), equalTo(null));
+        // check that all expected metrics are emitted. Do not assert their values
+        // because some metrics depend on system timer and cannot be reliably asserted
+        metricsByType.forEach((type, metrics) -> metrics.forEach(metric -> assertMetricsEmitted(recordingMeterRegistry, type, metric)));
+    }
+
+    private static void assertTranslogContains(BlobContainer blobContainer, ShardId shardId, Translog.Operation... operations)
+        throws IOException {
+        assertTranslogContains(blobContainer, shardId, 0, Long.MAX_VALUE, 0, () -> false, operations);
+    }
+
+    private static void assertMetricsEmitted(RecordingMeterRegistry recordingMeterRegistry, InstrumentType type, String name) {
+        var measurements = recordingMeterRegistry.getRecorder().getMeasurements(type, name);
+        var expected = switch (name) {
+            case TRANSLOG_OPERATIONS_TOTAL_METRIC -> 3; // index, delete, noop
+            case TRANSLOG_FILES_TOTAL_METRIC, TRANSLOG_FILES_SIZE_METRIC -> 2;  // referenced and unreferenced translog files
+            default -> 1;
+        };
+        assertThat("Metric " + name + " was not emitted", measurements.size(), equalTo(expected));
     }
 }

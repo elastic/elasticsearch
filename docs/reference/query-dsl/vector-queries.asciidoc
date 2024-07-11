@@ -12,6 +12,7 @@ A query used to search <<sparse-vector,`sparse_vector`>> field types.
 <<query-dsl-semantic-query,`semantic` query>>::
 A query that allows you to perform semantic search on <<semantic-text,`semantic_text`>> fields.
 
+[discrete]
 === Deprecated vector queries
 
 The following queries have been deprecated and will be removed in the near future.

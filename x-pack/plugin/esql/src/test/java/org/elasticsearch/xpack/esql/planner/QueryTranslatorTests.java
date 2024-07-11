@@ -94,8 +94,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" == date""", containsString("""
-            "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T09:15:30.000Z",\
-            "lte":"2007-12-03T09:15:30.000Z","time_zone":"Z"""));
+            "esql_single_value":{"field":"date","next":{"term":{"date":{"value":"2007-12-03T09:15:30.000Z"""));
 
         assertQueryTranslation("""
             FROM test | WHERE ip != "127.0.0.1\"""", containsString("""

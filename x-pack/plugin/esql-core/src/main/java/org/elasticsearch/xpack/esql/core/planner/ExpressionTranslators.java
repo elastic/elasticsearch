@@ -287,7 +287,6 @@ public final class ExpressionTranslators {
                 zoneId = bc.zoneId();
                 value = DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) value);
                 format = DEFAULT_DATE_TIME_FORMATTER.pattern();
-                isDateLiteralComparison = true;
             }
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format, zoneId);

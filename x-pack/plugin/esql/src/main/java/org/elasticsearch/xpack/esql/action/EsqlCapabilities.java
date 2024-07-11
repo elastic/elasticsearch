@@ -139,7 +139,7 @@ public class EsqlCapabilities {
          * Use RangeQuery for BinaryComparison on DateTime fields.
          * */
         RANGEQUERY_FOR_DATETIME;
-        
+
         private final boolean snapshotOnly;
 
         Cap() {

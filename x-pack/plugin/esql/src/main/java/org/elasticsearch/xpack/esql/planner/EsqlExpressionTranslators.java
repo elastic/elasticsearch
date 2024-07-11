@@ -207,7 +207,6 @@ public final class EsqlExpressionTranslators {
                 zoneId = bc.zoneId();
                 value = dateTimeToString((Long) value);
                 format = DEFAULT_DATE_TIME_FORMATTER.pattern();
-                isDateLiteralComparison = true;
             }
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format, zoneId);
@@ -225,7 +224,7 @@ public final class EsqlExpressionTranslators {
                 name = pushableAttributeName(attribute);
 
                 Query query;
-                if (isDateLiteralComparison || DataType.isDateTime(attribute.dataType())) {
+                if (isDateLiteralComparison) {
                     // dates equality uses a range query because it's the one that has a "format" parameter
                     query = new RangeQuery(source, name, value, true, value, true, format, zoneId);
                 } else {

@@ -1,7 +1,7 @@
 [[vector-queries]]
 == Vector queries
 
-Vector queries search efficiently for vectors in order to perform <<semantic-search,semantic search>>.
+Vector queries are specialized queries that work on vector fields to efficiently perform <<semantic-search,semantic search>>.
 
 <<query-dsl-knn-query,`knn` query>>::
 A query that finds the _k_ nearest vectors to a query vector for <<dense-vector,`dense_vector`>> fields, as measured by a similarity metric.

@@ -165,7 +165,6 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
         if (controlledClock) {
             return new TransportMultiSearchAction(
-                threadPool,
                 actionFilters,
                 transportService,
                 clusterService,
@@ -187,7 +186,6 @@ public class MultiSearchActionTookTests extends ESTestCase {
             };
         } else {
             return new TransportMultiSearchAction(
-                threadPool,
                 actionFilters,
                 transportService,
                 clusterService,

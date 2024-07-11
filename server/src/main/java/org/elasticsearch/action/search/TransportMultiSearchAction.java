@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -39,7 +40,6 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     public static final ActionType<MultiSearchResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportMultiSearchAction.class);
     private final int allocatedProcessors;
-    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final LongSupplier relativeTimeProvider;
     private final NodeClient client;
@@ -47,14 +47,12 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     @Inject
     public TransportMultiSearchAction(
         Settings settings,
-        ThreadPool threadPool,
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
         NodeClient client
     ) {
         super(TYPE.name(), transportService, actionFilters, MultiSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         this.relativeTimeProvider = System::nanoTime;
@@ -62,7 +60,6 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     }
 
     TransportMultiSearchAction(
-        ThreadPool threadPool,
         ActionFilters actionFilters,
         TransportService transportService,
         ClusterService clusterService,
@@ -71,7 +68,6 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         NodeClient client
     ) {
         super(TYPE.name(), transportService, actionFilters, MultiSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocatedProcessors = allocatedProcessors;
         this.relativeTimeProvider = relativeTimeProvider;
@@ -134,31 +130,39 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final ActionListener<MultiSearchResponse> listener,
         final long relativeStartTime
     ) {
-        SearchRequestSlot request = requests.poll();
-        if (request == null) {
-            /*
-             * The number of times that we poll an item from the queue here is the minimum of the number of requests and the maximum number
-             * of concurrent requests. At first glance, it appears that we should never poll from the queue and not obtain a request given
-             * that we only poll here no more times than the number of requests. However, this is not the only consumer of this queue as
-             * earlier requests that have already completed will poll from the queue too and they could complete before later polls are
-             * invoked here. Thus, it can be the case that we poll here and the queue was empty.
-             */
-            return;
-        }
-
         /*
-         * With a request in hand, we are now prepared to execute the search request. There are two possibilities, either we go asynchronous
-         * or we do not (this can happen if the request does not resolve to any shards). If we do not go asynchronous, we are going to come
-         * back on the same thread that attempted to execute the search request. At this point, or any other point where we come back on the
-         * same thread as when the request was submitted, we should not recurse lest we might descend into a stack overflow. To avoid this,
-         * when we handle the response rather than going recursive, we fork to another thread, otherwise we recurse.
+         * The number of times that we poll an item from the queue here is the minimum of the number of requests and the maximum number
+         * of concurrent requests. At first glance, it appears that we should never poll from the queue and not obtain a request given
+         * that we only poll here no more times than the number of requests. However, this is not the only consumer of this queue as
+         * earlier requests that have already completed will poll from the queue too, and they could complete before later polls are
+         * invoked here. Thus, it can be the case that we poll here and the queue was empty.
          */
-        final Thread thread = Thread.currentThread();
-        client.search(request.request, new ActionListener<>() {
+        SearchRequestSlot request = requests.poll();
+        // If we have another request to execute, we execute it. If the execution forked #doExecuteSearch will return false and will
+        // recursively call this method again eventually. If it did not fork and was able to execute the search right away #doExecuteSearch
+        // will return true, in which case we continue and run the next search request here.
+        while (request != null && doExecuteSearch(requests, responses, responseCounter, relativeStartTime, request, listener)) {
+            request = requests.poll();
+        }
+    }
+
+    private boolean doExecuteSearch(
+        Queue<SearchRequestSlot> requests,
+        AtomicArray<MultiSearchResponse.Item> responses,
+        AtomicInteger responseCounter,
+        long relativeStartTime,
+        SearchRequestSlot request,
+        ActionListener<MultiSearchResponse> listener
+    ) {
+        final SubscribableListener<MultiSearchResponse.Item> subscribeListener = new SubscribableListener<>();
+        client.search(request.request, subscribeListener.safeMap(searchResponse -> {
+            searchResponse.mustIncRef(); // acquire reference on behalf of MultiSearchResponse.Item below
+            return new MultiSearchResponse.Item(searchResponse, null);
+        }));
+        final ActionListener<MultiSearchResponse.Item> responseListener = new ActionListener<>() {
             @Override
-            public void onResponse(final SearchResponse searchResponse) {
-                searchResponse.mustIncRef(); // acquire reference on behalf of MultiSearchResponse.Item below
-                handleResponse(request.responseSlot, new MultiSearchResponse.Item(searchResponse, null));
+            public void onResponse(final MultiSearchResponse.Item searchResponse) {
+                handleResponse(request.responseSlot, searchResponse);
             }
 
             @Override
@@ -174,15 +178,6 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                 if (responseCounter.decrementAndGet() == 0) {
                     assert requests.isEmpty();
                     finish();
-                } else {
-                    if (thread == Thread.currentThread()) {
-                        // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
-                        threadPool.generic()
-                            .execute(() -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime));
-                    } else {
-                        // we are on a different thread (we went asynchronous), it's safe to recurse
-                        executeSearch(requests, responses, responseCounter, listener, relativeStartTime);
-                    }
                 }
             }
 
@@ -199,7 +194,19 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             private long buildTookInMillis() {
                 return TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - relativeStartTime);
             }
-        });
+        };
+        if (subscribeListener.isDone()) {
+            subscribeListener.addListener(responseListener);
+            return true;
+        }
+        // we went forked and have to check if there's more searches to execute after we're done with this search
+        subscribeListener.addListener(
+            ActionListener.runAfter(
+                responseListener,
+                () -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime)
+            )
+        );
+        return false;
     }
 
     record SearchRequestSlot(SearchRequest request, int responseSlot) {

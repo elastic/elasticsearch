@@ -99,7 +99,6 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 }
             };
             TransportMultiSearchAction action = new TransportMultiSearchAction(
-                threadPool,
                 actionFilters,
                 transportService,
                 clusterService,
@@ -192,7 +191,6 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         };
 
         TransportMultiSearchAction action = new TransportMultiSearchAction(
-            threadPool,
             actionFilters,
             transportService,
             clusterService,

@@ -227,8 +227,7 @@ public class InternalUsers {
             UsernamesField.WORD_LISTS_ROLE_NAME,
             null,
             new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder().indices(".word_lists*").privileges("all").allowRestrictedIndices(true).build()
-            },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".word_lists*").privileges("all").allowRestrictedIndices(true).build() },
             null,
             null,
             null,

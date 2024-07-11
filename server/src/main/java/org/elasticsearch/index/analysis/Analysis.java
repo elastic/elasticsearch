@@ -313,10 +313,8 @@ public class Analysis {
                             try {
                                 s = readFile(pathAsUrl);
                             } catch (IOException e) {
-                                listener.onFailure(new ElasticsearchStatusException(
-                                    "Unable to read file at " + settingPath,
-                                    RestStatus.BAD_REQUEST,
-                                    e)
+                                listener.onFailure(
+                                    new ElasticsearchStatusException("Unable to read file at " + settingPath, RestStatus.BAD_REQUEST, e)
                                 );
                                 return;
                             }
@@ -331,11 +329,11 @@ public class Analysis {
                                 @Override
                                 public void onFailure(Exception e) {
                                     logger.warn("Unable to index word list [" + wordListPath + "] for index [" + indexName + "]", e);
-//                                listener.onFailure(new ElasticsearchStatusException(
-//                                    "Unable to index word list [" + wordListPath + "] for index [" + indexName + "]",
-//                                    RestStatus.INTERNAL_SERVER_ERROR,
-//                                    e
-//                                ));
+                                    // listener.onFailure(new ElasticsearchStatusException(
+                                    // "Unable to index word list [" + wordListPath + "] for index [" + indexName + "]",
+                                    // RestStatus.INTERNAL_SERVER_ERROR,
+                                    // e
+                                    // ));
                                 }
                             });
                         }
@@ -343,20 +341,24 @@ public class Analysis {
                         try {
                             listener.onResponse(loadWordList(s, removeComments));
                         } catch (IOException e) {
-                            listener.onFailure(new ElasticsearchStatusException(
-                                "Unable to parse word list [" + wordListPath + "] for index [" + indexName + "]",
-                                RestStatus.INTERNAL_SERVER_ERROR,
-                                e)
+                            listener.onFailure(
+                                new ElasticsearchStatusException(
+                                    "Unable to parse word list [" + wordListPath + "] for index [" + indexName + "]",
+                                    RestStatus.INTERNAL_SERVER_ERROR,
+                                    e
+                                )
                             );
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        listener.onFailure(new ElasticsearchStatusException(
-                            "Unable to get word list [" + wordListPath + "] for index [" + indexName + "]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e)
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "Unable to get word list [" + wordListPath + "] for index [" + indexName + "]",
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
                         );
                     }
                 });
@@ -590,7 +592,12 @@ public class Analysis {
         SpecialPermission.check();
         HttpResponse<InputStream> httpResponse;
         try {
-            httpResponse = AccessController.doPrivileged((PrivilegedExceptionAction<HttpResponse<InputStream>>) () -> httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofInputStream()));
+            httpResponse = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<HttpResponse<InputStream>>) () -> httpClient.send(
+                    httpRequest,
+                    HttpResponse.BodyHandlers.ofInputStream()
+                )
+            );
         } catch (PrivilegedActionException e) {
             throw (IOException) e.getCause();
         }

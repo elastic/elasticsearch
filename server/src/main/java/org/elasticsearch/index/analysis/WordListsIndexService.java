@@ -290,6 +290,13 @@ public class WordListsIndexService {
         Request request,
         ActionListener<Response> listener
     ) {
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), client.threadPool().generic(), origin, request, listener, (r, l) -> client.execute(action, r, l));
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            client.threadPool().generic(),
+            origin,
+            request,
+            listener,
+            (r, l) -> client.execute(action, r, l)
+        );
     }
 }

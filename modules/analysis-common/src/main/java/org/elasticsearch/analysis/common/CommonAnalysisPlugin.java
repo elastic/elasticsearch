@@ -330,8 +330,11 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("uppercase", UpperCaseTokenFilterFactory::new);
         filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
         filters.put("word_delimiter", WordDelimiterTokenFilterFactory::new);
-        filters.put("stop_remote", requiresAnalysisSettings((i, e, n, s) -> new StopRemoteWordListTokenFilterFactory(
-            i, e, n, s, wordListsIndexServiceHolder.get()))
+        filters.put(
+            "stop_remote",
+            requiresAnalysisSettings(
+                (i, e, n, s) -> new StopRemoteWordListTokenFilterFactory(i, e, n, s, wordListsIndexServiceHolder.get())
+            )
         );
         return filters;
     }

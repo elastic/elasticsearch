@@ -37,7 +37,11 @@ public class StopRemoteWordListFilter extends FilteringTokenFilter {
         Exception asyncInitException = this.asyncInitException.get();
         if (stopWords == null) {
             throw asyncInitException != null
-                ? new ElasticsearchStatusException("Stop filter async initialization failed", RestStatus.INTERNAL_SERVER_ERROR, asyncInitException)
+                ? new ElasticsearchStatusException(
+                    "Stop filter async initialization failed",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    asyncInitException
+                )
                 : new ElasticsearchStatusException("Stop filter not initialized yet", RestStatus.CONFLICT);
         }
 

@@ -58,7 +58,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         .build();
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
-        super("baseline-ds", "contender-ds", "baseline-template", "contender-template", 100, 100);
+        super("logs-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 99, 99);
     }
 
     @Override
@@ -77,34 +77,36 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     private static void mappings(final XContentBuilder builder) throws IOException {
-        builder.field("subobjects", false)
-            .startObject("properties")
+        builder.field("subobjects", false);
+        if (randomBoolean()) {
+            builder.startObject("properties")
 
-            .startObject("@timestamp")
-            .field("type", "date")
-            .endObject()
+                .startObject("@timestamp")
+                .field("type", "date")
+                .endObject()
 
-            .startObject("host.name")
-            .field("type", "keyword")
-            .field("ignore_above", 1024)
-            .endObject()
+                .startObject("host.name")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
 
-            .startObject("message")
-            .field("type", "keyword")
-            .field("ignore_above", 1024)
-            .endObject()
+                .startObject("message")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
 
-            .startObject("method")
-            .field("type", "keyword")
-            .field("ignore_above", 1024)
-            .endObject()
+                .startObject("method")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
 
-            .startObject("memory_usage_bytes")
-            .field("type", "long")
-            .field("ignore_malformed", true)
-            .endObject()
+                .startObject("memory_usage_bytes")
+                .field("type", "long")
+                .field("ignore_malformed", randomBoolean())
+                .endObject()
 
-            .endObject();
+                .endObject();
+        }
     }
 
     @Override

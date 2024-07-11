@@ -239,12 +239,8 @@ public class In extends EsqlScalarFunction {
     }
 
     static boolean process(BitSet nulls, BitSet mvs, int lhs, int[] rhs) {
-        boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
         for (int i = 0; i < rhs.length; i++) {
-            if (hasNull && nulls.get(i)) {
-                continue;
-            }
-            if (mvs != null && mvs.get(i)) {
+            if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
                 continue;
             }
             Boolean compResult = Comparisons.eq(lhs, rhs[i]);
@@ -256,12 +252,8 @@ public class In extends EsqlScalarFunction {
     }
 
     static boolean process(BitSet nulls, BitSet mvs, long lhs, long[] rhs) {
-        boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
         for (int i = 0; i < rhs.length; i++) {
-            if (hasNull && nulls.get(i)) {
-                continue;
-            }
-            if (mvs != null && mvs.get(i)) {
+            if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
                 continue;
             }
             Boolean compResult = Comparisons.eq(lhs, rhs[i]);
@@ -273,12 +265,8 @@ public class In extends EsqlScalarFunction {
     }
 
     static boolean process(BitSet nulls, BitSet mvs, double lhs, double[] rhs) {
-        boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
         for (int i = 0; i < rhs.length; i++) {
-            if (hasNull && nulls.get(i)) {
-                continue;
-            }
-            if (mvs != null && mvs.get(i)) {
+            if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
                 continue;
             }
             Boolean compResult = Comparisons.eq(lhs, rhs[i]);
@@ -290,12 +278,8 @@ public class In extends EsqlScalarFunction {
     }
 
     static boolean process(BitSet nulls, BitSet mvs, BytesRef lhs, BytesRef[] rhs) {
-        boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
         for (int i = 0; i < rhs.length; i++) {
-            if (hasNull && nulls.get(i)) {
-                continue;
-            }
-            if (mvs != null && mvs.get(i)) {
+            if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
                 continue;
             }
             Boolean compResult = Comparisons.eq(lhs, rhs[i]);

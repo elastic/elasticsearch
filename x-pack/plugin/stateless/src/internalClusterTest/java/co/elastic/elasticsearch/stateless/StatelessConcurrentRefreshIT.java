@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 
 import org.apache.lucene.index.IndexWriter;
@@ -79,7 +80,8 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
             Function<String, BlobContainer> translogBlobContainer,
             StatelessCommitService statelessCommitService,
             RefreshThrottler.Factory refreshThrottlerFactory,
-            DocumentParsingProvider documentParsingProvider
+            DocumentParsingProvider documentParsingProvider,
+            TranslogRecoveryMetrics translogRecoveryMetrics
         ) {
             return new IndexEngine(
                 engineConfig,
@@ -89,7 +91,8 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
                 refreshThrottlerFactory,
                 statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
-                documentParsingProvider
+                documentParsingProvider,
+                translogRecoveryMetrics
             ) {
                 @Override
                 protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {

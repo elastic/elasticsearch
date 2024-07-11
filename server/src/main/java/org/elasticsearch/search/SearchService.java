@@ -463,6 +463,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     protected void putReaderContext(ReaderContext context) {
+        logger.trace("adding reader context [{}]", context.id());
         final ReaderContext previous = activeReaders.put(context.id().getId(), context);
         assert previous == null;
         // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
@@ -1565,6 +1566,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public int getActiveContexts() {
         return this.activeReaders.size();
+    }
+
+    public Set<Long> getActiveContextIDs() {
+        return this.activeReaders.keySet();
     }
 
     /**

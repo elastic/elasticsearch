@@ -64,6 +64,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -134,7 +135,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         ensureAllFreeContextActionsAreConsumed();
 
         SearchService searchService = getInstanceFromNode(SearchService.class);
-        assertThat(searchService.getActiveContexts(), equalTo(0));
+        Set<Long> activeContexts = searchService.getActiveContextIDs();
+        assertThat("contexts: {" + activeContexts + "} have not been closed yet", activeContexts.size(), equalTo(0));
         assertThat(searchService.getOpenScrollContexts(), equalTo(0));
         super.tearDown();
         var deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");

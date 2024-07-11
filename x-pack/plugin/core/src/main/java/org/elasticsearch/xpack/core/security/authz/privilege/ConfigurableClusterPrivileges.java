@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +48,7 @@ public final class ConfigurableClusterPrivileges {
 
     public static final ConfigurableClusterPrivilege[] EMPTY_ARRAY = new ConfigurableClusterPrivilege[0];
 
+    private static final Logger logger = LogManager.getLogger(ConfigurableClusterPrivileges.class);
     public static final Writeable.Reader<ConfigurableClusterPrivilege> READER = in1 -> in1.readNamedWriteable(
         ConfigurableClusterPrivilege.class
     );
@@ -421,7 +425,10 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(Fields.MANAGE.getPreferredName(), Map.of(Fields.INDICES.getPreferredName(), indices));
+            return builder.field(
+                Fields.MANAGE.getPreferredName(),
+                Map.of(Fields.INDICES.getPreferredName(), List.of(Map.of(Fields.NAMES, indices)))
+            );
         }
 
         public static ManageRolesPrivilege parse(XContentParser parser) throws IOException {
@@ -431,10 +438,22 @@ public final class ConfigurableClusterPrivileges {
             expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
             expectFieldName(parser, Fields.INDICES);
             expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
-            final String[] indices = XContentUtils.readStringArray(parser, false);
+            Set<String> indices = new HashSet<>();
+            XContentParser.Token token;
+            while ((token = (parser.nextToken())) != XContentParser.Token.END_ARRAY) {
+                expectedToken(token, parser, XContentParser.Token.START_OBJECT);
+                parser.nextToken();
+                expectFieldName(parser, Fields.NAMES);
+                parser.nextToken();
+                String[] parsedIndices = XContentUtils.readStringArray(parser, false);
+                if (parsedIndices != null) {
+                    indices.addAll(Arrays.asList(parsedIndices));
+                }
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
+            }
+
             expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
-            assert indices != null;
-            return new ManageRolesPrivilege(new LinkedHashSet<>(Arrays.asList(indices)));
+            return new ManageRolesPrivilege(indices);
         }
 
         @Override
@@ -443,6 +462,8 @@ public final class ConfigurableClusterPrivileges {
                 + getCategory()
                 + ":"
                 + Fields.MANAGE.getPreferredName()
+                + ":"
+                + Fields.INDICES.getPreferredName()
                 + ":"
                 + Fields.INDICES.getPreferredName()
                 + "="
@@ -475,6 +496,7 @@ public final class ConfigurableClusterPrivileges {
         private interface Fields {
             ParseField MANAGE = new ParseField("manage");
             ParseField INDICES = new ParseField("indices");
+            ParseField NAMES = new ParseField("names");
         }
     }
 }

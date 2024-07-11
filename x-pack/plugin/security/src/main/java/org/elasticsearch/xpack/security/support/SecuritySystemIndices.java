@@ -420,7 +420,15 @@ public class SecuritySystemIndices {
                                         builder.startObject("properties");
                                         {
                                             builder.startObject("indices");
-                                            builder.field("type", "keyword");
+                                            {
+                                                builder.startObject("properties");
+                                                {
+                                                    builder.startObject("names");
+                                                    builder.field("type", "keyword");
+                                                    builder.endObject();
+                                                }
+                                                builder.endObject();
+                                            }
                                             builder.endObject();
                                         }
                                         builder.endObject();

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -21,16 +22,19 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentTests;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.time.Instant;
 import java.util.Collections;
@@ -118,6 +122,170 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(0, stats.minNodes());
                 assertEquals(0, stats.extraSingleNodeProcessors());
                 assertEquals(0, stats.extraModelMemoryInBytes());
+                assertEquals(0, stats.extraSingleNodeModelMemoryInBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
+            }
+        );
+    }
+
+    public void testScaleUpByProcessorsWhenAlreadyStarted() throws InterruptedException, IOException {
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext();
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+
+        long memory = randomLongBetween(100, 1_000_000);
+        var taskParams = new StartTrainedModelDeploymentAction.TaskParams(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomNonNegativeLong(),
+            randomIntBetween(10, 80),
+            1,
+            randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
+            randomFrom(Priority.values()),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
+
+        var randomAssignment = TrainedModelAssignmentTests.randomInstanceBuilder(taskParams)
+            .setAssignmentState(AssignmentState.STARTED)
+            .clearNodeRoutingTable()
+            .addRoutingEntry("ml-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            .addRoutingEntry("ml-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            .build();
+
+        List<DiscoveryNode> nodes = randomAssignment.getNodeRoutingTable()
+            .values()
+            .stream()
+            .map(r -> mock(DiscoveryNode.class))
+            .peek(n -> when(n.getRoles()).thenReturn(Set.of(DiscoveryNodeRole.ML_ROLE)))
+            .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "2.0")))
+            .toList();
+
+        MlAutoscalingContext scaleUpContext = new MlAutoscalingContext(
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("ml-1", randomAssignment),
+            nodes,
+            null
+        );
+
+        int expectedProcessorsPerNode = scaleUpContext.modelAssignments.values()
+            .stream()
+            .map(TrainedModelAssignment::getTaskParams)
+            .mapToInt(StartTrainedModelDeploymentAction.TaskParams::getThreadsPerAllocation)
+            .max()
+            .orElse(0);
+        int expectedTotalProccessors = scaleUpContext.modelAssignments.values()
+            .stream()
+            .map(TrainedModelAssignment::getTaskParams)
+            .mapToInt(tp -> tp.getNumberOfAllocations() * tp.getThreadsPerAllocation())
+            .sum();
+        int existantProccessors = scaleUpContext.modelAssignments.values()
+            .stream()
+            .map(TrainedModelAssignment::getNodeRoutingTable)
+            .mapToInt(m -> m.values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum())
+            .sum();
+        int extraProcessors = expectedTotalProccessors - existantProccessors;
+
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                scaleUpContext,
+                mockTracker,
+                Map.of("ml-1", randomLongBetween(0, memory), "ml-2", randomLongBetween(0, memory)),
+                memory,
+                2,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                MlDummyAutoscalingEntity.of(memory / 2, 1),
+                listener,
+                1
+            ),
+            stats -> {
+                assertEquals(0, stats.perNodeMemoryInBytes());
+                assertEquals(2, stats.nodes());
+                assertEquals(extraProcessors, stats.extraProcessors());
+                assertEquals(expectedProcessorsPerNode, stats.extraSingleNodeProcessors());
+                assertEquals(0, stats.extraModelMemoryInBytes());
+                assertEquals(0, stats.extraSingleNodeModelMemoryInBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
+            }
+        );
+    }
+
+    public void testScaleUpByProcessorsWhenStarting() throws InterruptedException, IOException {
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+        long memory = randomLongBetween(100, 1_000_000);
+        long model_size = randomLongBetween(10, 10_000_000);
+        var taskParams = new StartTrainedModelDeploymentAction.TaskParams(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            model_size,
+            randomIntBetween(5, 10),
+            1,
+            randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
+            randomFrom(Priority.values()),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
+
+        var randomAssignment = TrainedModelAssignmentTests.randomInstanceBuilder(taskParams)
+            .setAssignmentState(AssignmentState.STARTING)
+            .setNumberOfAllocations(0)
+            .build();
+
+        List<DiscoveryNode> nodes = randomAssignment.getNodeRoutingTable()
+            .values()
+            .stream()
+            .map(r -> mock(DiscoveryNode.class))
+            .peek(n -> when(n.getRoles()).thenReturn(Set.of(DiscoveryNodeRole.ML_ROLE)))
+            .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "2.0")))
+            .toList();
+
+        MlAutoscalingContext scaleUpContext = new MlAutoscalingContext(
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("ml-1", randomAssignment),
+            nodes,
+            null
+        );
+
+        int expectedProcessorsPerNode = scaleUpContext.modelAssignments.values()
+            .stream()
+            .map(TrainedModelAssignment::getTaskParams)
+            .mapToInt(StartTrainedModelDeploymentAction.TaskParams::getThreadsPerAllocation)
+            .max()
+            .orElse(0);
+        int expectedTotalProccessors = scaleUpContext.modelAssignments.values()
+            .stream()
+            .map(TrainedModelAssignment::getTaskParams)
+            .mapToInt(tp -> tp.getNumberOfAllocations() * tp.getThreadsPerAllocation())
+            .sum();
+        int existantProccessors = scaleUpContext.modelAssignments.values()
+            .stream()
+            .map(TrainedModelAssignment::getNodeRoutingTable)
+            .mapToInt(m -> m.values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum())
+            .sum();
+        int extraProcessors = expectedTotalProccessors - existantProccessors;
+
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                scaleUpContext,
+                mockTracker,
+                Map.of("ml-1", memory, "ml-2", memory),
+                memory,
+                2,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                MlDummyAutoscalingEntity.of(memory / 2, 1),
+                listener,
+                1
+            ),
+            stats -> {
+                assertEquals(memory, stats.perNodeMemoryInBytes());
+                assertEquals(2, stats.nodes());
+                assertEquals(Math.max(extraProcessors, 0), stats.extraProcessors());
+                assertEquals(extraProcessors > 0 ? expectedProcessorsPerNode : 0, stats.extraSingleNodeProcessors());
                 assertEquals(0, stats.extraSingleNodeModelMemoryInBytes());
                 assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
             }

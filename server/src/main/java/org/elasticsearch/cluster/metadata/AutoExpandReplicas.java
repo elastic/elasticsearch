@@ -153,6 +153,7 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
                     indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()),
                     "stateless"
                 )) {
+                    // TODO Replace this with new logic that leverages IndexMetadata.MIN_NUM_REPLICAS
                     if (indexMetadata.getNumberOfReplicas() == 0) {
                         nrReplicasChanged.computeIfAbsent(1, ArrayList::new).add(indexMetadata.getIndex().getName());
                     } else {

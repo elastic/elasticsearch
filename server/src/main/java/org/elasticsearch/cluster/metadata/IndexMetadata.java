@@ -266,6 +266,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
 
+    // This setting is not registered by default, but can be registered to provide a minimum number of replicas that is higher than 0
+    public static final String MIN_NUMBER_OF_REPLICAS = "index.min_number_of_replicas";
+
+    public static int getMinNumReplicas(Settings settings) {
+        return settings.getAsInt(MIN_NUMBER_OF_REPLICAS, 0);
+    }
+
     public enum APIBlock implements Writeable {
         READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK, Property.ServerlessPublic),
         READ("read", INDEX_READ_BLOCK, Property.ServerlessPublic),

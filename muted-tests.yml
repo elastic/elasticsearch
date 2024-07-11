@@ -4,8 +4,7 @@ tests:
   method: "testGuessIsDayFirstFromLocale"
 - class: "org.elasticsearch.test.rest.ClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108857"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.upgrades.SearchStatesIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108991"
   method: "testCanMatch"
@@ -14,8 +13,7 @@ tests:
   method: "testTrainedModelInference"
 - class: "org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109188"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109189"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
@@ -30,8 +28,7 @@ tests:
   method: "testTimestampFieldTypeExposedByAllIndicesServices"
 - class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109318"
-  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling\
-    \ (too complex pattern)}"
+  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}"
 - class: "org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT"
   issue: "https://github.com/elastic/elasticsearch/issues/101598"
   method: "testFeatureImportanceValues"
@@ -76,6 +73,15 @@ tests:
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
+- class: "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/110719"
+  method: "test {p0=search.vectors/45_knn_search_byte/Test nonexistent field}"
+- class: "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/110720"
+  method: "test {p0=search.vectors/40_knn_search/Test nonexistent field}"
+- class: org.elasticsearch.xpack.security.LicenseDLSFLSRoleIT
+  method: testQueryDLSFLSRolesShowAsDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/110729
 
 # Examples:
 #

@@ -2,6 +2,9 @@
 [[esql-from]]
 === `FROM`
 
+The `FROM` source command returns a table with data from a data stream, index,
+or alias.
+
 **Syntax**
 
 [source,esql]

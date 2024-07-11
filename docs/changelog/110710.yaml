@@ -1,0 +1,6 @@
+pr: 110710
+summary: Add a cluster listener to fix missing cluster features after upgrade
+area: Infra/Core
+type: bug
+issues:
+ - 109254

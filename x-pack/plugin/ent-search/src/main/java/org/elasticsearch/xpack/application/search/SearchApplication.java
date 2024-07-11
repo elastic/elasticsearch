@@ -101,7 +101,8 @@ public class SearchApplication implements Writeable, ToXContentObject {
     public SearchApplication(StreamInput in, String[] indices) throws IOException {
         this.name = in.readString();
 
-        if (in.getTransportVersion().onOrAfter(INDICES_REMOVED_TRANSPORT_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(INDICES_REMOVED_TRANSPORT_VERSION)
+            && in.getTransportVersion().before(TransportVersions.AUTO_EXPAND_ALIASES)) {
             this.indices = indices; // Uses the provided indices, as they are no longer serialized
         } else {
             this.indices = in.readStringArray(); // old behaviour, read it from input as it was serialized
@@ -114,7 +115,8 @@ public class SearchApplication implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        if (out.getTransportVersion().before(INDICES_REMOVED_TRANSPORT_VERSION)) {
+        if (out.getTransportVersion().before(INDICES_REMOVED_TRANSPORT_VERSION)
+            || out.getTransportVersion().onOrAfter(TransportVersions.AUTO_EXPAND_ALIASES)) {
             out.writeStringArray(indices); // old behaviour. New behaviour does not serialize indices, so no need to do anything else
         }
         out.writeOptionalString(analyticsCollectionName);

@@ -178,6 +178,10 @@ public class IndexNameExpressionResolver {
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
+        return dataStreamNames(state, options, false, indexExpressions);
+    }
+
+    public List<String> dataStreamNames(ClusterState state, IndicesOptions options, boolean autoExpandAliases, String... indexExpressions) {
         Context context = new Context(
             state,
             options,
@@ -187,7 +191,8 @@ public class IndexNameExpressionResolver {
             true,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
-            getNetNewSystemIndexPredicate()
+            getNetNewSystemIndexPredicate(),
+            autoExpandAliases
         );
         final Collection<String> expressions = resolveExpressions(context, indexExpressions);
         return expressions.stream()
@@ -282,10 +287,16 @@ public class IndexNameExpressionResolver {
      * indices options in the context don't allow such a case; if a remote index is requested.
      */
     public Index[] concreteIndices(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        return concreteIndices(state, options, false, indexExpressions);
+        return concreteIndices(state, options, false, false, indexExpressions);
     }
 
-    public Index[] concreteIndices(ClusterState state, IndicesOptions options, boolean includeDataStreams, String... indexExpressions) {
+    public Index[] concreteIndices(
+        ClusterState state,
+        IndicesOptions options,
+        boolean includeDataStreams,
+        boolean autoExpandAliases,
+        String... indexExpressions
+    ) {
         Context context = new Context(
             state,
             options,
@@ -294,7 +305,8 @@ public class IndexNameExpressionResolver {
             includeDataStreams,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
-            getNetNewSystemIndexPredicate()
+            getNetNewSystemIndexPredicate(),
+            autoExpandAliases
         );
         return concreteIndices(context, indexExpressions);
     }
@@ -322,7 +334,8 @@ public class IndexNameExpressionResolver {
             false,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
-            getNetNewSystemIndexPredicate()
+            getNetNewSystemIndexPredicate(),
+            false
         );
         return concreteIndices(context, request.indices());
     }
@@ -1075,9 +1088,29 @@ public class IndexNameExpressionResolver {
         private final SystemIndexAccessLevel systemIndexAccessLevel;
         private final Predicate<String> systemIndexAccessPredicate;
         private final Predicate<String> netNewSystemIndexPredicate;
+        private final boolean autoExpandAliases;
 
         Context(ClusterState state, IndicesOptions options, SystemIndexAccessLevel systemIndexAccessLevel) {
             this(state, options, systemIndexAccessLevel, Predicates.always(), Predicates.never());
+        }
+
+        Context(
+            ClusterState state,
+            IndicesOptions options,
+            SystemIndexAccessLevel systemIndexAccessLevel,
+            Predicate<String> systemIndexAccessPredicate,
+            Predicate<String> netNewSystemIndexPredicate,
+            boolean autoExpandAliases
+        ) {
+            this(
+                state,
+                options,
+                System.currentTimeMillis(),
+                systemIndexAccessLevel,
+                systemIndexAccessPredicate,
+                netNewSystemIndexPredicate,
+                autoExpandAliases
+            );
         }
 
         Context(
@@ -1093,7 +1126,34 @@ public class IndexNameExpressionResolver {
                 System.currentTimeMillis(),
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
-                netNewSystemIndexPredicate
+                netNewSystemIndexPredicate,
+                false
+            );
+        }
+
+        Context(
+            ClusterState state,
+            IndicesOptions options,
+            boolean preserveAliases,
+            boolean resolveToWriteIndex,
+            boolean includeDataStreams,
+            SystemIndexAccessLevel systemIndexAccessLevel,
+            Predicate<String> systemIndexAccessPredicate,
+            Predicate<String> netNewSystemIndexPredicate,
+            boolean autoExpandAliases
+        ) {
+            this(
+                state,
+                options,
+                System.currentTimeMillis(),
+                preserveAliases,
+                resolveToWriteIndex,
+                includeDataStreams,
+                false,
+                systemIndexAccessLevel,
+                systemIndexAccessPredicate,
+                netNewSystemIndexPredicate,
+                autoExpandAliases
             );
         }
 
@@ -1117,7 +1177,35 @@ public class IndexNameExpressionResolver {
                 false,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
-                netNewSystemIndexPredicate
+                netNewSystemIndexPredicate,
+                false
+            );
+        }
+
+        Context(
+            ClusterState state,
+            IndicesOptions options,
+            boolean preserveAliases,
+            boolean resolveToWriteIndex,
+            boolean includeDataStreams,
+            boolean preserveDataStreams,
+            SystemIndexAccessLevel systemIndexAccessLevel,
+            Predicate<String> systemIndexAccessPredicate,
+            Predicate<String> netNewSystemIndexPredicate,
+            boolean autoExpandAliases
+        ) {
+            this(
+                state,
+                options,
+                System.currentTimeMillis(),
+                preserveAliases,
+                resolveToWriteIndex,
+                includeDataStreams,
+                preserveDataStreams,
+                systemIndexAccessLevel,
+                systemIndexAccessPredicate,
+                netNewSystemIndexPredicate,
+                autoExpandAliases
             );
         }
 
@@ -1142,7 +1230,8 @@ public class IndexNameExpressionResolver {
                 preserveDataStreams,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
-                netNewSystemIndexPredicate
+                netNewSystemIndexPredicate,
+                false
             );
         }
 
@@ -1164,7 +1253,32 @@ public class IndexNameExpressionResolver {
                 false,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
-                netNewSystemIndexPredicate
+                netNewSystemIndexPredicate,
+                false
+            );
+        }
+
+        Context(
+            ClusterState state,
+            IndicesOptions options,
+            long startTime,
+            SystemIndexAccessLevel systemIndexAccessLevel,
+            Predicate<String> systemIndexAccessPredicate,
+            Predicate<String> netNewSystemIndexPredicate,
+            boolean autoExpandAliases
+        ) {
+            this(
+                state,
+                options,
+                startTime,
+                false,
+                false,
+                false,
+                false,
+                systemIndexAccessLevel,
+                systemIndexAccessPredicate,
+                netNewSystemIndexPredicate,
+                autoExpandAliases
             );
         }
 
@@ -1178,7 +1292,8 @@ public class IndexNameExpressionResolver {
             boolean preserveDataStreams,
             SystemIndexAccessLevel systemIndexAccessLevel,
             Predicate<String> systemIndexAccessPredicate,
-            Predicate<String> netNewSystemIndexPredicate
+            Predicate<String> netNewSystemIndexPredicate,
+            boolean autoExpandAliases
         ) {
             this.state = state;
             this.options = options;
@@ -1190,6 +1305,7 @@ public class IndexNameExpressionResolver {
             this.systemIndexAccessLevel = systemIndexAccessLevel;
             this.systemIndexAccessPredicate = systemIndexAccessPredicate;
             this.netNewSystemIndexPredicate = netNewSystemIndexPredicate;
+            this.autoExpandAliases = autoExpandAliases;
         }
 
         public ClusterState getState() {
@@ -1227,6 +1343,10 @@ public class IndexNameExpressionResolver {
 
         public boolean isPreserveDataStreams() {
             return preserveDataStreams;
+        }
+
+        public boolean autoExpandAliases() {
+            return autoExpandAliases;
         }
 
         /**
@@ -1718,7 +1838,13 @@ public class IndexNameExpressionResolver {
             }
             // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
             if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
-                if (ignoreUnavailable) {
+                if (context.autoExpandAliases()) {
+                    for (Index index : indexAbstraction.getIndices()) {
+                        if (ensureAliasOrIndexExists(context, index.getName()) == false) {
+                            return false;
+                        }
+                    }
+                } else if (ignoreUnavailable) {
                     return false;
                 } else {
                     throw aliasesNotSupportedException(name);
@@ -1835,7 +1961,19 @@ public class IndexNameExpressionResolver {
         }
 
         public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.ALL, Predicates.never(), Predicates.never());
+            super(
+                null,
+                null,
+                startTime,
+                false,
+                false,
+                false,
+                false,
+                SystemIndexAccessLevel.ALL,
+                Predicates.never(),
+                Predicates.never(),
+                false
+            );
         }
 
         @Override

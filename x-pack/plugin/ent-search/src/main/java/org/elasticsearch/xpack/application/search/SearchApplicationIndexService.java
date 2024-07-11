@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -32,7 +33,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,7 +48,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Streams;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
@@ -78,7 +77,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -174,6 +172,11 @@ public class SearchApplicationIndexService {
                     builder.field("type", "object");
                     builder.field("enabled", "false");
                     builder.endObject();
+
+                    // TODO - Version the system index to support the new mapping
+                    builder.startObject(SearchApplication.INDICES_FIELD.getPreferredName());
+                    builder.field("type", "keyword");
+                    builder.endObject();
                 }
                 builder.endObject();
             }
@@ -200,13 +203,9 @@ public class SearchApplicationIndexService {
                 return;
             }
             final BytesReference source = getResponse.getSourceInternal();
-            SearchApplication searchApplication = parseSearchApplicationBinaryFromSource(source, getAliasIndices(resourceName));
+            SearchApplication searchApplication = parseSearchApplicationBinaryFromSource(source);
             l.onResponse(searchApplication);
         }));
-    }
-
-    private String[] getAliasIndices(String searchApplicationName) {
-        return clusterService.state().metadata().aliasedIndices(searchApplicationName).stream().map(Index::getName).toArray(String[]::new);
     }
 
     private static String getSearchAliasName(SearchApplication app) {
@@ -242,36 +241,66 @@ public class SearchApplicationIndexService {
 
     private void createOrUpdateAlias(SearchApplication app, ActionListener<IndicesAliasesResponse> listener) {
 
-        final Metadata metadata = clusterService.state().metadata();
+        final String searchApplicationName = app.name();
         final String searchAliasName = getSearchAliasName(app);
 
-        IndicesAliasesRequestBuilder requestBuilder = null;
-        if (metadata.hasAlias(searchAliasName)) {
-            Set<String> currentAliases = metadata.aliasedIndices(searchAliasName).stream().map(Index::getName).collect(Collectors.toSet());
-            Set<String> targetAliases = Set.of(app.indices());
+        final GetRequest getRequest = new GetRequest(SEARCH_APPLICATION_ALIAS_NAME).id(searchApplicationName).realtime(true);
 
-            requestBuilder = updateAliasIndices(currentAliases, targetAliases, searchAliasName);
+        // Before, we were looking at aliases through existing metadata.
+        // However, because we now expand aliases, this could result in indices incorrectly being removed from the alias.
+        // Now, we pull the existing search application, get the indices associated with it, and then update accordingly.
+        // There may be a better way to do this less prone to race conditions.
 
-        } else {
-            requestBuilder = client.admin().indices().prepareAliases().addAlias(app.indices(), searchAliasName);
-        }
+        clientWithOrigin.get(getRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(GetResponse getResponse) {
+                IndicesAliasesRequestBuilder requestBuilder = null;
+                if (getResponse.isExists() == false) {
+                    requestBuilder = client.admin().indices().prepareAliases().addAlias(app.indices(), searchAliasName, true);
+                } else {
+                    final BytesReference source = getResponse.getSourceInternal();
+                    SearchApplication existingSearchApplication = parseSearchApplicationBinaryFromSource(source);
+                    requestBuilder = updateAliasIndices(
+                        Set.of(existingSearchApplication.indices()),
+                        Set.of(app.indices()),
+                        searchAliasName
+                    );
+                }
+                requestBuilder.execute(listener);
+            }
 
-        requestBuilder.execute(listener);
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof ResourceNotFoundException) {
+                    IndicesAliasesRequestBuilder requestBuilder = client.admin()
+                        .indices()
+                        .prepareAliases()
+                        .addAlias(app.indices(), searchAliasName, true);
+                    requestBuilder.execute(listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
-    private IndicesAliasesRequestBuilder updateAliasIndices(Set<String> currentAliases, Set<String> targetAliases, String searchAliasName) {
+    private IndicesAliasesRequestBuilder updateAliasIndices(Set<String> currentIndices, Set<String> targetAliases, String searchAliasName) {
 
-        Set<String> deleteIndices = new HashSet<>(currentAliases);
+        Set<String> deleteIndices = new HashSet<>(currentIndices);
         deleteIndices.removeAll(targetAliases);
 
         IndicesAliasesRequestBuilder aliasesRequestBuilder = client.admin().indices().prepareAliases();
 
         // Always re-add aliases, as an index could have been removed manually and it must be restored
         for (String newIndex : targetAliases) {
-            aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(searchAliasName));
+            aliasesRequestBuilder.addAliasAction(
+                IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(searchAliasName).autoExpandAliases(true)
+            );
         }
         for (String deleteIndex : deleteIndices) {
-            aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(deleteIndex).alias(searchAliasName));
+            aliasesRequestBuilder.addAliasAction(
+                IndicesAliasesRequest.AliasActions.remove().index(deleteIndex).alias(searchAliasName).autoExpandAliases(true)
+            );
         }
 
         return aliasesRequestBuilder;
@@ -288,6 +317,7 @@ public class SearchApplicationIndexService {
                         SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
                         os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().getMinTransportVersion())
                     )
+                    .field(SearchApplication.INDICES_FIELD.getPreferredName(), app.indices())
                     .endObject();
             }
             DocWriteRequest.OpType opType = (create ? DocWriteRequest.OpType.CREATE : DocWriteRequest.OpType.INDEX);
@@ -328,7 +358,7 @@ public class SearchApplicationIndexService {
 
     private void removeAlias(String searchAliasName, ActionListener<AcknowledgedResponse> listener) {
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
-            IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*")
+            IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*").autoExpandAliases(true)
         );
         client.admin().indices().aliases(aliasesRequest, new ActionListener<>() {
             @Override
@@ -429,7 +459,7 @@ public class SearchApplicationIndexService {
         );
     }
 
-    private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source, String[] indices) {
+    private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -450,7 +480,7 @@ public class SearchApplicationIndexService {
                     try (
                         StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), namedWriteableRegistry)
                     ) {
-                        return parseSearchApplicationBinaryWithVersion(in, indices);
+                        return parseSearchApplicationBinaryWithVersion(in);
                     }
                 } else {
                     XContentParserUtils.parseFieldsValue(parser); // consume and discard unknown fields
@@ -464,11 +494,11 @@ public class SearchApplicationIndexService {
         }
     }
 
-    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in, String[] indices) throws IOException {
+    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in) throws IOException {
         TransportVersion version = TransportVersion.readVersion(in);
         assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
         in.setTransportVersion(version);
-        return new SearchApplication(in, indices);
+        return new SearchApplication(in);
     }
 
     static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, TransportVersion minTransportVersion)

@@ -119,8 +119,8 @@ teardown:
       indices.get_alias:
         index: test-search-application
 
-  - match: { test-index1.aliases.test-search-application: {} }
-  - match: { test-index2.aliases.test-search-application: {} }
+  - match: { test-index1.aliases.test-search-application: { } }
+  - match: { test-index2.aliases.test-search-application: { } }
 
   - do:
       search_application.get:
@@ -164,8 +164,8 @@ teardown:
       indices.get_alias:
         index: another-test-search-application
 
-  - match: { test-index1.aliases.another-test-search-application: {} }
-  - match: { test-index2.aliases.another-test-search-application: {} }
+  - match: { test-index1.aliases.another-test-search-application: { } }
+  - match: { test-index2.aliases.another-test-search-application: { } }
 
   - do:
       search_application.get:
@@ -189,12 +189,12 @@ teardown:
       features: warnings
 
   - do:
-        warnings:
-          - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
-        search_application.put:
-          name: test-updated-search-application
-          body:
-            indices: [ "test-index1", "test-index2" ]
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
+      search_application.put:
+        name: test-updated-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
 
   - do:
       warnings:
@@ -228,6 +228,76 @@ teardown:
           params:
             query_string: "*"
             default_field: "*"
+
+
+---
+"Manage alias-backed search applications":
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test-index1
+                alias: test-alias1
+            - add:
+                index: test-index2
+                alias: test-alias2
+            - add:
+                indices: [ test-index3, test-index4 ]
+                alias: test-alias3
+
+
+  - do:
+      search_application.put:
+        name: test-alias-backed-search-application
+        body:
+          indices: [ "test-alias1", "test-alias2" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
+            dictionary:
+              additionalProperties: false
+              required: [ "query_string" ]
+              properties:
+                query_string:
+                  type: string
+
+  - match: { result: "created" }
+
+  - do:
+      search_application.get:
+        name: test-alias-backed-search-application
+
+  - match: { indices: [ "test-alias1", "test-alias2" ] }
+
+  - do:
+      search_application.put:
+        name: test-alias-backed-search-application
+        body:
+          indices: [ "test-alias1", "test-alias3" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
+            dictionary:
+              additionalProperties: false
+              required: [ "query_string" ]
+              properties:
+                query_string:
+                  type: string
+
+  - match: { result: "updated" }
+
+  - do:
+      search_application.get:
+        name: test-alias-backed-search-application
+
+  - match: { indices: [ "test-alias1", "test-alias3" ] }
 
 ---
 "Update Search Application - Dictionary is not a valid JSON Schema":
@@ -333,4 +403,4 @@ teardown:
         name: test-search-application-with-invalid-template
         body:
           indices: [ "test-index1" ]
-          template: {}
+          template: { }

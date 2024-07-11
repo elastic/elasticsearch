@@ -18,12 +18,14 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.apache.lucene.analysis.StopFilter.makeStopSet;
 
 public class StopRemoteWordListTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final SetOnce<CharArraySet> stopWordsHolder = new SetOnce<>();
+    private final AtomicReference<Exception> asyncInitException = new AtomicReference<>();
 
     private final boolean ignoreCase;
 
@@ -56,7 +58,7 @@ public class StopRemoteWordListTokenFilterFactory extends AbstractTokenFilterFac
 
                 @Override
                 public void onFailure(Exception e) {
-                    // TODO: Propagate error to token filter
+                    asyncInitException.set(e);
                 }
             }
         );
@@ -64,7 +66,7 @@ public class StopRemoteWordListTokenFilterFactory extends AbstractTokenFilterFac
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new StopRemoteWordListFilter(tokenStream, stopWordsHolder);
+        return new StopRemoteWordListFilter(tokenStream, stopWordsHolder, asyncInitException);
     }
 
     public Set<?> stopWords() {

@@ -2,6 +2,8 @@
 [[esql-rename]]
 === `RENAME`
 
+The `RENAME` processing command renames one or more columns.
+
 **Syntax**
 
 [source,esql]

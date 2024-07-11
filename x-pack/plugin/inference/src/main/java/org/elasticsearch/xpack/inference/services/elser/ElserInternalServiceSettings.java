@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
@@ -45,6 +48,16 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
             validationException
         );
         Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
+            map,
+            ADAPTIVE_ALLOCATIONS
+        );
+        if (adaptiveAllocationsSettings != null) {
+            ActionRequestValidationException exception = adaptiveAllocationsSettings.validate();
+            if (exception != null) {
+                validationException.addValidationErrors(exception.validationErrors());
+            }
+        }
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (modelId != null && ElserInternalService.VALID_ELSER_MODEL_IDS.contains(modelId) == false) {
@@ -58,17 +71,28 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
         var builder = new InternalServiceSettings.Builder() {
             @Override
             public ElserInternalServiceSettings build() {
-                return new ElserInternalServiceSettings(getNumAllocations(), getNumThreads(), getModelId());
+                return new ElserInternalServiceSettings(
+                    getNumAllocations(),
+                    getNumThreads(),
+                    getModelId(),
+                    getAdaptiveAllocationsSettings()
+                );
             }
         };
         builder.setNumAllocations(numAllocations);
         builder.setNumThreads(numThreads);
+        builder.setAdaptiveAllocationsSettings(adaptiveAllocationsSettings);
         builder.setModelId(modelId);
         return builder;
     }
 
-    public ElserInternalServiceSettings(int numAllocations, int numThreads, String modelId) {
-        super(numAllocations, numThreads, modelId);
+    public ElserInternalServiceSettings(
+        int numAllocations,
+        int numThreads,
+        String modelId,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings
+    ) {
+        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings);
         Objects.requireNonNull(modelId);
     }
 
@@ -76,7 +100,10 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
         super(
             in.readVInt(),
             in.readVInt(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X) ? in.readString() : ElserInternalService.ELSER_V2_MODEL
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X) ? in.readString() : ElserInternalService.ELSER_V2_MODEL,
+            in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)
+                ? in.readOptionalWriteable(AdaptiveAllocationsSettings::new)
+                : null
         );
     }
 
@@ -97,11 +124,14 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeString(getModelId());
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(NAME, getNumAllocations(), getNumThreads(), getModelId());
+        return Objects.hash(NAME, getNumAllocations(), getNumThreads(), getModelId(), getAdaptiveAllocationsSettings());
     }
 
     @Override
@@ -111,6 +141,7 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
         ElserInternalServiceSettings that = (ElserInternalServiceSettings) o;
         return getNumAllocations() == that.getNumAllocations()
             && getNumThreads() == that.getNumThreads()
-            && Objects.equals(getModelId(), that.getModelId());
+            && Objects.equals(getModelId(), that.getModelId())
+            && Objects.equals(getAdaptiveAllocationsSettings(), that.getAdaptiveAllocationsSettings());
     }
 }

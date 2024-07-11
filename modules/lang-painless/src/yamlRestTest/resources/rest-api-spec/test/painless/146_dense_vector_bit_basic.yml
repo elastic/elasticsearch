@@ -8,6 +8,8 @@ setup:
       indices.create:
         index: test-index
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               vector:
@@ -107,7 +109,6 @@ setup:
       headers:
         Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
           query:
             script_score:
@@ -138,7 +139,6 @@ setup:
       headers:
         Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
           query:
             script_score:
@@ -152,7 +152,6 @@ setup:
       headers:
         Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
           query:
             script_score:
@@ -167,7 +166,6 @@ setup:
       headers:
         Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
           query:
             script_score:

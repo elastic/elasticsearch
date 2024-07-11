@@ -37,7 +37,9 @@ import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -45,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -157,35 +160,35 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.tables()
         );
         String sessionId = sessionID(task);
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (physicalPlan, resultListener) -> computeService.execute(
+            sessionId,
+            (CancellableTask) task,
+            physicalPlan,
+            configuration,
+            resultListener
+        );
+
         planExecutor.esql(
             request,
             sessionId,
             configuration,
             enrichPolicyResolver,
-            listener.delegateFailureAndWrap(
-                (delegate, physicalPlan) -> computeService.execute(
-                    sessionId,
-                    (CancellableTask) task,
-                    physicalPlan,
-                    configuration,
-                    delegate.map(result -> {
-                        List<ColumnInfoImpl> columns = physicalPlan.output()
-                            .stream()
-                            .map(c -> new ColumnInfoImpl(c.qualifiedName(), c.dataType().outputType()))
-                            .toList();
-                        EsqlQueryResponse.Profile profile = configuration.profile()
-                            ? new EsqlQueryResponse.Profile(result.profiles())
-                            : null;
-                        if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
-                            String id = asyncTask.getExecutionId().getEncoded();
-                            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), id, false, request.async());
-                        } else {
-                            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
-                        }
-                    })
-                )
-            )
+            runPhase,
+            listener.map(result -> toResponse(task, request, configuration, result))
         );
+    }
+
+    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, EsqlConfiguration configuration, Result result) {
+        List<ColumnInfoImpl> columns = result.schema()
+            .stream()
+            .map(c -> new ColumnInfoImpl(c.qualifiedName(), c.dataType().outputType()))
+            .toList();
+        EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
+        if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
+            String id = asyncTask.getExecutionId().getEncoded();
+            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), id, false, request.async());
+        }
+        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
     }
 
     /**

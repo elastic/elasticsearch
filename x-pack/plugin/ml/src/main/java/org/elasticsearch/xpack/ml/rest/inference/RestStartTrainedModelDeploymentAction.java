@@ -94,7 +94,8 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             NUMBER_OF_ALLOCATIONS.getPreferredName(),
             RestApiVersion.V_8,
             restRequest,
-            (r, s) -> r.paramAsInt(s, request.getNumberOfAllocations()),
+            // This is to propagate a null value, which paramAsInt does not support.
+            (r, s) -> r.hasParam(s) ? (Integer) r.paramAsInt(s, 0) : request.getNumberOfAllocations(),
             request::setNumberOfAllocations
         );
 

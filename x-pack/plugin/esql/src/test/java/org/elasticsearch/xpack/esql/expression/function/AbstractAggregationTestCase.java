@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.IntVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -166,25 +165,25 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     private void aggregateGroupingSingleMode(Expression expression) {
+        var pages = rows(testCase.getMultiRowFields());
         List<Object> results;
-        try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
-            var groupCount = randomIntBetween(1, 1000);
-            var groupSliceSize = 1;
-            // Add data to chunks of groups
-            for (int currentGroupOffset = 0; currentGroupOffset < groupCount;) {
-                var seenGroupIds = new SeenGroupIds.Range(0, currentGroupOffset + groupSliceSize);
-                for (Page inputPage : rows(testCase.getMultiRowFields())) {
-                    try {
+        try {
+            assumeFalse("Grouping aggregations must receive data to check results", pages.isEmpty());
+
+            try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+                var groupCount = randomIntBetween(1, 1000);
+                for (Page inputPage : pages) {
+                    var groupSliceSize = 1;
+                    // Add data to chunks of groups
+                    for (int currentGroupOffset = 0; currentGroupOffset < groupCount;) {
+                        var seenGroupIds = new SeenGroupIds.Range(0, currentGroupOffset + groupSliceSize);
                         var addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage);
 
                         var positionCount = inputPage.getPositionCount();
                         var dataSliceSize = 1;
                         // Divide data in chunks
                         for (int currentDataOffset = 0; currentDataOffset < positionCount;) {
-                            try (
-                                var groups = makeGroupsVector(
-                                    currentGroupOffset, currentGroupOffset + groupSliceSize, dataSliceSize)
-                            ) {
+                            try (var groups = makeGroupsVector(currentGroupOffset, currentGroupOffset + groupSliceSize, dataSliceSize)) {
                                 addInput.add(currentDataOffset, groups);
                             }
 
@@ -193,18 +192,20 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                                 dataSliceSize = randomIntBetween(1, Math.min(100, positionCount - currentDataOffset));
                             }
                         }
-                    } finally {
-                        inputPage.releaseBlocks();
+
+                        currentGroupOffset += groupSliceSize;
+                        if (groupCount > currentGroupOffset) {
+                            groupSliceSize = randomIntBetween(1, Math.min(100, groupCount - currentGroupOffset));
+                        }
                     }
                 }
 
-                currentGroupOffset += groupSliceSize;
-                if (groupCount > currentGroupOffset) {
-                    groupSliceSize = randomIntBetween(1, Math.min(100, groupCount - currentGroupOffset));
-                }
+                results = extractResultsFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()), groupCount);
             }
-
-            results = extractResultsFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()), groupCount);
+        } finally {
+            for (var page : pages) {
+                page.releaseBlocks();
+            }
         }
 
         for (var result : results) {
@@ -358,6 +359,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
     }
 
+    /**
+     * Returns a list of results, one for each group from 0 to {@code groupCount}
+     */
     private List<Object> extractResultsFromAggregator(GroupingAggregator aggregator, ElementType expectedElementType, int groupCount) {
         var blocksArraySize = randomIntBetween(1, 10);
         var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);

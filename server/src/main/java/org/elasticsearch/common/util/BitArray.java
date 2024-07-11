@@ -180,6 +180,7 @@ public final class BitArray implements Accountable, Releasable, Writeable {
         if (value == false) {
             // There's no need to grow the array just to clear bits.
             toIndex = Math.min(toIndex, currentSize);
+            fromIndex = Math.min(fromIndex, toIndex);
         }
         if (fromIndex == toIndex) {
             return; // Empty range

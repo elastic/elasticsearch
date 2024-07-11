@@ -14,7 +14,9 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.IntVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -167,33 +169,40 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         List<Object> results;
         try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
             var groupCount = randomIntBetween(1, 1000);
-                var groupSliceSize = 1;
-                for (int currentGroupOffset = 0; currentGroupOffset < groupCount; currentGroupOffset += groupSliceSize) {
-                    var seenGroupIds = new SeenGroupIds.Range(0, currentGroupOffset + groupSliceSize);
-                    for (Page inputPage : rows(testCase.getMultiRowFields())) {
-                        try {
-                            var addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage);
+            var groupSliceSize = 1;
+            // Add data to chunks of groups
+            for (int currentGroupOffset = 0; currentGroupOffset < groupCount;) {
+                var seenGroupIds = new SeenGroupIds.Range(0, currentGroupOffset + groupSliceSize);
+                for (Page inputPage : rows(testCase.getMultiRowFields())) {
+                    try {
+                        var addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage);
 
-                            // Make a groupsId block with all the groups in the range for each page position
-                            try (var groupsBuilder = driverContext().blockFactory().newIntBlockBuilder(groupSliceSize)) {
-                                for (var i = 0; i < inputPage.getPositionCount(); i++) {
-                                    groupsBuilder.beginPositionEntry();
-                                    for (int groupId = currentGroupOffset; groupId < currentGroupOffset + groupSliceSize; groupId++) {
-                                        groupsBuilder.appendInt(groupId);
-                                    }
-                                    groupsBuilder.endPositionEntry();
-                                }
-                                try (var groups = groupsBuilder.build()) {
-                                    addInput.add(0, groups);
-                                }
+                        var positionCount = inputPage.getPositionCount();
+                        var dataSliceSize = 1;
+                        // Divide data in chunks
+                        for (int currentDataOffset = 0; currentDataOffset < positionCount;) {
+                            try (
+                                var groups = makeGroupsVector(
+                                    currentGroupOffset, currentGroupOffset + groupSliceSize, dataSliceSize)
+                            ) {
+                                addInput.add(currentDataOffset, groups);
                             }
-                        } finally {
-                            inputPage.releaseBlocks();
+
+                            currentDataOffset += dataSliceSize;
+                            if (positionCount > currentDataOffset) {
+                                dataSliceSize = randomIntBetween(1, Math.min(100, positionCount - currentDataOffset));
+                            }
                         }
+                    } finally {
+                        inputPage.releaseBlocks();
                     }
-                    currentGroupOffset += groupSliceSize;
-                    groupSliceSize = randomIntBetween(1, Math.max(100, groupCount - currentGroupOffset));
                 }
+
+                currentGroupOffset += groupSliceSize;
+                if (groupCount > currentGroupOffset) {
+                    groupSliceSize = randomIntBetween(1, Math.min(100, groupCount - currentGroupOffset));
+                }
+            }
 
             results = extractResultsFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()), groupCount);
         }
@@ -419,5 +428,22 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
 
         return new GroupingAggregator(aggregatorFunctionSupplier.groupingAggregator(driverContext()), mode);
+    }
+
+    /**
+     * Make a groupsId block with all the groups in the range for each row.
+     */
+    private IntBlock makeGroupsVector(int groupStart, int groupEnd, int rowCount) {
+        try (var groupsBuilder = driverContext().blockFactory().newIntBlockBuilder(rowCount)) {
+            for (var i = 0; i < rowCount; i++) {
+                groupsBuilder.beginPositionEntry();
+                for (int groupId = groupStart; groupId < groupEnd; groupId++) {
+                    groupsBuilder.appendInt(groupId);
+                }
+                groupsBuilder.endPositionEntry();
+            }
+
+            return groupsBuilder.build();
+        }
     }
 }

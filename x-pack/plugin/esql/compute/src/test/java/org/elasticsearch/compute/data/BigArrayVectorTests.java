@@ -17,7 +17,9 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
@@ -25,6 +27,7 @@ import static org.elasticsearch.compute.data.BasicBlockTests.assertEmptyLookup;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertLookup;
 import static org.elasticsearch.compute.data.BasicBlockTests.positions;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -107,6 +110,8 @@ public class BigArrayVectorTests extends SerializationTestCase {
             }
             assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, vector.asBlock());
+            assertThat(OptionalInt.of(vector.min()), equalTo(Arrays.stream(values).min()));
+            assertThat(OptionalInt.of(vector.max()), equalTo(Arrays.stream(values).max()));
             assertSerialization(block);
             assertThat(vector.toString(), containsString("IntBigArrayVector[positions=" + positionCount));
         }

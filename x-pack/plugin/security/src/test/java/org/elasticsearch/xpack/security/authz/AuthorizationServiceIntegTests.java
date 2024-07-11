@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -74,7 +74,8 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                             .build(),
                         randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*")).toArray(new String[0])
                     ) },
-                null, // TODO: add tests here
+                null,
+                null,
                 null
             )
         );
@@ -133,7 +134,13 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             new RoleDescriptorsIntersection(
                 randomValueOtherThanMany(
                     rd -> false == rd.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
-                    () -> RoleDescriptorTests.randomRoleDescriptor()
+                    () -> RoleDescriptorTestHelper.builder()
+                        .allowReservedMetadata(randomBoolean())
+                        .allowRemoteIndices(randomBoolean())
+                        .allowRestriction(randomBoolean())
+                        .allowDescription(randomBoolean())
+                        .allowRemoteClusters(randomBoolean())
+                        .build()
                 )
             )
         );

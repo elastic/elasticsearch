@@ -12,13 +12,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry.CacheInvalidator;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion;
 import org.junit.Before;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -61,11 +61,15 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
             true,
             true,
             true,
-            new SystemIndexDescriptor.MappingsVersion(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT, 0),
+            true,
+            null,
+            new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0),
+            null,
             ".security",
             ClusterHealthStatus.GREEN,
             IndexMetadata.State.OPEN,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
 
         cacheInvalidatorRegistry.onSecurityIndexStateChange(previousState, currentState);

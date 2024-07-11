@@ -8,6 +8,8 @@ beta::[]
 
 Updates the `service_type` of a connector.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [[update-connector-service-type-api-request]]
 ==== {api-request-title}
 

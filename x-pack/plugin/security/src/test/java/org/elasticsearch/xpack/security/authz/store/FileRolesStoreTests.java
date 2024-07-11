@@ -110,7 +110,7 @@ public class FileRolesStoreTests extends ESTestCase {
             new FileRoleValidator.Default()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(10));
+        assertThat(roles.size(), is(11));
 
         RoleDescriptor descriptor = roles.get("role1");
         assertNotNull(descriptor);
@@ -286,6 +286,18 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.getQuery(), notNullValue());
 
         assertThat(roles.get("role_query_invalid"), nullValue());
+
+        descriptor = roles.get("role_with_description");
+        assertNotNull(descriptor);
+        assertThat(descriptor.getDescription(), is(equalTo("Allows all security-related operations!")));
+        role = Role.buildFromRoleDescriptor(descriptor, new FieldPermissionsCache(Settings.EMPTY), restrictedIndices);
+        assertThat(role, notNullValue());
+        assertThat(role.names(), equalTo(new String[] { "role_with_description" }));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster().privileges(), equalTo(Set.of(ClusterPrivilegeResolver.MANAGE_SECURITY)));
+        assertThat(role.indices(), is(IndicesPermission.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.NONE));
+
     }
 
     public void testParseFileWithRemoteIndicesAndCluster() throws IllegalAccessException, IOException {
@@ -395,7 +407,7 @@ public class FileRolesStoreTests extends ESTestCase {
             new FileRoleValidator.Default()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(7));
+        assertThat(roles.size(), is(8));
         assertThat(roles.get("role_fields"), nullValue());
         assertThat(roles.get("role_query"), nullValue());
         assertThat(roles.get("role_query_fields"), nullValue());
@@ -452,7 +464,7 @@ public class FileRolesStoreTests extends ESTestCase {
             new FileRoleValidator.Default()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(10));
+        assertThat(roles.size(), is(11));
         assertNotNull(roles.get("role_fields"));
         assertNotNull(roles.get("role_query"));
         assertNotNull(roles.get("role_query_fields"));
@@ -664,7 +676,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "valid_role" }));
 
-        assertThat(entries, hasSize(7));
+        assertThat(entries, hasSize(8));
         assertThat(
             entries.get(0),
             startsWith("invalid role definition [fóóbár] in roles file [" + path.toAbsolutePath() + "]. invalid role name")
@@ -675,6 +687,10 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(entries.get(4), startsWith("failed to parse role [role4]"));
         assertThat(entries.get(5), startsWith("failed to parse indices privileges for role [role5]"));
         assertThat(entries.get(6), startsWith("failed to parse role [role6]. unexpected field [restriction]"));
+        assertThat(
+            entries.get(7),
+            startsWith("invalid role definition [role7] in roles file [" + path.toAbsolutePath() + "]. invalid description")
+        );
     }
 
     public void testThatRoleNamesDoesNotResolvePermissions() throws Exception {
@@ -683,8 +699,8 @@ public class FileRolesStoreTests extends ESTestCase {
         List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         events.clear();
         Set<String> roleNames = FileRolesStore.parseFileForRoleNames(path, logger);
-        assertThat(roleNames.size(), is(7));
-        assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5", "role6"));
+        assertThat(roleNames.size(), is(8));
+        assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5", "role6", "role7"));
 
         assertThat(events, hasSize(1));
         assertThat(
@@ -746,7 +762,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         Map<String, Object> usageStats = store.usageStats();
 
-        assertThat(usageStats.get("size"), is(flsDlsEnabled ? 10 : 7));
+        assertThat(usageStats.get("size"), is(flsDlsEnabled ? 11 : 8));
         assertThat(usageStats.get("remote_indices"), is(1L));
         assertThat(usageStats.get("remote_cluster"), is(1L));
         assertThat(usageStats.get("fls"), is(flsDlsEnabled));
@@ -781,7 +797,7 @@ public class FileRolesStoreTests extends ESTestCase {
             new FileRoleValidator.Default()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(10));
+        assertThat(roles.size(), is(11));
         for (var role : roles.keySet()) {
             assertThat(store.exists(role), is(true));
         }

@@ -15,7 +15,9 @@ import java.io.IOException;
 
 public class MonitoringMigrateAlertsRequest extends MasterNodeRequest<MonitoringMigrateAlertsRequest> {
 
-    public MonitoringMigrateAlertsRequest() {}
+    public MonitoringMigrateAlertsRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public MonitoringMigrateAlertsRequest(StreamInput in) throws IOException {
         super(in);

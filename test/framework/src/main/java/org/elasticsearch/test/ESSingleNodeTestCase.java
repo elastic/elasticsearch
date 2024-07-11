@@ -69,6 +69,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.action.search.SearchTransportService.FREE_CONTEXT_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataNode;
@@ -130,6 +131,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         awaitIndexShardCloseAsyncTasks();
         ensureNoInitializingShards();
+        ensureAllFreeContextActionsAreConsumed();
+
         SearchService searchService = getInstanceFromNode(SearchService.class);
         assertThat(searchService.getActiveContexts(), equalTo(0));
         assertThat(searchService.getOpenScrollContexts(), equalTo(0));
@@ -456,6 +459,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     /**
+     * waits until all free_context actions have been handled by the generic thread pool
+     */
+    protected void ensureAllFreeContextActionsAreConsumed() throws Exception {
+        logger.info("--> waiting for all free_context tasks to complete within a reasonable time");
+        safeGet(clusterAdmin().prepareListTasks().setActions(FREE_CONTEXT_ACTION_NAME + "*").setWaitForCompletion(true).execute());
+    }
+
+    /**
      * Whether we'd like to enable inter-segment search concurrency and increase the likelihood of leveraging it, by creating multiple
      * slices with a low amount of documents in them, which would not be allowed in production.
      * Default is true, can be disabled if it causes problems in specific tests.
@@ -465,7 +476,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     protected void awaitIndexShardCloseAsyncTasks() {
-        // ES-8334 TODO build this wait into the relevant APIs (especially, delete-index and close-index)
         final var latch = new CountDownLatch(1);
         getInstanceFromNode(IndicesClusterStateService.class).onClusterStateShardsClosed(latch::countDown);
         safeAwait(latch);

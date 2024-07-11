@@ -50,8 +50,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
     }
 
     public void testRemoteIndexPrivileges() throws IOException {
-        var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-        putRoleRequest.setJsonEntity("""
+        upsertRole("""
             {
               "remote_indices": [
                 {
@@ -64,9 +63,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   }
                 }
               ]
-            }""");
-        final Response putRoleResponse1 = adminClient().performRequest(putRoleRequest);
-        assertOK(putRoleResponse1);
+            }""", REMOTE_SEARCH_ROLE);
 
         final Response getRoleResponse = adminClient().performRequest(new Request("GET", "/_security/role/" + REMOTE_SEARCH_ROLE));
         assertOK(getRoleResponse);
@@ -89,6 +86,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                         .grantedFields("field")
                         .build() },
                 null,
+                null,
                 null
             )
         );
@@ -105,8 +103,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         assertThat(e.getMessage(), containsString("action [" + TransportSearchAction.TYPE.name() + "] is unauthorized for user"));
 
         // Add local privileges and check local authorization works
-        putRoleRequest = new Request("PUT", "_security/role/" + REMOTE_SEARCH_ROLE);
-        putRoleRequest.setJsonEntity("""
+        upsertRole("""
             {
               "cluster": ["all"],
               "indices": [
@@ -126,9 +123,8 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   }
                 }
               ]
-            }""");
-        final Response putRoleResponse2 = adminClient().performRequest(putRoleRequest);
-        assertOK(putRoleResponse2);
+            }""", REMOTE_SEARCH_ROLE);
+
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
 
@@ -163,14 +159,14 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                         .grantedFields("field")
                         .build() },
                 null,
+                null,
                 null
             )
         );
     }
 
     public void testGetUserPrivileges() throws IOException {
-        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-        putRoleRequest.setJsonEntity("""
+        upsertRole("""
             {
               "remote_indices": [
                 {
@@ -189,9 +185,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "clusters": ["remote-a", "*"]
                 }
               ]
-            }""");
-        final Response putRoleResponse1 = adminClient().performRequest(putRoleRequest);
-        assertOK(putRoleResponse1);
+            }""", REMOTE_SEARCH_ROLE);
 
         final Response getUserPrivilegesResponse1 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
         assertOK(getUserPrivilegesResponse1);
@@ -220,8 +214,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
               ]
             }""")));
 
-        final var putRoleRequest2 = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-        putRoleRequest2.setJsonEntity("""
+        upsertRole("""
             {
               "cluster": ["all"],
               "indices": [
@@ -243,9 +236,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "clusters": ["remote-c"]
                 }
               ]
-            }""");
-        final Response putRoleResponse2 = adminClient().performRequest(putRoleRequest2);
-        assertOK(putRoleResponse2);
+            }""", REMOTE_SEARCH_ROLE);
 
         final Response getUserPrivilegesResponse2 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
         assertOK(getUserPrivilegesResponse2);
@@ -280,8 +271,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
     }
 
     public void testGetUserPrivilegesWithMultipleFlsDlsDefinitionsPreservesGroupPerIndexPrivilege() throws IOException {
-        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-        putRoleRequest.setJsonEntity("""
+        upsertRole("""
             {
               "remote_indices": [
                 {
@@ -303,9 +293,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   }
                 }
               ]
-            }""");
-        final Response putRoleResponse1 = adminClient().performRequest(putRoleRequest);
-        assertOK(putRoleResponse1);
+            }""", REMOTE_SEARCH_ROLE);
 
         final Response getUserPrivilegesResponse1 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
         assertOK(getUserPrivilegesResponse1);

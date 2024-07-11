@@ -1483,6 +1483,7 @@ public class ProfileServiceTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     null
                 )
             ),

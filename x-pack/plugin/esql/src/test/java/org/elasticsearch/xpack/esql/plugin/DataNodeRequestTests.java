@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -20,20 +19,19 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +56,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
         writeables.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
-        writeables.addAll(Block.getNamedWriteables());
+        writeables.addAll(new EsqlPlugin().getNamedWriteables());
         return new NamedWriteableRegistry(writeables);
     }
 
@@ -86,7 +84,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
         );
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
-            EsqlConfigurationSerializationTests.randomConfiguration(query),
+            EsqlConfigurationSerializationTests.randomConfiguration(query, EsqlConfigurationSerializationTests.randomTables()),
             randomAlphaOfLength(10),
             shardIds,
             aliasFilters,
@@ -225,7 +223,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
 
     static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan) {
         var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(TEST_CFG));
-        FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         var mapper = new Mapper(functionRegistry);
         var physical = mapper.map(logicalPlan);
         if (randomBoolean()) {

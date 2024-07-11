@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.watcher.transport.actions.put;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -30,12 +32,28 @@ public class GetWatcherSettingsAction extends ActionType<GetWatcherSettingsActio
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
-        public Request(StreamInput in) throws IOException {}
+        public static Request readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.WATCHER_REQUEST_TIMEOUTS)) {
+                return new Request(in);
+            } else {
+                return new Request(TimeValue.THIRTY_SECONDS);
+            }
+        }
+
+        private Request(StreamInput in) throws IOException {
+            super(in);
+        }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.WATCHER_REQUEST_TIMEOUTS)) {
+                super.writeTo(out);
+            }
+        }
 
         @Override
         public ActionRequestValidationException validate() {

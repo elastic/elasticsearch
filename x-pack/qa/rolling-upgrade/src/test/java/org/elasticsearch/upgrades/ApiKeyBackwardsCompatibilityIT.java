@@ -26,7 +26,6 @@ import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
@@ -44,6 +43,11 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteClusterPermissions;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteIndicesPrivileges;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -420,16 +424,15 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(Set.of("all", "monitor", "none")).toArray(String[]::new),
-            RoleDescriptorTests.randomIndicesPrivileges(0, 3, excludedPrivileges),
-            RoleDescriptorTests.randomApplicationPrivileges(),
+            randomIndicesPrivileges(0, 3, excludedPrivileges),
+            randomApplicationPrivileges(),
             null,
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
-            RoleDescriptorTests.randomRoleDescriptorMetadata(false),
+            randomRoleDescriptorMetadata(false),
             Map.of(),
-            includeRemoteDescriptors ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null,
-            includeRemoteDescriptors
-                ? RoleDescriptorTests.randomRemoteClusterPermissions(randomIntBetween(1, 3))
-                : RemoteClusterPermissions.NONE,
+            includeRemoteDescriptors ? randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null,
+            includeRemoteDescriptors ? randomRemoteClusterPermissions(randomIntBetween(1, 3)) : RemoteClusterPermissions.NONE,
+            null,
             null
         );
     }

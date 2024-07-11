@@ -93,7 +93,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         out.writeString(clusterAlias);
         out.writeString(sessionId);
         configuration.writeTo(out);
-        new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
+        new PlanStreamOutput(out, planNameRegistry, configuration).writePhysicalPlanNode(plan);
         out.writeStringArray(indices);
         out.writeStringArray(originalIndices);
     }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,8 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.TransportVersions.LAZY_ROLLOVER_ADDED;
 
 /**
  * Response object for {@link RolloverRequest} API
@@ -59,7 +58,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         dryRun = in.readBoolean();
         rolledOver = in.readBoolean();
         shardsAcknowledged = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(LAZY_ROLLOVER_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             lazy = in.readBoolean();
         } else {
             lazy = false;
@@ -142,7 +141,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         out.writeBoolean(dryRun);
         out.writeBoolean(rolledOver);
         out.writeBoolean(shardsAcknowledged);
-        if (out.getTransportVersion().onOrAfter(LAZY_ROLLOVER_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(lazy);
         }
     }

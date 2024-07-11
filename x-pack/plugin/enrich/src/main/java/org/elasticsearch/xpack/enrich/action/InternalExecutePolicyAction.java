@@ -22,6 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -68,8 +69,8 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
 
         private final String enrichIndexName;
 
-        public Request(String name, String enrichIndexName) {
-            super(name);
+        public Request(TimeValue masterNodeTimeout, String name, String enrichIndexName) {
+            super(masterNodeTimeout, name);
             this.enrichIndexName = enrichIndexName;
         }
 

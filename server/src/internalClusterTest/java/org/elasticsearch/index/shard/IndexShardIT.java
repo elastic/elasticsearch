@@ -49,6 +49,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -163,7 +164,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             try {
                 // the lastWriteLocaltion has a Integer.MAX_VALUE size so we have to create a new one
                 return tlog.ensureSynced(
-                    new Translog.Location(lastWriteLocation.generation, lastWriteLocation.translogLocation, 0),
+                    new Translog.Location(lastWriteLocation.generation(), lastWriteLocation.translogLocation(), 0),
                     SequenceNumbers.UNASSIGNED_SEQ_NO
                 );
             } catch (IOException e) {
@@ -388,7 +389,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             logger.info(
                 "--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
                 Strings.toString(translogStats),
-                translog.getGeneration().translogFileGeneration,
+                translog.getGeneration().translogFileGeneration(),
                 commitStats.getUserData(),
                 flushStats.getPeriodic(),
                 flushStats.getTotal()
@@ -427,7 +428,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             );
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
-            if (location.translogLocation + location.size > generationThreshold) {
+            if (location.translogLocation() + location.size() > generationThreshold) {
                 // wait until the roll completes
                 assertBusy(() -> assertFalse(shard.shouldRollTranslogGeneration()));
                 rolls++;
@@ -633,7 +634,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             cbs,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             System::nanoTime,
-            null
+            null,
+            MapperMetrics.NOOP
         );
     }
 

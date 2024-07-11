@@ -27,6 +27,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -53,12 +55,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.TransportVersions.SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED;
-
 /**
  * Meta data about snapshots that are currently executing
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
+
+    private static final Logger logger = LogManager.getLogger(SnapshotsInProgress.class);
 
     public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(Map.of(), Set.of());
 
@@ -93,7 +95,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     private static Set<String> readNodeIdsForRemoval(StreamInput in) throws IOException {
-        return in.getTransportVersion().onOrAfter(SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED)
+        return in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
             ? in.readCollectionAsImmutableSet(StreamInput::readString)
             : Set.of();
     }
@@ -209,6 +211,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     // We moved from a non-null generation successful generation to a different non-null successful generation
                     // so the original generation is clearly obsolete because it was in-flight before and is now unreferenced everywhere.
                     obsoleteGenerations.computeIfAbsent(repositoryShardId, ignored -> new HashSet<>()).add(oldStatus.generation());
+                    logger.debug(
+                        """
+                            Marking shard generation [{}] file for cleanup. The finalized shard generation is now [{}], for shard \
+                            snapshot [{}] with shard ID [{}] on node [{}]
+                            """,
+                        oldStatus.generation(),
+                        newStatus.generation(),
+                        entry.snapshot(),
+                        repositoryShardId.shardId(),
+                        oldStatus.nodeId()
+                    );
                 }
             }
         }
@@ -246,7 +259,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         while (iterator.hasNext()) {
             iterator.next().writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeStringCollection(nodesIdsForRemoval);
         } else {
             assert nodesIdsForRemoval.isEmpty() : nodesIdsForRemoval;
@@ -433,7 +446,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * running shard snapshots.
      */
     public SnapshotsInProgress withUpdatedNodeIdsForRemoval(ClusterState clusterState) {
-        assert clusterState.getMinTransportVersion().onOrAfter(TransportVersions.SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED);
+        assert clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
 
         final var updatedNodeIdsForRemoval = new HashSet<>(nodesIdsForRemoval);
 
@@ -443,7 +456,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         updatedNodeIdsForRemoval.addAll(nodeIdsMarkedForRemoval);
 
         // remove any nodes which are no longer marked for shutdown if they have no running shard snapshots
-        updatedNodeIdsForRemoval.removeAll(getObsoleteNodeIdsForRemoval(nodeIdsMarkedForRemoval));
+        var restoredNodeIds = getObsoleteNodeIdsForRemoval(nodeIdsMarkedForRemoval);
+        updatedNodeIdsForRemoval.removeAll(restoredNodeIds);
+        logger.debug("Resuming shard snapshots on nodes [{}]", restoredNodeIds);
 
         if (updatedNodeIdsForRemoval.equals(nodesIdsForRemoval)) {
             return this;
@@ -471,19 +486,26 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return result;
     }
 
+    /**
+     * Identifies any nodes that are no longer marked for removal AND have no running shard snapshots.
+     * @param latestNodeIdsMarkedForRemoval the current nodes marked for removal in the cluster state.
+     */
     private Set<String> getObsoleteNodeIdsForRemoval(Set<String> latestNodeIdsMarkedForRemoval) {
-        final var obsoleteNodeIdsForRemoval = new HashSet<>(nodesIdsForRemoval);
-        obsoleteNodeIdsForRemoval.removeIf(latestNodeIdsMarkedForRemoval::contains);
-        if (obsoleteNodeIdsForRemoval.isEmpty()) {
+        // Find any nodes no longer marked for removal.
+        final var nodeIdsNoLongerMarkedForRemoval = new HashSet<>(nodesIdsForRemoval);
+        nodeIdsNoLongerMarkedForRemoval.removeIf(latestNodeIdsMarkedForRemoval::contains);
+        if (nodeIdsNoLongerMarkedForRemoval.isEmpty()) {
             return Set.of();
         }
+        // If any nodes have INIT state shard snapshots, then the node's snapshots are not concurrency safe to resume yet. All shard
+        // snapshots on a newly revived node (no longer marked for shutdown) must finish moving to paused before any can resume.
         for (final var byRepo : entries.values()) {
             for (final var entry : byRepo.entries()) {
                 if (entry.state() == State.STARTED && entry.hasShardsInInitState()) {
                     for (final var shardSnapshotStatus : entry.shards().values()) {
                         if (shardSnapshotStatus.state() == ShardState.INIT) {
-                            obsoleteNodeIdsForRemoval.remove(shardSnapshotStatus.nodeId());
-                            if (obsoleteNodeIdsForRemoval.isEmpty()) {
+                            nodeIdsNoLongerMarkedForRemoval.remove(shardSnapshotStatus.nodeId());
+                            if (nodeIdsNoLongerMarkedForRemoval.isEmpty()) {
                                 return Set.of();
                             }
                         }
@@ -491,7 +513,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 }
             }
         }
-        return obsoleteNodeIdsForRemoval;
+        return nodeIdsNoLongerMarkedForRemoval;
     }
 
     public boolean nodeIdsForRemovalChanged(SnapshotsInProgress other) {
@@ -618,6 +640,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             "missing index"
         );
 
+        /**
+         * Initializes status with state {@link ShardState#INIT}.
+         */
         public ShardSnapshotStatus(String nodeId, ShardGeneration generation) {
             this(nodeId, ShardState.INIT, generation);
         }
@@ -1709,7 +1734,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 new SimpleDiffable.CompleteDiff<>(after).writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeStringCollection(nodeIdsForRemoval);
             } else {
                 assert nodeIdsForRemoval.isEmpty() : nodeIdsForRemoval;

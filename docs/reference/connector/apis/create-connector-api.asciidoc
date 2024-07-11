@@ -14,6 +14,8 @@ Connectors are {es} integrations that bring content from third-party data source
 
 Find a list of all supported service types in the {enterprise-search-ref}/connectors.html[connectors documentation^].
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [source,console]
 --------------------------------------------------
 PUT _connector/my-connector
@@ -33,9 +35,9 @@ DELETE _connector/my-connector
 
 [[create-connector-api-request]]
 ==== {api-request-title}
-`POST _connector`
+* `POST _connector`
 
-`PUT _connector/<connector_id>`
+* `PUT _connector/<connector_id>`
 
 
 [[create-connector-api-prereqs]]
@@ -54,7 +56,7 @@ Creates a connector document in the internal index and initializes its configura
 ==== {api-path-parms-title}
 
 `<connector_id>`::
-(Required, string) Unique identifier of a connector.
+(Optional, string) Unique identifier of a connector.
 
 
 [role="child_attributes"]
@@ -123,7 +125,8 @@ The API returns the following result:
 [source,console-result]
 ----
 {
-  "result": "created"
+  "result": "created",
+  "id": "my-connector"
 }
 ----
 ////

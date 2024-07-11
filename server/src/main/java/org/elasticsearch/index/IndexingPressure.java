@@ -46,6 +46,7 @@ public class IndexingPressure {
     private final AtomicLong totalReplicaBytes = new AtomicLong(0);
 
     private final AtomicLong totalCoordinatingOps = new AtomicLong(0);
+    private final AtomicLong totalCoordinatingRequests = new AtomicLong(0);
     private final AtomicLong totalPrimaryOps = new AtomicLong(0);
     private final AtomicLong totalReplicaOps = new AtomicLong(0);
 
@@ -109,6 +110,7 @@ public class IndexingPressure {
         totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
         totalCoordinatingBytes.getAndAdd(bytes);
         totalCoordinatingOps.getAndAdd(operations);
+        totalCoordinatingRequests.getAndIncrement();
         return wrapReleasable(() -> {
             logger.trace(() -> Strings.format("removing [%d] coordinating operations and [%d] bytes", operations, bytes));
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
@@ -221,7 +223,8 @@ public class IndexingPressure {
             currentCoordinatingOps.get(),
             currentPrimaryOps.get(),
             currentReplicaOps.get(),
-            primaryDocumentRejections.get()
+            primaryDocumentRejections.get(),
+            totalCoordinatingRequests.get()
         );
     }
 }

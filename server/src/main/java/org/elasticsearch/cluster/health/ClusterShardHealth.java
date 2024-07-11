@@ -167,8 +167,8 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
-        if (unassignedInfo.getLastAllocationStatus() != AllocationStatus.DECIDERS_NO
-            && unassignedInfo.getNumFailedAllocations() == 0
+        if (unassignedInfo.lastAllocationStatus() != AllocationStatus.DECIDERS_NO
+            && unassignedInfo.failedAllocations() == 0
             && (recoveryType == RecoverySource.Type.EMPTY_STORE
                 || recoveryType == RecoverySource.Type.LOCAL_SHARDS
                 || recoveryType == RecoverySource.Type.SNAPSHOT)) {

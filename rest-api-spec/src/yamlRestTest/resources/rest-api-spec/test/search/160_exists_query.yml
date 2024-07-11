@@ -1242,8 +1242,10 @@ setup:
 ---
 "Test exists query on text field with empty values":
   - skip:
-      version: '8.4.0 - 8.5.0'
-      reason:  Regression introduced in 8.4.0, fixed in 8.5.1
+      known_issues:
+        - cluster_feature: "gte_v8.4.0"
+          fixed_by: "gte_v8.5.1"
+      reason: "Regression introduced in 8.4.0, fixed in 8.5.1"
 
   - do:
       index:

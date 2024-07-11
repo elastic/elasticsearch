@@ -46,6 +46,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
@@ -245,8 +246,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      *               thread, or on the thread that completed the closing of the last such shard.
      */
     public void onClusterStateShardsClosed(Runnable action) {
-        // In practice, must be called from the applier thread and we should validate the last-applied cluster state version too
-        // ES-8334 TODO validate this is called properly
         lastClusterStateShardsClosedListener.andThenAccept(ignored -> action.run());
     }
 
@@ -419,7 +418,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             // lock is released so it's guaranteed to be deleted by the time we get the lock
                             indicesService.processPendingDeletes(index, indexSettings, timeout);
                         } catch (ShardLockObtainFailedException exc) {
-                            logger.warn("[{}] failed to lock all shards for index - timed out after [{}]]", index, timeout);
+                            logger.warn(
+                                Strings.format("[%s] failed to lock all shards for index - timed out after [%s]]", index, timeout),
+                                exc
+                            );
                         } catch (InterruptedException e) {
                             logger.warn("[{}] failed to lock all shards for index - interrupted", index);
                         }
@@ -907,6 +909,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         + state
                         + "], mark shard as started",
                     shard.getTimestampRange(),
+                    shard.getEventIngestedRange(),
                     ActionListener.noop(),
                     clusterState
                 );
@@ -968,12 +971,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryDone(final RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+        public void onRecoveryDone(
+            final RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
             shardStateAction.shardStarted(
                 shardRouting,
                 primaryTerm,
                 "after " + state.getRecoverySource(),
                 timestampMillisFieldRange,
+                eventIngestedMillisFieldRange,
                 ActionListener.noop()
             );
         }
@@ -1067,27 +1075,30 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ShardRouting shardRouting = shardFailure.routing();
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
-                    try {
-                        CloseUtils.executeDirectly(
-                            l -> failAndRemoveShard(
-                                shardRouting,
-                                true,
-                                "shard failure, reason [" + shardFailure.reason() + "]",
-                                shardFailure.cause(),
-                                clusterService.state(),
-                                EsExecutors.DIRECT_EXECUTOR_SERVICE /* NB holding mutex while closing shard, ES-8334 TODO revisit this? */,
-                                l
-                            )
-                        );
-                    } catch (Exception e) {
-                        // should not be possible
-                        final var wrappedException = new IllegalStateException(
-                            "unexpected failure in FailedShardHandler on " + shardRouting,
-                            e
-                        );
-                        logger.error(wrappedException.getMessage(), e);
-                        assert false : e;
-                    }
+                    ActionListener.run(ActionListener.assertOnce(new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void unused) {}
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            final var wrappedException = new IllegalStateException(
+                                "unexpected failure in FailedShardHandler on " + shardRouting,
+                                e
+                            );
+                            logger.error(wrappedException.getMessage(), e);
+                            assert false : e;
+                        }
+                    }),
+                        l -> failAndRemoveShard(
+                            shardRouting,
+                            true,
+                            "shard failure, reason [" + shardFailure.reason() + "]",
+                            shardFailure.cause(),
+                            clusterService.state(),
+                            shardCloseExecutor,
+                            l
+                        )
+                    );
                 }
             });
         }
@@ -1121,6 +1132,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         @Nullable
         ShardLongFieldRange getTimestampRange();
+
+        /**
+         * @return the range of the {@code @event.ingested} field for this shard, or {@link ShardLongFieldRange#EMPTY} if this field is not
+         * found, or {@link ShardLongFieldRange#UNKNOWN} if its range is not fixed.
+         */
+        @Nullable
+        ShardLongFieldRange getEventIngestedRange();
 
         /**
          * Updates the shard state based on an incoming cluster state:

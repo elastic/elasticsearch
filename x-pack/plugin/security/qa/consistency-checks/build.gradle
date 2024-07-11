@@ -15,6 +15,7 @@ dependencies {
   testImplementation project(path: xpackModule('downsample'))
   testImplementation project(path: xpackModule('eql'))
   testImplementation project(path: xpackModule('esql'))
+  testImplementation project(path: xpackModule('esql-core'))
   testImplementation project(path: xpackModule('frozen-indices'))
   testImplementation project(path: xpackModule('graph'))
   testImplementation project(path: xpackModule('ilm'))

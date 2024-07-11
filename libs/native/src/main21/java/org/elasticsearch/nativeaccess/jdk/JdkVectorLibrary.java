@@ -18,11 +18,13 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
-import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 public final class JdkVectorLibrary implements VectorLibrary {
+
+    static final MethodHandle dot7u$mh;
+    static final MethodHandle sqr7u$mh;
 
     static final VectorSimilarityFunctions INSTANCE;
 
@@ -33,8 +35,33 @@ public final class JdkVectorLibrary implements VectorLibrary {
         try {
             int caps = (int) vecCaps$mh.invokeExact();
             if (caps != 0) {
+                if (caps == 2) {
+                    dot7u$mh = downcallHandle(
+                        "dot7u_2",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    sqr7u$mh = downcallHandle(
+                        "sqr7u_2",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                } else {
+                    dot7u$mh = downcallHandle(
+                        "dot7u",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    sqr7u$mh = downcallHandle(
+                        "sqr7u",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                }
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
+                dot7u$mh = null;
+                sqr7u$mh = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -50,33 +77,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
     }
 
     private static final class JdkVectorSimilarityFunctions implements VectorSimilarityFunctions {
-
-        static final MethodHandle dot8stride$mh = downcallHandle("dot8s_stride", FunctionDescriptor.of(JAVA_INT));
-        static final MethodHandle sqr8stride$mh = downcallHandle("sqr8s_stride", FunctionDescriptor.of(JAVA_INT));
-
-        static final MethodHandle dot8s$mh = downcallHandle("dot8s", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
-        static final MethodHandle sqr8s$mh = downcallHandle("sqr8s", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
-
-        // Stride of the native implementation - consumes this number of bytes per loop invocation.
-        // There must be at least this number of bytes/elements available when going native
-        static final int DOT_STRIDE = 32;
-        static final int SQR_STRIDE = 16;
-
-        static {
-            assert DOT_STRIDE > 0 && (DOT_STRIDE & (DOT_STRIDE - 1)) == 0 : "Not a power of two";
-            assert dot8Stride() == DOT_STRIDE : dot8Stride() + " != " + DOT_STRIDE;
-            assert SQR_STRIDE > 0 && (SQR_STRIDE & (SQR_STRIDE - 1)) == 0 : "Not a power of two";
-            assert sqr8Stride() == SQR_STRIDE : sqr8Stride() + " != " + SQR_STRIDE;
-        }
-
         /**
-         * Computes the dot product of given byte vectors.
+         * Computes the dot product of given unsigned int7 byte vectors.
+         *
+         * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
          *
          * @param a      address of the first vector
          * @param b      address of the second vector
          * @param length the vector dimensions
          */
-        static int dotProduct(MemorySegment a, MemorySegment b, int length) {
+        static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
             assert length >= 0;
             if (a.byteSize() != b.byteSize()) {
                 throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
@@ -84,29 +94,19 @@ public final class JdkVectorLibrary implements VectorLibrary {
             if (length > a.byteSize()) {
                 throw new IllegalArgumentException("length: " + length + ", greater than vector dimensions: " + a.byteSize());
             }
-            int i = 0;
-            int res = 0;
-            if (length >= DOT_STRIDE) {
-                i += length & ~(DOT_STRIDE - 1);
-                res = dot8s(a, b, i);
-            }
-
-            // tail
-            for (; i < length; i++) {
-                res += a.get(JAVA_BYTE, i) * b.get(JAVA_BYTE, i);
-            }
-            assert i == length;
-            return res;
+            return dot7u(a, b, length);
         }
 
         /**
-         * Computes the square distance of given byte vectors.
+         * Computes the square distance of given unsigned int7 byte vectors.
+         *
+         * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
          *
          * @param a      address of the first vector
          * @param b      address of the second vector
          * @param length the vector dimensions
          */
-        static int squareDistance(MemorySegment a, MemorySegment b, int length) {
+        static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
             assert length >= 0;
             if (a.byteSize() != b.byteSize()) {
                 throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
@@ -114,76 +114,47 @@ public final class JdkVectorLibrary implements VectorLibrary {
             if (length > a.byteSize()) {
                 throw new IllegalArgumentException("length: " + length + ", greater than vector dimensions: " + a.byteSize());
             }
-            int i = 0;
-            int res = 0;
-            if (length >= SQR_STRIDE) {
-                i += length & ~(SQR_STRIDE - 1);
-                res = sqr8s(a, b, i);
-            }
-
-            // tail
-            for (; i < length; i++) {
-                int dist = a.get(JAVA_BYTE, i) - b.get(JAVA_BYTE, i);
-                res += dist * dist;
-            }
-            assert i == length;
-            return res;
+            return sqr7u(a, b, length);
         }
 
-        private static int dot8Stride() {
+        private static int dot7u(MemorySegment a, MemorySegment b, int length) {
             try {
-                return (int) dot8stride$mh.invokeExact();
+                return (int) JdkVectorLibrary.dot7u$mh.invokeExact(a, b, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }
         }
 
-        private static int sqr8Stride() {
+        private static int sqr7u(MemorySegment a, MemorySegment b, int length) {
             try {
-                return (int) sqr8stride$mh.invokeExact();
+                return (int) JdkVectorLibrary.sqr7u$mh.invokeExact(a, b, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }
         }
 
-        private static int dot8s(MemorySegment a, MemorySegment b, int length) {
-            try {
-                return (int) dot8s$mh.invokeExact(a, b, length);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static int sqr8s(MemorySegment a, MemorySegment b, int length) {
-            try {
-                return (int) sqr8s$mh.invokeExact(a, b, length);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        static final MethodHandle DOT_HANDLE;
-        static final MethodHandle SQR_HANDLE;
+        static final MethodHandle DOT_HANDLE_7U;
+        static final MethodHandle SQR_HANDLE_7U;
 
         static {
             try {
                 var lookup = MethodHandles.lookup();
                 var mt = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
-                DOT_HANDLE = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct", mt);
-                SQR_HANDLE = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance", mt);
+                DOT_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", mt);
+                SQR_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7u", mt);
             } catch (NoSuchMethodException | IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
         }
 
         @Override
-        public MethodHandle dotProductHandle() {
-            return DOT_HANDLE;
+        public MethodHandle dotProductHandle7u() {
+            return DOT_HANDLE_7U;
         }
 
         @Override
-        public MethodHandle squareDistanceHandle() {
-            return SQR_HANDLE;
+        public MethodHandle squareDistanceHandle7u() {
+            return SQR_HANDLE_7U;
         }
     }
 }

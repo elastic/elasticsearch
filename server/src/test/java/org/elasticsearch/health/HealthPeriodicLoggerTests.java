@@ -18,7 +18,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
@@ -29,7 +31,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -122,13 +124,36 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         Map<String, Object> loggerResults = HealthPeriodicLogger.convertToLoggedFields(results);
 
-        // verify that the number of fields is the number of indicators + 2 (for overall and for message)
-        assertThat(loggerResults.size(), equalTo(results.size() + 2));
+        // verify that the number of fields is the number of indicators + 4
+        // (for overall and for message, plus details for the two yellow indicators)
+        assertThat(loggerResults.size(), equalTo(results.size() + 4));
 
         // test indicator status
         assertThat(loggerResults.get(makeHealthStatusString("master_is_stable")), equalTo("green"));
         assertThat(loggerResults.get(makeHealthStatusString("disk")), equalTo("yellow"));
+        assertThat(
+            loggerResults.get(makeHealthDetailsString("disk")),
+            equalTo(
+                getTestIndicatorResults().stream()
+                    .filter(i -> i.name().equals("disk"))
+                    .findFirst()
+                    .map(HealthIndicatorResult::details)
+                    .map(Strings::toString)
+                    .orElseThrow()
+            )
+        );
         assertThat(loggerResults.get(makeHealthStatusString("shards_availability")), equalTo("yellow"));
+        assertThat(
+            loggerResults.get(makeHealthDetailsString("shards_availability")),
+            equalTo(
+                getTestIndicatorResults().stream()
+                    .filter(i -> i.name().equals("shards_availability"))
+                    .findFirst()
+                    .map(HealthIndicatorResult::details)
+                    .map(Strings::toString)
+                    .orElseThrow()
+            )
+        );
 
         // test calculated overall status
         assertThat(loggerResults.get(makeHealthStatusString("overall")), equalTo(overallStatus.xContentValue()));
@@ -588,34 +613,33 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     }
 
     public void testLoggingHappens() {
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(HealthPeriodicLogger.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(HealthPeriodicLogger.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "overall",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
                     String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("overall"))
                 )
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "master_is_stable",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
                     String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("master_is_stable"))
                 )
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "disk",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
                     String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("disk"))
                 )
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "ilm",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
@@ -644,31 +668,30 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
             SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
             testHealthPeriodicLogger.triggered(event);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
     public void testOutputModeNoLogging() {
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(HealthPeriodicLogger.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+        try (var mockLog = MockLog.capture(HealthPeriodicLogger.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "overall",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
                     String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("overall"))
                 )
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "master_is_stable",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
                     String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("master_is_stable"))
                 )
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "disk",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
@@ -698,7 +721,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
             testHealthPeriodicLogger.triggered(event);
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -751,8 +774,35 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
     private List<HealthIndicatorResult> getTestIndicatorResults() {
         var networkLatency = new HealthIndicatorResult("master_is_stable", GREEN, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("disk", YELLOW, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", YELLOW, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult(
+            "disk",
+            YELLOW,
+            null,
+            new SimpleHealthIndicatorDetails(
+                Map.of(
+                    "indices_with_readonly_block",
+                    0,
+                    "nodes_with_enough_disk_space",
+                    1,
+                    "nodes_with_unknown_disk_status",
+                    0,
+                    "nodes_over_high_watermark",
+                    0,
+                    "nodes_over_flood_stage_watermark",
+                    1
+                )
+            ),
+            null,
+            null
+        );
+        var shardsAvailable = new HealthIndicatorResult(
+            "shards_availability",
+            YELLOW,
+            null,
+            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
+            null,
+            null
+        );
 
         return List.of(networkLatency, slowTasks, shardsAvailable);
     }
@@ -760,7 +810,14 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     private List<HealthIndicatorResult> getTestIndicatorResultsAllGreen() {
         var networkLatency = new HealthIndicatorResult("master_is_stable", GREEN, null, null, null, null);
         var slowTasks = new HealthIndicatorResult("disk", GREEN, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult(
+            "shards_availability",
+            GREEN,
+            null,
+            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
+            null,
+            null
+        );
 
         return List.of(networkLatency, slowTasks, shardsAvailable);
     }
@@ -768,13 +825,24 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     private List<HealthIndicatorResult> getTestIndicatorResultsWithRed() {
         var networkLatency = new HealthIndicatorResult("master_is_stable", GREEN, null, null, null, null);
         var slowTasks = new HealthIndicatorResult("disk", GREEN, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", RED, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult(
+            "shards_availability",
+            RED,
+            null,
+            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of("unassigned_primaries", 1))),
+            null,
+            null
+        );
 
         return List.of(networkLatency, slowTasks, shardsAvailable);
     }
 
     private String makeHealthStatusString(String key) {
         return String.format(Locale.ROOT, "%s.%s.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX, key);
+    }
+
+    private String makeHealthDetailsString(String key) {
+        return String.format(Locale.ROOT, "%s.%s.details", HealthPeriodicLogger.HEALTH_FIELD_PREFIX, key);
     }
 
     private HealthPeriodicLogger createAndInitHealthPeriodicLogger(

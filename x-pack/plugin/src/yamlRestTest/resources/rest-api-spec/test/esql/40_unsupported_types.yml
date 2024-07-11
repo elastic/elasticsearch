@@ -120,7 +120,6 @@ unsupported:
       esql.query:
         body:
           query: 'from test'
-          version: 2024.04.01
 
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: unsupported }
@@ -218,7 +217,6 @@ unsupported:
       esql.query:
         body:
           query: 'from test | limit 0'
-          version: 2024.04.01
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: unsupported }
   - match: { columns.1.name: binary }
@@ -285,7 +283,6 @@ unsupported:
       esql.query:
         body:
           query: 'from test | keep histogram | limit 0'
-          version: 2024.04.01
   - match: { columns.0.name: histogram }
   - match: { columns.0.type: unsupported }
   - length: { values: 0 }
@@ -303,7 +300,6 @@ unsupported with sort:
       esql.query:
         body:
           query: 'from test | sort some_doc.bar'
-          version: 2024.04.01
 
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: unsupported }

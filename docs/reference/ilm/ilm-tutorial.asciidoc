@@ -57,7 +57,7 @@ reaches either a `max_primary_shard_size` of 50 gigabytes or a `max_age` of 30 d
 
 [NOTE]
 ====
-The `min_age` value is relative to the rollover time, not the index creation time.
+The `min_age` value is relative to the rollover time, not the index creation time. <<min-age-calculation,Learn more>>.
 ====
 
 You can create the policy through {kib} or with the

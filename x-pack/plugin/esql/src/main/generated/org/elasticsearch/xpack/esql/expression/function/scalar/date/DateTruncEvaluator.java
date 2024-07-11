@@ -15,8 +15,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateTrunc}.
@@ -33,10 +33,10 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
 
   public DateTruncEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
       Rounding.Prepared rounding, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.fieldVal = fieldVal;
     this.rounding = rounding;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -71,9 +71,9 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(DateTrunc.process(fieldValVector.getLong(p), rounding));
+        result.appendLong(p, DateTrunc.process(fieldValVector.getLong(p), rounding));
       }
       return result.build();
     }

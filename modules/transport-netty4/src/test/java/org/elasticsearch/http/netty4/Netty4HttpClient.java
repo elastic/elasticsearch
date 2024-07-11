@@ -40,6 +40,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.net.SocketAddress;
 import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
@@ -203,7 +204,11 @@ class Netty4HttpClient implements Closeable {
 
                 @Override
                 public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-                    if (cause instanceof PrematureChannelClosureException || cause instanceof SocketException) {
+                    if (cause instanceof PrematureChannelClosureException
+                        || cause instanceof SocketException
+                        || (cause instanceof IOException
+                            && cause.getMessage() != null
+                            && cause.getMessage().contains("An established connection was aborted by the software in your host machine"))) {
                         // no more requests coming, so fast-forward the latch
                         fastForward();
                     } else {

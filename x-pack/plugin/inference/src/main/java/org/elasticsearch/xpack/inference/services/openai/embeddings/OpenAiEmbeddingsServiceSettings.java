@@ -17,10 +17,11 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -35,6 +36,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
@@ -44,7 +46,7 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 /**
  * Defines the service settings for interacting with OpenAI's text embedding models.
  */
-public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiRateLimitServiceSettings {
+public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings, OpenAiRateLimitServiceSettings {
 
     public static final String NAME = "openai_service_settings";
 
@@ -66,7 +68,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         // passed at that time and never throw.
         ValidationException validationException = new ValidationException();
 
-        var commonFields = fromMap(map, validationException);
+        var commonFields = fromMap(map, validationException, ConfigurationParseContext.PERSISTENT);
 
         Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
         if (dimensionsSetByUser == null) {
@@ -80,7 +82,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
     private static OpenAiEmbeddingsServiceSettings fromRequestMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        var commonFields = fromMap(map, validationException);
+        var commonFields = fromMap(map, validationException, ConfigurationParseContext.REQUEST);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -89,16 +91,31 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         return new OpenAiEmbeddingsServiceSettings(commonFields, commonFields.dimensions != null);
     }
 
-    private static CommonFields fromMap(Map<String, Object> map, ValidationException validationException) {
+    private static CommonFields fromMap(
+        Map<String, Object> map,
+        ValidationException validationException,
+        ConfigurationParseContext context
+    ) {
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String organizationId = extractOptionalString(map, ORGANIZATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
+        Integer maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            OpenAiService.NAME,
+            context
+        );
 
         return new CommonFields(modelId, uri, organizationId, similarity, maxInputTokens, dims, rateLimitSettings);
     }
@@ -177,14 +194,11 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
             maxInputTokens = null;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_DIMENSIONS_SET_BY_USER_ADDED)) {
-            dimensionsSetByUser = in.readBoolean();
-        } else {
-            dimensionsSetByUser = false;
-        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            dimensionsSetByUser = in.readBoolean();
             modelId = in.readString();
         } else {
+            dimensionsSetByUser = false;
             modelId = "unset";
         }
 
@@ -270,7 +284,8 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         return builder;
     }
 
-    private void toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
         if (uri != null) {
             builder.field(URL, uri.toString());
@@ -288,18 +303,8 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
         rateLimitSettings.toXContent(builder, params);
-    }
 
-    @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return (builder, params) -> {
-            builder.startObject();
-
-            toXContentFragmentOfExposedFields(builder, params);
-
-            builder.endObject();
-            return builder;
-        };
+        return builder;
     }
 
     @Override
@@ -319,10 +324,8 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
             out.writeOptionalVInt(maxInputTokens);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_DIMENSIONS_SET_BY_USER_ADDED)) {
-            out.writeBoolean(dimensionsSetByUser);
-        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            out.writeBoolean(dimensionsSetByUser);
             out.writeString(modelId);
         }
 

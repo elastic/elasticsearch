@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
@@ -167,10 +167,10 @@ public class ContinuousComputationTests extends ESTestCase {
             }
         };
 
-        MockLogAppender.assertThatLogger(
+        MockLog.assertThatLogger(
             () -> computation.onNewInput(input1),
             ContinuousComputation.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "error log",
                 ContinuousComputation.class.getCanonicalName(),
                 Level.ERROR,

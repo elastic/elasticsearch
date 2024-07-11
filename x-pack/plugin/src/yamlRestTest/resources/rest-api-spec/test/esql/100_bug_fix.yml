@@ -22,7 +22,6 @@
       esql.query:
         body:
           query: 'FROM test | sort emp_no | eval ip = to_ip(coalesce(ip1.keyword, "255.255.255.255")) | keep emp_no, ip'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -42,8 +41,6 @@
       esql.query:
         body:
           query: 'FROM test | sort emp_no | eval x1 = concat(ip1, ip2), x2 = coalesce(x1, "255.255.255.255"), x3 = to_ip(x2) | keep emp_no, x*'
-          version: 2024.04.01
-
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
   - match: { columns.1.name: "x1" }
@@ -111,7 +108,6 @@
       esql.query:
         body:
           query: 'from index* metadata _index | limit 5 | sort _index desc'
-          version: 2024.04.01
   - match: { columns.0.name: http.headers }
   - match: { columns.0.type: unsupported }
   - match: { columns.1.name: http.headers.location }
@@ -174,7 +170,6 @@
       esql.query:
         body:
           query: 'from npe_single_value* | stats x = avg(field1) | limit 10'
-          version: 2024.04.01
   - match: { columns.0.name: x }
   - match: { columns.0.type: double }
   - length: { values: 1 }
@@ -184,7 +179,6 @@
       esql.query:
         body:
           query: 'from npe_single_value* | stats x = avg(field2) | limit 10'
-          version: 2024.04.01
   - match: { columns.0.name: x }
   - match: { columns.0.type: double }
   - length: { values: 1 }
@@ -194,7 +188,6 @@
       esql.query:
         body:
           query: 'from npe_single_value* | stats x = avg(field3) | limit 10'
-          version: 2024.04.01
   - match: { columns.0.name: x }
   - match: { columns.0.type: double }
   - length: { values: 1 }
@@ -238,7 +231,6 @@
       esql.query:
         body:
           query: 'from idx_with_date_ip_txt | where id == 1 | eval x = date_format(text, date), y = date_extract(text2, date), p = date_parse(text, "2024-03-14") | keep x, y, p | limit 1'
-          version: 2024.04.01
   - match: { columns.0.name: x }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: y }
@@ -252,7 +244,6 @@
       esql.query:
         body:
           query: 'from idx_with_date_ip_txt | where id > 1 | eval x = cidr_match(ip, text) | sort id | keep id, x | limit 2'
-          version: 2024.04.01
   - match: { columns.0.name: id }
   - match: { columns.0.type: long }
   - match: { columns.1.name: x }
@@ -296,7 +287,6 @@
       esql.query:
         body:
           query: 'from idx_with_multivalues | eval b = mv_dedupe(boolean), k = mv_dedupe(keyword), i = mv_dedupe(integer), l = mv_dedupe(long), d = mv_dedupe(double) | keep b, k, i, l, d | limit 1'
-          version: 2024.04.01
   - match: { columns.0.name: b }
   - match: { columns.0.type: boolean }
   - match: { columns.1.name: k }
@@ -313,3 +303,38 @@
   - match: { values.0.2: [1, 2] }
   - match: { values.0.3: [1, 2] }
   - match: { values.0.4: [1.1, 2.2] }
+
+
+---
+"grok with duplicate names and different types #110533":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [grok_validation]
+      reason: "fixed grok validation with patterns containing the same attribute multiple times with different types"
+  - do:
+      indices.create:
+        index: test_grok
+        body:
+          mappings:
+            properties:
+              first_name :
+                type : keyword
+              last_name:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_grok" } }
+          - { "first_name": "Georgi", "last_name":"Facello" }
+
+  - do:
+      catch: '/Invalid GROK pattern \[%\{NUMBER:foo\} %\{WORD:foo\}\]: the attribute \[foo\] is defined multiple times with different types/'
+      esql.query:
+        body:
+          query: 'FROM test_grok | KEEP name | WHERE last_name == "Facello" | EVAL name = concat("1 ", last_name) | GROK name "%{NUMBER:foo} %{WORD:foo}"'

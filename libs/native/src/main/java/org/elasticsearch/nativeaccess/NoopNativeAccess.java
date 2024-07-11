@@ -26,6 +26,32 @@ class NoopNativeAccess implements NativeAccess {
     }
 
     @Override
+    public ProcessLimits getProcessLimits() {
+        logger.warn("Cannot get process limits because native access is not available");
+        return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN);
+    }
+
+    @Override
+    public void tryLockMemory() {
+        logger.warn("Cannot lock memory because native access is not available");
+    }
+
+    @Override
+    public boolean isMemoryLocked() {
+        return false;
+    }
+
+    @Override
+    public void tryInstallExecSandbox() {
+        logger.warn("Cannot install system call filter because native access is not available");
+    }
+
+    @Override
+    public ExecSandboxState getExecSandboxState() {
+        return ExecSandboxState.NONE;
+    }
+
+    @Override
     public Systemd systemd() {
         logger.warn("Cannot get systemd access because native access is not available");
         return null;

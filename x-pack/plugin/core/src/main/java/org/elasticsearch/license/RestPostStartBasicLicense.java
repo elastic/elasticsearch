@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestPostStartBasicLicense extends BaseRestHandler {
@@ -32,10 +33,8 @@ public class RestPostStartBasicLicense extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PostStartBasicRequest startBasicRequest = new PostStartBasicRequest();
+        PostStartBasicRequest startBasicRequest = new PostStartBasicRequest(getMasterNodeTimeout(request), getAckTimeout(request));
         startBasicRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
-        startBasicRequest.ackTimeout(request.paramAsTime("timeout", startBasicRequest.ackTimeout()));
-        startBasicRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         return channel -> client.execute(
             PostStartBasicAction.INSTANCE,
             startBasicRequest,

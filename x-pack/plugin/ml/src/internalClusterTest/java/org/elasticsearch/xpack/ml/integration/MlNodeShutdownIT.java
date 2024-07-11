@@ -95,7 +95,16 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName, grace)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                nodeIdToShutdown.get(),
+                type,
+                "just testing",
+                null,
+                targetNodeName,
+                grace
+            )
         ).actionGet();
 
         // Wait for the desired end state of all 6 jobs running on nodes that are not shutting down.
@@ -189,7 +198,16 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName, grace)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                nodeIdToShutdown.get(),
+                type,
+                "just testing",
+                null,
+                targetNodeName,
+                grace
+            )
         ).actionGet();
 
         if (randomBoolean()) {

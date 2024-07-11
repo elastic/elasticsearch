@@ -150,6 +150,7 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             MultiGeoPointValues fieldValues = ((LeafGeoPointFieldData) fieldData).getPointValues();
+            assertNotNull(FieldData.unwrapSingleton(fieldValues));
             assertValues(fieldValues, 0);
             assertValues(fieldValues, 1);
             assertValues(fieldValues, 2);
@@ -182,6 +183,7 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             MultiGeoPointValues fieldValues = ((LeafGeoPointFieldData) fieldData).getPointValues();
+            assertNull(FieldData.unwrapSingleton(fieldValues));
             assertValues(fieldValues, 0);
             assertValues(fieldValues, 1);
             assertValues(fieldValues, 2);

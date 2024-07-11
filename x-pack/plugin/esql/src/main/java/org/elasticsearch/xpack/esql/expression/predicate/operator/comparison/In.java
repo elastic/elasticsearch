@@ -238,23 +238,6 @@ public class In extends EsqlScalarFunction {
         return commonType;
     }
 
-    static boolean process(BitSet nulls, BitSet mvs, boolean lhs, boolean[] rhs) {
-        boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
-        for (int i = 0; i < rhs.length; i++) {
-            if (hasNull && nulls.get(i)) {
-                continue;
-            }
-            if (mvs != null && mvs.get(i)) {
-                continue;
-            }
-            Boolean compResult = Comparisons.eq(lhs, rhs[i]);
-            if (compResult == Boolean.TRUE) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     static boolean process(BitSet nulls, BitSet mvs, int lhs, int[] rhs) {
         boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
         for (int i = 0; i < rhs.length; i++) {

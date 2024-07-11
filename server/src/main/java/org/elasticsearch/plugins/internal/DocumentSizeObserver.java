@@ -28,6 +28,7 @@ public interface DocumentSizeObserver {
         public long normalisedBytesParsed() {
             return 0;
         }
+
     };
 
     /**
@@ -40,7 +41,17 @@ public interface DocumentSizeObserver {
 
     /**
      * Returns the state gathered during parsing
+     *
      * @return a number representing a state parsed
      */
     long normalisedBytesParsed();
+
+    /**
+     * Indicates if an observer was used on an update request with script
+     *
+     * @return true if update was done by script, false otherwise
+     */
+    default boolean isUpdateByScript() {
+        return false;
+    }
 }

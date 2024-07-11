@@ -16,6 +16,7 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -41,12 +42,10 @@ public class SearchResponseMetrics {
     }
 
     public static final String RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME = "status";
+    public static final String QUERY_CATEGORIES_ATTRIBUTE_PREFIX = "query_category_";
 
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";
-
-    public static final String HEADERS_ATTRIBUTE_NAME_PREFIX = "request.headers.";
-    public static final String QUERY_CATEGORIES_ATTRIBUTE_NAME = "query_categories";
 
     private final LongHistogram tookDurationTotalMillisHistogram;
     private final LongCounter responseCountTotalCounter;
@@ -79,9 +78,8 @@ public class SearchResponseMetrics {
     }
 
     private static Map<String, Object> queryMetricAttributes(Set<QueryCategory> queryCategories) {
-        Map<String, Object> attributes = Map.of(
-            QUERY_CATEGORIES_ATTRIBUTE_NAME,
-            queryCategories.stream().map(QueryCategory::displayName).collect(Collectors.joining(" "))
+        Map<String, Object> attributes = Collections.unmodifiableMap(
+            queryCategories.stream().collect(Collectors.toMap(c -> QUERY_CATEGORIES_ATTRIBUTE_PREFIX + c.displayName(), c -> true))
         );
         logger.info("Query attributes: {}", attributes);
         return attributes;

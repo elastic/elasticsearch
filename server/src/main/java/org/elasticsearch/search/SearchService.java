@@ -136,6 +136,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1569,7 +1570,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public Set<Long> getActiveContextIDs() {
-        return this.activeReaders.keySet();
+        return new HashSet<>(this.activeReaders.keySet());
     }
 
     /**

@@ -410,23 +410,19 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     private void cleanDatabases() {
         // this cleanDatabases logic is wrong, it'll deleteOldChunks() repeatedly forever,
         // and it counts down the lastCheck a millisecond at a time which seems like nonsense to me.
-        // ALSO, we shouldn't use peek for this!!!!!
-        long expiredDatabases = state.getDatabases()
+        List<Map.Entry<String, Metadata>> expiredDatabases = state.getDatabases()
             .entrySet()
             .stream()
             .filter(e -> e.getValue().isValid(clusterService.state().metadata().settings()) == false)
-            .peek(e -> {
-                String name = e.getKey();
-                Metadata meta = e.getValue();
-                deleteOldChunks(name, meta.lastChunk() + 1);
-                state = state.put(
-                    name,
-                    // WAT, it's very wrong that this is doing lastCheck - 1... it seems like nonsense!
-                    new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1, meta.sha256())
-                );
-                updateTaskState();
-            })
-            .count();
+            .toList();
+        expiredDatabases.forEach(e -> {
+            String name = e.getKey();
+            Metadata meta = e.getValue();
+            deleteOldChunks(name, meta.lastChunk() + 1);
+            // the lastCheck() - 1 bit here is a WAT
+            state = state.put(name, new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1));
+            updateTaskState();
+        });
     }
 
     @Override

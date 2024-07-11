@@ -132,12 +132,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     // visible for testing
     void updateDatabases() throws IOException {
-        // REMOVEME OF COURSE
-        if (true) {
-            logger.info("Downloading is temporarily disabled while I figure things out");
-            return;
-        }
-
         var clusterState = clusterService.state();
         var geoipIndex = clusterState.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {

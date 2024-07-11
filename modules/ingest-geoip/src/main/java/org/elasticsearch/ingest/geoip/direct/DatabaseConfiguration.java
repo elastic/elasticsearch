@@ -57,10 +57,16 @@ public record DatabaseConfiguration(String id, String name) implements Writeable
         "GeoIP2-Country",
         "GeoIP2-Domain",
         "GeoIP2-Enterprise",
-        "GeoIP2-ISP",
-        "GeoLite2-ASN",
-        "GeoLite2-City",
-        "GeoLite2-Country"
+        "GeoIP2-ISP"
+
+        // in order to prevent a conflict between the (ordinary) geoip downloader and the enterprise geoip downloader,
+        // the enterprise geoip downloader is limited only to downloading the commercial files that the (ordinary) geoip downloader
+        // doesn't support out of the box -- in the future if we would like to relax this constraint, then we'll need to resolve that
+        // conflict at the same time.
+
+        // "GeoLite2-ASN",
+        // "GeoLite2-City",
+        // "GeoLite2-Country"
     );
 
     private static final ParseField NAME = new ParseField("name");

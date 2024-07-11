@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -31,12 +33,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -45,6 +54,8 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class WordListsIndexService {
+    private static final Logger logger = LogManager.getLogger(WordListsIndexService.class);
+
     public static final String WORD_LISTS_FEATURE_NAME = "word_lists";
     public static final String WORD_LISTS_ORIGIN = "word_lists";
 
@@ -175,38 +186,8 @@ public class WordListsIndexService {
 
                     super.onFailure(e);
                 }
-            });
-
-
-//        client.prepareSearch(WORD_LISTS_ALIAS_NAME)
-//            .setQuery(QueryBuilders.termQuery(WORD_LIST_ID_FIELD, wordListId))
-//            .setSize(1)
-//            .setPreference(Preference.LOCAL.type())
-//            .setTrackTotalHits(true)
-//            .execute(new DelegatingActionListener<>(listener) {
-//                @Override
-//                public void onResponse(SearchResponse searchResponse) {
-//                    final long wordListCount = searchResponse.getHits().getTotalHits().value;
-//                    if (wordListCount > 1) {
-//                        listener.onFailure(new IllegalStateException(wordListCount + " word lists have ID [" + wordListId + "]"));
-//                    } else if (wordListCount == 1) {
-//                        listener.onResponse((String) searchResponse.getHits().getHits()[0].getSourceAsMap().get(WORD_LIST_VALUE_FIELD));
-//                    } else {
-//                        listener.onResponse(null);
-//                    }
-//                }
-//
-//                @Override
-//                public void onFailure(Exception e) {
-//                    Throwable cause = ExceptionsHelper.unwrapCause(e);
-//                    if (cause instanceof IndexNotFoundException) {
-//                        delegate.onResponse(null);
-//                        return;
-//                    }
-//
-//                    super.onFailure(e);
-//                }
-//            });
+            }
+        );
     }
 
     public void putWordList(String index, String wordListName, String wordListValue, ActionListener<PutWordListResult> listener) {
@@ -227,14 +208,41 @@ public class WordListsIndexService {
                 l.onResponse(result);
             })
         );
+    }
 
-//        client.index(indexRequest, listener.delegateFailure((l, indexResponse) -> {
-//            PutWordListResult result = indexResponse.status() == RestStatus.CREATED
-//                ? PutWordListResult.CREATED
-//                : PutWordListResult.UPDATED;
-//
-//            l.onResponse(result);
-//        }));
+    public void deleteIndexWordLists(String index, ActionListener<Boolean> listener) {
+        TermQueryBuilder queryBuilder = QueryBuilders.termQuery(WORD_LIST_INDEX_FIELD, index);
+        DeleteByQueryRequest request = new DeleteByQueryRequest().indices(WORD_LISTS_ALIAS_NAME).setQuery(queryBuilder);
+        executeAsyncWithOrigin(client, WORD_LISTS_ORIGIN, DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
+            @Override
+            public void onResponse(BulkByScrollResponse response) {
+                List<BulkItemResponse.Failure> failures = response.getBulkFailures();
+                if (failures.isEmpty() == false) {
+                    logger.warn("Failed to delete word lists for index [" + index + "]");
+                    failures.forEach(failure -> logger.warn(failure.getMessage(), failure.getCause()));
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Failed to delete word lists for index [" + index + "]. See log for details.",
+                            RestStatus.INTERNAL_SERVER_ERROR
+                        )
+                    );
+                }
+
+                boolean deletedWordLists = response.getDeleted() > 0;
+                listener.onResponse(deletedWordLists);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof IndexNotFoundException) {
+                    listener.onResponse(false);
+                    return;
+                }
+
+                listener.onFailure(e);
+            }
+        });
     }
 
     private static String generateWordListId(String index, String wordListName) {

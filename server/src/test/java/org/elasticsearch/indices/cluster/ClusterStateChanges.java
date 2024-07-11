@@ -322,7 +322,8 @@ public class ClusterStateChanges {
             deleteIndexService,
             actionFilters,
             indexNameExpressionResolver,
-            destructiveOperations
+            destructiveOperations,
+            client
         );
         transportUpdateSettingsAction = new TransportUpdateSettingsAction(
             transportService,

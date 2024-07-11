@@ -2509,7 +2509,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new MetadataDeleteIndexService(settings, clusterService, allocationService),
                         actionFilters,
                         indexNameExpressionResolver,
-                        new DestructiveOperations(settings, clusterSettings)
+                        new DestructiveOperations(settings, clusterSettings),
+                        client
                     )
                 );
                 actions.put(

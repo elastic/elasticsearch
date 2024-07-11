@@ -39,10 +39,6 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
 
     private final int baselineTemplatePriority;
     private final int contenderTemplatePriority;
-
-    // NOTE: this is a single node test, having more shards or replicas results in a yellow cluster
-    private static final int DEFAULT_NUMBER_OF_SHARDS = 1;
-    private static final int DEFAULT_NUMBER_OF_REPLICAS = 1;
     private XContentBuilder baselineMappings;
     private XContentBuilder contenderMappings;
     private Settings.Builder baselineSettings;
@@ -197,9 +193,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     }
 
     private Settings.Builder createSettings(final CheckedConsumer<Settings.Builder, IOException> settingsConsumer) throws IOException {
-        final Settings.Builder settings = Settings.builder()
-            .put("index.number_of_shards", numberOfShards())
-            .put("index.number_of_replicas", numberOfReplicas());
+        final Settings.Builder settings = Settings.builder();
         settingsConsumer.accept(settings);
         return settings;
     }
@@ -279,14 +273,6 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         final Request request = new Request("GET", "/" + dataStreamNameSupplier.get() + "/_search");
         request.setJsonEntity(Strings.toString(search));
         return client.performRequest(request);
-    }
-
-    protected int numberOfShards() {
-        return DEFAULT_NUMBER_OF_SHARDS;
-    }
-
-    protected int numberOfReplicas() {
-        return DEFAULT_NUMBER_OF_REPLICAS;
     }
 
     public String getBaselineDataStreamName() {

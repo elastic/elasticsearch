@@ -109,9 +109,24 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         }
     }
 
+    private static void settings(final Settings.Builder settings) {
+        if (randomBoolean()) {
+            settings.put("index.number_of_shards", randomIntBetween(2, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("index.number_of_replicas", randomIntBetween(1, 3));
+        }
+    }
+
     @Override
     public void contenderSettings(Settings.Builder builder) {
         builder.put("index.mode", "logs");
+        settings(builder);
+    }
+
+    @Override
+    public void baselineSettings(Settings.Builder builder) {
+        settings(builder);
     }
 
     @Override

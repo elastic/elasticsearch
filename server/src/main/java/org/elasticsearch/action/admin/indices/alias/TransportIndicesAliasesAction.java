@@ -239,7 +239,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                                 )
                             );
 
-                            if (action.autoExpandAliases()) {
+                            if (action.autoExpandAliases() != null && action.autoExpandAliases()) {
                                 // TODO If we were going to get downstream aliases out of cluster metadata, this is where they would be
                                 // applied.
                                 Set<String> downstreamAliases = Set.of();
@@ -262,7 +262,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                         for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
                             finalActions.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
 
-                            if (action.autoExpandAliases()) {
+                            if (action.autoExpandAliases() != null && action.autoExpandAliases()) {
                                 // TODO If we were going to get downstream aliases out of cluster metadata, this is where they would be
                                 // applied.
                                 Set<String> downstreamAliases = Set.of();

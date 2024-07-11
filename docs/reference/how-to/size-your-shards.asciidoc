@@ -546,14 +546,13 @@ PUT _cluster/settings
 ----
 
 [discrete]
-==== Number of documents in the index shard cannot exceed [2147483519]
+==== Number of documents in the shard cannot exceed [2147483519]
 
 
 Elasticsearch shards reflect Lucene's underlying https://github.com/apache/lucene/issues/5176[index 
-`MAX_DOC` hard limit] of 2,147,483,519 (`(2^31)-129`) docs. This figure calulates 
-from the sum of `docs.count` plus `docs.deleted` as reported by <<indices-stats,Index Stats>> 
-per shard. Attempting to surpass this limit, e.g. via ingestion's <<index-modules-translog,translog>>, 
-will cause error 
+`MAX_DOC` hard limit] of 2,147,483,519 (`(2^31)-129`) docs. This figure is
+the sum of `docs.count` plus `docs.deleted` as reported by the <<indices-stats,Index stats API>> 
+per shard. Exceeding this limit will result in errors like the following:
 
 [source, txt]
 ----
@@ -567,17 +566,14 @@ or this error's sister stack trace will appear
 Caused by: java.lang.IllegalArgumentException: number of documents in the index cannot exceed 2147483519
 ----
 
-TIP: This calculation works off all docs within the shard, including nested docs. 
+TIP: This calculation includes nested documents.
+This may differ from the results of the <<search-count,Count API>>.
 Therefore, it's results are not guaranteed to line up to the <<search-count,Count API>> 
 which masks nested docs. 
 
-Encountering this error usually suggests an issue with sharding strategy being 
-out of compliance with the above recommendations on this page, specifically at least 
-<<shard-size-recommendation,aiming for shards of up to 200M documents>>. 
 
-Frequently, the `docs.deleted` for the index will be elevated that 
-<<indices-forcemerge,expunging deleted docs>> can work as a short-term stop gap to regain
-ability to admin the index, e.g. for `my-index-000001` this command would appear 
+Try using the <<indices-forcemerge,Force merge API>> to free up space and recover the
+ability to admin the index. For example:
 
 [source,console]
 ----

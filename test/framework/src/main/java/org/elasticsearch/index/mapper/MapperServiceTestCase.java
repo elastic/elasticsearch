@@ -764,7 +764,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup(
         Function<String, Set<String>> sourcePathsLookup
     ) {
-        return (mft, lookupSource, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSource, sourcePathsLookup, fdo))
+        return (mft, lookupSource, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", null, lookupSource, sourcePathsLookup, fdo))
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 

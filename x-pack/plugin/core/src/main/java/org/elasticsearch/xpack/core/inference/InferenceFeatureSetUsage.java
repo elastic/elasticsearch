@@ -54,6 +54,18 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
             count++;
         }
 
+        public String service() {
+            return service;
+        }
+
+        public TaskType taskType() {
+            return taskType;
+        }
+
+        public long count() {
+            return count;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

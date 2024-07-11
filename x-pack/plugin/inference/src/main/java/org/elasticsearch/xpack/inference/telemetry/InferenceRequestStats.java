@@ -7,20 +7,23 @@
 
 package org.elasticsearch.xpack.inference.telemetry;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.InferenceRequestStats;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
-public class InferenceRequestCounter implements Counter, Serializable<InferenceRequestStats> {
-    private final String service;
-    private final TaskType taskType;
+public class InferenceRequestStats
+    implements
+        Stats,
+        Transformable<org.elasticsearch.xpack.core.inference.InferenceRequestStats>,
+        Closeable {
+    protected final String service;
+    protected final TaskType taskType;
+    protected final String modelId;
     private final LongAdder counter = new LongAdder();
-    private final String modelId;
 
     public static String key(Model model) {
         StringBuilder builder = new StringBuilder();
@@ -36,20 +39,12 @@ public class InferenceRequestCounter implements Counter, Serializable<InferenceR
         return builder.toString();
     }
 
-    public InferenceRequestCounter(Model model) {
+    public InferenceRequestStats(Model model) {
         Objects.requireNonNull(model);
 
         service = model.getConfigurations().getService();
         taskType = model.getTaskType();
         modelId = model.getServiceSettings().modelId();
-    }
-
-    public InferenceRequestCounter(StreamInput in) throws IOException {
-        this.service = in.readString();
-        this.taskType = in.readEnum(TaskType.class);
-        this.modelId = in.readOptionalString();
-        var count = in.readVLong();
-        this.counter.add(count);
     }
 
     @Override
@@ -63,7 +58,10 @@ public class InferenceRequestCounter implements Counter, Serializable<InferenceR
     }
 
     @Override
-    public InferenceRequestStats convert() {
-        return new InferenceRequestStats(service, taskType, modelId, counter.sum());
+    public org.elasticsearch.xpack.core.inference.InferenceRequestStats transform() {
+        return new org.elasticsearch.xpack.core.inference.InferenceRequestStats(service, taskType, modelId, getCount());
     }
+
+    @Override
+    public void close() throws IOException {}
 }

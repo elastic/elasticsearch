@@ -1,0 +1,5 @@
+pr: 110740
+summary: Adjust `ecs@mappings` to latest ECS and tests to consider normalizer
+area: Data streams
+type: enhancement
+issues: []

@@ -430,7 +430,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             e -> {},
             ActionListener.noop()
         );
-        assertThat(task.execute(state), not(sameInstance(state)));
+        assertThat("Cluster state should be modified", task.execute(state), not(sameInstance(state)));
 
         task = new ReservedStateUpdateTask(
             "test",
@@ -441,7 +441,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             e -> {},
             ActionListener.noop()
         );
-        assertThat(task.execute(state), sameInstance(state));
+        assertThat("Cluster state should not be modified", task.execute(state), sameInstance(state));
 
         task = new ReservedStateUpdateTask(
             "test",
@@ -452,7 +452,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             e -> {},
             ActionListener.noop()
         );
-        assertThat(task.execute(state), sameInstance(state));
+        assertThat("Cluster state should not be modified", task.execute(state), sameInstance(state));
     }
 
     private ReservedClusterStateHandler<Map<String, Object>> makeHandlerHelper(String name, List<String> deps) {

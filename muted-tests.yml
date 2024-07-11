@@ -85,6 +85,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
   method: testPopulationOfCacheWhenLoadingPrivilegesForAllApplications
   issue: https://github.com/elastic/elasticsearch/issues/110789
+- class: org.elasticsearch.xpack.security.ScrollHelperIntegTests
+  method: testFetchAllEntities
+  issue: https://github.com/elastic/elasticsearch/issues/110786
 
 # Examples:
 #

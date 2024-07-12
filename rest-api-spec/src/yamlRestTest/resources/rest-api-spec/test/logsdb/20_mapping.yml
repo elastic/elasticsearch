@@ -6,7 +6,7 @@ stored _source mode is not supported:
         - method: PUT
           path: /{index}
           capabilities: [logs_index_mode_synthetic_source]
-      reason: "Support for 'logs' index mode capability required"
+      reason: "Support for synthetic source mode validation is required"
 
   - do:
       catch: bad_request
@@ -37,7 +37,7 @@ disabled _source is not supported:
         - method: PUT
           path: /{index}
           capabilities: [logs_index_mode_synthetic_source]
-      reason: "Support for 'logs' index mode capability required"
+      reason: "Support for synthetic source mode validation is required"
 
   - do:
       catch: bad_request

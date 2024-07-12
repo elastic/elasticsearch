@@ -105,6 +105,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testRowCommandHugeNegativeInt() {
+        assertEquals(
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(-92233720368547758080d)))),
+            statement("row c = -92233720368547758080")
+        );
+        assertEquals(
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(-18446744073709551616d)))),
+            statement("row c = -18446744073709551616")
+        );
+    }
+
     public void testRowCommandDouble() {
         assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(1.0)))), statement("row c = 1.0"));
     }

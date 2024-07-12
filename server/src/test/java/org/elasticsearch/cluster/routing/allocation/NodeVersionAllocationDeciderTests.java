@@ -443,7 +443,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsRestore(
                         metadata.index("test"),
-                        new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, IndexVersion.current(), indexId)
+                        new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, IndexVersion.current(), indexId, isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository)
                     )
                     .build()
             )
@@ -606,14 +606,14 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
             newNode.node().getMaxIndexVersion(),
-            indexId
-        );
+            indexId,
+            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
         final SnapshotRecoverySource oldVersionSnapshot = new SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
             oldNode.node().getMaxIndexVersion(),
-            indexId
-        );
+            indexId,
+            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
 
         decision = allocationDecider.canAllocate(
             ShardRoutingHelper.newWithRestoreSource(primaryShard, newVersionSnapshot),

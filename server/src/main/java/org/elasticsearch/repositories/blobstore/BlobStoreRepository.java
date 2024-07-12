@@ -188,6 +188,12 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVE
  * documentation of the package {@link org.elasticsearch.repositories.blobstore}.
  */
 public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
+    public static final String VIRTUAL_DATA_BLOB_PREFIX = "v__";
+    public static final Setting<Boolean> SYSTEM_REPOSITORY_SETTING = Setting.boolSetting(
+        "system_repository",
+        false,
+        Setting.Property.NodeScope
+    );
     private static final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
 
     protected volatile RepositoryMetadata metadata;
@@ -1934,6 +1940,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+
+
+    @Override
+    public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
+        try {
+            return SNAPSHOT_FORMAT.read(metadata.name(), blobContainer(), snapshotId.getUUID(), namedXContentRegistry);
+        } catch (NoSuchFileException ex) {
+            throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
+        } catch (IOException | NotXContentException ex) {
+            throw new SnapshotException(metadata.name(), snapshotId, "failed to get snapshots", ex);
+        }
+    }
+
+
     /**
      * Tries to poll a {@link SnapshotId} to load {@link SnapshotInfo} for from the given {@code queue}.
      */
@@ -2179,6 +2199,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final AtomicReference<RepositoryData> latestKnownRepositoryData = new AtomicReference<>(RepositoryData.EMPTY);
 
     @Override
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        if (latestKnownRepoGen.get() == RepositoryData.CORRUPTED_REPO_GEN) {
+            listener.onFailure(corruptedStateException(null));
+            return;
+        }
+        final RepositoryData cached = latestKnownRepositoryData.get();
+        // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
+        // the latest known repository generation
+        if (bestEffortConsistency == false && cached != null && cached.v1() == latestKnownRepoGen.get()) {
+            try {
+                listener.onResponse(repositoryDataFromCachedEntry(cached));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+            return;
+        }
+        // Slow path if we were not able to safely read the repository data from cache
+        threadPool.generic().execute(ActionRunnable.wrap(listener, this::doGetRepositoryData));
+    }
+
+    @Override
     public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
         // RepositoryData is the responsibility of the elected master: we shouldn't be loading it on other nodes as we don't have good
         // consistency guarantees there, but electedness is too ephemeral to assert. We can say for sure that this node should be
@@ -2195,7 +2236,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             if (latestKnownRepoGen.get() == RepositoryData.CORRUPTED_REPO_GEN) {
-                listener.onFailure(corruptedStateException(null, null));
+                listener.onFailure(corruptedStateException(null));
                 return;
             }
             final RepositoryData cached = latestKnownRepositoryData.get();
@@ -2446,7 +2487,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     markRepoCorrupted(
                         genToLoad,
                         e,
-                        listener.delegateFailureAndWrap((l, v) -> l.onFailure(corruptedStateException(e, finalLastInfo)))
+                        listener.delegateFailureAndWrap((l, v) -> l.onFailure(corruptedStateException(e)))
                     );
                 } else {
                     listener.onFailure(e);
@@ -2491,7 +2532,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
-    private RepositoryException corruptedStateException(@Nullable Exception cause, @Nullable Tuple<Long, String> previousWriterInfo) {
+    private RepositoryException corruptedStateException(@Nullable Exception cause) {
         return new RepositoryException(metadata.name(), Strings.format("""
             The repository has been disabled to prevent data corruption because its contents were found not to match its expected state. \
             This is either because something other than this cluster modified the repository contents, or because the repository's \

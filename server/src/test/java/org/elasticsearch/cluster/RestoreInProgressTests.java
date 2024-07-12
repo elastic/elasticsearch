@@ -27,8 +27,7 @@ public class RestoreInProgressTests extends ESTestCase {
                     "uuid-" + i,
                     new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10))),
                     randomFrom(RestoreInProgress.State.values()),
-                    randomBoolean(),
-                    List.of(),
+                        List.of(),
                     Map.of()
                 )
             );

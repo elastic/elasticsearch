@@ -360,8 +360,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 UUIDs.randomBase64UUID(),
                 new Snapshot("src_only", snapshotId),
                 IndexVersion.current(),
-                indexId
-            )
+                indexId,
+                isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository)
         ).build();
         IndexMetadata metadata = runAsSnapshot(
             threadPool,

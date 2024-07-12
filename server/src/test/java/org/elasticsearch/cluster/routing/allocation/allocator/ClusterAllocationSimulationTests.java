@@ -222,9 +222,9 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var masterService = new MasterService(
             settings,
             clusterSettings,
-            threadPool,
-            new TaskManager(settings, threadPool, Set.of())
-        ) {
+            clusterManagerMetrics, threadPool,
+            new TaskManager(settings, threadPool, Set.of()),
+            stateStats) {
             @Override
             protected ExecutorService createThreadPoolExecutor() {
                 return new StoppableExecutorServiceWrapper(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -271,7 +271,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         applierService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
         applierService.setInitialState(unassignedClusterState);
 
-        final var clusterService = new ClusterService(settings, clusterSettings, masterService, applierService);
+        final var clusterService = new ClusterService(settings, clusterSettings, masterService, applierService, stateStats);
         clusterService.start();
 
         final var clusterInfoService = new TestClusterInfoService(clusterService);
@@ -560,7 +560,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 dataPath.put(new ClusterInfo.NodeAndShard(shardRouting.currentNodeId(), shardRouting.shardId()), "/data");
             }
 
-            return new ClusterInfo(diskSpaceUsage, diskSpaceUsage, shardSizes, Map.of(), dataPath, Map.of());
+            return new ClusterInfo(diskSpaceUsage, diskSpaceUsage, shardSizes, Map.of(), dataPath, Map.of(), nodeFileCacheStats);
         }
 
     }

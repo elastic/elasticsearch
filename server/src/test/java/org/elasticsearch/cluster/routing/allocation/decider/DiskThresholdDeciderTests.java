@@ -1164,7 +1164,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsNewRestore(
                         indexMetadata,
-                        new RecoverySource.SnapshotRecoverySource("_restore_uuid", snapshot, IndexVersion.current(), indexId),
+                        new RecoverySource.SnapshotRecoverySource("_restore_uuid", snapshot, IndexVersion.current(), indexId, isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository),
                         new HashSet<>()
                     )
                     .build()
@@ -1176,8 +1176,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         "_restore_uuid",
                         snapshot,
                         RestoreInProgress.State.INIT,
-                        false,
-                        List.of("test"),
+                            List.of("test"),
                         Map.of(shardId, new RestoreInProgress.ShardRestoreStatus("node1"))
                     )
                 ).build()
@@ -1334,7 +1333,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             Map<String, Long> shardSizes,
             Map<NodeAndPath, ReservedSpace> reservedSpace
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), reservedSpace, nodeFileCacheStats);
         }
 
         @Override

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -23,9 +24,12 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotClusterManagerException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -35,6 +39,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
+import org.elasticsearch.cluster.service.ClusterManagerTaskThrottler;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -43,6 +48,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +56,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -65,12 +72,18 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.remote.RemoteStoreCustomMetadataResolver;
+import org.elasticsearch.index.remote.RemoteStoreEnums;
+import org.elasticsearch.index.remote.RemoteStorePathStrategy;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.replication.common.ReplicationType;
+import org.elasticsearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.elasticsearch.node.remotestore.RemoteStoreNodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -102,15 +115,24 @@ import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_SHRINK_INITIAL_RECOVERY_KEY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.elasticsearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
+import static org.elasticsearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
+import static org.elasticsearch.node.remotestore.RemoteStoreNodeService.isMigratingToRemoteStore;
 
 /**
  * Service responsible for submitting create index requests
@@ -133,6 +155,7 @@ public class MetadataCreateIndexService {
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ThreadPool threadPool;
+    private RemoteStoreCustomMetadataResolver remoteStoreCustomMetadataResolver;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -184,10 +207,106 @@ public class MetadataCreateIndexService {
         }
     }
 
+    public static void validateRefreshIntervalSettings(Settings requestSettings, ClusterSettings clusterSettings) {
+        if (IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.exists(requestSettings) == false
+            || requestSettings.get(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()) == null) {
+            return;
+        }
+        TimeValue requestRefreshInterval = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(requestSettings);
+        // If the refresh interval supplied is -1, we allow the index to be created because -1 means no periodic refresh.
+        if (requestRefreshInterval.millis() == -1) {
+            return;
+        }
+        TimeValue clusterMinimumRefreshInterval = clusterSettings.get(IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING);
+        if (requestRefreshInterval.millis() < clusterMinimumRefreshInterval.millis()) {
+            throw new IllegalArgumentException(
+                "invalid index.refresh_interval ["
+                    + requestRefreshInterval
+                    + "]: cannot be smaller than cluster.minimum.index.refresh_interval ["
+                    + clusterMinimumRefreshInterval
+                    + "]"
+            );
+        }
+    }
+
+    public static void updateReplicationStrategy(
+        Settings.Builder settingsBuilder,
+        Settings requestSettings,
+        Settings nodeSettings,
+        Settings combinedTemplateSettings,
+        ClusterSettings clusterSettings
+    ) {
+        // The replication setting is applied in the following order:
+        // 1. Strictly SEGMENT if cluster is undergoing remote store migration
+        // 2. Explicit index creation request parameter
+        // 3. Template property for replication type
+        // 4. Replication type according to cluster level settings
+        // 5. Defaults to segment if remote store attributes on the cluster
+        // 6. Default cluster level setting
+
+        final ReplicationType indexReplicationType;
+        if (isMigratingToRemoteStore(clusterSettings)) {
+            indexReplicationType = ReplicationType.SEGMENT;
+        } else if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
+            indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(requestSettings);
+        } else if (combinedTemplateSettings != null && INDEX_REPLICATION_TYPE_SETTING.exists(combinedTemplateSettings)) {
+            indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(combinedTemplateSettings);
+        } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(nodeSettings)) {
+            indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.get(nodeSettings);
+        } else if (isRemoteDataAttributePresent(nodeSettings)) {
+            indexReplicationType = ReplicationType.SEGMENT;
+        } else {
+            indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.getDefault(nodeSettings);
+        }
+        settingsBuilder.put(SETTING_REPLICATION_TYPE, indexReplicationType);
+    }
+
+    public static void updateRemoteStoreSettings(
+        Settings.Builder settingsBuilder,
+        ClusterState clusterState,
+        ClusterSettings clusterSettings,
+        Settings nodeSettings,
+        String indexName
+    ) {
+        if ((isRemoteDataAttributePresent(nodeSettings)
+            && clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(RemoteStoreNodeService.CompatibilityMode.STRICT))
+            || isMigratingToRemoteStore(clusterSettings)) {
+            String segmentRepo, translogRepo;
+
+            Optional<DiscoveryNode> remoteNode = clusterState.nodes()
+                .getNodes()
+                .values()
+                .stream()
+                .filter(DiscoveryNode::isRemoteStoreNode)
+                .findFirst();
+
+            if (remoteNode.isPresent()) {
+                translogRepo = remoteNode.get()
+                    .getAttributes()
+                    .get(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY);
+                segmentRepo = remoteNode.get()
+                    .getAttributes()
+                    .get(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
+                if (segmentRepo != null && translogRepo != null) {
+                    settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
+                        .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo)
+                        .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepo);
+                } else {
+                    ValidationException validationException = new ValidationException();
+                    validationException.addValidationErrors(
+                        Collections.singletonList("Cluster is migrating to remote store but no remote node found, failing index creation")
+                    );
+                    throw new IndexCreationException(indexName, validationException);
+                }
+            }
+        }
+    }
+
+
     /**
      * Validates (if this index has a dot-prefixed name) whether it follows the rules for dot-prefixed indices.
      * @param index The name of the index in question
-     * @param isHidden Whether or not this is a hidden index
+     * @param isHidden Whether this is a hidden index
      */
     public boolean validateDotIndex(String index, @Nullable Boolean isHidden) {
         boolean isSystem = false;
@@ -296,6 +415,16 @@ public class MetadataCreateIndexService {
             new AckedClusterStateUpdateTask(Priority.URGENT, request, delegate.clusterStateUpdate()) {
 
                 @Override
+                public void onFailure(String source, Exception e) {
+
+                }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return null;
+                }
+
+                @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return applyCreateIndexRequest(currentState, request, false, null, delegate.reroute());
                 }
@@ -308,6 +437,21 @@ public class MetadataCreateIndexService {
                         logger.debug(() -> "[" + request.index() + "] failed to create", e);
                     }
                     super.onFailure(e);
+                }
+
+                @Override
+                public void onFailure(String source, ProcessClusterEventTimeoutException e) {
+
+                }
+
+                @Override
+                public void onFailure(String source, NotClusterManagerException e) {
+
+                }
+
+                @Override
+                public void onFailure(String source, FailedToCommitClusterStateException t) {
+
                 }
             }
         );
@@ -1642,5 +1786,32 @@ public class MetadataCreateIndexService {
                     + "or equivalent performance to [simplefs]."
             );
         }
+    }
+
+    public void addRemoteStoreCustomMetadata(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
+        if (remoteStoreCustomMetadataResolver == null) {
+            return;
+        }
+        // It is possible that remote custom data exists already. In such cases, we need to only update the path type
+        // in the remote store custom data map.
+        Map<String, String> existingCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        assert assertNullOldType == false || Objects.isNull(existingCustomData);
+
+        Map<String, String> remoteCustomData = new HashMap<>();
+
+        // Determine if the ckp would be stored as translog metadata
+        boolean isTranslogMetadataEnabled = remoteStoreCustomMetadataResolver.isTranslogMetadataEnabled();
+        remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(isTranslogMetadataEnabled));
+
+        // Determine the path type for use using the remoteStorePathResolver.
+        RemoteStorePathStrategy newPathStrategy = remoteStoreCustomMetadataResolver.getPathStrategy();
+        remoteCustomData.put(RemoteStoreEnums.PathType.NAME, newPathStrategy.getType().name());
+        if (Objects.nonNull(newPathStrategy.getHashAlgorithm())) {
+            remoteCustomData.put(RemoteStoreEnums.PathHashAlgorithm.NAME, newPathStrategy.getHashAlgorithm().name());
+        }
+        logger.trace(
+            () -> new ParameterizedMessage("Added newCustomData={}, replaced oldCustomData={}", remoteCustomData, existingCustomData)
+        );
+        tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
     }
 }

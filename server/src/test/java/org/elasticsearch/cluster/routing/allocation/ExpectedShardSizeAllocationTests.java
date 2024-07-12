@@ -103,7 +103,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsRestore(
                         indexMetadata,
-                        new RecoverySource.SnapshotRecoverySource(restoreId, snapshot, IndexVersion.current(), indexId)
+                        new RecoverySource.SnapshotRecoverySource(restoreId, snapshot, IndexVersion.current(), indexId, isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository)
                     )
             )
             .customs(
@@ -114,8 +114,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
                             restoreId,
                             snapshot,
                             RestoreInProgress.State.STARTED,
-                            false,
-                            List.of(indexMetadata.getIndex().getName()),
+                                List.of(indexMetadata.getIndex().getName()),
                             Map.of(new ShardId(indexMetadata.getIndex(), 0), new RestoreInProgress.ShardRestoreStatus(randomIdentifier()))
                         )
                     ).build()
@@ -257,11 +256,11 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
             ),
             Map.of(),
             Map.of(),
-            Map.of()
-        );
+            Map.of(),
+                nodeFileCacheStats);
     }
 
     private static ClusterInfo createClusterInfo(Map<String, DiskUsage> diskUsage, Map<String, Long> shardSizes) {
-        return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of());
+        return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of(), nodeFileCacheStats);
     }
 }

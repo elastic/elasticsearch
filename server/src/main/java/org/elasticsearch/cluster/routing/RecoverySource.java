@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,6 +34,10 @@ import java.util.Objects;
  */
 public abstract class RecoverySource implements Writeable, ToXContentObject {
 
+    public static String sourceRemoteStoreRepository;
+    public static boolean remoteStoreIndexShallowCopy;
+    public static boolean isSearchableSnapshot;
+
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -54,7 +59,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             case EMPTY_STORE -> EmptyStoreRecoverySource.INSTANCE;
             case EXISTING_STORE -> ExistingStoreRecoverySource.read(in);
             case PEER -> PeerRecoverySource.INSTANCE;
-            case SNAPSHOT -> new SnapshotRecoverySource(in);
+            case SNAPSHOT -> new SnapshotRecoverySource(in, isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
             case LOCAL_SHARDS -> LocalShardsRecoverySource.INSTANCE;
         };
     }
@@ -206,20 +211,45 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final String restoreUUID;
         private final Snapshot snapshot;
         private final IndexId index;
-        private final IndexVersion version;
+        private final Version version;
+        private final boolean isSearchableSnapshot;
+        private final boolean remoteStoreIndexShallowCopy;
+        private final String sourceRemoteStoreRepository;
 
-        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, IndexVersion version, IndexId indexId) {
+        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot,
+                                      Version version, IndexId indexId, boolean isSearchableSnapshot,
+                                      boolean remoteStoreIndexShallowCopy, String sourceRemoteStoreRepository) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
             this.index = Objects.requireNonNull(indexId);
+            this.isSearchableSnapshot = isSearchableSnapshot;
+            this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
+            this.sourceRemoteStoreRepository = sourceRemoteStoreRepository;
         }
 
-        SnapshotRecoverySource(StreamInput in) throws IOException {
+
+        SnapshotRecoverySource(StreamInput in, boolean isSearchableSnapshot,
+                               boolean remoteStoreIndexShallowCopy, String sourceRemoteStoreRepository)
+            throws IOException {
             restoreUUID = in.readString();
             snapshot = new Snapshot(in);
-            version = IndexVersion.readVersion(in);
+            version = Version.readVersion(in);
             index = new IndexId(in);
+            this.isSearchableSnapshot = isSearchableSnapshot;
+            this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
+            this.sourceRemoteStoreRepository = sourceRemoteStoreRepository;
+        }
+
+        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, IndexVersion version, IndexId snapshotIndexId, boolean isSearchableSnapshot, boolean isRemoteStoreShallowCopy, String sourceRemoteStoreRepository, String restoreUUID1, Snapshot snapshot1, IndexId index, Version version1, boolean isSearchableSnapshot1, boolean remoteStoreIndexShallowCopy, String sourceRemoteStoreRepository1) {
+            super();
+            this.restoreUUID = restoreUUID1;
+            this.snapshot = snapshot1;
+            this.index = index;
+            this.version = version1;
+            this.isSearchableSnapshot = isSearchableSnapshot1;
+            this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
+            this.sourceRemoteStoreRepository = sourceRemoteStoreRepository1;
         }
 
         public String restoreUUID() {
@@ -240,7 +270,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return index;
         }
 
-        public IndexVersion version() {
+        public Version version() {
             return version;
         }
 
@@ -248,7 +278,6 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
             snapshot.writeTo(out);
-            IndexVersion.writeVersion(version, out);
             index.writeTo(out);
         }
 
@@ -261,7 +290,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         public void addAdditionalFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.field("repository", snapshot.getRepository())
                 .field("snapshot", snapshot.getSnapshotId().getName())
-                .field("version", version.toReleaseVersion())
+                .field("version", version)
                 .field("index", index.getName())
                 .field("restoreUUID", restoreUUID);
         }

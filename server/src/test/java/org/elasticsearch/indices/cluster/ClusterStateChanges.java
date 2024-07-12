@@ -178,9 +178,9 @@ public class ClusterStateChanges {
         final var masterService = new MasterService(
             SETTINGS,
             clusterSettings,
-            threadPool,
-            new TaskManager(SETTINGS, threadPool, Collections.emptySet())
-        ) {
+            clusterManagerMetrics, threadPool,
+            new TaskManager(SETTINGS, threadPool, Collections.emptySet()),
+            stateStats) {
             @Override
             protected ExecutorService createThreadPoolExecutor() {
                 // run master tasks inline, no need to fork to a separate thread
@@ -188,7 +188,7 @@ public class ClusterStateChanges {
             }
         };
         // mocks
-        clusterService = new ClusterService(SETTINGS, clusterSettings, masterService, null);
+        clusterService = new ClusterService(SETTINGS, clusterSettings, masterService, null, stateStats);
         resetMasterService();
         masterService.start();
 
@@ -272,7 +272,7 @@ public class ClusterStateChanges {
         );
         client.initialize(actions, transportService.getTaskManager(), null, transportService.getLocalNodeConnection(), null);
 
-        ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService);
+        ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService, ignoreDotIndexes, systemIndices);
         MetadataIndexStateService indexStateService = new MetadataIndexStateService(
             clusterService,
             allocationService,

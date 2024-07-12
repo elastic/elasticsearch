@@ -10,11 +10,13 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.annotation.PublicApi;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -63,6 +65,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
+    private StorageType storageType = StorageType.LOCAL;
+    private Object sourceRemoteStoreRepository = null;
 
     public RestoreSnapshotRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
@@ -70,7 +74,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     @Deprecated(forRemoval = true) // temporary compatibility shim
     public RestoreSnapshotRequest(String repository, String snapshot) {
-        this(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, repository, snapshot);
+        this(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, repository, snapshot);
     }
 
     /**
@@ -106,6 +110,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
+            storageType = in.readEnum(StorageType.class);
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+            sourceRemoteStoreRepository = in.readOptionalString();
+        }
     }
 
     @Override
@@ -679,5 +689,53 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             builder.endObject();
             return builder;
         });
+    }
+
+    public Object storageType() {
+        return storageType;
+    }
+
+    public Object getSourceRemoteStoreRepository() {
+        return sourceRemoteStoreRepository;
+    }
+    public static final TimeValue DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    protected TimeValue clusterManagerNodeTimeout = DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
+
+
+
+    public Comparable<TimeValue> clusterManagerNodeTimeout() {
+        return this.clusterManagerNodeTimeout;
+    }
+
+
+    @PublicApi(since = "1.0.0")
+    public enum StorageType {
+        LOCAL("local"),
+        REMOTE_SNAPSHOT("remote_snapshot");
+
+        private final String text;
+
+        StorageType(String text) {
+            this.text = text;
+        }
+
+        @Override
+        public String toString() {
+            return text;
+        }
+
+        private void toXContent(XContentBuilder builder) throws IOException {
+            builder.field("storage_type", text);
+        }
+
+        private static StorageType fromString(String string) {
+            for (StorageType type : values()) {
+                if (type.text.equals(string)) {
+                    return type;
+                }
+            }
+            throw new IllegalArgumentException("Invalid storage_type: " + string);
+        }
     }
 }

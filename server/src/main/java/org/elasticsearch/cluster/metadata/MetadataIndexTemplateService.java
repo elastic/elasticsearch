@@ -1394,7 +1394,7 @@ public class MetadataIndexTemplateService {
         return Collections.unmodifiableList(mappings);
     }
 
-    private static boolean isDataStreamIndex(String indexName) {
+    public static boolean isDataStreamIndex(String indexName) {
         return indexName.startsWith(DataStream.BACKING_INDEX_PREFIX) || indexName.startsWith(DataStream.FAILURE_STORE_PREFIX);
     }
 

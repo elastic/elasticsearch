@@ -30,6 +30,8 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
+
 public class ClusterService extends AbstractLifecycleComponent {
     private final MasterService masterService;
 
@@ -52,31 +54,35 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final ClusterSettings clusterSettings;
 
     private final String nodeName;
+    private final ClusterManagerMetrics clusterManagerMetrics;
+    private final ClusterStateStats stateStats;
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager, ClusterManagerMetrics clusterManagerMetrics, ClusterManagerMetrics clusterManagerMetrics1, ClusterStateStats stateStats, ClusterStateStats stateStats1) {
         this(
             settings,
             clusterSettings,
-            new MasterService(settings, clusterSettings, threadPool, taskManager),
-            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
-        );
+            new MasterService(settings, clusterSettings, clusterManagerMetrics, threadPool, taskManager, stateStats),
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool),
+            stateStats);
     }
 
     public ClusterService(
         Settings settings,
         ClusterSettings clusterSettings,
         MasterService masterService,
-        ClusterApplierService clusterApplierService
-    ) {
+        ClusterApplierService clusterApplierService,
+        ClusterStateStats stateStats) {
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.masterService = masterService;
+        this.stateStats = stateStats;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         // Add a no-op update consumer so changes are logged
         this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_METADATA, (first, second) -> {}, (first, second) -> {});
         this.clusterApplierService = clusterApplierService;
+        clusterManagerMetrics = null;
     }
 
     public ThreadPool threadPool() {
@@ -253,4 +259,13 @@ public class ClusterService extends AbstractLifecycleComponent {
     ) {
         return masterService.createTaskQueue(name, priority, executor);
     }
+
+    public <T extends ClusterStateTaskListener> void submitStateUpdateTask(
+        String source,
+        T task
+    ) {
+        masterService.submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
+    }
+
 }
+

@@ -105,6 +105,26 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
 
+    public static boolean isCoordinationMetadataEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata);
+    }
+
+    public static boolean isSettingsMetadataEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.persistentSettings.equals(metadata2.persistentSettings);
+    }
+
+    public static boolean isTransientSettingsMetadataEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.transientSettings.equals(metadata2.transientSettings);
+    }
+
+    public static boolean isTemplatesMetadataEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.templates.equals(metadata2.templates);
+    }
+
+    public static boolean isHashesOfConsistentSettingsEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings);
+    }
+
     public enum XContentContext {
         /* Custom metadata should be returned as part of API call */
         API,
@@ -2850,6 +2870,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             }
         }
 
+        public Builder dataStreams(Map<String, DataStream> dataStreams) {
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams));
+            return this;
+        }
     }
 
     private static final ToXContent.Params FORMAT_PARAMS;

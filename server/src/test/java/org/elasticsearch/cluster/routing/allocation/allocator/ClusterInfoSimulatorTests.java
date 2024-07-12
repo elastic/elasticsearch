@@ -279,7 +279,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             "node-0",
             true,
             ShardRoutingState.INITIALIZING
-        ).withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId)).build();
+        ).withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId, isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository)).build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder() //
             .withNode("node-0", new DiskUsageBuilder(1000, 1000))
@@ -324,7 +324,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             "node-0",
             true,
             ShardRoutingState.INITIALIZING
-        ).withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId)).build();
+        ).withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId, isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository)).build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder() //
             .withNode("node-0", new DiskUsageBuilder(1000, 1000))
@@ -640,7 +640,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         }
 
         public ClusterInfo build() {
-            return new ClusterInfo(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
+            return new ClusterInfo(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), reservedSpace, nodeFileCacheStats);
         }
     }
 

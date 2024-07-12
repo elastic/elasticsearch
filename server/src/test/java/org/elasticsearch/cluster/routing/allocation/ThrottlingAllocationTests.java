@@ -384,8 +384,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                             restoreUUID,
                             snapshot,
                             IndexVersion.current(),
-                            new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))
-                        ),
+                            new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random())),
+                            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository),
                         new HashSet<>()
                     );
                 }
@@ -397,8 +397,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                             restoreUUID,
                             snapshot,
                             IndexVersion.current(),
-                            new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))
-                        )
+                            new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random())),
+                            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository)
                     );
                 }
                 case 5 -> routingTableBuilder.addAsNew(indexMetadata);
@@ -427,8 +427,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 restoreUUID,
                 snapshot,
                 RestoreInProgress.State.INIT,
-                false,
-                new ArrayList<>(snapshotIndices),
+                    new ArrayList<>(snapshotIndices),
                 restoreShards
             );
             restores.put(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(restore).build());

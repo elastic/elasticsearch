@@ -181,8 +181,8 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 null,
-                mock(TaskManager.class)
-            ),
+                mock(TaskManager.class),
+                clusterManagerMetrics, clusterManagerMetrics1, stateStats, stateStats1),
             transformsConfigManager,
             mockAuditor
         );

@@ -276,6 +276,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         public long repositoryStateId() {
             return repositoryStateId;
         }
+
+        public List<SnapshotId> getSnapshots() {
+            return snapshots;
+        }
     }
 
     public enum State implements Writeable {

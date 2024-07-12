@@ -75,7 +75,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
+    public static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
     /**
      * list of browser safelisted media types - not allowed on Content-Type header
      * https://fetch.spec.whatwg.org/#cors-safelisted-request-header

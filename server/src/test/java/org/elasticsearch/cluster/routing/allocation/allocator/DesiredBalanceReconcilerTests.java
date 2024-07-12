@@ -563,8 +563,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             UUIDs.randomBase64UUID(random()),
             new Snapshot("repo", new SnapshotId("snap", UUIDs.randomBase64UUID(random()))),
             IndexVersion.current(),
-            new IndexId("index", UUIDs.randomBase64UUID(random()))
-        );
+            new IndexId("index", UUIDs.randomBase64UUID(random())),
+            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
         routingTable.addAsRestore(restoredIndexMetadata, recoverySource);
 
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -588,8 +588,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             shardSizesBuilder.build(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
-        );
+            ImmutableOpenMap.of(),
+                nodeFileCacheStats);
 
         final var restoredShardSize = randomNonNegativeLong();
         final var snapshotSizesBuilder = ImmutableOpenMap.<InternalSnapshotsInfoService.SnapshotShard, Long>builder();

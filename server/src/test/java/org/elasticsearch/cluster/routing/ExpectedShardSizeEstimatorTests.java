@@ -114,7 +114,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var indexId = new IndexId("my-index", "_na_");
 
         var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
-            .withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId))
+            .withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId, isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository))
             .build();
 
         var snapshotShardSizeInfo = new SnapshotShardSizeInfo(
@@ -193,7 +193,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
             Map.of(ClusterInfo.shardIdentifierFromRouting(shard), size),
             Map.of(),
             Map.of(),
-            Map.of()
-        );
+            Map.of(),
+                nodeFileCacheStats);
     }
 }

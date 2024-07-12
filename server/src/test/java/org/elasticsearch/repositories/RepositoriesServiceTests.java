@@ -430,6 +430,11 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
+        public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
+            return null;
+        }
+
+        @Override
         public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
             return null;
         }
@@ -442,6 +447,11 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
             listener.onResponse(RepositoryData.EMPTY);
+        }
+
+        @Override
+        public void getRepositoryData(ActionListener<RepositoryData> listener) {
+            listener.onResponse(null);
         }
 
         @Override

@@ -1,0 +1,58 @@
+plugins {
+  id 'java'
+}
+
+allprojects {
+  group = 'org.elasticsearch'
+  version = '7.10.2'
+}
+
+subprojects {
+  apply plugin: 'java'
+
+  repositories {
+    mavenCentral()
+  }
+}
+
+project(':libs:common') {
+  // Configuration specific to the common module
+}
+
+dependencies {
+  // Common dependencies
+  compile project(':libs:common')
+
+  compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+  compileOnly project(':libs:elasticsearch-logging')
+
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-core'
+  }
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'org/osgi/framework/AdaptPermission',
+    'org/osgi/framework/AdminPermission',
+    'org/osgi/framework/Bundle',
+    'org/osgi/framework/BundleActivator',
+    'org/osgi/framework/BundleContext',
+    'org/osgi/framework/BundleEvent',
+    'org/osgi/framework/SynchronousBundleListener',
+    'org/osgi/framework/wiring/BundleWire',
+    'org/osgi/framework/wiring/BundleWiring'
+  )
+}
+
+dependencies {
+  jarHell sourceSets.main.output
+}

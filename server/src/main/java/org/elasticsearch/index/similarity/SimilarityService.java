@@ -18,6 +18,7 @@ import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -79,7 +80,7 @@ public final class SimilarityService {
     public SimilarityService(
         IndexSettings indexSettings,
         ScriptService scriptService,
-        Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarities
+        Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities
     ) {
         Map<String, Supplier<Similarity>> providers = Maps.newMapWithExpectedSize(similarities.size());
         Map<String, Settings> similaritySettings = indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);

@@ -81,7 +81,7 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
         this.shardRouting = new ShardRouting(in);
         this.currentNode = in.readOptionalWriteable(DiscoveryNode::new);
         this.relocationTargetNode = in.readOptionalWriteable(DiscoveryNode::new);
-        this.clusterInfo = in.readOptionalWriteable(ClusterInfo::new);
+        this.clusterInfo = in.readOptionalWriteable(in1 -> new ClusterInfo(in1, nodeFileCacheStats));
         this.shardAllocationDecision = new ShardAllocationDecision(in);
     }
 

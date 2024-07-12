@@ -306,7 +306,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         Map<ShardId, ShardSnapshotStatus> shards,
         Map<String, Object> userMetadata,
         IndexVersion version,
-        List<SnapshotFeatureInfo> featureStates
+        List<SnapshotFeatureInfo> featureStates,
+        boolean remoteStoreIndexShallowCopy
     ) {
         return Entry.snapshot(
             snapshot,
@@ -724,6 +725,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public static class Entry implements Writeable, ToXContentObject, RepositoryOperation, Diffable<Entry> {
+        private static boolean remoteStoreIndexShallowCopy;
         private final State state;
         private final Snapshot snapshot;
         private final boolean includeGlobalState;
@@ -814,7 +816,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 null,
                 byRepoShardIdBuilder,
                 res,
-                hasInitStateShards
+                hasInitStateShards,
+                remoteStoreIndexShallowCopy
             );
         }
 
@@ -846,8 +849,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 source,
                 shardStatusByRepoShardId,
                 Map.of(),
-                false
-            );
+                false,
+                remoteStoreIndexShallowCopy);
         }
 
         private Entry(
@@ -867,8 +870,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             @Nullable SnapshotId source,
             Map<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId,
             Map<String, Index> snapshotIndices,
-            boolean hasShardsInInitState
-        ) {
+            boolean hasShardsInInitState,
+            boolean remoteStoreIndexShallowCopy) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
@@ -1005,8 +1008,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 source,
                 shardStatusByRepoShardId,
                 snapshotIndices,
-                hasShardsInInitState
-            );
+                hasShardsInInitState,
+                remoteStoreIndexShallowCopy);
         }
 
         /**
@@ -1424,6 +1427,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public Diff<Entry> diff(Entry previousState) {
             return new EntryDiff(previousState, this);
         }
+
+        public Object remoteStoreIndexShallowCopy() {
+            return remoteStoreIndexShallowCopy;
+        }
     }
 
     private static final class EntryDiff implements Diff<Entry> {
@@ -1498,6 +1505,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final long updatedRepositoryStateId;
 
         private final State updatedState;
+        private boolean remoteStoreIndexShallowCopy;
 
         @SuppressWarnings("unchecked")
         EntryDiff(StreamInput in) throws IOException {
@@ -1611,8 +1619,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     null,
                     part.shardStatusByRepoShardId,
                     part.snapshotIndices,
-                    part.hasShardsInInitState
-                );
+                    part.hasShardsInInitState,
+                    remoteStoreIndexShallowCopy);
             }
             if (part.isClone()) {
                 return Entry.createClone(

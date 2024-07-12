@@ -888,8 +888,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     ((SnapshotRecoverySource) recoveryState.getRecoverySource()).restoreUUID(),
                     new Snapshot(REPO_NAME, createSnapshotResponse.getSnapshotInfo().snapshotId()),
                     IndexVersion.current(),
-                    repositoryData.resolveIndexId(INDEX_NAME)
-                );
+                    repositoryData.resolveIndexId(INDEX_NAME),
+                    isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
                 assertRecoveryState(recoveryState, 0, recoverySource, true, Stage.DONE, null, nodeA);
                 validateIndexRecoveryState(recoveryState.getIndex());
             }

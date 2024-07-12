@@ -1106,8 +1106,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             UUIDs.randomBase64UUID(),
             snapshot,
             version,
-            indexId
-        );
+            indexId,
+            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
         final ShardRouting shardRouting = shardRoutingBuilder(shardId, node.getId(), true, ShardRoutingState.INITIALIZING)
             .withRecoverySource(recoverySource)
             .build();

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -29,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -49,6 +51,11 @@ import java.util.function.Function;
  * </ul>
  */
 public interface Repository extends LifecycleComponent {
+
+
+    default Collection<? extends Setting<?>> getRestrictedSystemRepositorySettings() {
+        return Collections.emptyList();
+    }
 
     /**
      * An factory interface for constructing repositories.
@@ -90,6 +97,8 @@ public interface Repository extends LifecycleComponent {
         CheckedConsumer<SnapshotInfo, Exception> consumer,
         ActionListener<Void> listener
     );
+
+    SnapshotInfo getSnapshotInfo(SnapshotId snapshotId);
 
     /**
      * Reads a single snapshot description from the repository
@@ -144,6 +153,7 @@ public interface Repository extends LifecycleComponent {
      *                         available, e.g. from an in-memory cache), otherwise it is completed using {@code responseExecutor}.
      */
     void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener);
+    void getRepositoryData(ActionListener<RepositoryData> listener);
 
     /**
      * Finalizes snapshotting process

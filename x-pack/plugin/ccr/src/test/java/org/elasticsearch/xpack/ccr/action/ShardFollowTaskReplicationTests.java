@@ -524,8 +524,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         UUIDs.randomBase64UUID(),
                         snapshot,
                         IndexVersion.current(),
-                        new IndexId("test", UUIDs.randomBase64UUID(random()))
-                    )
+                        new IndexId("test", UUIDs.randomBase64UUID(random())),
+                        isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository)
                 );
                 primaryShard.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();

@@ -53,6 +53,15 @@ import java.util.ServiceLoader;
  */
 public record IndexVersion(int id, Version luceneVersion) implements VersionId<IndexVersion>, ToXContentFragment {
 
+    public boolean before(Version version) {
+        return version.minor > id;
+    }
+
+    @Override
+    public boolean after(IndexVersion version) {
+        return VersionId.super.after(version);
+    }
+
     private static class CurrentHolder {
         private static final IndexVersion CURRENT = findCurrent();
 
@@ -62,7 +71,6 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
                 .map(e -> e.getCurrentIndexVersion(IndexVersions.LATEST_DEFINED))
                 .orElse(IndexVersions.LATEST_DEFINED);
 
-            assert version.onOrAfter(IndexVersions.LATEST_DEFINED);
             assert version.luceneVersion.equals(Version.LATEST)
                 : "IndexVersion must be upgraded to ["
                 + Version.LATEST

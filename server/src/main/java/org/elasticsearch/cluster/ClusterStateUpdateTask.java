@@ -8,9 +8,13 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.service.ClusterManagerTaskThrottler;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.RestoreService;
+
+import java.util.List;
 
 /**
  * A task that can update the cluster state.
@@ -39,12 +43,18 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskListener
         this.timeout = timeout;
     }
 
+    public abstract void onFailure(String source, Exception e);
+
+    public abstract ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey();
+
     /**
      * Computes the cluster state that results from executing this task on the given state. Returns the *same instance* if no change is
      * required, which is an important and valuable optimisation since it short-circuits the whole publication process and saves a bunch of
      * time and effort.
      */
     public abstract ClusterState execute(ClusterState currentState) throws Exception;
+
+    public abstract ClusterStateTaskExecutor.ClusterTasksResult<RestoreService.RestoreSnapshotStateTask.Task> execute(ClusterState currentState, List<RestoreService.RestoreSnapshotStateTask.Task> tasks);
 
     /**
      * Called when the result of the {@link #execute} method has been processed properly by all listeners.
@@ -62,7 +72,7 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskListener
      * {@link ClusterStateTaskListener#onFailure(Exception)}. May return null to indicate no timeout is needed (default).
      */
     @Nullable
-    public final TimeValue timeout() {
+    public Comparable<TimeValue> timeout() {
         return timeout;
     }
 

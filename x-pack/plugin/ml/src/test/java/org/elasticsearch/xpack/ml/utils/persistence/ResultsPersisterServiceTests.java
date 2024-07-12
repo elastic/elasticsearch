@@ -442,7 +442,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp, null);
+        ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp, null, clusterManagerMetrics, clusterManagerMetrics1, stateStats, stateStats1);
         ExecutorService executor = mock(ExecutorService.class);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();

@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.isDataStreamIndex;
 
 /**
  * This class contains the logic used to check the cluster-wide shard limit before shards are created and ensuring that the limit is
@@ -66,7 +67,9 @@ public class ShardLimitValidator {
     protected final AtomicInteger shardLimitPerNode = new AtomicInteger();
     protected final AtomicInteger shardLimitPerNodeFrozen = new AtomicInteger();
 
-    public ShardLimitValidator(final Settings settings, ClusterService clusterService) {
+    public ShardLimitValidator(final Settings settings, ClusterService clusterService, boolean ignoreDotIndexes, SystemIndices systemIndices) {
+        this.ignoreDotIndexes = ignoreDotIndexes;
+        this.systemIndices = systemIndices;
         this.shardLimitPerNode.set(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings));
         this.shardLimitPerNodeFrozen.set(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, this::setShardLimitPerNode);
@@ -297,6 +300,83 @@ public class ShardLimitValidator {
             + "] maximum "
             + result.group
             + " shards open";
+
+    }
+
+    private volatile boolean ignoreDotIndexes;
+    private final SystemIndices systemIndices;
+
+    private boolean validateDotIndex(String indexName) {
+        return indexName.charAt(0) == '.';
+    }
+
+    @SuppressWarnings("checkstyle:DescendantToken")
+    private boolean shouldIndexBeIgnored(String indexName) {
+        if (this.ignoreDotIndexes) {
+            return validateDotIndex(indexName) && !isDataStreamIndex(indexName);
+        } else return systemIndices.validateSystemIndex(indexName);
+    }
+
+    protected final AtomicInteger shardLimitPerCluster = new AtomicInteger();
+
+    public int getShardLimitPerCluster() {
+        return shardLimitPerCluster.get();
+    }
+
+    static Optional<String> checkShardLimit(
+        int newShards,
+        ClusterState state,
+        int maxShardsPerNodeSetting,
+        int maxShardsPerClusterSetting
+    ) {
+        int nodeCount = state.getNodes().getDataNodes().size();
+
+        // Only enforce the shard limit if we have at least one data node, so that we don't block
+        // index creation during cluster setup
+        if (nodeCount == 0 || newShards < 0) {
+            return Optional.empty();
+        }
+
+        int maxShardsInCluster = maxShardsPerClusterSetting;
+        if (maxShardsInCluster == -1) {
+            maxShardsInCluster = maxShardsPerNodeSetting * nodeCount;
+        } else {
+            maxShardsInCluster = Math.min(maxShardsInCluster, maxShardsPerNodeSetting * nodeCount);
+        }
+
+        int currentOpenShards = state.getMetadata().getTotalOpenIndexShards();
+        if ((currentOpenShards + newShards) > maxShardsInCluster) {
+            String errorMessage = "this action would add ["
+                + newShards
+                + "] total shards, but this cluster currently has ["
+                + currentOpenShards
+                + "]/["
+                + maxShardsInCluster
+                + "] maximum shards open";
+            return Optional.of(errorMessage);
+        }
+        return Optional.empty();
+    }
+
+    public Optional<String> checkShardLimit(int newShards, ClusterState state) {
+        return checkShardLimit(newShards, state, getShardLimitPerNode(), getShardLimitPerCluster());
+    }
+
+    public void validateShardLimit(final String indexName, final Settings settings, final ClusterState state) {
+        if (shouldIndexBeIgnored(indexName)) {
+            return;
+        }
+
+        final int numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
+        final int numberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings);
+        final int shardsToCreate = numberOfShards * (1 + numberOfReplicas);
+
+        final Optional<String> shardLimit = checkShardLimit(shardsToCreate, state);
+        if (shardLimit.isPresent()) {
+            final ValidationException e = new ValidationException();
+            e.addValidationError(shardLimit.get());
+            throw e;
+        }
     }
 
     /**

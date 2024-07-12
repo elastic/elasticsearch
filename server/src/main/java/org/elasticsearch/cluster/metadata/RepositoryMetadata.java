@@ -23,7 +23,7 @@ import java.util.Objects;
 public class RepositoryMetadata implements Writeable {
 
     private final String name;
-    private final String uuid;
+    private String uuid;
     private final String type;
     private final Settings settings;
 
@@ -36,6 +36,7 @@ public class RepositoryMetadata implements Writeable {
      * Pending repository generation.
      */
     private final long pendingGeneration;
+    private CryptoMetadata cryptoMetadata = null;
 
     /**
      * Constructs new repository metadata
@@ -61,6 +62,31 @@ public class RepositoryMetadata implements Writeable {
         this.pendingGeneration = pendingGeneration;
         assert generation <= pendingGeneration
             : "Pending generation [" + pendingGeneration + "] must be greater or equal to generation [" + generation + "]";
+    }
+
+    public RepositoryMetadata(
+        String name,
+        String type,
+        Settings settings,
+        long generation,
+        long pendingGeneration,
+        CryptoMetadata cryptoMetadata
+    ) {
+        this.name = name;
+        this.type = type;
+        this.settings = settings;
+        this.generation = generation;
+        this.pendingGeneration = pendingGeneration;
+        assert generation <= pendingGeneration : "Pending generation ["
+            + pendingGeneration
+            + "] must be greater or equal to generation ["
+            + generation
+            + "]";
+        this.cryptoMetadata = cryptoMetadata;
+    }
+
+    public RepositoryMetadata(String name, String type, Settings settings, CryptoMetadata cryptoMetadata) {
+        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, cryptoMetadata);
     }
 
     /**

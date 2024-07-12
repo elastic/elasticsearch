@@ -48,7 +48,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build(),
-            () -> new ClusterInfo() {
+            () -> new ClusterInfo(nodeFileCacheStats, nodeFileCacheStats) {
                 @Override
                 public Long getShardSize(ShardId shardId, boolean primary) {
                     if (shardId.getIndexName().equals("test")) {

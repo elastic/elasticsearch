@@ -129,6 +129,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.replication.common.ReplicationType;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.FieldPredicate;
@@ -188,6 +189,23 @@ public class IndicesService extends AbstractLifecycleComponent
     implements
         IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>,
         IndexService.ShardStoreDeleter {
+    public static final Setting<Boolean> CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING = Setting.boolSetting(
+        "cluster.index.restrict.replication.type",
+        false,
+        Property.NodeScope,
+        Property.Final
+
+    );
+
+    public static final String CLUSTER_SETTING_REPLICATION_TYPE = "cluster.indices.replication.strategy";
+
+    public static final Setting<ReplicationType> CLUSTER_REPLICATION_TYPE_SETTING = new Setting<>(
+        CLUSTER_SETTING_REPLICATION_TYPE,
+        ReplicationType.DOCUMENT.toString(),
+        ReplicationType::parseString,
+        Property.NodeScope,
+        Property.Final
+    );
     private static final Logger logger = LogManager.getLogger(IndicesService.class);
 
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting(
@@ -209,6 +227,14 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     static final NodeFeature SUPPORTS_AUTO_PUT = new NodeFeature("indices.auto_put_supported");
+    public static Setting<? extends TimeValue> CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.minimum.index.refresh_interval",
+        TimeValue.ZERO,
+        TimeValue.ZERO,
+        new ClusterMinimumRefreshIntervalValidator(),
+        Property.NodeScope,
+        Property.Dynamic
+    );
 
     /**
      * The node's settings.
@@ -1874,5 +1900,70 @@ public class IndicesService extends AbstractLifecycleComponent
     // TODO move this?
     public BigArrays getBigArrays() {
         return bigArrays;
+    }
+
+    public static final Setting<TimeValue> CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.default.index.refresh_interval",
+        IndexSettings.DEFAULT_REFRESH_INTERVAL,
+        IndexSettings.MINIMUM_REFRESH_INTERVAL,
+        new ClusterDefaultRefreshIntervalValidator(),
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+
+    private static void validateRefreshIntervalSettings(TimeValue minimumRefreshInterval, TimeValue defaultRefreshInterval) {
+        if (defaultRefreshInterval.millis() < 0) {
+            return;
+        }
+        if (minimumRefreshInterval.compareTo(defaultRefreshInterval) > 0) {
+            throw new IllegalArgumentException(
+                "cluster minimum index refresh interval ["
+                    + minimumRefreshInterval
+                    + "] more than cluster default index refresh interval ["
+                    + defaultRefreshInterval
+                    + "]"
+            );
+        }
+    }
+    private static final class ClusterMinimumRefreshIntervalValidator implements Setting.Validator<TimeValue> {
+
+        @Override
+        public void validate(TimeValue value) {
+
+        }
+
+        @Override
+        public void validate(final TimeValue minimumRefreshInterval, final Map<Setting<?>, Object> settings) {
+            final TimeValue defaultRefreshInterval = (TimeValue) settings.get(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING);
+            validateRefreshIntervalSettings(minimumRefreshInterval, defaultRefreshInterval);
+        }
+
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = List.of(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING);
+            return settings.iterator();
+        }
+    }
+
+    private static final class ClusterDefaultRefreshIntervalValidator implements Setting.Validator<TimeValue> {
+
+        @Override
+        public void validate(TimeValue value) {
+
+        }
+
+        @Override
+        public void validate(final TimeValue defaultRefreshInterval, final Map<Setting<?>, Object> settings) {
+            final TimeValue minimumRefreshInterval = (TimeValue) settings.get(CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING);
+            validateRefreshIntervalSettings(minimumRefreshInterval, defaultRefreshInterval);
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = List.of(CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING);
+            return settings.iterator();
+        }
     }
 }

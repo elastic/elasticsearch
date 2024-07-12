@@ -284,6 +284,38 @@ public final class IndexSettings {
         TimeValue.MINUS_ONE,
         Property.NodeScope
     ); // TODO: remove setting
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_REPOSITORY = Setting.simpleString(
+        "index.searchable_snapshot.repository",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_ID_UUID = Setting.simpleString(
+        "index.searchable_snapshot.snapshot_id.uuid",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_ID_NAME = Setting.simpleString(
+        "index.searchable_snapshot.snapshot_id.name",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_INDEX_ID = Setting.simpleString(
+        "index.searchable_snapshot.index.id",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+    public static final Setting<Boolean> ALLOW_DERIVED_FIELDS = Setting.boolSetting(
+        "index.query.derived_field.enabled",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final TimeValue MINIMUM_REFRESH_INTERVAL = new TimeValue(-1, TimeUnit.MILLISECONDS);
+
+
     public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5); // TODO: this value is still not final
     public static TimeValue STATELESS_MIN_NON_FAST_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", (settings) -> {

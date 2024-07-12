@@ -10,6 +10,7 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
@@ -36,7 +37,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     }
 
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
-        this(delegate, new RefCountedReleasable(releasable));
+        this(delegate, new RefCountedReleasable<C>("OffsetRangeRefCount", ref, releasable));
     }
 
     public ReleasableBytesReference(BytesReference delegate, RefCounted refCounted) {
@@ -245,11 +246,11 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return delegate.arrayOffset();
     }
 
-    private static final class RefCountedReleasable extends AbstractRefCounted {
+    public static class RefCountedReleasable<C> extends AbstractRefCounted {
 
         private final Releasable releasable;
 
-        RefCountedReleasable(Releasable releasable) {
+        protected RefCountedReleasable(String offsetRangeRefCount, OffsetRangeIndexInputStream.ClosingStreams ref, Releasable releasable) {
             this.releasable = releasable;
         }
 

@@ -21,6 +21,7 @@ import java.io.OutputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,7 +29,7 @@ import java.util.Map;
  *
  * A BlobStore creates BlobContainers.
  */
-public interface BlobContainer {
+public interface BlobContainer<BlobNameSortOrder> {
 
     /**
      * Gets the {@link BlobPath} that defines the implementation specific paths to where the blobs are contained.
@@ -56,6 +57,23 @@ public interface BlobContainer {
      * @throws IOException         if the blob can not be read.
      */
     InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException;
+
+
+
+    default List<BlobMetadata> listBlobsByPrefixInSortedOrder(
+        int limit,
+        ActionListener<List<BlobMetadata>> listener
+    ) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
+        try {
+            listener.onResponse(listBlobsByPrefixInSortedOrder(limit, listener));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+        return null;
+    }
 
     /**
      * Creates a new {@link InputStream} that can be used to read the given blob starting from
@@ -122,6 +140,8 @@ public interface BlobContainer {
         assert assertPurposeConsistency(purpose, blobName);
         writeBlob(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
     }
+    void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+
 
     /**
      * Write a blob by providing a consumer that will write its contents to an output stream. This method allows serializing a blob's
@@ -155,6 +175,8 @@ public interface BlobContainer {
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
      */
     void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException;
+    void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+
 
     /**
      * Deletes this container and all its contents from the repository.

@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.xcontent.MediaType.removeVersionInMediaType;
+
 /**
  * A registry for quick media type lookup.
  * It allows to find media type by a header value - typeWithSubtype aka mediaType without parameters.
@@ -37,6 +39,11 @@ public class MediaTypeRegistry<T extends MediaType> {
     private Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
     private Map<String, Map<String, Pattern>> parametersMap = new HashMap<>();
 
+    static MediaType fromMediaType(String mediaTypeHeaderValue) {
+        mediaTypeHeaderValue = removeVersionInMediaType(mediaTypeHeaderValue);
+        return MediaTypeRegistry.fromMediaType(mediaTypeHeaderValue);
+    }
+
     public T queryParamToMediaType(String format) {
         if (format == null) {
             return null;
@@ -53,6 +60,7 @@ public class MediaTypeRegistry<T extends MediaType> {
     }
 
     public MediaTypeRegistry<T> register(T[] mediaTypes) {
+        Map<String, MediaType> formatMap = new HashMap<>(formatToMediaType);
         for (T mediaType : mediaTypes) {
             Set<MediaType.HeaderValue> tuples = mediaType.headerValues();
             for (MediaType.HeaderValue headerValue : tuples) {
@@ -61,7 +69,17 @@ public class MediaTypeRegistry<T extends MediaType> {
                 parametersMap.put(headerValue.v1(), convertPatterns(headerValue.v2()));
             }
         }
+        formatToMediaType = Map.copyOf(formatMap);
         return this;
+    }
+    private static Map<String, MediaType> formatToMediaType = Map.of();
+
+
+    public static MediaType fromFormat(String format) {
+        if (format == null) {
+            return null;
+        }
+        return formatToMediaType.get(format.toLowerCase(Locale.ROOT));
     }
 
     private static Map<String, Pattern> convertPatterns(Map<String, String> paramNameAndValueRegex) {

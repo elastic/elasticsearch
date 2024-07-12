@@ -412,8 +412,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsSummary.shardSizes,
             indicesStatsSummary.shardDataSetSizes,
             indicesStatsSummary.dataPath,
-            indicesStatsSummary.reservedSpace
-        );
+            indicesStatsSummary.reservedSpace,
+                nodeFileCacheStats);
     }
 
     // allow tests to adjust the node stats on receipt

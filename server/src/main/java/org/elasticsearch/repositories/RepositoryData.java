@@ -618,6 +618,7 @@ public final class RepositoryData {
         return Collections.unmodifiableMap(resolvedIndices);
     }
 
+
     /**
      * Checks if any snapshot in this repository contains the specified index in {@code indexName}
      */

@@ -269,8 +269,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             valuesSourceRegistry,
             allowExpensiveQueries,
             scriptService,
-            null
-        );
+            null,
+            xContentRegistry, validate);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
         this.similarityService = similarityService;

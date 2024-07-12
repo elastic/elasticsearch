@@ -477,8 +477,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                     UUIDs.randomBase64UUID(),
                     snapshot,
                     IndexVersion.current(),
-                    new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random()))
-                )
+                    new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random())),
+                    isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository)
             )
             .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)

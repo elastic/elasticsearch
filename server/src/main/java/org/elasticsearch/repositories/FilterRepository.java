@@ -61,6 +61,11 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
+        return in.getSnapshotInfo(snapshotId);
+    }
+
+    @Override
     public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
         return in.getSnapshotGlobalMetadata(snapshotId);
     }
@@ -73,6 +78,11 @@ public class FilterRepository implements Repository {
     @Override
     public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
         in.getRepositoryData(responseExecutor, listener);
+    }
+
+    @Override
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        in.getRepositoryData(listener);
     }
 
     @Override

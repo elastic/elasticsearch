@@ -65,7 +65,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                 ? ClusterBalanceStats.readFrom(in)
                 : ClusterBalanceStats.EMPTY,
             in.readImmutableMap(v -> v.readImmutableMap(StreamInput::readVInt, DesiredShards::from)),
-            in.getTransportVersion().onOrAfter(CLUSTER_INFO_VERSION) ? new ClusterInfo(in) : ClusterInfo.EMPTY
+            in.getTransportVersion().onOrAfter(CLUSTER_INFO_VERSION) ? new ClusterInfo(in, nodeFileCacheStats) : ClusterInfo.EMPTY
         );
     }
 

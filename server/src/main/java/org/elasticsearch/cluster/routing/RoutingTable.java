@@ -347,6 +347,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         out.writeCollection(indicesRouting.values());
     }
 
+    public ShardsIterator allShardsSatisfyingPredicate(Predicate<ShardRouting> predicate) {
+        String[] indices = indicesRouting.keySet().toArray(new String[0]);
+        return allShardsSatisfyingPredicate(indices, predicate, false);
+    }
+
     private static class RoutingTableDiff implements Diff<RoutingTable> {
 
         private final long version;

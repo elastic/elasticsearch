@@ -80,4 +80,8 @@ public class FutureUtils {
             return new UncategorizedExecutionException("Failed execution", e);
         }
     }
+
+    public static <Response> Object get(ListenableFuture<Response> delegate, long timeout, TimeUnit nanoseconds) {
+        return null;
+    }
 }

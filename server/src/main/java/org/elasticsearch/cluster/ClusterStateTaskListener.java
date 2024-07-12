@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.service.MasterService;
 
 public interface ClusterStateTaskListener {
+    void onFailure(String source, Exception e);
+
     /**
      * A callback for when task execution fails. May receive a {@link NotMasterException} if this node stopped being the master before this
      * task was executed or a {@link ProcessClusterEventTimeoutException} if the task timed out before it was executed. If the task fails
@@ -27,4 +29,16 @@ public interface ClusterStateTaskListener {
      * implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
      */
     void onFailure(Exception e);
+
+    void onFailure(String source, ProcessClusterEventTimeoutException e);
+
+    default void onNoLongerClusterManager(String source) {
+        onFailure(source, new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
+    }
+
+    void onFailure(String source, NotClusterManagerException e);
+
+    void onFailure(String source, FailedToCommitClusterStateException t);
+
+    default void clusterStateProcessed(String source, ClusterState previousClusterState, ClusterState newClusterState){}
 }

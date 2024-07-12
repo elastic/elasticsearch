@@ -200,7 +200,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
             UUIDs.randomBase64UUID(),
             snapshot,
             IndexVersion.current(),
-            new IndexId("test", UUIDs.randomBase64UUID(random()))
-        );
+            new IndexId("test", UUIDs.randomBase64UUID(random())),
+            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
     }
 }

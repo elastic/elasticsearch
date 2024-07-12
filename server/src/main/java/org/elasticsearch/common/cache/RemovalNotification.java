@@ -9,6 +9,10 @@
 package org.elasticsearch.common.cache;
 
 public class RemovalNotification<K, V> {
+
+    public <K, V> RemovalNotification(K key, V value, org.elasticsearch.common.cache.RemovalReason explicit) {
+    }
+
     public enum RemovalReason {
         REPLACED,
         INVALIDATED,

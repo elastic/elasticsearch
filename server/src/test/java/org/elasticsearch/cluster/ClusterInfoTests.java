@@ -20,7 +20,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
 
     @Override
     protected Writeable.Reader<ClusterInfo> instanceReader() {
-        return ClusterInfo::new;
+        return in -> new ClusterInfo(in, nodeFileCacheStats);
     }
 
     @Override
@@ -40,8 +40,8 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomShardSizes(),
             randomDataSetSizes(),
             randomRoutingToDataPath(),
-            randomReservedSpace()
-        );
+            randomReservedSpace(),
+                nodeFileCacheStats);
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

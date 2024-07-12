@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -40,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
 
 /**
  * Information about a snapshot
@@ -120,6 +122,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     private final List<SnapshotShardFailure> shardFailures;
 
     private final Map<String, IndexSnapshotDetails> indexSnapshotDetails;
+    private Boolean remoteStoreIndexShallowCopy;
 
     public SnapshotInfo(
         Snapshot snapshot,
@@ -194,8 +197,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             IndexVersion.current(),
             entry.startTime(),
             0L,
-            totalShards,
-            successfulShards,
+            0,
+            0,
             shardFailures,
             entry.includeGlobalState(),
             entry.userMetadata(),
@@ -463,7 +466,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
      * @return version of elasticsearch that the snapshot was created with
      */
     @Nullable
-    public IndexVersion version() {
+    public Version version() {
         return version;
     }
 
@@ -893,6 +896,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             featureStates,
             indexSnapshotDetails
         );
+    }
+
+    public Boolean isRemoteStoreIndexShallowCopyEnabled() {
+        return remoteStoreIndexShallowCopy;
     }
 
     public static class IndexSnapshotDetails implements ToXContentObject, Writeable {

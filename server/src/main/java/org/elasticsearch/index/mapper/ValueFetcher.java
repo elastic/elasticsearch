@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,6 +25,8 @@ import java.util.List;
  * is in charge of defining a value fetcher through {@link MappedFieldType#valueFetcher}.
  */
 public interface ValueFetcher {
+    List<Object> fetchValues(SourceLookup lookup);
+
     /**
      * This method is consumed by {@link #fetchDocumentField(String, Source, int)}.
      *

@@ -125,13 +125,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             ElasticsearchException.class,
             () -> handler.newPublicationContext(
                 new ClusterStatePublicationEvent(
-                    new BatchSummary(() -> "test"),
+                    source, new BatchSummary(() -> "test"),
                     clusterState,
                     unserializableClusterState,
                     new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, emptyMap()),
                     0L,
-                    0L
-                )
+                    0L,
+                    state, previousState)
             )
         );
         assertNotNull(e.getCause());
@@ -307,13 +307,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             try {
                 context = handler.newPublicationContext(
                     new ClusterStatePublicationEvent(
-                        new BatchSummary(() -> "test"),
+                        source, new BatchSummary(() -> "test"),
                         prevClusterState,
                         nextClusterState,
                         new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, emptyMap()),
                         0L,
-                        0L
-                    )
+                        0L,
+                        state, previousState)
                 );
             } catch (ElasticsearchException e) {
                 assertTrue(simulateFailures);
@@ -444,13 +444,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         var context0 = transportHandlersByNode.get(localNode)
             .newPublicationContext(
                 new ClusterStatePublicationEvent(
-                    new BatchSummary(() -> "test"),
+                    source, new BatchSummary(() -> "test"),
                     clusterState0,
                     clusterState0,
                     new Task(randomNonNegativeLong(), "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of()),
                     0L,
-                    0L
-                )
+                    0L,
+                    state, previousState)
             );
         try {
             context0.sendPublishRequest(
@@ -486,13 +486,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         var context1 = transportHandlersByNode.get(localNode)
             .newPublicationContext(
                 new ClusterStatePublicationEvent(
-                    new BatchSummary(() -> "test"),
+                    source, new BatchSummary(() -> "test"),
                     committedClusterState0,
                     clusterState1,
                     new Task(randomNonNegativeLong(), "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of()),
                     0L,
-                    0L
-                )
+                    0L,
+                    state, previousState)
             );
         try {
             context1.sendPublishRequest(

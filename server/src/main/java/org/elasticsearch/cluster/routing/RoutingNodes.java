@@ -88,7 +88,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return new RoutingNodes(routingTable, discoveryNodes, false);
     }
 
-    private RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
+    public RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
         this.readOnly = readOnly;
         this.recoveriesPerNode = new HashMap<>();
         final int indexCount = routingTable.indicesRouting().size();

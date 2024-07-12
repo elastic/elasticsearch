@@ -582,6 +582,18 @@ public final class DiffableUtils {
      * @param <V> type of map values
      */
     public abstract static class NonDiffableValueSerializer<K, V> implements ValueSerializer<K, V> {
+
+        private static final NonDiffableValueSerializer ABSTRACT_INSTANCE = new NonDiffableValueSerializer<>() {
+            @Override
+            public void write(Object value, StreamOutput out) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Object read(StreamInput in, Object key) {
+                throw new UnsupportedOperationException();
+            }
+        };
         @Override
         public boolean supportsDiffableValues() {
             return false;
@@ -600,6 +612,10 @@ public final class DiffableUtils {
         @Override
         public Diff<V> readDiff(StreamInput in, K key) {
             throw new UnsupportedOperationException();
+        }
+
+        public static <K, V> NonDiffableValueSerializer<K, V> getAbstractInstance() {
+            return ABSTRACT_INSTANCE;
         }
     }
 

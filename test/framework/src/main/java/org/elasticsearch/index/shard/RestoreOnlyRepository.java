@@ -74,6 +74,11 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
+    public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
+        return null;
+    }
+
+    @Override
     public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
         return null;
     }
@@ -85,6 +90,23 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
+        final IndexId indexId = new IndexId(indexName, "blah");
+        listener.onResponse(
+            new RepositoryData(
+                MISSING_UUID,
+                EMPTY_REPO_GEN,
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                Collections.singletonMap(indexId, emptyList()),
+                ShardGenerations.EMPTY,
+                IndexMetaDataGenerations.EMPTY,
+                MISSING_UUID
+            )
+        );
+    }
+
+    @Override
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
         final IndexId indexId = new IndexId(indexName, "blah");
         listener.onResponse(
             new RepositoryData(

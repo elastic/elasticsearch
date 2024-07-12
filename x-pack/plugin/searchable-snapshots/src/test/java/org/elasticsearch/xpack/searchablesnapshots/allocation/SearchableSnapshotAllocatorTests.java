@@ -266,8 +266,8 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             UUIDs.randomBase64UUID(random()),
             new Snapshot("test-repo", new SnapshotId("test-snap", UUIDs.randomBase64UUID(random()))),
             IndexVersion.current(),
-            new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random()))
-        );
+            new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random())),
+            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
     }
 
     private static FrozenCacheInfoService testFrozenCacheSizeService() {

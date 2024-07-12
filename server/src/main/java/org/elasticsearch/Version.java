@@ -180,6 +180,12 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_14_2 = new Version(8_14_02_99);
     public static final Version V_8_15_0 = new Version(8_15_00_99);
     public static final Version CURRENT = V_8_15_0;
+    public static final Version V_2_5_0 = new Version(2050099);
+    public static final Version V_2_9_0 = new Version(2090099);
+    public static final TransportVersion V_2_7_0 = new TransportVersion(2070099);
+    public static final TransportVersion V_2_10_0 = new TransportVersion(2100099);
+    public static final Version V_2_4_0 = new Version(2040099);
+    public static final TransportVersion V_2_15_0 = new TransportVersion(2150099);
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;
@@ -228,6 +234,18 @@ public class Version implements VersionId<Version>, ToXContentFragment {
 
         VERSION_IDS = Collections.unmodifiableNavigableMap(builder);
         VERSION_STRINGS = Map.copyOf(builderByString);
+    }
+
+    protected org.apache.lucene.util.Version luceneVersion;
+
+    public Version(int id, org.apache.lucene.util.Version luceneVersion) {
+        this.id = id;
+        this.major = (byte) ((id / 1000000) % 100);
+        this.minor = (byte) ((id / 10000) % 100);
+        this.revision = (byte) ((id / 100) % 100);
+        this.build = (byte) (id % 100);
+        this.toString = major + "." + minor + "." + revision;
+        this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -328,6 +346,9 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public final byte build;
     private final String toString;
     private final int previousMajorId;
+    protected Version minCompatVersion = null;
+    protected Version minIndexCompatVersion = null;
+    public static final int MASK = 0x08000000;
 
     Version(int id) {
         this.id = id;
@@ -349,6 +370,51 @@ public class Version implements VersionId<Version>, ToXContentFragment {
         return builder.value(toString());
     }
 
+
+    public boolean isRelease() {
+        return build == 99;
+    }
+    protected int maskId(final int id) {
+        return MASK ^ id;
+    }
+    protected Version computeMinIndexCompatVersion() {
+        if (major == 1 || major == 7) {
+            // we don't have LegacyESVersion.V_6 constants, so set it to its last minor
+            return LegacyESVersion.fromId(6080099);
+        } else if (major == 2) {
+            return LegacyESVersion.fromId(7100099);
+        } else if (major == 6) {
+            // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
+            return LegacyESVersion.fromId(5060099);
+        } else if (major >= 3 && major < 5) {
+            // all major versions from 3 onwards are compatible with last minor series of the previous major
+            // todo: remove 5 check when removing LegacyESVersionTests
+            Version bwcVersion = null;
+
+            for (int i = DeclaredVersionsHolder.DECLARED_VERSIONS.size() - 1; i >= 0; i--) {
+                final Version candidateVersion = DeclaredVersionsHolder.DECLARED_VERSIONS.get(i);
+                if (candidateVersion.major == major - 1 && candidateVersion.isRelease() && after(candidateVersion)) {
+                    if (bwcVersion != null && candidateVersion.minor < bwcVersion.minor) {
+                        break;
+                    }
+                    bwcVersion = candidateVersion;
+                }
+            }
+            return bwcVersion == null ? this : bwcVersion;
+        }
+
+        return Version.min(this, fromId(maskId((int) major * 1000000 + 0 * 10000 + 99)));
+    }
+
+    public Version minimumIndexCompatibilityVersion() {
+        Version res = minIndexCompatVersion;
+        if (res == null) {
+            res = computeMinIndexCompatVersion();
+            minIndexCompatVersion = res;
+        }
+        return res;
+    }
+
     /*
      * We need the declared versions when computing the minimum compatibility version. As computing the declared versions uses reflection it
      * is not cheap. Since computing the minimum compatibility version can occur often, we use this holder to compute the declared versions
@@ -360,7 +426,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
     // instances
-    private Version minCompatVersion;
+
 
     /**
      * Returns the minimum compatible version based on the current
@@ -369,13 +435,13 @@ public class Version implements VersionId<Version>, ToXContentFragment {
      * is in most of the cases the smallest major version release unless the current version
      * is a beta or RC release then the version itself is returned.
      */
-    public Version minimumCompatibilityVersion() {
+    public TransportVersion minimumCompatibilityVersion() {
         Version res = minCompatVersion;
         if (res == null) {
             res = computeMinCompatVersion();
             minCompatVersion = res;
         }
-        return res;
+        return res.minimumCompatibilityVersion();
     }
 
     private Version computeMinCompatVersion() {
@@ -494,5 +560,9 @@ public class Version implements VersionId<Version>, ToXContentFragment {
         }
         Collections.sort(versions);
         return versions;
+    }
+
+    public static boolean stringHasLength(String str) {
+        return (str != null && str.length() > 0);
     }
 }

@@ -2633,8 +2633,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 UUIDs.randomBase64UUID(),
                 snapshot,
                 IndexVersion.current(),
-                new IndexId("test", UUIDs.randomBase64UUID(random()))
-            )
+                new IndexId("test", UUIDs.randomBase64UUID(random())),
+                isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository)
         );
         target = reinitShard(target, routing);
         Store sourceStore = source.store();

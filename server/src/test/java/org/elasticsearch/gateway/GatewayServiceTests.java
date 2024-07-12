@@ -106,8 +106,8 @@ public class GatewayServiceTests extends ESTestCase {
                 protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
                     return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
                 }
-            }
-        );
+            },
+            stateStats);
 
         clusterService.getClusterApplierService().setInitialState(initialState);
         clusterService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());

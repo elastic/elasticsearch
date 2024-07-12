@@ -1746,8 +1746,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool,
-                null
-            );
+                null,
+                clusterManagerMetrics, clusterManagerMetrics1, stateStats, stateStats1);
             clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
 
             TransportSearchAction action = new TransportSearchAction(

@@ -60,6 +60,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     private final String masterNodeId;
     @Nullable
     private final DiscoveryNode masterNode;
+
+    private final String clusterManagerNodeId;
     @Nullable
     private final String localNodeId;
     @Nullable
@@ -79,7 +81,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         Map<String, DiscoveryNode> masterNodes,
         Map<String, DiscoveryNode> ingestNodes,
         @Nullable String masterNodeId,
-        @Nullable String localNodeId,
+        String clusterManagerNodeId, @Nullable String localNodeId,
         Version minNonClientNodeVersion,
         Version maxNodeVersion,
         Version minNodeVersion,
@@ -93,6 +95,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         this.masterNodes = masterNodes;
         this.ingestNodes = ingestNodes;
         this.masterNodeId = masterNodeId;
+        this.clusterManagerNodeId = clusterManagerNodeId;
         this.masterNode = masterNodeId == null ? null : nodes.get(masterNodeId);
         assert (masterNodeId == null) == (masterNode == null);
         this.localNodeId = localNodeId;
@@ -115,7 +118,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             masterNodes,
             ingestNodes,
             masterNodeId,
-            localNodeId,
+            clusterManagerNodeId, localNodeId,
             minNonClientNodeVersion,
             maxNodeVersion,
             minNodeVersion,
@@ -566,6 +569,14 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         return sb.toString();
     }
 
+    public boolean isLocalNodeElectedClusterManager() {
+        if (localNodeId == null) {
+            // we don't know yet the local node id, return false
+            return false;
+        }
+        return localNodeId.equals(clusterManagerNodeId);
+    }
+
     public static class Delta {
 
         private final String localNodeId;
@@ -877,7 +888,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 filteredNodes(nodes, DiscoveryNode::isMasterNode),
                 filteredNodes(nodes, DiscoveryNode::isIngestNode),
                 masterNodeId,
-                localNodeId,
+                masterNodeId, localNodeId,
                 Objects.requireNonNullElse(minNonClientNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(maxNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),

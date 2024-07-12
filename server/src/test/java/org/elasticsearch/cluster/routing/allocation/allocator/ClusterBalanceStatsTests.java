@@ -344,8 +344,8 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)),
             Map.of(),
             Map.of(),
-            Map.of()
-        );
+            Map.of(),
+                nodeFileCacheStats);
     }
 
     private static Tuple<String, long[]> indexSizes(String name, long... sizes) {

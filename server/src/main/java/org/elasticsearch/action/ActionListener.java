@@ -332,7 +332,17 @@ public interface ActionListener<Response> {
      * and {@link #onFailure(Exception)} of the provided listener will be called at most once.
      */
     static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> delegate) {
-        return new ActionListenerImplementations.NotifyOnceActionListener<>(delegate);
+        return new ActionListenerImplementations.NotifyOnceActionListener<>(delegate) {
+            @Override
+            protected void innerOnResponse(Response response) {
+
+            }
+
+            @Override
+            protected void innerOnFailure(Exception e) {
+
+            }
+        };
     }
 
     /**

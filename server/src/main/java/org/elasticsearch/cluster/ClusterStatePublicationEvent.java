@@ -21,6 +21,7 @@ public class ClusterStatePublicationEvent {
      * Sentinel value so that we can assert each field is set once and only once on each successful event, and at most once on each failure.
      */
     private static final long NOT_SET = -1L;
+    private final String source;
 
     private final BatchSummary summary;
     private final ClusterState oldState;
@@ -32,21 +33,26 @@ public class ClusterStatePublicationEvent {
     private volatile long publicationCommitElapsedMillis = NOT_SET;
     private volatile long publicationCompletionElapsedMillis = NOT_SET;
     private volatile long masterApplyElapsedMillis = NOT_SET;
+    private ClusterState state;
+    private ClusterState previousState;
 
     public ClusterStatePublicationEvent(
-        BatchSummary summary,
+        String source, BatchSummary summary,
         ClusterState oldState,
         ClusterState newState,
         Task task,
         long computationTimeMillis,
-        long publicationStartTimeMillis
-    ) {
+        long publicationStartTimeMillis,
+        ClusterState state, ClusterState previousState) {
+        this.source = source;
         this.summary = summary;
         this.oldState = oldState;
         this.newState = newState;
         this.task = task;
         this.computationTimeMillis = computationTimeMillis;
         this.publicationStartTimeMillis = publicationStartTimeMillis;
+        this.state = state;
+        this.previousState = previousState;
     }
 
     public BatchSummary getSummary() {
@@ -170,4 +176,15 @@ public class ClusterStatePublicationEvent {
         return millis == NOT_SET ? 0 : millis;
     }
 
+    public String source() {
+        return this.source;
+    }
+
+    public ClusterState state() {
+        return this.state;
+    }
+
+    public ClusterState previousState() {
+        return this.previousState;
+    }
 }

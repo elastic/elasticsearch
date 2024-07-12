@@ -78,7 +78,7 @@ public class JoinHelperTests extends ESTestCase {
         );
         JoinHelper joinHelper = new JoinHelper(
             null,
-            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger),
+            new MasterService(Settings.EMPTY, clusterSettings, clusterManagerMetrics, threadPool, taskManger, stateStats),
             new NoOpClusterApplier(),
             transportService,
             () -> 0L,
@@ -246,7 +246,7 @@ public class JoinHelperTests extends ESTestCase {
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
         JoinHelper joinHelper = new JoinHelper(
             null,
-            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger),
+            new MasterService(Settings.EMPTY, clusterSettings, clusterManagerMetrics, threadPool, taskManger, stateStats),
             new NoOpClusterApplier(),
             transportService,
             () -> 0L,
@@ -323,7 +323,7 @@ public class JoinHelperTests extends ESTestCase {
         );
         JoinHelper joinHelper = new JoinHelper(
             null,
-            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger),
+            new MasterService(Settings.EMPTY, clusterSettings, clusterManagerMetrics, threadPool, taskManger, stateStats),
             new NoOpClusterApplier(),
             transportService,
             () -> 1L,

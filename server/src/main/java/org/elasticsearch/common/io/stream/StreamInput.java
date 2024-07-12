@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.EOFException;
 import java.io.FilterInputStream;
@@ -1425,5 +1427,16 @@ public abstract class StreamInput extends InputStream {
         } else {
             return null;
         }
+    }
+
+    public <T extends VersionId<T>> VersionId<T> getVersion() {
+        return (VersionId<T>) this.version;
+    }
+
+    public Map<String, Object> readMap() throws IOException {
+        return (Map<String, Object>) readGenericValue();
+    }
+
+    public <K> Map<ShardId, Long> readImmutableMap(Writeable.Reader<K> aNew, Writeable.Reader<Object> aNew1) {
     }
 }

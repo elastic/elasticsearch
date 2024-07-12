@@ -358,8 +358,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                             UUIDs.randomBase64UUID(),
                             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
                             IndexVersion.current(),
-                            new IndexId("test", UUIDs.randomBase64UUID(random()))
-                        ),
+                            new IndexId("test", UUIDs.randomBase64UUID(random())),
+                            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository),
                         new HashSet<>()
                     )
                     .build()
@@ -442,8 +442,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                             UUIDs.randomBase64UUID(),
                             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
                             IndexVersion.current(),
-                            new IndexId("test", UUIDs.randomBase64UUID(random()))
-                        )
+                            new IndexId("test", UUIDs.randomBase64UUID(random())),
+                            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository)
                     )
             )
             .build();

@@ -29,6 +29,13 @@ public class BlobPath {
     private BlobPath(List<String> paths) {
         this.paths = paths;
     }
+    public BlobPath() {
+        this.paths = Collections.emptyList();
+    }
+
+    public static BlobPath cleanPath() {
+        return new BlobPath();
+    }
 
     public List<String> parts() {
         return paths;
@@ -81,5 +88,9 @@ public class BlobPath {
     @Override
     public int hashCode() {
         return Objects.hash(paths);
+    }
+
+    public String[] toArray() {
+        return paths.toArray(new String[0]);
     }
 }

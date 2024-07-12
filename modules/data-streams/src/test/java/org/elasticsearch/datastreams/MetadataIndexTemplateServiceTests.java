@@ -228,7 +228,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new ClusterSettings(limitOnlySettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        return new ShardLimitValidator(limitOnlySettings, clusterService);
+        return new ShardLimitValidator(limitOnlySettings, clusterService, ignoreDotIndexes, systemIndices);
     }
 
     @Nullable

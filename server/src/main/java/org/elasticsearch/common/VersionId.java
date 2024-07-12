@@ -8,6 +8,9 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
+
 /**
  * Indicates a class that represents a version id of some kind
  */
@@ -21,7 +24,7 @@ public interface VersionId<T extends VersionId<T>> extends Comparable<T> {
         return version.id() < id();
     }
 
-    default boolean onOrAfter(T version) {
+    default boolean onOrAfter(TransportVersion version) {
         return version.id() <= id();
     }
 
@@ -35,7 +38,7 @@ public interface VersionId<T extends VersionId<T>> extends Comparable<T> {
 
     default boolean between(T lowerInclusive, T upperExclusive) {
         if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
-        return onOrAfter(lowerInclusive) && before(upperExclusive);
+        return onOrAfter((Version) lowerInclusive) && before(upperExclusive);
     }
 
     @Override

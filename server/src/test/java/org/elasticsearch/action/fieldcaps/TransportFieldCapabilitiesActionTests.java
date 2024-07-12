@@ -76,8 +76,8 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool,
-                null
-            );
+                null,
+                clusterManagerMetrics, clusterManagerMetrics1, stateStats, stateStats1);
             TransportFieldCapabilitiesAction action = new TransportFieldCapabilitiesAction(
                 transportService,
                 clusterService,

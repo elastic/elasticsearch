@@ -157,9 +157,9 @@ public class MasterServiceTests extends ESTestCase {
         final MasterService masterService = new MasterService(
             settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            taskManager
-        ) {
+            clusterManagerMetrics, threadPool,
+            taskManager,
+            stateStats) {
             @Override
             protected ExecutorService createThreadPoolExecutor() {
                 if (threadPoolExecutor == null) {
@@ -1116,9 +1116,9 @@ public class MasterServiceTests extends ESTestCase {
             MasterService masterService = new MasterService(
                 settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool,
-                new TaskManager(settings, threadPool, emptySet())
-            ) {
+                clusterManagerMetrics, threadPool,
+                new TaskManager(settings, threadPool, emptySet()),
+                stateStats) {
                 @Override
                 protected boolean publicationMayFail() {
                     // checking logging even during unexpected failures

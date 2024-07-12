@@ -145,6 +145,9 @@ public class BooleanFieldMapper extends FieldMapper {
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
+
+        public void build(Object context) {
+        }
     }
 
     private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);

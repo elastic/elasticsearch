@@ -114,7 +114,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         String uuid,
         Snapshot snapshot,
         State state,
-        boolean quiet,
         List<String> indices,
         Map<ShardId, ShardRestoreStatus> shards
     ) {
@@ -124,8 +123,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
          * @param uuid     uuid of the restore
          * @param snapshot snapshot
          * @param state    current state of the restore process
-         * @param quiet    {@code true} if logging of the start and completion of the snapshot restore should be at {@code DEBUG} log
-         *                 level, else it should be at {@code INFO} log level
          * @param indices  list of indices being restored
          * @param shards   map of shards being restored to their current restore status
          */
@@ -133,7 +130,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             String uuid,
             Snapshot snapshot,
             State state,
-            boolean quiet,
             List<String> indices,
             Map<ShardId, ShardRestoreStatus> shards
         ) {
@@ -148,6 +144,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             }
             this.uuid = Objects.requireNonNull(uuid);
         }
+
     }
 
     /**
@@ -293,7 +290,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             List<String> indices = in.readCollectionAsImmutableList(StreamInput::readString);
             entriesBuilder.put(
                 uuid,
-                new Entry(uuid, snapshot, state, quiet, indices, in.readImmutableMap(ShardId::new, ShardRestoreStatus::readFrom))
+                new Entry(uuid, snapshot, state, indices, in.readImmutableMap(ShardId::new, ShardRestoreStatus::readFrom))
             );
         }
         this.entries = Collections.unmodifiableMap(entriesBuilder);

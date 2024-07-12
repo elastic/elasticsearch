@@ -8,6 +8,8 @@
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.mrjar'
+include ':libs:common'
+
 
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
@@ -46,4 +48,5 @@ tasks.named("thirdPartyAudit").configure {
 
 dependencies {
   jarHell sourceSets.main.output
+  compile project(':libs:common')
 }

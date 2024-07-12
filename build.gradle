@@ -447,3 +447,14 @@ tasks.register("spotlessApply").configure {
   dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
   dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
 }
+
+task sourcesJar(type: Jar) {
+  duplicatesStrategy = 'include'
+  classifier = 'sources'
+  from sourceSets.main.allSource
+}
+
+java {
+  withJavadocJar()
+  withSourcesJar()
+}

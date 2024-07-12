@@ -48,6 +48,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * Name of the setting used to enable stateless.
      */
     public static final String STATELESS_ENABLED_SETTING_NAME = "stateless.enabled";
+    private static final String REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX = "remote_store";
 
     /**
      * Check if {@link #STATELESS_ENABLED_SETTING_NAME} is present and set to {@code true}, indicating that the node is
@@ -635,5 +636,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             return null;
         }
         return nodeStringDeduplicator.deduplicate(nodeIdentifier);
+    }
+
+    public boolean isRemoteStoreNode() {
+        return this.getAttributes().keySet().stream().anyMatch(key -> key.startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX));
+
     }
 }

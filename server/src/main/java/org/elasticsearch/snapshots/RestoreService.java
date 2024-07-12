@@ -10,29 +10,38 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotClusterManagerException;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -40,9 +49,11 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
+import org.elasticsearch.cluster.service.ClusterManagerTaskThrottler;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -54,15 +65,18 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.util.FeatureFlags;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
@@ -70,10 +84,14 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.index.store.remote.filecache.FileCacheStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.elasticsearch.node.remotestore.RemoteStoreNodeService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -84,6 +102,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -96,6 +115,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -106,9 +127,16 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_U
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
+import static org.elasticsearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
@@ -146,6 +174,19 @@ public final class RestoreService implements ClusterStateApplier {
         Setting.Property.Dynamic
     );
 
+    private static final Set<String> USER_UNMODIFIABLE_SETTINGS = unmodifiableSet(
+        newHashSet(
+            SETTING_NUMBER_OF_SHARDS,
+            SETTING_VERSION_CREATED,
+            SETTING_INDEX_UUID,
+            SETTING_CREATION_DATE,
+            SETTING_HISTORY_UUID,
+            SETTING_REMOTE_STORE_ENABLED,
+            SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+            SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
+        )
+    );
+
     private static final Set<String> UNMODIFIABLE_SETTINGS = Set.of(
         SETTING_NUMBER_OF_SHARDS,
         SETTING_VERSION_CREATED,
@@ -156,6 +197,8 @@ public final class RestoreService implements ClusterStateApplier {
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
     private static final Set<String> UNREMOVABLE_SETTINGS;
+    private static final Set<String> USER_UNREMOVABLE_SETTINGS;
+
 
     static {
         Set<String> unremovable = Sets.newHashSetWithExpectedSize(UNMODIFIABLE_SETTINGS.size() + 4);
@@ -163,6 +206,8 @@ public final class RestoreService implements ClusterStateApplier {
         unremovable.add(SETTING_NUMBER_OF_REPLICAS);
         unremovable.add(SETTING_AUTO_EXPAND_REPLICAS);
         UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
+        USER_UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
+
     }
 
     private final ClusterService clusterService;
@@ -170,6 +215,7 @@ public final class RestoreService implements ClusterStateApplier {
     private final RepositoriesService repositoriesService;
 
     private final AllocationService allocationService;
+
 
     private final MetadataCreateIndexService createIndexService;
 
@@ -188,6 +234,10 @@ public final class RestoreService implements ClusterStateApplier {
     private final ThreadPool threadPool;
 
     private volatile boolean refreshRepositoryUuidOnRestore;
+    private final ClusterManagerTaskThrottler.ThrottlingKey restoreSnapshotTaskKey;
+    private MetadataIndexUpgradeService metadataIndexUpgradeService;
+    private final Supplier<Double> dataToFileCacheSizeRatioSupplier;
+
 
     public RestoreService(
         ClusterService clusterService,
@@ -199,13 +249,18 @@ public final class RestoreService implements ClusterStateApplier {
         SystemIndices systemIndices,
         IndicesService indicesService,
         FileSettingsService fileSettingsService,
-        ThreadPool threadPool
-    ) {
+        ThreadPool threadPool,
+        ClusterManagerTaskThrottler.ThrottlingKey restoreSnapshotTaskKey, MetadataIndexUpgradeService metadataIndexUpgradeService,
+        Supplier<Double> dataToFileCacheSizeRatioSupplier, Supplier<ClusterInfo> clusterInfoSupplier) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.indexMetadataVerifier = indexMetadataVerifier;
+        this.restoreSnapshotTaskKey = restoreSnapshotTaskKey;
+        this.metadataIndexUpgradeService = metadataIndexUpgradeService;
+        this.dataToFileCacheSizeRatioSupplier = dataToFileCacheSizeRatioSupplier;
+        this.clusterInfoSupplier = clusterInfoSupplier;
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
             clusterService.addStateApplier(this);
         }
@@ -219,6 +274,11 @@ public final class RestoreService implements ClusterStateApplier {
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
     }
+
+    private static final String REMOTE_STORE_INDEX_SETTINGS_REGEX = "index.remote_store.*";
+    private final Supplier<ClusterInfo> clusterInfoSupplier;
+
+
 
     /**
      * Restores snapshot specified in the restore request.
@@ -238,65 +298,842 @@ public final class RestoreService implements ClusterStateApplier {
      * @param updater  handler that allows callers to make modifications to {@link Metadata}
      *                 in the same cluster state update as the restore operation
      */
-    public void restoreSnapshot(
-        final RestoreSnapshotRequest request,
-        final ActionListener<RestoreCompletionResponse> listener,
-        final BiConsumer<ClusterState, Metadata.Builder> updater
-    ) {
-        try {
-            // Try and fill in any missing repository UUIDs in case they're needed during the restore
-            final var repositoryUuidRefreshStep = new ListenableFuture<Void>();
-            refreshRepositoryUuids(refreshRepositoryUuidOnRestore, repositoriesService, () -> repositoryUuidRefreshStep.onResponse(null));
+//    public void restoreSnapshot(
+//        final RestoreSnapshotRequest request,
+//        final ActionListener<RestoreCompletionResponse> listener,
+//        final BiConsumer<ClusterState, Metadata.Builder> updater
+//    ) {
+//        try {
+//            // Try and fill in any missing repository UUIDs in case they're needed during the restore
+//            final var repositoryUuidRefreshStep = new ListenableFuture<Void>();
+//            refreshRepositoryUuids(refreshRepositoryUuidOnRestore, repositoriesService, () -> repositoryUuidRefreshStep.onResponse(null));
+//
+//            // Read snapshot info and metadata from the repository
+//            final String repositoryName = request.repository();
+//            Repository repository = repositoriesService.repository(repositoryName);
+//            final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
+//            repository.getRepositoryData(
+//                EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
+//                repositoryDataListener
+//            );
+//
+//            repositoryDataListener.addListener(
+//                listener.delegateFailureAndWrap(
+//                    (delegate, repositoryData) -> repositoryUuidRefreshStep.addListener(
+//                        delegate.delegateFailureAndWrap((subDelegate, ignored) -> {
+//                            final String snapshotName = request.snapshot();
+//                            final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds()
+//                                .stream()
+//                                .filter(s -> snapshotName.equals(s.getName()))
+//                                .findFirst();
+//                            if (matchingSnapshotId.isPresent() == false) {
+//                                throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
+//                            }
+//
+//                            final SnapshotId snapshotId = matchingSnapshotId.get();
+//                            if (request.snapshotUuid() != null && request.snapshotUuid().equals(snapshotId.getUUID()) == false) {
+//                                throw new SnapshotRestoreException(
+//                                    repositoryName,
+//                                    snapshotName,
+//                                    "snapshot UUID mismatch: expected ["
+//                                        + request.snapshotUuid()
+//                                        + "] but got ["
+//                                        + snapshotId.getUUID()
+//                                        + "]"
+//                                );
+//                            }
+//                            repository.getSnapshotInfo(
+//                                snapshotId,
+//                                subDelegate.delegateFailureAndWrap(
+//                                    (l, snapshotInfo) -> startRestore(snapshotInfo, repository, request, repositoryData, updater, l)
+//                                )
+//                            );
+//                        })
+//                    )
+//                )
+//            );
+//        } catch (Exception e) {
+//            logger.warn(() -> "[" + request.repository() + ":" + request.snapshot() + "] failed to restore snapshot", e);
+//            listener.onFailure(e);
+//        }
+//    }
 
+
+    @SuppressWarnings("checkstyle:DescendantToken")
+    public void  restoreSnapshot(final RestoreSnapshotRequest request,
+                                 final ActionListener<RestoreCompletionResponse> listener,
+                                 final BiConsumer<ClusterState, Metadata.Builder> updater) {
+        try {
+            // Setting INDEX_STORE_TYPE_SETTING as REMOTE_SNAPSHOT is intended to be a system-managed index setting that is configured when
+            // restoring a snapshot and should not be manually set by user.
+            String storeTypeSetting = request.indexSettings().get(INDEX_STORE_TYPE_SETTING.getKey());
+            if (storeTypeSetting != null && storeTypeSetting.equals(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT.toString())) {
+                throw new SnapshotRestoreException(
+                    request.repository(),
+                    request.snapshot(),
+                    "cannot restore remote snapshot with index settings \"index.store.type\"" +
+                        " set to \"remote_snapshot\". Instead use \"storage_type\": \"remote_snapshot\" as argument to restore."
+                );
+            }
             // Read snapshot info and metadata from the repository
             final String repositoryName = request.repository();
             Repository repository = repositoriesService.repository(repositoryName);
-            final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
-            repository.getRepositoryData(
-                EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
-                repositoryDataListener
-            );
+            final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+            repository.getRepositoryData(repositoryDataListener);
+            repositoryDataListener.whenComplete(repositoryData -> {
+                final String snapshotName = request.snapshot();
+                final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds()
+                    .stream()
+                    .filter(s -> snapshotName.equals(s.getName()))
+                    .findFirst();
+                if (matchingSnapshotId.isPresent() == false) {
+                    throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
+                }
 
-            repositoryDataListener.addListener(
-                listener.delegateFailureAndWrap(
-                    (delegate, repositoryData) -> repositoryUuidRefreshStep.addListener(
-                        delegate.delegateFailureAndWrap((subDelegate, ignored) -> {
-                            final String snapshotName = request.snapshot();
-                            final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds()
-                                .stream()
-                                .filter(s -> snapshotName.equals(s.getName()))
-                                .findFirst();
-                            if (matchingSnapshotId.isPresent() == false) {
-                                throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
+                final SnapshotId snapshotId = matchingSnapshotId.get();
+                if (request.snapshotUuid() != null && request.snapshotUuid().equals(snapshotId.getUUID()) == false) {
+                    throw new SnapshotRestoreException(
+                        repositoryName,
+                        snapshotName,
+                        "snapshot UUID mismatch: expected [" + request.snapshotUuid() + "] but got [" + snapshotId.getUUID() + "]"
+                    );
+                }
+
+                final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+                final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+
+                // Make sure that we can restore from this snapshot
+                validateSnapshotRestorable(repositoryName, snapshotInfo);
+
+                Metadata globalMetadata = null;
+                // Resolve the indices from the snapshot that need to be restored
+                Map<String, DataStream> dataStreams;
+                List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
+
+                List<String> requestedDataStreams = filterIndices(
+                    snapshotInfo.dataStreams(),
+                    requestIndices.toArray(new String[0]),
+                    IndicesOptions.fromOptions(true, true, true, true)
+                );
+                if (requestedDataStreams.isEmpty()) {
+                    dataStreams = new HashMap<>();
+                } else {
+                    globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
+                    final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.dataStreams();
+                    dataStreams = new HashMap<>(requestedDataStreams.size());
+                    for (String requestedDataStream : requestedDataStreams) {
+                        final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
+                        assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
+                        dataStreams.put(requestedDataStream, dataStreamInSnapshot);
+                    }
+                }
+                requestIndices.removeAll(dataStreams.keySet());
+                Set<String> dataStreamIndices = dataStreams.values()
+                    .stream()
+                    .flatMap(ds -> ds.getIndices().stream())
+                    .map(Index::getName)
+                    .collect(Collectors.toSet());
+                requestIndices.addAll(dataStreamIndices);
+
+                final List<String> indicesInSnapshot = filterIndices(
+                    snapshotInfo.indices(),
+                    requestIndices.toArray(new String[0]),
+                    request.indicesOptions()
+                );
+
+                final Metadata.Builder metadataBuilder;
+                if (request.includeGlobalState()) {
+                    if (globalMetadata == null) {
+                        globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
+                    }
+                    metadataBuilder = Metadata.builder(globalMetadata);
+                } else {
+                    metadataBuilder = Metadata.builder();
+                }
+
+                final List<IndexId> indexIdsInSnapshot = (List<IndexId>) repositoryData.resolveIndices(indicesInSnapshot);
+                for (IndexId indexId : indexIdsInSnapshot) {
+                    metadataBuilder.put(repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId), false);
+                }
+
+                final Metadata metadata = metadataBuilder.build();
+
+                // Apply renaming on index names, returning a map of names where
+                // the key is the renamed index and the value is the original name
+                final Map<String, String> indices = renamedIndices(request, indicesInSnapshot, dataStreamIndices);
+
+                // Now we can start the actual restore process by adding shards to be recovered in the cluster state
+                // and updating cluster metadata (global and index) as needed
+                clusterService.submitStateUpdateTask("restore_snapshot[" + snapshotName + ']', new ClusterStateUpdateTask() {
+                    @Override
+                    public void onFailure(Exception e) {}
+
+                    @Override
+                    public void onFailure(String source, ProcessClusterEventTimeoutException e) {}
+
+                    @Override
+                    public void onFailure(String source, NotClusterManagerException e) {
+
+                    }
+
+                    @Override
+                    public void onFailure(String source, FailedToCommitClusterStateException t) {}
+
+                    final String restoreUUID = UUIDs.randomBase64UUID();
+                    RestoreInfo restoreInfo = null;
+
+                    @Override
+                    public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                        return restoreSnapshotTaskKey;
+                    }
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        // Check if the snapshot to restore is currently being deleted
+                        SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
+                            SnapshotDeletionsInProgress.TYPE,
+                            SnapshotDeletionsInProgress.EMPTY
+                        );
+                        if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(snapshotId))) {
+                            throw new ConcurrentSnapshotExecutionException(
+                                snapshot,
+                                "cannot restore a snapshot while a snapshot deletion is in-progress ["
+                                    + deletionsInProgress.getEntries().get(0)
+                                    + "]"
+                            );
+                        }
+
+                        // Updating cluster state
+                        ClusterState.Builder builder = ClusterState.builder(currentState);
+                        Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                        ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                        RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
+                        final Map<ShardId, ShardRestoreStatus> shards;
+                        final boolean isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(request.storageType().toString());
+                        Set<String> aliases = new HashSet<>();
+                        long totalRestorableRemoteIndexesSize = 0;
+
+                        if (indices.isEmpty() == false) {
+                            // We have some indices to restore
+                            Map<ShardId, ShardRestoreStatus> shardsBuilder = new HashMap<>();
+
+                            for (Map.Entry<String, String> indexEntry : indices.entrySet()) {
+                                String renamedIndexName = indexEntry.getKey();
+                                String index = indexEntry.getValue();
+                                boolean partial = checkPartial(index);
+
+                                IndexId snapshotIndexId = repositoryData.resolveIndexId(index);
+
+                                final Settings overrideSettingsInternal = getOverrideSettingsInternal();
+                                final String[] ignoreSettingsInternal = getIgnoreSettingsInternal();
+
+                                IndexMetadata snapshotIndexMetadata = updateIndexSettings(
+                                    metadata.index(index),
+                                    request.indexSettings(),
+                                    request.ignoreIndexSettings(),
+                                    overrideSettingsInternal,
+                                    ignoreSettingsInternal
+                                );
+                                if (isRemoteSnapshot) {
+                                    snapshotIndexMetadata = addSnapshotToIndexSettings(snapshotIndexMetadata, snapshot, snapshotIndexId);
+                                }
+                                final boolean isSearchableSnapshot = snapshotIndexMetadata.isRemoteSnapshot();
+                                final boolean isRemoteStoreShallowCopy = Boolean.TRUE.equals(
+                                    snapshotInfo.isRemoteStoreIndexShallowCopyEnabled()
+                                ) && metadata.index(index).getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
+                                if (isSearchableSnapshot && isRemoteStoreShallowCopy) {
+                                    throw new SnapshotRestoreException(
+                                        snapshot,
+                                        "Shallow copy snapshot cannot be restored as searchable snapshot."
+                                    );
+                                }
+                                if (isRemoteStoreShallowCopy && !currentState.getNodes().getMinNodeVersion()
+                                    .onOrAfter(Version.V_2_9_0.minimumCompatibilityVersion())) {
+                                    throw new SnapshotRestoreException(
+                                        snapshot,
+                                        "cannot restore shallow copy snapshot for index ["
+                                            + index
+                                            + "] as some of the nodes in cluster have version less than 2.9"
+                                    );
+                                }
+                                final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
+                                    restoreUUID,
+                                    snapshot,
+                                    snapshotInfo.version(),
+                                    snapshotIndexId,
+                                    isSearchableSnapshot,
+                                    isRemoteStoreShallowCopy,
+                                    (String) request.getSourceRemoteStoreRepository());
+                                final Version minIndexCompatibilityVersion;
+                                if (isSearchableSnapshot && isSearchableSnapshotsExtendedCompatibilityEnabled()) {
+                                    minIndexCompatibilityVersion = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION
+                                        .minimumIndexCompatibilityVersion();
+                                } else {
+                                    minIndexCompatibilityVersion = currentState.getNodes()
+                                        .getMaxNodeVersion()
+                                        .minimumIndexCompatibilityVersion();
+                                }
+                                try {
+                                    snapshotIndexMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(
+                                        snapshotIndexMetadata,
+                                        minIndexCompatibilityVersion
+                                    );
+                                } catch (Exception ex) {
+                                    throw new SnapshotRestoreException(
+                                        snapshot,
+                                        "cannot restore index [" + index + "] because it cannot be upgraded",
+                                        ex
+                                    );
+                                }
+                                // Check that the index is closed or doesn't exist
+                                IndexMetadata currentIndexMetadata = currentState.metadata().index(renamedIndexName);
+                                Set<Integer> ignoreShards = new HashSet<>();
+                                final Index renamedIndex;
+                                if (currentIndexMetadata == null) {
+                                    // Index doesn't exist - create it and start recovery
+                                    // Make sure that the index we are about to create has valid name
+                                    boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.get(snapshotIndexMetadata.getSettings());
+                                    createIndexService.validateIndexName(renamedIndexName, currentState);
+                                    createIndexService.validateDotIndex(renamedIndexName, isHidden);
+                                    createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);
+                                    MetadataCreateIndexService.validateRefreshIntervalSettings(
+                                        snapshotIndexMetadata.getSettings(),
+                                        clusterSettings
+                                    );
+                                    IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
+                                        .state(IndexMetadata.State.OPEN)
+                                        .index(renamedIndexName);
+                                    indexMdBuilder.settings(
+                                        Settings.builder()
+                                            .put(snapshotIndexMetadata.getSettings())
+                                            .put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                                    );
+                                    createIndexService.addRemoteStoreCustomMetadata(indexMdBuilder, false);
+                                    shardLimitValidator.validateShardLimit(
+                                        renamedIndexName,
+                                        snapshotIndexMetadata.getSettings(),
+                                        currentState
+                                    );
+                                    if (!request.includeAliases() && !snapshotIndexMetadata.getAliases().isEmpty()) {
+                                        // Remove all aliases - they shouldn't be restored
+                                        indexMdBuilder.removeAllAliases();
+                                    } else {
+                                        for (final String alias : snapshotIndexMetadata.getAliases().keySet()) {
+                                            aliases.add(alias);
+                                        }
+                                    }
+                                    IndexMetadata updatedIndexMetadata = indexMdBuilder.build();
+                                    if (partial) {
+                                        populateIgnoredShards(index, ignoreShards);
+                                    }
+                                    rtBuilder.addAsNewRestore(updatedIndexMetadata, recoverySource, ignoreShards);
+                                    blocks.addBlocks(updatedIndexMetadata);
+                                    mdBuilder.put(updatedIndexMetadata, true);
+                                    renamedIndex = updatedIndexMetadata.getIndex();
+                                } else {
+                                    validateExistingIndex(currentIndexMetadata, snapshotIndexMetadata, renamedIndexName, partial);
+                                    // Index exists and it's closed - open it in metadata and start recovery
+                                    IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
+                                        .state(IndexMetadata.State.OPEN);
+                                    indexMdBuilder.version(
+                                        Math.max(snapshotIndexMetadata.getVersion(), 1 + currentIndexMetadata.getVersion())
+                                    );
+                                    indexMdBuilder.mappingVersion(
+                                        Math.max(snapshotIndexMetadata.getMappingVersion(), 1 + currentIndexMetadata.getMappingVersion())
+                                    );
+                                    indexMdBuilder.settingsVersion(
+                                        Math.max(snapshotIndexMetadata.getSettingsVersion(), 1 + currentIndexMetadata.getSettingsVersion())
+                                    );
+                                    indexMdBuilder.aliasesVersion(
+                                        Math.max(snapshotIndexMetadata.getAliasesVersion(), 1 + currentIndexMetadata.getAliasesVersion())
+                                    );
+
+                                    for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
+                                        indexMdBuilder.primaryTerm(
+                                            shard,
+                                            Math.max(snapshotIndexMetadata.primaryTerm(shard), currentIndexMetadata.primaryTerm(shard))
+                                        );
+                                    }
+
+                                    if (!request.includeAliases()) {
+                                        // Remove all snapshot aliases
+                                        if (!snapshotIndexMetadata.getAliases().isEmpty()) {
+                                            indexMdBuilder.removeAllAliases();
+                                        }
+                                        /// Add existing aliases
+                                        for (final AliasMetadata alias : currentIndexMetadata.getAliases().values()) {
+                                            indexMdBuilder.putAlias(alias);
+                                        }
+                                    } else {
+                                        for (final String alias : snapshotIndexMetadata.getAliases().keySet()) {
+                                            aliases.add(alias);
+                                        }
+                                    }
+                                    final Settings.Builder indexSettingsBuilder = Settings.builder()
+                                        .put(snapshotIndexMetadata.getSettings())
+                                        .put(SETTING_INDEX_UUID, currentIndexMetadata.getIndexUUID());
+                                    // add a restore uuid
+                                    indexSettingsBuilder.put(SETTING_HISTORY_UUID, UUIDs.randomBase64UUID());
+                                    indexMdBuilder.settings(indexSettingsBuilder);
+                                    IndexMetadata updatedIndexMetadata = indexMdBuilder.index(renamedIndexName).build();
+                                    rtBuilder.addAsRestore(updatedIndexMetadata, recoverySource);
+                                    blocks.updateBlocks(updatedIndexMetadata);
+                                    mdBuilder.put(updatedIndexMetadata, true);
+                                    renamedIndex = updatedIndexMetadata.getIndex();
+                                }
+
+                                for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
+                                    if (isRemoteSnapshot) {
+                                        IndexShardSnapshotStatus.Copy shardStatus = repository.getShardSnapshotStatus(
+                                            snapshotInfo.snapshotId(),
+                                            snapshotIndexId,
+                                            new ShardId(metadata.index(index).getIndex(), shard)
+                                        ).asCopy();
+                                        totalRestorableRemoteIndexesSize += shardStatus.getTotalSize();
+                                    }
+                                    if (!ignoreShards.contains(shard)) {
+                                        shardsBuilder.put(
+                                            new ShardId(renamedIndex, shard),
+                                            new ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId())
+                                        );
+                                    } else {
+                                        shardsBuilder.put(
+                                            new ShardId(renamedIndex, shard),
+                                            new ShardRestoreStatus(
+                                                clusterService.state().nodes().getLocalNodeId(),
+                                                RestoreInProgress.State.FAILURE
+                                            )
+                                        );
+                                    }
+                                }
                             }
 
-                            final SnapshotId snapshotId = matchingSnapshotId.get();
-                            if (request.snapshotUuid() != null && request.snapshotUuid().equals(snapshotId.getUUID()) == false) {
+                            shards = Collections.unmodifiableMap(shardsBuilder);
+                            RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(
+                                restoreUUID,
+                                snapshot,
+                                overallState(RestoreInProgress.State.INIT, shards),
+                                Collections.unmodifiableList(new ArrayList<>(indices.keySet())),
+                                shards
+                            );
+                            builder.putCustom(
+                                RestoreInProgress.TYPE,
+                                new RestoreInProgress.Builder(currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)).add(
+                                    restoreEntry
+                                ).build()
+                            );
+                        } else {
+                            shards = Map.of();
+                        }
+
+                        checkAliasNameConflicts(indices, aliases);
+                        if (isRemoteSnapshot) {
+                            validateSearchableSnapshotRestorable(totalRestorableRemoteIndexesSize);
+                        }
+
+                        Map<String, DataStream> updatedDataStreams = new HashMap<>(currentState.metadata().dataStreams());
+                        updatedDataStreams.putAll(
+                            dataStreams.values()
+                                .stream()
+                                .map(ds -> updateDataStream(ds, mdBuilder, request))
+                                .collect(Collectors.toMap(DataStream::getName, Function.identity()))
+                        );
+                        mdBuilder.dataStreams(updatedDataStreams);
+
+                        // Restore global state if needed
+                        if (request.includeGlobalState()) {
+                            if (metadata.persistentSettings() != null) {
+                                Settings settings = metadata.persistentSettings();
+                                clusterSettings.validateUpdate(settings);
+                                mdBuilder.persistentSettings(settings);
+                            }
+                            if (metadata.templates() != null) {
+                                // TODO: Should all existing templates be deleted first?
+                                for (final IndexTemplateMetadata cursor : metadata.templates().values()) {
+                                    MetadataCreateIndexService.validateRefreshIntervalSettings(cursor.settings(), clusterSettings);
+                                    mdBuilder.put(cursor);
+                                }
+                            }
+                            if (metadata.customs() != null) {
+                                for (final Map.Entry<String, Metadata.Custom> cursor : metadata.customs().entrySet()) {
+                                    if (RepositoriesMetadata.TYPE.equals(cursor.getKey()) == false
+                                        && DataStreamMetadata.TYPE.equals(cursor.getKey()) == false) {
+                                        // Don't restore repositories while we are working with them
+                                        // TODO: Should we restore them at the end?
+                                        // Also, don't restore data streams here, we already added them to the metadata builder above
+                                        mdBuilder.putCustom(cursor.getKey(), cursor.getValue());
+                                    }
+                                }
+                            }
+                        }
+
+                        if (completed(shards)) {
+                            // We don't have any indices to restore - we are done
+                            restoreInfo = new RestoreInfo(
+                                snapshotId.getName(),
+                                Collections.unmodifiableList(new ArrayList<>(indices.keySet())),
+                                shards.size(),
+                                shards.size() - failedShards(shards)
+                            );
+                        }
+
+                        RoutingTable rt = rtBuilder.build();
+                        ClusterState updatedState = builder.metadata(mdBuilder).blocks(blocks).routingTable(rt).build();
+                        return allocationService.reroute(updatedState, "restored snapshot [" + snapshot + "]");
+                    }
+
+                    @Override
+                    public ClusterStateTaskExecutor.ClusterTasksResult<RestoreSnapshotStateTask.Task>
+                        execute(ClusterState currentState, List<RestoreSnapshotStateTask.Task> tasks) {
+                        return null;
+                    }
+
+                    private void checkAliasNameConflicts(Map<String, String> renamedIndices, Set<String> aliases) {
+                        for (Map.Entry<String, String> renamedIndex : renamedIndices.entrySet()) {
+                            if (aliases.contains(renamedIndex.getKey())) {
                                 throw new SnapshotRestoreException(
-                                    repositoryName,
-                                    snapshotName,
-                                    "snapshot UUID mismatch: expected ["
-                                        + request.snapshotUuid()
-                                        + "] but got ["
-                                        + snapshotId.getUUID()
-                                        + "]"
+                                    snapshot,
+                                    "cannot rename index ["
+                                        + renamedIndex.getValue()
+                                        + "] into ["
+                                        + renamedIndex.getKey()
+                                        + "] because of conflict with an alias with the same name"
                                 );
                             }
-                            repository.getSnapshotInfo(
-                                snapshotId,
-                                subDelegate.delegateFailureAndWrap(
-                                    (l, snapshotInfo) -> startRestore(snapshotInfo, repository, request, repositoryData, updater, l)
-                                )
+                        }
+                    }
+
+                    private String[] getIgnoreSettingsInternal() {
+                        // for non-remote store enabled domain, we will remove all the remote store
+                        // related index settings present in the snapshot.
+                        String[] indexSettingsToBeIgnored = new String[] {};
+                        if (false == RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())) {
+                            indexSettingsToBeIgnored = ArrayUtils.concat(
+                                indexSettingsToBeIgnored,
+                                new String[] { REMOTE_STORE_INDEX_SETTINGS_REGEX }
                             );
-                        })
-                    )
-                )
-            );
+                        }
+                        return indexSettingsToBeIgnored;
+                    }
+
+                    private Settings getOverrideSettingsInternal() {
+                        final Settings.Builder settingsBuilder = Settings.builder();
+
+                        // We will use whatever replication strategy provided by user or from snapshot metadata unless
+                        // cluster is remote store enabled or user have restricted a specific replication type in the
+                        // cluster. If cluster is undergoing remote store migration, replication strategy is strictly SEGMENT type
+                        if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())
+                            || clusterSettings.get(IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING)
+                            || RemoteStoreNodeService.isMigratingToRemoteStore(clusterSettings)) {
+                            MetadataCreateIndexService.updateReplicationStrategy(
+                                settingsBuilder,
+                                request.indexSettings(),
+                                clusterService.getSettings(),
+                                null,
+                                clusterSettings
+                            );
+                        }
+                        // remote store settings needs to be overridden if the remote store feature is enabled in the
+                        // cluster where snapshot is being restored.
+                        MetadataCreateIndexService.updateRemoteStoreSettings(
+                            settingsBuilder,
+                            clusterService.state(),
+                            clusterSettings,
+                            clusterService.getSettings(),
+                            String.join(",", request.indices())
+                        );
+                        return settingsBuilder.build();
+                    }
+
+                    private void populateIgnoredShards(String index, final Set<Integer> ignoreShards) {
+                        for (SnapshotShardFailure failure : snapshotInfo.shardFailures()) {
+                            if (index.equals(failure.index())) {
+                                ignoreShards.add(failure.shardId());
+                            }
+                        }
+                    }
+
+                    private boolean checkPartial(String index) {
+                        // Make sure that index was fully snapshotted
+                        if (failed(snapshotInfo, index)) {
+                            if (request.partial()) {
+                                return true;
+                            } else {
+                                throw new SnapshotRestoreException(
+                                    snapshot,
+                                    "index [" + index + "] wasn't fully snapshotted - cannot " + "restore"
+                                );
+                            }
+                        } else {
+                            return false;
+                        }
+                    }
+
+                    private void validateExistingIndex(
+                        IndexMetadata currentIndexMetadata,
+                        IndexMetadata snapshotIndexMetadata,
+                        String renamedIndex,
+                        boolean partial
+                    ) {
+                        // Index exist - checking that it's closed
+                        if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
+                            // TODO: Enable restore for open indices
+                            throw new SnapshotRestoreException(
+                                snapshot,
+                                "cannot restore index ["
+                                    + renamedIndex
+                                    + "] because an open index "
+                                    + "with same name already exists in the cluster. Either close or delete" +
+                                    " the existing index or restore the "
+                                    + "index under a different name by providing a rename pattern and replacement name"
+                            );
+                        }
+                        // Index exist - checking if it's partial restore
+                        if (partial) {
+                            throw new SnapshotRestoreException(
+                                snapshot,
+                                "cannot restore partial index [" + renamedIndex + "] because such index already exists"
+                            );
+                        }
+                        // Make sure that the number of shards is the same. That's the only thing that we cannot change
+                        if (currentIndexMetadata.getNumberOfShards() != snapshotIndexMetadata.getNumberOfShards()) {
+                            throw new SnapshotRestoreException(
+                                snapshot,
+                                "cannot restore index ["
+                                    + renamedIndex
+                                    + "] with ["
+                                    + currentIndexMetadata.getNumberOfShards()
+                                    + "] shards from a snapshot of index ["
+                                    + snapshotIndexMetadata.getIndex().getName()
+                                    + "] with ["
+                                    + snapshotIndexMetadata.getNumberOfShards()
+                                    + "] shards"
+                            );
+                        }
+                    }
+
+                    /**
+                     * Optionally updates index settings in indexMetadata by removing settings listed in ignoreSettings and
+                     * merging them with settings in changeSettings.
+                     */
+                    private IndexMetadata updateIndexSettings(
+                        IndexMetadata indexMetadata,
+                        Settings overrideSettings,
+                        String[] ignoreSettings,
+                        Settings overrideSettingsInternal,
+                        String[] ignoreSettingsInternal
+                    ) {
+                        Settings normalizedChangeSettings = Settings.builder()
+                            .put(overrideSettings)
+                            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
+                            .build();
+                        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetadata.getSettings())
+                            && IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(overrideSettings)
+                            && IndexSettings.INDEX_SOFT_DELETES_SETTING.get(overrideSettings) == false) {
+                            throw new SnapshotRestoreException(
+                                snapshot,
+                                "cannot disable setting [" + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey() + "] on restore"
+                            );
+                        }
+                        IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
+                        Settings settings = indexMetadata.getSettings();
+                        Set<String> keyFilters = new HashSet<>();
+                        List<String> simpleMatchPatterns = new ArrayList<>();
+                        for (String ignoredSetting : ignoreSettings) {
+                            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                                if (USER_UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
+                                    throw new SnapshotRestoreException(
+                                        snapshot,
+                                        "cannot remove setting [" + ignoredSetting + "] on restore"
+                                    );
+                                } else {
+                                    keyFilters.add(ignoredSetting);
+                                }
+                            } else {
+                                simpleMatchPatterns.add(ignoredSetting);
+                            }
+                        }
+
+                        // add internal settings to ignore settings list
+                        for (String ignoredSetting : ignoreSettingsInternal) {
+                            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                                keyFilters.add(ignoredSetting);
+                            } else {
+                                simpleMatchPatterns.add(ignoredSetting);
+                            }
+                        }
+
+                        Predicate<String> settingsFilter = k -> {
+                            if (USER_UNREMOVABLE_SETTINGS.contains(k) == false) {
+                                for (String filterKey : keyFilters) {
+                                    if (k.equals(filterKey)) {
+                                        return false;
+                                    }
+                                }
+                                for (String pattern : simpleMatchPatterns) {
+                                    if (Regex.simpleMatch(pattern, k)) {
+                                        return false;
+                                    }
+                                }
+                            }
+                            return true;
+                        };
+                        Settings.Builder settingsBuilder = Settings.builder()
+                            .put(settings.filter(settingsFilter))
+                            .put(normalizedChangeSettings.filter(k -> {
+                                if (USER_UNMODIFIABLE_SETTINGS.contains(k)) {
+                                    throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + k + "] on restore");
+                                } else {
+                                    return true;
+                                }
+                            }));
+
+                        // override internal settings
+                        if (overrideSettingsInternal != null) {
+                            settingsBuilder.put(overrideSettingsInternal).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
+                        }
+                        settingsBuilder.remove(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey());
+                        return builder.settings(settingsBuilder).build();
+                    }
+
+                    private void validateSearchableSnapshotRestorable(long totalRestorableRemoteIndexesSize) {
+                        ClusterInfo clusterInfo = clusterInfoSupplier.get();
+                        final double remoteDataToFileCacheRatio = dataToFileCacheSizeRatioSupplier.get();
+                        Map<String, FileCacheStats> nodeFileCacheStats = clusterInfo.getNodeFileCacheStats();
+                        if (nodeFileCacheStats.isEmpty() || remoteDataToFileCacheRatio <= 0.01f) {
+                            return;
+                        }
+
+                        long totalNodeFileCacheSize = clusterInfo.getNodeFileCacheStats()
+                            .values()
+                            .stream()
+                            .map(fileCacheStats -> fileCacheStats.getTotal().getBytes())
+                            .mapToLong(Long::longValue)
+                            .sum();
+
+                        Predicate<ShardRouting> isRemoteSnapshotShard = shardRouting -> shardRouting.primary()
+                            && clusterService.state().getMetadata().getIndexSafe(shardRouting.index()).isRemoteSnapshot();
+
+                        ShardsIterator shardsIterator = clusterService.state()
+                            .routingTable()
+                            .allShardsSatisfyingPredicate(isRemoteSnapshotShard);
+
+                        long totalRestoredRemoteIndexesSize = shardsIterator.getShardRoutings()
+                            .stream()
+                            .map(clusterInfo::getShardSize)
+                            .mapToLong(Long::longValue)
+                            .sum();
+
+                        if (totalRestoredRemoteIndexesSize + totalRestorableRemoteIndexesSize > remoteDataToFileCacheRatio
+                            * totalNodeFileCacheSize) {
+                            throw new SnapshotRestoreException(
+                                snapshot,
+                                "Size of the indexes to be restored exceeds the file cache bounds. " +
+                                    "Increase the file cache capacity on the cluster nodes using "
+                                    + NODE_SEARCH_CACHE_SIZE_SETTING.getKey()
+                                    + " setting."
+                            );
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshotId), e);
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    public Comparable<TimeValue> timeout() {
+                        return request.clusterManagerNodeTimeout();
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        listener.onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
+                    }
+                });
+            }, listener::onFailure);
         } catch (Exception e) {
-            logger.warn(() -> "[" + request.repository() + ":" + request.snapshot() + "] failed to restore snapshot", e);
+            logger.warn(
+                () -> new ParameterizedMessage("[{}] failed to restore snapshot", request.repository() + ":" + request.snapshot()),
+                e
+            );
             listener.onFailure(e);
         }
     }
+
+    private boolean isSearchableSnapshotsExtendedCompatibilityEnabled() {
+        return org.elasticsearch.Version.CURRENT.after(org.elasticsearch.Version.V_2_4_0)
+            && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY);
+    }
+
+    private static IndexMetadata addSnapshotToIndexSettings(IndexMetadata metadata, Snapshot snapshot, IndexId indexId) {
+        final Settings newSettings = Settings.builder()
+            .put(metadata.getSettings())
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY.getKey(), snapshot.getRepository())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey(), snapshot.getSnapshotId().getUUID())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME.getKey(), snapshot.getSnapshotId().getName())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.getKey(), indexId.getId())
+            .build();
+        return IndexMetadata.builder(metadata).settings(newSettings).build();
+    }
+
+    private static Map<String, String> renamedIndices(
+        RestoreSnapshotRequest request,
+        List<String> filteredIndices,
+        Set<String> dataStreamIndices
+    ) {
+        Map<String, String> renamedIndices = new HashMap<>();
+        for (String index : filteredIndices) {
+            String renamedIndex = renameIndex(index, request, dataStreamIndices.contains(index));
+            String previousIndex = renamedIndices.put(renamedIndex, index);
+            if (previousIndex != null) {
+                throw new SnapshotRestoreException(
+                    request.repository(),
+                    request.snapshot(),
+                    "indices [" + index + "] and [" + previousIndex + "] are renamed into the same index [" + renamedIndex + "]"
+                );
+            }
+        }
+        return Collections.unmodifiableMap(renamedIndices);
+    }
+
+    private static String renameIndex(String index, RestoreSnapshotRequest request, boolean partOfDataStream) {
+        String renamedIndex = index;
+        if (request.renameReplacement() != null && request.renamePattern() != null) {
+            partOfDataStream = partOfDataStream && index.startsWith(DataStream.BACKING_INDEX_PREFIX);
+            if (partOfDataStream) {
+                index = index.substring(DataStream.BACKING_INDEX_PREFIX.length());
+            }
+            renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
+            if (partOfDataStream) {
+                renamedIndex = DataStream.BACKING_INDEX_PREFIX + renamedIndex;
+            }
+        }
+        return renamedIndex;
+    }
+
+    @SuppressWarnings("checkstyle:DescendantToken")
+    private static void validateSnapshotRestorable(final String repository, final SnapshotInfo snapshotInfo) {
+        if (!snapshotInfo.state().restorable()) {
+            throw new SnapshotRestoreException(
+                new Snapshot(repository, snapshotInfo.snapshotId()),
+                "unsupported snapshot state [" + snapshotInfo.state() + "]"
+            );
+        }
+        if (Version.CURRENT.before(snapshotInfo.version())) {
+            throw new SnapshotRestoreException(
+                new Snapshot(repository, snapshotInfo.snapshotId()),
+                "the snapshot was created with OpenSearch version ["
+                    + snapshotInfo.version()
+                    + "] which is higher than the version of this node ["
+                    + Version.CURRENT
+                    + "]"
+            );
+        }
+    }
+
 
     /**
      * Start the snapshot restore process. First validate that the snapshot can be restored based on the contents of the repository and
@@ -751,7 +1588,6 @@ public final class RestoreService implements ClusterStateApplier {
                         entry.uuid(),
                         entry.snapshot(),
                         overallState(RestoreInProgress.State.STARTED, shards),
-                        entry.quiet(),
                         entry.indices(),
                         shards
                     )
@@ -867,7 +1703,7 @@ public final class RestoreService implements ClusterStateApplier {
                         Map<ShardId, ShardRestoreStatus> shards = Map.copyOf(shardsBuilder);
                         RestoreInProgress.State newState = overallState(RestoreInProgress.State.STARTED, shards);
                         builder.add(
-                            new RestoreInProgress.Entry(entry.uuid(), entry.snapshot(), newState, entry.quiet(), entry.indices(), shards)
+                            new RestoreInProgress.Entry(entry.uuid(), entry.snapshot(), newState, entry.indices(), shards)
                         );
                     } else {
                         builder.add(entry);
@@ -993,24 +1829,17 @@ public final class RestoreService implements ClusterStateApplier {
                 "unsupported snapshot state [" + snapshotInfo.state() + "]"
             );
         }
-        if (IndexVersion.current().before(snapshotInfo.version())) {
+        if (Version.CURRENT.before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with version ["
-                    + snapshotInfo.version().toReleaseVersion()
+                    + snapshotInfo.version()
                     + "] which is higher than the version of this node ["
-                    + IndexVersion.current().toReleaseVersion()
+                    + Version.CURRENT
                     + "]"
             );
         }
-        Snapshot snapshot = new Snapshot(repository.name(), snapshotInfo.snapshotId());
-        preRestoreVersionChecks.forEach(c -> c.accept(snapshot, snapshotInfo.version()));
-        if (request.includeGlobalState() && snapshotInfo.includeGlobalState() == Boolean.FALSE) {
-            throw new SnapshotRestoreException(
-                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
-                "cannot restore global state since the snapshot was created without global state"
-            );
-        }
+
     }
 
     public static boolean failed(SnapshotInfo snapshot, String index) {
@@ -1054,13 +1883,23 @@ public final class RestoreService implements ClusterStateApplier {
     private void removeCompletedRestoresFromClusterState() {
         submitUnbatchedTask("clean up snapshot restore status", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
+            public void onFailure(String source, Exception e) {
+
+            }
+
+            @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return null;
+            }
+
+            @Override
             public ClusterState execute(ClusterState currentState) {
                 RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
                 boolean changed = false;
                 for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState)) {
                     if (entry.state().completed()) {
                         logger.log(
-                            entry.quiet() ? Level.DEBUG : Level.INFO,
+                            Level.DEBUG,
                             "completed restore of snapshot [{}] with state [{}]",
                             entry.snapshot(),
                             entry.state()
@@ -1076,6 +1915,12 @@ public final class RestoreService implements ClusterStateApplier {
             }
 
             @Override
+            public ClusterStateTaskExecutor.ClusterTasksResult<RestoreSnapshotStateTask.Task>
+                execute(ClusterState currentState, List<RestoreSnapshotStateTask.Task> tasks) {
+                return null;
+            }
+
+            @Override
             public void onFailure(final Exception e) {
                 cleanupInProgress = false;
                 logger.log(
@@ -1083,6 +1928,21 @@ public final class RestoreService implements ClusterStateApplier {
                     "failed to remove completed restores from cluster state",
                     e
                 );
+            }
+
+            @Override
+            public void onFailure(String source, ProcessClusterEventTimeoutException e) {
+
+            }
+
+            @Override
+            public void onFailure(String source, NotClusterManagerException e) {
+
+            }
+
+            @Override
+            public void onFailure(String source, FailedToCommitClusterStateException t) {
+
             }
 
             @Override
@@ -1265,167 +2125,56 @@ public final class RestoreService implements ClusterStateApplier {
         }
 
         @Override
-        public ClusterState execute(ClusterState currentState) {
-            // Check if the snapshot to restore is currently being deleted
-            ensureSnapshotNotDeleted(currentState);
+        public void onFailure(String source, Exception e) {
 
-            // Clear out all existing indices which fall within a system index pattern being restored
-            currentState = MetadataDeleteIndexService.deleteIndices(
-                currentState,
-                resolveSystemIndicesToDelete(currentState, featureStatesToRestore),
-                settings
-            );
-
-            // List of searchable snapshots indices to restore
-            final Set<Index> searchableSnapshotsIndices = new HashSet<>();
-
-            // Updating cluster state
-            final Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-            final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-            final RoutingTable.Builder rtBuilder = RoutingTable.builder(
-                allocationService.getShardRoutingRoleStrategy(),
-                currentState.routingTable()
-            );
-
-            final Map<ShardId, ShardRestoreStatus> shards = new HashMap<>();
-
-            final IndexVersion minIndexCompatibilityVersion = currentState.getNodes().getMinSupportedIndexVersion();
-            final String localNodeId = clusterService.state().nodes().getLocalNodeId();
-            for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
-                final IndexId index = indexEntry.getValue();
-                final IndexMetadata originalIndexMetadata = metadata.index(index.getName());
-                repositoriesService.getPreRestoreVersionChecks()
-                    .forEach(check -> check.accept(snapshot, originalIndexMetadata.getCreationVersion()));
-                IndexMetadata snapshotIndexMetadata = updateIndexSettings(
-                    snapshot,
-                    originalIndexMetadata,
-                    request.indexSettings(),
-                    request.ignoreIndexSettings()
-                );
-                if (snapshotIndexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
-                    // adapt index metadata so that it can be understood by current version
-                    snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState, indicesService);
-                }
-                try {
-                    snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(snapshotIndexMetadata, minIndexCompatibilityVersion);
-                } catch (Exception ex) {
-                    throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
-                }
-                final String renamedIndexName = indexEntry.getKey();
-                final IndexMetadata currentIndexMetadata = currentState.metadata().index(renamedIndexName);
-                final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
-                    restoreUUID,
-                    snapshot,
-                    snapshotInfo.version(),
-                    index
-                );
-                final boolean partial = checkPartial(index.getName());
-                final Set<Integer> ignoreShards = new HashSet<>();
-                final IndexMetadata updatedIndexMetadata;
-
-                // different paths depending on whether we are restoring to create a new index or restoring over an existing closed index
-                // that will be opened by the restore
-                if (currentIndexMetadata == null) {
-                    // Index doesn't exist - create it and start recovery
-                    // Make sure that the index we are about to create has a valid name
-                    ensureValidIndexName(currentState, snapshotIndexMetadata, renamedIndexName);
-                    shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
-
-                    final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(snapshotIndexMetadata, renamedIndexName);
-                    if (request.includeAliases() == false
-                        && snapshotIndexMetadata.getAliases().isEmpty() == false
-                        && isSystemIndex(snapshotIndexMetadata) == false) {
-                        // Remove all aliases - they shouldn't be restored
-                        indexMdBuilder.removeAllAliases();
-                    } else {
-                        ensureNoAliasNameConflicts(snapshotIndexMetadata);
-                    }
-                    updatedIndexMetadata = indexMdBuilder.build();
-                    if (partial) {
-                        populateIgnoredShards(index.getName(), ignoreShards);
-                    }
-                    rtBuilder.addAsNewRestore(updatedIndexMetadata, recoverySource, ignoreShards);
-                    blocks.addBlocks(updatedIndexMetadata);
-                } else {
-                    // Index exists and it's closed - open it in metadata and start recovery
-                    validateExistingClosedIndex(currentIndexMetadata, snapshotIndexMetadata, renamedIndexName, partial);
-                    final IndexMetadata.Builder indexMdBuilder = restoreOverClosedIndex(snapshotIndexMetadata, currentIndexMetadata);
-
-                    if (request.includeAliases() == false && isSystemIndex(snapshotIndexMetadata) == false) {
-                        // Remove all snapshot aliases
-                        if (snapshotIndexMetadata.getAliases().isEmpty() == false) {
-                            indexMdBuilder.removeAllAliases();
-                        }
-                        // Add existing aliases
-                        for (AliasMetadata alias : currentIndexMetadata.getAliases().values()) {
-                            indexMdBuilder.putAlias(alias);
-                        }
-                    } else {
-                        ensureNoAliasNameConflicts(snapshotIndexMetadata);
-                    }
-                    updatedIndexMetadata = indexMdBuilder.build();
-                    rtBuilder.addAsRestore(updatedIndexMetadata, recoverySource);
-                    blocks.updateBlocks(updatedIndexMetadata);
-                }
-
-                mdBuilder.put(updatedIndexMetadata, true);
-                final Index renamedIndex = updatedIndexMetadata.getIndex();
-                for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
-                    shards.put(
-                        new ShardId(renamedIndex, shard),
-                        ignoreShards.contains(shard)
-                            ? new ShardRestoreStatus(localNodeId, RestoreInProgress.State.FAILURE)
-                            : new ShardRestoreStatus(localNodeId)
-                    );
-                }
-
-                if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(updatedIndexMetadata.getSettings()))) {
-                    searchableSnapshotsIndices.add(updatedIndexMetadata.getIndex());
-                }
-            }
-
-            final ClusterState.Builder builder = ClusterState.builder(currentState);
-            if (shards.isEmpty() == false) {
-                builder.putCustom(
-                    RestoreInProgress.TYPE,
-                    new RestoreInProgress.Builder(RestoreInProgress.get(currentState)).add(
-                        new RestoreInProgress.Entry(
-                            restoreUUID,
-                            snapshot,
-                            overallState(RestoreInProgress.State.INIT, shards),
-                            request.quiet(),
-                            List.copyOf(indicesToRestore.keySet()),
-                            Map.copyOf(shards)
-                        )
-                    ).build()
-                );
-            }
-
-            applyDataStreamRestores(currentState, mdBuilder);
-
-            // Restore global state if needed
-            if (request.includeGlobalState()) {
-                applyGlobalStateRestore(currentState, mdBuilder);
-                fileSettingsService.handleSnapshotRestore(currentState, mdBuilder);
-            }
-
-            if (completed(shards)) {
-                // We don't have any indices to restore - we are done
-                restoreInfo = new RestoreInfo(
-                    snapshot.getSnapshotId().getName(),
-                    List.copyOf(indicesToRestore.keySet()),
-                    shards.size(),
-                    shards.size() - failedShards(shards)
-                );
-            }
-
-            updater.accept(currentState, mdBuilder);
-            final ClusterState updatedClusterState = builder.metadata(mdBuilder).blocks(blocks).routingTable(rtBuilder.build()).build();
-            if (searchableSnapshotsIndices.isEmpty() == false) {
-                ensureSearchableSnapshotsRestorable(updatedClusterState, snapshotInfo, searchableSnapshotsIndices);
-            }
-            return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]", listener.reroute());
         }
+
+        static class Task {
+            final String uuid;
+
+            Task(String uuid) {
+                this.uuid = uuid;
+            }
+
+            @Override
+            public String toString() {
+                return "clean restore state for restore " + uuid;
+            }
+        }
+
+        @Override
+        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+            return null;
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState) throws Exception {
+            return null;
+        }
+
+        @Override
+        public ClusterStateTaskExecutor.ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) {
+            final ClusterStateTaskExecutor.ClusterTasksResult.Builder<Task> resultBuilder =
+                    ClusterStateTaskExecutor.ClusterTasksResult.<Task>builder().successes(tasks);
+            Set<String> completedRestores = tasks.stream().map(e -> e.uuid).collect(Collectors.toSet());
+            RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
+            boolean changed = false;
+            for (RestoreInProgress.Entry entry : currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
+                if (completedRestores.contains(entry.uuid())) {
+                    changed = true;
+                } else {
+                    restoreInProgressBuilder.add(entry);
+                }
+            }
+            if (changed == false) {
+                return resultBuilder.build(currentState);
+            }
+            final Map<String, ClusterState.Custom> builder = new HashMap<>(currentState.getCustoms());
+            builder.put(RestoreInProgress.TYPE, restoreInProgressBuilder.build());
+            final Map<String, ClusterState.Custom> customs = Collections.unmodifiableMap(builder);
+            return resultBuilder.build(ClusterState.builder(currentState).customs(customs).build());
+        }
+
 
         private void applyDataStreamRestores(ClusterState currentState, Metadata.Builder mdBuilder) {
             final Map<String, DataStream> updatedDataStreams = new HashMap<>(currentState.metadata().dataStreams());
@@ -1584,6 +2333,21 @@ public final class RestoreService implements ClusterStateApplier {
         public void onFailure(Exception e) {
             logger.warn(() -> "[" + snapshot + "] failed to restore snapshot", e);
             listener.clusterStateUpdate().onFailure(e);
+        }
+
+        @Override
+        public void onFailure(String source, ProcessClusterEventTimeoutException e) {
+
+        }
+
+        @Override
+        public void onFailure(String source, NotClusterManagerException e) {
+
+        }
+
+        @Override
+        public void onFailure(String source, FailedToCommitClusterStateException t) {
+
         }
 
         @Override

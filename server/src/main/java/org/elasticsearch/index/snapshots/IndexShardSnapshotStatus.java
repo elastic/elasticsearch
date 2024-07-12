@@ -63,7 +63,8 @@ public class IndexShardSnapshotStatus {
         /**
          * Snapshot aborted
          */
-        ABORTED
+        ABORTED;
+
     }
 
     /**
@@ -426,6 +427,21 @@ public class IndexShardSnapshotStatus {
                 + failure
                 + '\''
                 + ')';
+        }
+
+        public synchronized IndexShardSnapshotStatus.Copy asCopy() {
+            return new IndexShardSnapshotStatus.Copy(
+                stage,
+                startTime,
+                totalTime,
+                incrementalFileCount,
+                totalFileCount,
+                processedFileCount,
+                incrementalSize,
+                totalSize,
+                processedSize,
+                failure
+            );
         }
     }
 }

@@ -14,7 +14,7 @@ import java.nio.ByteOrder;
 
 /** Utility methods to do byte-level encoding. These methods are biased towards little-endian byte order because it is the most
  *  common byte order and reading several bytes at once may be optimizable in the future with the help of sun.mist.Unsafe. */
-public enum ByteUtils {
+public final class ByteUtils {
     ;
 
     public static final VarHandle LITTLE_ENDIAN_CHAR = MethodHandles.byteArrayViewVarHandle(char[].class, ByteOrder.LITTLE_ENDIAN);
@@ -184,5 +184,14 @@ public enum ByteUtils {
      */
     public static short readShortBE(byte[] arr, int offset) {
         return (short) BIG_ENDIAN_SHORT.get(arr, offset);
+    }
+
+    public static byte[] toByteArrayBE(long l) {
+        byte[] result = new byte[8];
+        for (int i = 7; i >= 0; i--) {
+            result[i] = (byte) (l & 0xffL);
+            l >>= 8;
+        }
+        return result;
     }
 }

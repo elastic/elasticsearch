@@ -263,8 +263,8 @@ public class TestShardRouting {
                 randomUUID(),
                 new Snapshot("repo", new SnapshotId(randomIdentifier(), randomUUID())),
                 IndexVersion.current(),
-                new IndexId("some_index", randomUUID())
-            )
+                new IndexId("some_index", randomUUID()),
+                isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository)
         );
     }
 }

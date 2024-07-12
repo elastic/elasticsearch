@@ -179,8 +179,8 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                     recoveryUuid,
                     snapshot,
                     version,
-                    indexId
-                );
+                    indexId,
+                    isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
 
                 if (shardRouting.recoverySource().equals(recoverySource) == false) {
                     shardRouting = unassignedAllocationHandler.updateUnassigned(

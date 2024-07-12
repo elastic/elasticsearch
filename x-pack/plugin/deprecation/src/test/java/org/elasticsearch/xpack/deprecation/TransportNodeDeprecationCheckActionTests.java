@@ -170,8 +170,8 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
-            Map.of()
-        );
+            Map.of(),
+                nodeFileCacheStats);
         DeprecationIssue issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
             nodeSettings,
             dynamicSettings,

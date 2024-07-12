@@ -251,7 +251,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
             when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
+            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService, ignoreDotIndexes, systemIndices);
             createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
                 clusterService,

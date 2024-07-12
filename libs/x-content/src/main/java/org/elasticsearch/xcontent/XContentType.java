@@ -13,6 +13,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Map;
 import java.util.Set;
 
@@ -28,6 +30,41 @@ public enum XContentType implements MediaType {
         @Override
         public String mediaTypeWithoutParameters() {
             return "application/json";
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(OutputStream os) throws IOException {
+            return null;
+        }
+
+        @Override
+        public String type() {
+            return null;
+        }
+
+        @Override
+        public String subtype() {
+            return null;
+        }
+
+        @Override
+        public String format() {
+            return null;
+        }
+
+        @Override
+        public boolean detectedXContent(byte[] bytes, int offset, int length) {
+            return false;
+        }
+
+        @Override
+        public boolean detectedXContent(CharSequence content, int length) {
+            return false;
         }
 
         @Override
@@ -50,8 +87,43 @@ public enum XContentType implements MediaType {
      */
     SMILE(1, SmileXContent.smileXContent) {
         @Override
+        public String type() {
+            return null;
+        }
+
+        @Override
+        public String subtype() {
+            return null;
+        }
+
+        @Override
+        public String format() {
+            return null;
+        }
+
+        @Override
+        public boolean detectedXContent(byte[] bytes, int offset, int length) {
+            return false;
+        }
+
+        @Override
+        public boolean detectedXContent(CharSequence content, int length) {
+            return false;
+        }
+
+        @Override
         public String mediaTypeWithoutParameters() {
             return "application/smile";
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(OutputStream os) throws IOException {
+            return null;
         }
 
         @Override
@@ -69,8 +141,43 @@ public enum XContentType implements MediaType {
      */
     YAML(2, YamlXContent.yamlXContent) {
         @Override
+        public String type() {
+            return null;
+        }
+
+        @Override
+        public String subtype() {
+            return null;
+        }
+
+        @Override
+        public String format() {
+            return null;
+        }
+
+        @Override
+        public boolean detectedXContent(byte[] bytes, int offset, int length) {
+            return false;
+        }
+
+        @Override
+        public boolean detectedXContent(CharSequence content, int length) {
+            return false;
+        }
+
+        @Override
         public String mediaTypeWithoutParameters() {
             return "application/yaml";
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(OutputStream os) throws IOException {
+            return null;
         }
 
         @Override
@@ -88,8 +195,43 @@ public enum XContentType implements MediaType {
      */
     CBOR(3, CborXContent.cborXContent) {
         @Override
+        public String type() {
+            return null;
+        }
+
+        @Override
+        public String subtype() {
+            return null;
+        }
+
+        @Override
+        public String format() {
+            return null;
+        }
+
+        @Override
+        public boolean detectedXContent(byte[] bytes, int offset, int length) {
+            return false;
+        }
+
+        @Override
+        public boolean detectedXContent(CharSequence content, int length) {
+            return false;
+        }
+
+        @Override
         public String mediaTypeWithoutParameters() {
             return "application/cbor";
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(OutputStream os) throws IOException {
+            return null;
         }
 
         @Override
@@ -107,8 +249,43 @@ public enum XContentType implements MediaType {
      */
     VND_JSON(4, JsonXContent.jsonXContent) {
         @Override
+        public String type() {
+            return null;
+        }
+
+        @Override
+        public String subtype() {
+            return null;
+        }
+
+        @Override
+        public String format() {
+            return null;
+        }
+
+        @Override
+        public boolean detectedXContent(byte[] bytes, int offset, int length) {
+            return false;
+        }
+
+        @Override
+        public boolean detectedXContent(CharSequence content, int length) {
+            return false;
+        }
+
+        @Override
         public String mediaTypeWithoutParameters() {
             return VENDOR_APPLICATION_PREFIX + "json";
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(OutputStream os) throws IOException {
+            return null;
         }
 
         @Override
@@ -134,8 +311,43 @@ public enum XContentType implements MediaType {
      */
     VND_SMILE(5, SmileXContent.smileXContent) {
         @Override
+        public String type() {
+            return null;
+        }
+
+        @Override
+        public String subtype() {
+            return null;
+        }
+
+        @Override
+        public String format() {
+            return null;
+        }
+
+        @Override
+        public boolean detectedXContent(byte[] bytes, int offset, int length) {
+            return false;
+        }
+
+        @Override
+        public boolean detectedXContent(CharSequence content, int length) {
+            return false;
+        }
+
+        @Override
         public String mediaTypeWithoutParameters() {
             return VENDOR_APPLICATION_PREFIX + "smile";
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(OutputStream os) throws IOException {
+            return null;
         }
 
         @Override
@@ -158,8 +370,43 @@ public enum XContentType implements MediaType {
      */
     VND_YAML(6, YamlXContent.yamlXContent) {
         @Override
+        public String type() {
+            return null;
+        }
+
+        @Override
+        public String subtype() {
+            return null;
+        }
+
+        @Override
+        public String format() {
+            return null;
+        }
+
+        @Override
+        public boolean detectedXContent(byte[] bytes, int offset, int length) {
+            return false;
+        }
+
+        @Override
+        public boolean detectedXContent(CharSequence content, int length) {
+            return false;
+        }
+
+        @Override
         public String mediaTypeWithoutParameters() {
             return VENDOR_APPLICATION_PREFIX + "yaml";
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(OutputStream os) throws IOException {
+            return null;
         }
 
         @Override
@@ -182,8 +429,43 @@ public enum XContentType implements MediaType {
      */
     VND_CBOR(7, CborXContent.cborXContent) {
         @Override
+        public String type() {
+            return null;
+        }
+
+        @Override
+        public String subtype() {
+            return null;
+        }
+
+        @Override
+        public String format() {
+            return null;
+        }
+
+        @Override
+        public boolean detectedXContent(byte[] bytes, int offset, int length) {
+            return false;
+        }
+
+        @Override
+        public boolean detectedXContent(CharSequence content, int length) {
+            return false;
+        }
+
+        @Override
         public String mediaTypeWithoutParameters() {
             return VENDOR_APPLICATION_PREFIX + "cbor";
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(OutputStream os) throws IOException {
+            return null;
         }
 
         @Override

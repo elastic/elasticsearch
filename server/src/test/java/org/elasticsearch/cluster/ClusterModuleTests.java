@@ -84,8 +84,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
-            (TaskManager) null
-        );
+            (TaskManager) null,
+            clusterManagerMetrics, clusterManagerMetrics1, stateStats, stateStats1);
     }
 
     @Override

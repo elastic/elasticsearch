@@ -22,16 +22,20 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotClusterManagerException;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.service.ClusterManagerTaskThrottler;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -67,6 +71,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
 
@@ -140,6 +145,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             threadPool::relativeTimeInMillis
         );
         this.preRestoreChecks = preRestoreChecks;
+    }
+
+    public static void validate(final String identifier) {
+        if (org.elasticsearch.core.common.Strings.hasLength(identifier) == false) {
+            throw new RepositoryException(identifier, "cannot be empty");
+        }
+        if (identifier.contains("#")) {
+            throw new RepositoryException(identifier, "must not contain '#'");
+        }
+        if (Strings.validFileName(identifier) == false) {
+            throw new RepositoryException(identifier, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        }
     }
 
     /**
@@ -249,6 +266,68 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             .addListener(responseListener);
     }
 
+    public void updateRepositoriesMap(Map<String, Repository> repos) {
+        if (repositories.isEmpty()) {
+            repositories = repos;
+        } else {
+            throw new IllegalArgumentException("can't overwrite as repositories are already present");
+        }
+    }
+
+    private static boolean isSystemRepositorySettingPresent(Settings repositoryMetadataSettings) {
+        return SYSTEM_REPOSITORY_SETTING.get(repositoryMetadataSettings);
+    }
+
+
+    public void ensureValidSystemRepositoryUpdate(RepositoryMetadata newRepositoryMetadata, RepositoryMetadata currentRepositoryMetadata) {
+        if (isSystemRepositorySettingPresent(currentRepositoryMetadata.settings())) {
+            try {
+                isValueEqual("type", newRepositoryMetadata.type(), currentRepositoryMetadata.type());
+
+                Repository repository = repositories.get(currentRepositoryMetadata.name());
+                Settings newRepositoryMetadataSettings = newRepositoryMetadata.settings();
+                Settings currentRepositoryMetadataSettings = currentRepositoryMetadata.settings();
+
+                List<String> restrictedSettings = repository.getRestrictedSystemRepositorySettings()
+                    .stream()
+                    .map(setting -> setting.getKey())
+                    .collect(Collectors.toList());
+
+                for (String restrictedSettingKey : restrictedSettings) {
+                    isValueEqual(
+                        restrictedSettingKey,
+                        newRepositoryMetadataSettings.get(restrictedSettingKey),
+                        currentRepositoryMetadataSettings.get(restrictedSettingKey)
+                    );
+                }
+            } catch (IllegalArgumentException e) {
+                throw new RepositoryException(currentRepositoryMetadata.name(), e.getMessage());
+            }
+        }
+    }
+
+    private static boolean isValueEqual(String key, String newValue, String currentValue) {
+        if (newValue == null && currentValue == null) {
+            return true;
+        }
+        if (newValue == null) {
+            throw new IllegalArgumentException("[" + key + "] cannot be empty, " + "current value [" + currentValue + "]");
+        }
+        if (newValue.equals(currentValue) == false) {
+            throw new IllegalArgumentException(
+                "trying to modify an unmodifiable attribute "
+                    + key
+                    + " of system repository from "
+                    + "current value ["
+                    + currentValue
+                    + "] to new value ["
+                    + newValue
+                    + "]"
+            );
+        }
+        return true;
+    }
+
     /**
      * Task class that extracts the 'execute' part of the functionality for registering
      * repositories.
@@ -277,6 +356,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
          */
         public RegisterRepositoryTask(final RepositoriesService repositoriesService, final PutRepositoryRequest request) {
             this(repositoriesService, request, null);
+        }
+
+        @Override
+        public void onFailure(String source, Exception e) {
+
+        }
+
+        @Override
+        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+            return null;
         }
 
         @Override
@@ -333,6 +422,21 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             mdBuilder.putCustom(RepositoriesMetadata.TYPE, repositories);
             changed = true;
             return ClusterState.builder(currentState).metadata(mdBuilder).build();
+        }
+
+        @Override
+        public void onFailure(String source, ProcessClusterEventTimeoutException e) {
+
+        }
+
+        @Override
+        public void onFailure(String source, NotClusterManagerException e) {
+
+        }
+
+        @Override
+        public void onFailure(String source, FailedToCommitClusterStateException t) {
+
         }
     }
 
@@ -426,6 +530,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             "update repository UUID [" + repositoryName + "] to [" + repositoryUuid + "]",
             new ClusterStateUpdateTask() {
                 @Override
+                public void onFailure(String source, Exception e) {
+
+                }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return null;
+                }
+
+                @Override
                 public ClusterState execute(ClusterState currentState) {
                     final RepositoriesMetadata currentReposMetadata = RepositoriesMetadata.get(currentState);
 
@@ -443,6 +557,21 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 @Override
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
+                }
+
+                @Override
+                public void onFailure(String source, ProcessClusterEventTimeoutException e) {
+
+                }
+
+                @Override
+                public void onFailure(String source, NotClusterManagerException e) {
+
+                }
+
+                @Override
+                public void onFailure(String source, FailedToCommitClusterStateException t) {
+
                 }
 
                 @Override
@@ -500,6 +629,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
 
         @Override
+        public void onFailure(String source, Exception e) {
+
+        }
+
+        @Override
+        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+            return null;
+        }
+
+        @Override
         public ClusterState execute(ClusterState currentState) {
             Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
             RepositoriesMetadata repositories = RepositoriesMetadata.get(currentState);
@@ -526,6 +665,21 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 return currentState;
             }
             throw new RepositoryMissingException(request.name());
+        }
+
+        @Override
+        public void onFailure(String source, ProcessClusterEventTimeoutException e) {
+
+        }
+
+        @Override
+        public void onFailure(String source, NotClusterManagerException e) {
+
+        }
+
+        @Override
+        public void onFailure(String source, FailedToCommitClusterStateException t) {
+
         }
     }
 

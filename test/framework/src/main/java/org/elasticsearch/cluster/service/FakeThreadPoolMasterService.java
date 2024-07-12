@@ -47,7 +47,7 @@ public class FakeThreadPoolMasterService extends MasterService {
         ThreadPool threadPool,
         Consumer<Runnable> taskExecutor
     ) {
-        super(settings, clusterSettings, threadPool, new TaskManager(settings, threadPool, Set.of()));
+        super(settings, clusterSettings, clusterManagerMetrics, threadPool, new TaskManager(settings, threadPool, Set.of()), stateStats);
         this.taskExecutor = taskExecutor;
         this.threadContext = threadPool.getThreadContext();
     }

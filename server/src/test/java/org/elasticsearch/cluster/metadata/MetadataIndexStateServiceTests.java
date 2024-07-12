@@ -344,8 +344,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             "_uuid",
             snapshot,
             RestoreInProgress.State.INIT,
-            false,
-            Collections.singletonList(index),
+                Collections.singletonList(index),
             shardsBuilder
         );
         return ClusterState.builder(newState).putCustom(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(entry).build()).build();

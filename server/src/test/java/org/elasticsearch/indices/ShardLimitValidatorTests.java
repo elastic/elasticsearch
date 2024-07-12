@@ -309,7 +309,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             new ClusterSettings(limitOnlySettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        return new ShardLimitValidator(limitOnlySettings, clusterService);
+        return new ShardLimitValidator(limitOnlySettings, clusterService, ignoreDotIndexes, systemIndices);
     }
 
     /**
@@ -326,7 +326,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             new ClusterSettings(limitOnlySettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        return new ShardLimitValidator(limitOnlySettings, clusterService);
+        return new ShardLimitValidator(limitOnlySettings, clusterService, ignoreDotIndexes, systemIndices);
     }
 
     /**
@@ -339,6 +339,6 @@ public class ShardLimitValidatorTests extends ESTestCase {
     public static ShardLimitValidator createTestShardLimitService(int maxShardsPerNode, ClusterService clusterService) {
         Settings limitOnlySettings = Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode).build();
 
-        return new ShardLimitValidator(limitOnlySettings, clusterService);
+        return new ShardLimitValidator(limitOnlySettings, clusterService, ignoreDotIndexes, systemIndices);
     }
 }

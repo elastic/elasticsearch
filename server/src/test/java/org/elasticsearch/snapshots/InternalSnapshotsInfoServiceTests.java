@@ -421,8 +421,8 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             UUIDs.randomBase64UUID(random()),
             new Snapshot("_repo", new SnapshotId(randomAlphaOfLength(5), UUIDs.randomBase64UUID(random()))),
             IndexVersion.current(),
-            new IndexId(indexName, UUIDs.randomBase64UUID(random()))
-        );
+            new IndexId(indexName, UUIDs.randomBase64UUID(random())),
+            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
 
         final IndexMetadata indexMetadata = metadata.get(indexName);
         final Index index = indexMetadata.getIndex();
@@ -445,8 +445,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 recoverySource.restoreUUID(),
                 recoverySource.snapshot(),
                 RestoreInProgress.State.INIT,
-                false,
-                Collections.singletonList(indexName),
+                    Collections.singletonList(indexName),
                 shards
             )
         );

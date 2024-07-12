@@ -760,6 +760,7 @@ public class Cache<K, V> {
             this.evictions = evictions;
         }
 
+
         public long getHits() {
             return hits;
         }

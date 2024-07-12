@@ -151,8 +151,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             recoverySource.restoreUUID(),
             snapshot,
             restoreState,
-            false,
-            singletonList("test"),
+                singletonList("test"),
             shards
         );
 
@@ -231,7 +230,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             UUIDs.randomBase64UUID(),
             snapshot,
             IndexVersion.current(),
-            new IndexId("test", UUIDs.randomBase64UUID(random()))
-        );
+            new IndexId("test", UUIDs.randomBase64UUID(random())),
+            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
     }
 }

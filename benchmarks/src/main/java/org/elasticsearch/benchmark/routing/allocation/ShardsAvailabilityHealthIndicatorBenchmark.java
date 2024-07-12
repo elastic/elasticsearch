@@ -173,8 +173,8 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
-        );
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            clusterManagerMetrics, clusterManagerMetrics1, stateStats, stateStats1);
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
         indicatorService = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, new SystemIndices(List.of()));
     }

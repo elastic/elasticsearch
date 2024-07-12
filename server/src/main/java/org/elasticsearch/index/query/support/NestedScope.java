@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.query.support;
 
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 
@@ -20,12 +21,16 @@ import java.util.LinkedList;
 public final class NestedScope {
 
     private final Deque<NestedObjectMapper> levelStack = new LinkedList<>();
+    private final IndexSettings indexSettings;
 
     /**
      * @return For the current nested level returns the object mapper that belongs to that
      */
     public NestedObjectMapper getObjectMapper() {
         return levelStack.peek();
+    }
+    public NestedScope(IndexSettings indexSettings) {
+        this.indexSettings = indexSettings;
     }
 
     /**

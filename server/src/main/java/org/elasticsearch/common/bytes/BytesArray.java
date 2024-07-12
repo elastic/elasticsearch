@@ -238,4 +238,8 @@ public final class BytesArray extends AbstractBytesReference {
     public double getDoubleLE(int index) {
         return ByteUtils.readDoubleLE(bytes, offset + index);
     }
+
+    public int offset() {
+        return offset;
+    }
 }

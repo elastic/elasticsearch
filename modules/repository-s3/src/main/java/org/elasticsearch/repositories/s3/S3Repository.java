@@ -40,6 +40,10 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -81,6 +85,16 @@ class S3Repository extends MeteredBlobStoreRepository {
             Math.min(ByteSizeUnit.MB.toBytes(100), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
         )
     );
+
+    @Override
+    public Collection<? extends Setting<?>> getRestrictedSystemRepositorySettings() {
+        List<Setting<?>> restrictedSettings = new ArrayList<>();
+        restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
+        restrictedSettings.add(BUCKET_SETTING);
+        restrictedSettings.add(BASE_PATH_SETTING);
+        return (Collection<? extends Setting<?>>) Collections.singletonList(restrictedSettings);
+    }
+
 
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
 

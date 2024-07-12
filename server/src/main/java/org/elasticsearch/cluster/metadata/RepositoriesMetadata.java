@@ -29,10 +29,12 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 /**
  * Contains metadata about registered snapshot repositories
@@ -297,5 +299,33 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @SuppressWarnings("checkstyle:DescendantToken")
+    public boolean equalsIgnoreGenerationsWithRepoSkip(@Nullable RepositoriesMetadata other, List<String> reposToSkip) {
+        if (other == null) {
+            return false;
+        }
+        List<RepositoryMetadata> currentRepositories = repositories.stream()
+            .filter(repo -> !reposToSkip.contains(repo.name()))
+            .collect(Collectors.toList());
+        List<RepositoryMetadata> otherRepositories = other.repositories.stream()
+            .filter(repo -> !reposToSkip.contains(repo.name()))
+            .collect(Collectors.toList());
+
+        if (otherRepositories.size() != currentRepositories.size()) {
+            return false;
+        }
+        // Sort repos by name for ordered comparison
+        Comparator<RepositoryMetadata> compareByName = (o1, o2) -> o1.name().compareTo(o2.name());
+        currentRepositories.sort(compareByName);
+        otherRepositories.sort(compareByName);
+
+        for (int i = 0; i < currentRepositories.size(); i++) {
+            if (currentRepositories.get(i).equalsIgnoreGenerations(otherRepositories.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 }

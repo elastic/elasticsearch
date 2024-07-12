@@ -416,6 +416,9 @@ public class AllocationService {
         return buildResultAndLogHealthChange(clusterState, allocation, reason);
     }
 
+
+
+
     @FunctionalInterface
     public interface RerouteStrategy {
 
@@ -520,7 +523,7 @@ public class AllocationService {
         return false;
     }
 
-    private void reroute(RoutingAllocation allocation, RerouteStrategy rerouteStrategy) {
+    public ClusterState reroute(ClusterState allocation, String rerouteStrategy) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
@@ -529,6 +532,7 @@ public class AllocationService {
         allocateExistingUnassignedShards(allocation); // try to allocate existing shard copies first
         rerouteStrategy.execute(allocation);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
+        return allocation;
     }
 
     private void allocateExistingUnassignedShards(RoutingAllocation allocation) {

@@ -787,7 +787,7 @@ class NodeConstruction {
             pluginsService.flatMap(p -> p.getAdditionalIndexSettingProviders(parameters)).collect(Collectors.toSet())
         );
 
-        final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
+        final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, ignoreDotIndexes, systemIndices);
 
         final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
             settings,
@@ -1168,8 +1168,8 @@ class NodeConstruction {
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
             threadPool,
-            taskManager
-        );
+            taskManager,
+            clusterManagerMetrics, clusterManagerMetrics1, stateStats, stateStats1);
         resourcesToClose.add(clusterService);
 
         Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();

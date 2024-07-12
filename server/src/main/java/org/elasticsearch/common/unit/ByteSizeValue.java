@@ -101,6 +101,9 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         this.size = size;
         this.unit = unit;
     }
+    public ByteSizeValue(long bytes) {
+        this(bytes, ByteSizeUnit.BYTES);
+    }
 
     // For testing
     long getSize() {

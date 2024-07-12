@@ -576,6 +576,23 @@ public class SystemIndices {
         }
     }
 
+    public boolean validateSystemIndex(String index) {
+        if (index.charAt(0) == '.') {
+            SystemIndexDescriptor matchingDescriptor = findMatchingDescriptor(index);
+            if (matchingDescriptor != null) {
+                logger.trace(
+                    "index [{}] is a system index because it matches index pattern [{}] with description [{}]",
+                    index,
+                    matchingDescriptor.getIndexPattern(),
+                    matchingDescriptor.getDescription()
+                );
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * In a future release, these access levels will be used to allow or deny requests for system resources. Currently, the behavior
      * differs for different types of system resources.

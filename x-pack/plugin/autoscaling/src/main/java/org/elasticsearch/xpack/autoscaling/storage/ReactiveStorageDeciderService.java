@@ -931,8 +931,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     extraShardSizes,
                     Map.of(),
                     Map.of(),
-                    Map.of()
-                );
+                    Map.of(),
+                        nodeFileCacheStats);
                 this.delegate = info;
             }
 

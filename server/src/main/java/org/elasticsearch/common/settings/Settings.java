@@ -131,6 +131,16 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         this.secureSettings = secureSettings;
     }
 
+    public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
+        // pull settings to exclude secure settings in size()
+        Set<Map.Entry<String, Object>> entries = settings.settings.entrySet();
+        out.writeVInt(entries.size());
+        for (Map.Entry<String, Object> entry : entries) {
+            out.writeString(entry.getKey());
+            out.writeGenericValue(entry.getValue());
+        }
+    }
+
     /**
      * Retrieve the secure settings in these settings.
      */
@@ -862,6 +872,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
 
         // we use a sorted map for consistent serialization when using getAsMap()
         private final Map<String, Object> map = new TreeMap<>();
+        public static final Settings EMPTY_SETTINGS = Settings.EMPTY;
 
         private final SetOnce<SecureSettings> secureSettings = new SetOnce<>();
 

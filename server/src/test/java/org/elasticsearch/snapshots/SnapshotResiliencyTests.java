@@ -2102,8 +2102,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                 // take charge of these connections
                             });
                         }
-                    }
-                );
+                    },
+                    stateStats);
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
                 FeatureService mockFeatureService = mock(FeatureService.class);
                 when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
@@ -2352,7 +2352,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     RetentionLeaseSyncer.EMPTY,
                     client
                 );
-                final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
+                final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, ignoreDotIndexes, systemIndices);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
                     settings,
                     clusterService,

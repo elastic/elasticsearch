@@ -1497,6 +1497,8 @@ public abstract class FieldMapper extends Mapper {
             }
             return DEPRECATED_PARAMS.contains(propName);
         }
+
+        public abstract void build(Object context);
     }
 
     /**

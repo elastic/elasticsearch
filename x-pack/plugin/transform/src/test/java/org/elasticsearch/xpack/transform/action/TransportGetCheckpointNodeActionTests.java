@@ -69,8 +69,8 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
             Settings.builder().put("node.name", NODE_NAME).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
-            (TaskManager) null
-        );
+            (TaskManager) null,
+            clusterManagerMetrics, clusterManagerMetrics1, stateStats, stateStats1);
 
         indicesService = mock(IndicesService.class);
         when(indicesService.clusterService()).thenReturn(clusterService);

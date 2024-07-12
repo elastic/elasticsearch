@@ -68,6 +68,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
+    public long preciseRelativeTimeInNanos() {
+        return System.nanoTime();
+    }
+
     /**
      * List of names that identify Java thread pools that are created in {@link ThreadPool#ThreadPool}.
      */
@@ -108,6 +112,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SYSTEM_WRITE = "system_write";
         public static final String SYSTEM_CRITICAL_READ = "system_critical_read";
         public static final String SYSTEM_CRITICAL_WRITE = "system_critical_write";
+        public static final String SAME = "same";
+        public static final String TRANSLOG_TRANSFER = "translog_transfer";
     }
 
     public static final String THREAD_POOL_METRIC_PREFIX = "es.thread_pool.";

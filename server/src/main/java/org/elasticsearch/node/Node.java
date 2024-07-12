@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
@@ -105,7 +106,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-
 import javax.net.ssl.SNIHostName;
 
 import static org.elasticsearch.core.Strings.format;
@@ -121,6 +121,12 @@ public class Node implements Closeable {
     public static final Setting<String> NODE_EXTERNAL_ID_SETTING = Setting.simpleString(
         "node.external_id",
         NODE_NAME_SETTING,
+        Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> NODE_SEARCH_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
+        "node.search.cache.size",
+        ByteSizeValue.ZERO,
         Property.NodeScope
     );
     public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = Setting.prefixKeySetting(

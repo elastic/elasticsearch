@@ -431,8 +431,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 null,
-                (TaskManager) null
-            );
+                (TaskManager) null,
+                clusterManagerMetrics, clusterManagerMetrics1, stateStats, stateStats1);
 
             client = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),
@@ -617,8 +617,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 () -> true,
                 scriptService,
-                createMockResolvedIndices()
-            );
+                createMockResolvedIndices(),
+                xContentRegistry, validate);
         }
 
         CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {

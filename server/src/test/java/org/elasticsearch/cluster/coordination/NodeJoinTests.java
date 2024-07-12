@@ -147,9 +147,9 @@ public class NodeJoinTests extends ESTestCase {
         MasterService masterService = new MasterService(
             settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            new TaskManager(settings, threadPool, Set.of())
-        );
+            clusterManagerMetrics, threadPool,
+            new TaskManager(settings, threadPool, Set.of()),
+            stateStats);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);

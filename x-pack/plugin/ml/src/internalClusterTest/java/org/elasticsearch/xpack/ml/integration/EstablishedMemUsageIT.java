@@ -61,7 +61,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp, null);
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp, null, clusterManagerMetrics, clusterManagerMetrics1, stateStats, stateStats1);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);

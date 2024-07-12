@@ -790,7 +790,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             .stream()
             .collect(toUnmodifiableMap(DiscoveryNode::getId, node -> new DiskUsage(node.getId(), null, "the_path", 1000, 1000)));
 
-        return new ClusterInfo() {
+        return new ClusterInfo(nodeFileCacheStats, nodeFileCacheStats) {
             @Override
             public Map<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
                 return diskUsages;

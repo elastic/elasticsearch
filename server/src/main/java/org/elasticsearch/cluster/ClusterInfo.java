@@ -22,10 +22,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.store.remote.filecache.FileCacheStats;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -45,9 +47,9 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObj
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  */
+@SuppressWarnings("checkstyle:LineLength")
 public class ClusterInfo implements ChunkedToXContent, Writeable {
 
-    public static final ClusterInfo EMPTY = new ClusterInfo();
 
     public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
     public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
@@ -57,10 +59,12 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     final Map<String, Long> shardSizes;
     final Map<ShardId, Long> shardDataSetSizes;
     final Map<NodeAndShard, String> dataPath;
-    final Map<NodeAndPath, ReservedSpace> reservedSpace;
+    final Map<String, Object> reservedSpace;
+    final Map<String, FileCacheStats> nodeFileCacheStats;
 
-    protected ClusterInfo() {
-        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+
+    protected ClusterInfo(Map<String, FileCacheStats> nodeFileCacheStats, Map<String, FileCacheStats> nodeFileCacheStats1, Map<String, FileCacheStats> nodeFileCacheStats2) {
+        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), nodeFileCacheStats);
     }
 
     /**
@@ -68,10 +72,11 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      *
      * @param leastAvailableSpaceUsage a node id to disk usage mapping for the path that has the least available space on the node.
      * @param mostAvailableSpaceUsage  a node id to disk usage mapping for the path that has the most available space on the node.
-     * @param shardSizes a shardkey to size in bytes mapping per shard.
-     * @param shardDataSetSizes a shard id to data set size in bytes mapping per shard
-     * @param dataPath the shard routing to datapath mapping
-     * @param reservedSpace reserved space per shard broken down by node and data path
+     * @param shardSizes               a shardkey to size in bytes mapping per shard.
+     * @param shardDataSetSizes        a shard id to data set size in bytes mapping per shard
+     * @param dataPath                 the shard routing to datapath mapping
+     * @param reservedSpace            reserved space per shard broken down by node and data path
+     * @param nodeFileCacheStats
      * @see #shardIdentifierFromRouting
      */
     public ClusterInfo(
@@ -80,17 +85,18 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizes,
         Map<NodeAndShard, String> dataPath,
-        Map<NodeAndPath, ReservedSpace> reservedSpace
-    ) {
+        Map<NodeAndPath, ReservedSpace> reservedSpace,
+        Map<String, FileCacheStats> nodeFileCacheStats) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
         this.shardSizes = Map.copyOf(shardSizes);
         this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
+        this.nodeFileCacheStats = nodeFileCacheStats;
     }
 
-    public ClusterInfo(StreamInput in) throws IOException {
+    public ClusterInfo(StreamInput in, Map<String, FileCacheStats> nodeFileCacheStats) throws IOException {
         this.leastAvailableSpaceUsage = in.readImmutableMap(DiskUsage::new);
         this.mostAvailableSpaceUsage = in.readImmutableMap(DiskUsage::new);
         this.shardSizes = in.readImmutableMap(StreamInput::readLong);
@@ -103,6 +109,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.reservedSpace = in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)
             ? in.readImmutableMap(NodeAndPath::new, ReservedSpace::new)
             : Map.of();
+        this.nodeFileCacheStats = nodeFileCacheStats;
     }
 
     @Override
@@ -314,6 +321,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     // exposed for tests, computed here rather than exposing all the collections separately
     int getChunkCount() {
         return leastAvailableSpaceUsage.size() + shardSizes.size() + shardDataSetSizes.size() + dataPath.size() + reservedSpace.size() + 6;
+    }
+
+    public Map<String, FileCacheStats> getNodeFileCacheStats() {
+        return Collections.unmodifiableMap(this.nodeFileCacheStats);
     }
 
     public record NodeAndShard(String nodeId, ShardId shardId) implements Writeable {

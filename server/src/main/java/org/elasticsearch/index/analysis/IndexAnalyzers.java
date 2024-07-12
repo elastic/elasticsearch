@@ -15,8 +15,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
 
@@ -27,52 +29,82 @@ import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_A
  *
  * @see AnalysisRegistry
  */
-public interface IndexAnalyzers extends Closeable {
+public class IndexAnalyzers implements Closeable {
+
+    public IndexAnalyzers(Map<String, NamedAnalyzer> analyzerMap, Map<String, NamedAnalyzer> analyzerMap1, Map<String, NamedAnalyzer> analyzerMap2) {
+        Objects.requireNonNull(analyzers.get(DEFAULT_ANALYZER_NAME), "the default analyzer must be set");
+        if (analyzers.get(DEFAULT_ANALYZER_NAME).name().equals(DEFAULT_ANALYZER_NAME) == false) {
+            throw new IllegalStateException(
+                "default analyzer must have the name [default] but was: [" + analyzers.get(DEFAULT_ANALYZER_NAME).name() + "]"
+            );
+        }
+        this.analyzers = unmodifiableMap(analyzers);
+        this.normalizers = unmodifiableMap(normalizers);
+        this.whitespaceNormalizers = unmodifiableMap(whitespaceNormalizers);
+    }
 
     enum AnalyzerType {
         ANALYZER,
         NORMALIZER,
         WHITESPACE
     }
+    private  Map<String, NamedAnalyzer> analyzers = null;
+    private  Map<String, NamedAnalyzer> normalizers = null;
+    private  Map<String, NamedAnalyzer> whitespaceNormalizers = null;
 
     /**
      * Returns an analyzer of the given type mapped to the given name, or {@code null} if
      * no such analyzer exists.
      */
-    NamedAnalyzer getAnalyzer(AnalyzerType type, String name);
+    NamedAnalyzer getAnalyzer(AnalyzerType type, String name) {
+        return null;
+    }
+
+    public IndexAnalyzers(
+        ) {
+        Objects.requireNonNull(analyzers.get(DEFAULT_ANALYZER_NAME), "the default analyzer must be set");
+        if (analyzers.get(DEFAULT_ANALYZER_NAME).name().equals(DEFAULT_ANALYZER_NAME) == false) {
+            throw new IllegalStateException(
+                "default analyzer must have the name [default] but was: [" + analyzers.get(DEFAULT_ANALYZER_NAME).name() + "]"
+            );
+        }
+        this.analyzers = unmodifiableMap(analyzers);
+        this.normalizers = unmodifiableMap(normalizers);
+        this.whitespaceNormalizers = unmodifiableMap(whitespaceNormalizers);
+    }
 
     /**
      * Returns an analyzer mapped to the given name or {@code null} if not present
      */
-    default NamedAnalyzer get(String name) {
+    NamedAnalyzer get(String name) {
         return getAnalyzer(AnalyzerType.ANALYZER, name);
     }
 
     /**
      * Returns a normalizer mapped to the given name or {@code null} if not present
      */
-    default NamedAnalyzer getNormalizer(String name) {
+    NamedAnalyzer getNormalizer(String name) {
         return getAnalyzer(AnalyzerType.NORMALIZER, name);
     }
 
     /**
      * Returns a normalizer that splits on whitespace mapped to the given name or {@code null} if not present
      */
-    default NamedAnalyzer getWhitespaceNormalizer(String name) {
+    NamedAnalyzer getWhitespaceNormalizer(String name) {
         return getAnalyzer(AnalyzerType.WHITESPACE, name);
     }
 
     /**
      * Returns the default index analyzer for this index
      */
-    default NamedAnalyzer getDefaultIndexAnalyzer() {
+    NamedAnalyzer getDefaultIndexAnalyzer() {
         return getAnalyzer(AnalyzerType.ANALYZER, DEFAULT_ANALYZER_NAME);
     }
 
     /**
      * Returns the default search analyzer for this index. If not set, this will return the default analyzer
      */
-    default NamedAnalyzer getDefaultSearchAnalyzer() {
+    NamedAnalyzer getDefaultSearchAnalyzer() {
         NamedAnalyzer analyzer = getAnalyzer(AnalyzerType.ANALYZER, DEFAULT_SEARCH_ANALYZER_NAME);
         if (analyzer != null) {
             return analyzer;
@@ -84,7 +116,7 @@ public interface IndexAnalyzers extends Closeable {
      * Returns the default search quote analyzer for this index. If not set, this will return the default
      * search analyzer
      */
-    default NamedAnalyzer getDefaultSearchQuoteAnalyzer() {
+    NamedAnalyzer getDefaultSearchQuoteAnalyzer() {
         NamedAnalyzer analyzer = getAnalyzer(AnalyzerType.ANALYZER, AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
         if (analyzer != null) {
             return analyzer;
@@ -95,14 +127,14 @@ public interface IndexAnalyzers extends Closeable {
     /**
      * Reload any analyzers that have reloadable components
      */
-    default List<String> reload(AnalysisRegistry analysisRegistry, IndexSettings indexSettings, String resource, boolean preview)
+    List<String> reload(AnalysisRegistry analysisRegistry, IndexSettings indexSettings, String resource, boolean preview)
         throws IOException {
         return List.of();
     }
 
-    default void close() throws IOException {}
+    public void close() throws IOException {}
 
-    static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers) {
+    public static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers) {
         return of(analyzers, Map.of(), Map.of());
     }
 

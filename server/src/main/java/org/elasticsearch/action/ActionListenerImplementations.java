@@ -324,12 +324,17 @@ class ActionListenerImplementations {
     }
 
     // Extend AtomicReference directly for minimum memory overhead and indirection.
-    static final class NotifyOnceActionListener<Response> extends AtomicReference<ActionListener<Response>>
+    static abstract class NotifyOnceActionListener<Response> extends AtomicReference<ActionListener<Response>>
         implements
             ActionListener<Response> {
 
         NotifyOnceActionListener(ActionListener<Response> delegate) {
             super(delegate);
+        }
+
+        @SuppressWarnings("checkstyle:RedundantModifier")
+        public NotifyOnceActionListener() {
+
         }
 
         @Override
@@ -352,5 +357,9 @@ class ActionListenerImplementations {
         public String toString() {
             return "notifyOnce[" + get() + "]";
         }
+
+        protected abstract void innerOnResponse(Response response);
+
+        protected abstract void innerOnFailure(Exception e);
     }
 }

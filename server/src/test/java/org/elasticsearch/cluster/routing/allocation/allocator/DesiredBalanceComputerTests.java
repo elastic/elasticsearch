@@ -668,7 +668,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .stream()
             .collect(toMap(Map.Entry::getKey, it -> new DiskUsage(it.getKey(), it.getKey(), "/data", diskSize, diskSize - it.getValue())));
 
-        var clusterInfo = new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), dataPath, Map.of());
+        var clusterInfo = new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), dataPath, Map.of(), nodeFileCacheStats);
 
         var settings = Settings.EMPTY;
 
@@ -869,8 +869,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             "restore",
             snapshot,
             IndexVersion.current(),
-            indexIdFrom(indexMetadata2)
-        );
+            indexIdFrom(indexMetadata2),
+            isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository);
         switch (randomInt(3)) {
             // index is still unassigned
             case 0 -> routingTableBuilder.addAsNewRestore(indexMetadata2, index2SnapshotRecoverySource, Set.of());
@@ -926,7 +926,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var indexMetadata3 = IndexMetadata.builder("index-3").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
         routingTableBuilder.addAsNewRestore(
             indexMetadata3,
-            new RecoverySource.SnapshotRecoverySource("restore", snapshot, IndexVersion.current(), indexIdFrom(indexMetadata3)),
+            new RecoverySource.SnapshotRecoverySource("restore", snapshot, IndexVersion.current(), indexIdFrom(indexMetadata3), isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository),
             Set.of()
         );
         snapshotShardSizes.put(
@@ -950,8 +950,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             "restore",
                             snapshot,
                             RestoreInProgress.State.STARTED,
-                            randomBoolean(),
-                            List.of(indexMetadata2.getIndex().getName(), indexMetadata3.getIndex().getName()),
+                                List.of(indexMetadata2.getIndex().getName(), indexMetadata3.getIndex().getName()),
                             Map.ofEntries(
                                 Map.entry(shardIdFrom(indexMetadata2, 0), new RestoreInProgress.ShardRestoreStatus(randomUUID())),
                                 Map.entry(shardIdFrom(indexMetadata3, 0), new RestoreInProgress.ShardRestoreStatus(randomUUID())),
@@ -1040,7 +1039,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .build();
         routingTableBuilder.addAsNewRestore(
             indexMetadata2,
-            new RecoverySource.SnapshotRecoverySource("restore", snapshot, IndexVersion.current(), indexIdFrom(indexMetadata2)),
+            new RecoverySource.SnapshotRecoverySource("restore", snapshot, IndexVersion.current(), indexIdFrom(indexMetadata2), isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository),
             Set.of()
         );
         snapshotShardSizes.put(
@@ -1053,7 +1052,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .build();
         routingTableBuilder.addAsNewRestore(
             indexMetadata3,
-            new RecoverySource.SnapshotRecoverySource("restore", snapshot, IndexVersion.current(), indexIdFrom(indexMetadata3)),
+            new RecoverySource.SnapshotRecoverySource("restore", snapshot, IndexVersion.current(), indexIdFrom(indexMetadata3), isSearchableSnapshot, remoteStoreIndexShallowCopy, sourceRemoteStoreRepository),
             Set.of()
         );
         snapshotShardSizes.put(
@@ -1077,8 +1076,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             "restore",
                             snapshot,
                             RestoreInProgress.State.STARTED,
-                            randomBoolean(),
-                            List.of(indexMetadata2.getIndex().getName(), indexMetadata3.getIndex().getName()),
+                                List.of(indexMetadata2.getIndex().getName(), indexMetadata3.getIndex().getName()),
                             Map.ofEntries(
                                 Map.entry(shardIdFrom(indexMetadata2, 0), new RestoreInProgress.ShardRestoreStatus(randomUUID())),
                                 Map.entry(shardIdFrom(indexMetadata3, 0), new RestoreInProgress.ShardRestoreStatus(randomUUID())),
@@ -1168,7 +1166,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         }
 
         public ClusterInfo build() {
-            return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
+            return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), reservedSpace, nodeFileCacheStats);
         }
     }
 

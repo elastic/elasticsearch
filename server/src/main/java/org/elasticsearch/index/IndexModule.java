@@ -414,7 +414,8 @@ public final class IndexModule {
         NIOFS("niofs"),
         MMAPFS("mmapfs"),
         SIMPLEFS("simplefs"),
-        FS("fs");
+        FS("fs"),
+        REMOTE_SNAPSHOT("remote_snapshot");
 
         private final String settingsKey;
 

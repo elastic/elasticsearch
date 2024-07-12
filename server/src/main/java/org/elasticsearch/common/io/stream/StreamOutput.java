@@ -595,8 +595,8 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
      */
-    public final <K extends Writeable, V extends Writeable> void writeMap(final Map<K, V> map) throws IOException {
-        writeMap(map, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
+    public final <K extends Writeable, V extends Writeable> void writeMap(final Map<String, Object> map) throws IOException {
+        writeMap(map);
     }
 
     /**
@@ -1175,5 +1175,9 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeMissingString() throws IOException {
         writeBoolean(false);
+    }
+
+    public TransportVersion getVersion() {
+        return this.version;
     }
 }

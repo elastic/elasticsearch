@@ -406,7 +406,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             writeBlobAtomic(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
         }
 
-        private void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+        public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
             throws IOException {
 
             final byte[] existingBlob = blobs.get(blobName);

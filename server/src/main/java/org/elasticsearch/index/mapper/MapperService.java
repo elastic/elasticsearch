@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -52,7 +53,45 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.rest.RestController.deprecationLogger;
+
 public class MapperService extends AbstractIndexComponent implements Closeable {
+
+    public MapperService(IndexSettings indexSettings, IndexAnalyzers fakeIndexAnalzyers, NamedXContentRegistry xContentRegistry, SimilarityService similarityService, MapperRegistry mapperRegistry, Object o, Object o1, ScriptService scriptService) {
+        super(indexSettings);
+
+        this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+        this.indexAnalyzers = indexAnalyzers;
+        this.documentParser = new DocumentMapperParser(
+            indexSettings,
+            this,
+            xContentRegistry,
+            similarityService,
+            mapperRegistry,
+            queryShardContextSupplier,
+            scriptService
+        );
+        this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
+        this.searchAnalyzer = new MapperAnalyzerWrapper(
+            indexAnalyzers.getDefaultSearchAnalyzer(),
+            p -> p.getTextSearchInfo().getSearchAnalyzer()
+        );
+        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(
+            indexAnalyzers.getDefaultSearchQuoteAnalyzer(),
+            p -> p.getTextSearchInfo().getSearchQuoteAnalyzer()
+        );
+        this.mapperRegistry = mapperRegistry;
+        this.idFieldDataEnabled = idFieldDataEnabled;
+
+        if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())) {
+            deprecationLogger.deprecate(
+                index().getName() + INDEX_MAPPER_DYNAMIC_SETTING.getKey(),
+                "Index [{}] has setting [{}] that is not supported in OpenSearch, its value will be ignored.",
+                index().getName(),
+                INDEX_MAPPER_DYNAMIC_SETTING.getKey()
+            );
+        }
+    }
 
     /**
      * The reason why a mapping is being merged.
@@ -162,7 +201,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
-    private final IndexAnalyzers indexAnalyzers;
+    private IndexAnalyzers indexAnalyzers = null;
     private final MappingParser mappingParser;
     private final DocumentParser documentParser;
     private final IndexVersion indexVersionCreated;

@@ -77,7 +77,7 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     private final ImmutableOpenMap<String, DataStream> dataStreams;
-    private final ImmutableOpenMap<String, DataStreamAlias> dataStreamAliases;
+    private ImmutableOpenMap<String, DataStreamAlias> dataStreamAliases;
 
     public DataStreamMetadata(
         ImmutableOpenMap<String, DataStream> dataStreams,
@@ -92,6 +92,10 @@ public class DataStreamMetadata implements Metadata.Custom {
             in.readImmutableOpenMap(StreamInput::readString, DataStream::read),
             in.readImmutableOpenMap(StreamInput::readString, DataStreamAlias::new)
         );
+    }
+
+    public DataStreamMetadata(Map<String, DataStream> dataStreams) {
+        this.dataStreams = (ImmutableOpenMap<String, DataStream>) dataStreams;
     }
 
     public DataStreamMetadata withAddedDatastream(DataStream datastream) {

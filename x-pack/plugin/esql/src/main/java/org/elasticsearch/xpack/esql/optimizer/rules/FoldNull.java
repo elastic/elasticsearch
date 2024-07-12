@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 
 public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
 

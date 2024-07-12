@@ -29,15 +29,14 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
  */
 public class NodesStatsRequestParameters implements Writeable {
     private CommonStatsFlags indices = new CommonStatsFlags();
-    private final Set<Metric> requestedMetrics = new HashSet<>();
+    private Set<Metric> requestedMetrics = new HashSet<>();
     private boolean includeShardsStats = true;
 
     public NodesStatsRequestParameters() {}
 
     public NodesStatsRequestParameters(StreamInput in) throws IOException {
         indices = new CommonStatsFlags(in);
-        requestedMetrics.clear();
-        requestedMetrics.addAll(in.readCollectionAsList(Metric::readFrom));
+        requestedMetrics = Metric.readSetFrom(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             includeShardsStats = in.readBoolean();
         } else {
@@ -115,8 +114,20 @@ public class NodesStatsRequestParameters implements Writeable {
             return metricMap.get(name);
         }
 
-        public static Metric readFrom(StreamInput in) throws IOException {
-            return Metric.get(in.readString());
+        /**
+         * Read set of metrics from the StreamInput. Ignores unknown metrics.
+         * It should not happen normally, except rolling update when enum changed.
+         * Silently dropping unknown metrics seems less harmful than dropping entire request in this case.
+         */
+        public static Set<Metric> readSetFrom(StreamInput in) throws IOException {
+            final var set = new HashSet<Metric>();
+            final var names = in.readStringArray();
+            for (var name : names) {
+                if (isValid(name)) {
+                    set.add(metricMap.get(name));
+                }
+            }
+            return set;
         }
 
         public String metricName() {

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -74,21 +75,21 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
     }
 
     private void assertPushedDownQueries(boolean multiValue) throws RuntimeException {
-        assertAcked(prepareCreate("indexed").setMapping("""
+        assertAcked(prepareCreate("indexed").setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
                "location": { "type" : "%s" }
               }
             }
-            """.formatted(fieldType())));
+            """, fieldType())));
 
-        assertAcked(prepareCreate("not-indexed").setMapping("""
+        assertAcked(prepareCreate("not-indexed").setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
                "location": { "type" : "%s",  "index" : false, "doc_values" : false }
               }
             }
-            """.formatted(fieldType())));
+            """, fieldType())));
         for (int i = 0; i < random().nextInt(50, 100); i++) {
             if (multiValue) {
                 final String[] values = new String[randomIntBetween(1, 5)];
@@ -120,12 +121,12 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
     }
 
     private void assertFunction(String spatialFunction, String wkt) {
-        final String query1 = """
+        final String query1 = String.format(Locale.ROOT, """
             FROM indexed | WHERE %s(location, %s("%s")) | STATS COUNT(*)
-            """.formatted(spatialFunction, castingFunction(), wkt);
-        final String query2 = """
+            """, spatialFunction, castingFunction(), wkt);
+        final String query2 = String.format(Locale.ROOT, """
              FROM not-indexed | WHERE %s(location, %s("%s")) | STATS COUNT(*)
-            """.formatted(spatialFunction, castingFunction(), wkt);
+            """, spatialFunction, castingFunction(), wkt);
         try (
             EsqlQueryResponse response1 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query1).get();
             EsqlQueryResponse response2 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query2).get();

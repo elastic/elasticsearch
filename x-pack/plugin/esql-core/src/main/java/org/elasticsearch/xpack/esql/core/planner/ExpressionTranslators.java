@@ -66,6 +66,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -284,6 +285,8 @@ public final class ExpressionTranslators {
             ZoneId zoneId = null;
             if (DataType.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
+                value = DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) value);
+                format = DEFAULT_DATE_TIME_FORMATTER.pattern();
             }
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format, zoneId);

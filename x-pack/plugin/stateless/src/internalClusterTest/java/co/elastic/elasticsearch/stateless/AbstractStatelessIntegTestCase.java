@@ -125,10 +125,6 @@ import static org.hamcrest.Matchers.notNullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
-    public static final boolean STATELESS_UPLOAD_DELAYED = Boolean.parseBoolean(
-        System.getProperty("es.test.stateless.upload.delayed", "true")
-    );
-
     private int uploadMaxCommits;
 
     @Before
@@ -276,10 +272,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         if (useBasePath) {
             builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), "base_path");
         }
-        if (STATELESS_UPLOAD_DELAYED) {
+        if (randomBoolean()) {
+            // Default is true and we randomly set it explicitly
             builder.put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true);
-        } else {
-            builder.put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), false);
         }
         builder.put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), getUploadMaxCommits());
         return builder;

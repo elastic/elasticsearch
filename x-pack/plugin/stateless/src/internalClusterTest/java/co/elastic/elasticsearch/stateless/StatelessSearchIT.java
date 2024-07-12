@@ -400,9 +400,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         }
 
         assertBusy(() -> {
-            final int nonUploadedNotification = STATELESS_UPLOAD_DELAYED
-                ? (getNumberOfCreatedCommits() - beginningNumberOfCreatedCommits) * numReplicas
-                : 0;
+            final int nonUploadedNotification = (getNumberOfCreatedCommits() - beginningNumberOfCreatedCommits) * numReplicas;
             final int uploadedNotification = numberOfUploadedBCCs.get() * numReplicas;
             assertThat(
                 "Search shard notifications should be equal to the number of created commits multiplied by the number of replicas.",
@@ -575,7 +573,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             previousGeneration = generation;
         }
         // The last commit may be a refresh and not uploaded when BCC can contain more than 1 CC
-        if (STATELESS_UPLOAD_DELAYED && getUploadMaxCommits() > 1) {
+        if (getUploadMaxCommits() > 1) {
             flushNoForceNoWait(indexName);
             assertThat(indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration(), equalTo(previousGeneration));
         }

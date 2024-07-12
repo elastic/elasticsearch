@@ -73,22 +73,6 @@ tasks {
         jvmArgs("--add-opens=java.base/java.io=ALL-UNNAMED")
     }
 
-    /**
-     * Same as internalClusterTest but without delayed upload enabled
-     * TODO: ES-8317 Remove it by merging into internalClusterTest once BCC changes are deployed to production
-     */
-    val internalClusterTestWitoutRco = register<Test>("internalClusterTestWitoutRco") {
-        val sourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
-        setTestClassesDirs(sourceSet.getOutput().getClassesDirs())
-        setClasspath(sourceSet.getRuntimeClasspath())
-        jvmArgs("-XX:+UseG1GC", "--add-opens=java.base/java.io=ALL-UNNAMED")
-        systemProperty("es.test.stateless.upload.delayed", "false")
-    }
-
-    check {
-        dependsOn(internalClusterTestWitoutRco)
-    }
-
     yamlRestTest {
         usesDefaultDistribution()
     }

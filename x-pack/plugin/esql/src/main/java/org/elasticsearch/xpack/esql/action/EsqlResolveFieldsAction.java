@@ -19,6 +19,11 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+/**
+ * A fork of the field-caps API for ES|QL. This fork allows us to gradually introduce features and optimizations to this internal
+ * API without risking breaking the external field-caps API. For now, this API delegates to the field-caps API, but gradually,
+ * we will decouple this API completely from the field-caps.
+ */
 public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     public static final String NAME = "indices:data/read/esql/resolve_fields";
     public static final ActionType<FieldCapabilitiesResponse> TYPE = new ActionType<>(NAME);

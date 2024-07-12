@@ -1,0 +1,11 @@
+pr: 110829
+summary: Actually deprecate `edge_ngram` side parameter
+area: Analysis
+type: deprecation
+issues: []
+deprecation:
+  title: Actually deprecate `edge_ngram` side parameter
+  area: Analysis
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

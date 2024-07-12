@@ -1248,7 +1248,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Attribute attr : output) {
                 // TODO: this should really use .synthetic()
                 // https://github.com/elastic/elasticsearch/issues/105821
-                if (attr.name().contains("$$") == false) {
+                if (attr.name().startsWith(FieldAttribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX) == false) {
                     newOutput.add(attr);
                 }
             }

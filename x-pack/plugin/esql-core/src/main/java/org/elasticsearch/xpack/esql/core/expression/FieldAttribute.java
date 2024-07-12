@@ -29,6 +29,10 @@ import java.util.Objects;
  * - nestedParent - if nested, what's the parent (which might not be the immediate one)
  */
 public class FieldAttribute extends TypedAttribute {
+    // TODO: This constant should not be used if possible; use .synthetic()
+    // https://github.com/elastic/elasticsearch/issues/105821
+    public static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
+
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "FieldAttribute",
@@ -139,7 +143,7 @@ public class FieldAttribute extends TypedAttribute {
         // On later versions, the attribute can be renamed when creating synthetic attributes.
         // TODO: We should use synthetic() to check for that case.
         // https://github.com/elastic/elasticsearch/issues/105821
-        boolean isSynthetic = field.getName().contains("$$");
+        boolean isSynthetic = field.getName().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX); // See
 
         if (isSynthetic == false) {
             return name();

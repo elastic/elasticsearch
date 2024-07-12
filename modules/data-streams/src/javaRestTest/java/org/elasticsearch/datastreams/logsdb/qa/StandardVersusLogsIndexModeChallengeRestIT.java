@@ -141,9 +141,9 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
+            .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
-            .isEqualTo(getResponseSourceAsMap(queryContender(searchSourceBuilder)));
+            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
     }
 
     public void testTermsQuery() throws IOException, MatcherException {
@@ -163,9 +163,9 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
+            .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
-            .isEqualTo(getResponseSourceAsMap(queryContender(searchSourceBuilder)));
+            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
     }
 
     public void testHistogramAggregation() throws IOException, MatcherException {
@@ -185,9 +185,9 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
+            .expected(getAggregationBuckets(queryBaseline(searchSourceBuilder), "agg"))
             .ignoringSort(true)
-            .isEqualTo(getResponseSourceAsMap(queryContender(searchSourceBuilder)));
+            .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
     }
 
     public void testTermsAggregation() throws IOException, MatcherException {
@@ -207,9 +207,9 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
+            .expected(getAggregationBuckets(queryBaseline(searchSourceBuilder), "agg"))
             .ignoringSort(true)
-            .isEqualTo(getResponseSourceAsMap(queryContender(searchSourceBuilder)));
+            .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
     }
 
     public void testDateHistogramAggregation() throws IOException, MatcherException {
@@ -229,9 +229,9 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getResponseSourceAsMap(queryBaseline(searchSourceBuilder)))
+            .expected(getAggregationBuckets(queryBaseline(searchSourceBuilder), "agg"))
             .ignoringSort(true)
-            .isEqualTo(getResponseSourceAsMap(queryContender(searchSourceBuilder)));
+            .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
     }
 
     private static XContentBuilder generateDocument(final Instant timestamp) throws IOException {
@@ -246,11 +246,19 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> getResponseSourceAsMap(final Response response) throws IOException {
+    private static List<Map<String, Object>> getQueryHits(final Response response) throws IOException {
         final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
         final Map<String, Object> hitsMap = (Map<String, Object>) map.get("hits");
         final List<Map<String, Object>> hitsList = (List<Map<String, Object>>) hitsMap.get("hits");
-
         return hitsList.stream().map(hit -> (Map<String, Object>) hit.get("_source")).toList();
     }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> getAggregationBuckets(final Response response, final String aggName) throws IOException {
+        final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
+        final Map<String, Object> aggs = (Map<String, Object>) map.get("aggregations");
+        final Map<String, Object> agg = (Map<String, Object>) aggs.get(aggName);
+        return (List<Map<String, Object>>) agg.get("buckets");
+    }
+
 }

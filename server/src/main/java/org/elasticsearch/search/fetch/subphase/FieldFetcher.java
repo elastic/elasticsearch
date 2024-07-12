@@ -11,6 +11,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -56,6 +57,11 @@ public class FieldFetcher {
                 MappedFieldType ft = context.getFieldType(field);
                 // we want to skip metadata fields if we have a wildcard pattern
                 if (context.isMetadataField(field) && matchingPattern != null) {
+                    continue;
+                }
+                // Include the `_type` field only if it is a metadata field .
+                // Above we already skip metadata fields in case of wildcard patterns.
+                if (context.isMetadataField(field) == false && LegacyTypeFieldMapper.NAME.equals(field)) {
                     continue;
                 }
                 resolvedFields.add(new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format));

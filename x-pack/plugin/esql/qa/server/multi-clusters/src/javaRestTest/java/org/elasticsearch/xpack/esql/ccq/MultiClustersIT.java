@@ -28,6 +28,7 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -61,6 +62,7 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @Before
     public void setUpIndices() throws Exception {
+        assumeTrue("CCS requires new field-caps API", remoteFeaturesService().clusterHasFeature("esql.new_resolve_fields_api"));
         final String mapping = """
              "properties": {
                "data": { "type": "long" },
@@ -138,6 +140,8 @@ public class MultiClustersIT extends ESRestTestCase {
         }
     }
 
+
+
     public void testCount() throws Exception {
         {
             Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS c = COUNT(*)");
@@ -200,5 +204,19 @@ public class MultiClustersIT extends ESRestTestCase {
     private RestClient remoteClusterClient() throws IOException {
         var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
         return buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
+    }
+
+    private TestFeatureService remoteFeaturesService() throws IOException {
+        if (remoteFeaturesService == null) {
+            try (RestClient remoteClient = remoteClusterClient()) {
+                var remoteNodeVersions = readVersionsFromNodesInfo(remoteClient);
+                var semanticNodeVersions = remoteNodeVersions.stream()
+                    .map(ESRestTestCase::parseLegacyVersion)
+                    .flatMap(Optional::stream)
+                    .collect(Collectors.toSet());
+                remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteClient), semanticNodeVersions);
+            }
+        }
+        return remoteFeaturesService;
     }
 }

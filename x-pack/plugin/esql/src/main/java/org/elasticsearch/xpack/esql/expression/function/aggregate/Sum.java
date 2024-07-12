@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -32,10 +35,20 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
  * Sum all values of a field in matching documents.
  */
 public class Sum extends NumericAggregate implements SurrogateExpression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
 
     @FunctionInfo(returnType = "long", description = "The sum of a numeric field.", isAggregation = true)
     public Sum(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
+    }
+
+    private Sum(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -51,7 +64,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     @Override
     public DataType dataType() {
         DataType dt = field().dataType();
-        return dt.isInteger() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
+        return dt.isWholeNumber() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
     }
 
     @Override

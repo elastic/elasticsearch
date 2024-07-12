@@ -545,7 +545,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .size();
 
         logger.info("--> start node B");
-        final String nodeB = internalCluster().startNode();
+        final String nodeB = internalCluster().startNode(
+            // Ensure that the target node has a high enough recovery max bytes per second to avoid any throttling
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb")
+        );
 
         ensureGreen();
 
@@ -1038,7 +1041,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105122")
     public void testDoNotInfinitelyWaitForMapping() {
         internalCluster().ensureAtLeastNumDataNodes(3);
         createIndex(
@@ -1208,8 +1210,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         SequenceNumbers.CommitInfo commitInfoAfterLocalRecovery = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             startRecoveryRequest.metadataSnapshot().commitUserData().entrySet()
         );
-        assertThat(commitInfoAfterLocalRecovery.localCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
-        assertThat(commitInfoAfterLocalRecovery.maxSeqNo, equalTo(lastSyncedGlobalCheckpoint));
+        assertThat(commitInfoAfterLocalRecovery.localCheckpoint(), equalTo(lastSyncedGlobalCheckpoint));
+        assertThat(commitInfoAfterLocalRecovery.maxSeqNo(), equalTo(lastSyncedGlobalCheckpoint));
         assertThat(startRecoveryRequest.startingSeqNo(), equalTo(lastSyncedGlobalCheckpoint + 1));
         ensureGreen(indexName);
         assertThat((long) localRecoveredOps.get(), equalTo(lastSyncedGlobalCheckpoint - localCheckpointOfSafeCommit));
@@ -2009,8 +2011,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             safeIndexCommit.getUserData().entrySet()
         );
-        final long commitLocalCheckpoint = commitInfo.localCheckpoint;
-        final long maxSeqNo = commitInfo.maxSeqNo;
+        final long commitLocalCheckpoint = commitInfo.localCheckpoint();
+        final long maxSeqNo = commitInfo.maxSeqNo();
         final LocalCheckpointTracker localCheckpointTracker = new LocalCheckpointTracker(maxSeqNo, commitLocalCheckpoint);
 
         // In certain scenarios it is possible that the local checkpoint captured during commit lags behind,

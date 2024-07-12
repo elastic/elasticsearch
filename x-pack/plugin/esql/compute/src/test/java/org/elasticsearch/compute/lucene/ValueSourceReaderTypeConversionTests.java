@@ -62,6 +62,7 @@ import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -541,6 +542,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             @Override
             public String indexName() {
                 return "test_index";
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -1687,12 +1693,13 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
         @Override
         public boolean supportsOrdinals() {
-            return delegate.supportsOrdinals();
+            // Fields with mismatching types cannot use ordinals for uniqueness determination, but must convert the values first
+            return false;
         }
 
         @Override
-        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-            return delegate.ordinals(context);
+        public SortedSetDocValues ordinals(LeafReaderContext context) {
+            throw new IllegalArgumentException("Ordinals are not supported for type conversion");
         }
 
         @Override

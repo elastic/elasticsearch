@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.core.IsEqual;
 
@@ -55,7 +54,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(500, 2000)))
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .build();
     }
 
@@ -90,7 +89,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             try (var finalResponse = future.get()) {
                 assertThat(finalResponse, notNullValue());
                 assertThat(finalResponse.isRunning(), is(false));
-                assertThat(finalResponse.columns(), equalTo(List.of(new ColumnInfo("sum(pause_me)", "long"))));
+                assertThat(finalResponse.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long"))));
                 assertThat(getValuesList(finalResponse).size(), equalTo(1));
             }
 
@@ -99,7 +98,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             try (var finalResponse = again.get()) {
                 assertThat(finalResponse, notNullValue());
                 assertThat(finalResponse.isRunning(), is(false));
-                assertThat(finalResponse.columns(), equalTo(List.of(new ColumnInfo("sum(pause_me)", "long"))));
+                assertThat(finalResponse.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long"))));
                 assertThat(getValuesList(finalResponse).size(), equalTo(1));
             }
 
@@ -174,7 +173,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
         try (var response = request.execute().actionGet(60, TimeUnit.SECONDS)) {
             assertThat(response.isRunning(), is(false));
-            assertThat(response.columns(), equalTo(List.of(new ColumnInfo("sum(pause_me)", "long"))));
+            assertThat(response.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long"))));
             assertThat(getValuesList(response).size(), equalTo(1));
 
             if (keepOnCompletion) {
@@ -187,7 +186,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 try (var resp = future.actionGet(60, TimeUnit.SECONDS)) {
                     assertThat(resp.asyncExecutionId().get(), equalTo(id));
                     assertThat(resp.isRunning(), is(false));
-                    assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("sum(pause_me)", "long"))));
+                    assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long"))));
                     assertThat(getValuesList(resp).size(), equalTo(1));
                 }
             } else {

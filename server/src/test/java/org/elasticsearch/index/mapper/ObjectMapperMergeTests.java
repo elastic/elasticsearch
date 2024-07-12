@@ -53,11 +53,11 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         final ObjectMapper mergedFoo = (ObjectMapper) merged.getMapper("foo");
         {
             Mapper bar = mergedFoo.getMapper("bar");
-            assertEquals("bar", bar.simpleName());
-            assertEquals("foo.bar", bar.name());
+            assertEquals("bar", bar.leafName());
+            assertEquals("foo.bar", bar.fullPath());
             Mapper baz = mergedFoo.getMapper("baz");
-            assertEquals("baz", baz.simpleName());
-            assertEquals("foo.baz", baz.name());
+            assertEquals("baz", baz.leafName());
+            assertEquals("foo.baz", baz.fullPath());
         }
     }
 
@@ -139,8 +139,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE));
 
         final KeywordFieldMapper keywordFieldMapper = (KeywordFieldMapper) merged.getMapper("host.name");
-        assertEquals("host.name", keywordFieldMapper.name());
-        assertEquals("host.name", keywordFieldMapper.simpleName());
+        assertEquals("host.name", keywordFieldMapper.fullPath());
+        assertEquals("host.name", keywordFieldMapper.leafName());
     }
 
     public void testMergedFieldNamesFieldWithDotsSubobjectsFalse() {
@@ -156,8 +156,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         ObjectMapper foo = (ObjectMapper) merged.getMapper("foo");
         ObjectMapper metrics = (ObjectMapper) foo.getMapper("metrics");
         final KeywordFieldMapper keywordFieldMapper = (KeywordFieldMapper) metrics.getMapper("host.name");
-        assertEquals("foo.metrics.host.name", keywordFieldMapper.name());
-        assertEquals("host.name", keywordFieldMapper.simpleName());
+        assertEquals("foo.metrics.host.name", keywordFieldMapper.fullPath());
+        assertEquals("host.name", keywordFieldMapper.leafName());
     }
 
     public void testMergedFieldNamesMultiFields() {
@@ -169,11 +169,11 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE));
 
         TextFieldMapper text = (TextFieldMapper) merged.getMapper("text");
-        assertEquals("text", text.name());
-        assertEquals("text", text.simpleName());
+        assertEquals("text", text.fullPath());
+        assertEquals("text", text.leafName());
         KeywordFieldMapper keyword = (KeywordFieldMapper) text.multiFields().iterator().next();
-        assertEquals("text.keyword", keyword.name());
-        assertEquals("keyword", keyword.simpleName());
+        assertEquals("text.keyword", keyword.fullPath());
+        assertEquals("keyword", keyword.leafName());
     }
 
     public void testMergedFieldNamesMultiFieldsWithinSubobjectsFalse() {
@@ -189,11 +189,11 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         ObjectMapper foo = (ObjectMapper) merged.getMapper("foo");
         ObjectMapper metrics = (ObjectMapper) foo.getMapper("metrics");
         final TextFieldMapper textFieldMapper = (TextFieldMapper) metrics.getMapper("host.name");
-        assertEquals("foo.metrics.host.name", textFieldMapper.name());
-        assertEquals("host.name", textFieldMapper.simpleName());
+        assertEquals("foo.metrics.host.name", textFieldMapper.fullPath());
+        assertEquals("host.name", textFieldMapper.leafName());
         FieldMapper fieldMapper = textFieldMapper.multiFields.iterator().next();
-        assertEquals("foo.metrics.host.name.keyword", fieldMapper.name());
-        assertEquals("keyword", fieldMapper.simpleName());
+        assertEquals("foo.metrics.host.name.keyword", fieldMapper.fullPath());
+        assertEquals("keyword", fieldMapper.leafName());
     }
 
     public void testMergeWithLimit() {
@@ -324,8 +324,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {
         FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         FieldMapper fieldMapper = fieldBuilder.build(MapperBuilderContext.root(false, false));
-        assertEquals("host.name", fieldMapper.simpleName());
-        assertEquals("host.name", fieldMapper.name());
+        assertEquals("host.name", fieldMapper.leafName());
+        assertEquals("host.name", fieldMapper.fullPath());
         return new RootObjectMapper.Builder("_doc", Explicit.EXPLICIT_FALSE).add(fieldBuilder)
             .build(MapperBuilderContext.root(false, false));
     }
@@ -339,11 +339,12 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                 false,
                 false,
                 ObjectMapper.Defaults.DYNAMIC,
-                MapperService.MergeReason.MAPPING_UPDATE
+                MapperService.MergeReason.MAPPING_UPDATE,
+                false
             )
         );
-        assertEquals("host.name", fieldMapper.simpleName());
-        assertEquals("foo.metrics.host.name", fieldMapper.name());
+        assertEquals("host.name", fieldMapper.leafName());
+        assertEquals("foo.metrics.host.name", fieldMapper.fullPath());
         return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).add(
             new ObjectMapper.Builder("metrics", Explicit.EXPLICIT_FALSE).add(fieldBuilder)
         );
@@ -358,14 +359,15 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                 false,
                 false,
                 ObjectMapper.Defaults.DYNAMIC,
-                MapperService.MergeReason.MAPPING_UPDATE
+                MapperService.MergeReason.MAPPING_UPDATE,
+                false
             )
         );
-        assertEquals("host.name", textKeywordMultiField.simpleName());
-        assertEquals("foo.metrics.host.name", textKeywordMultiField.name());
+        assertEquals("host.name", textKeywordMultiField.leafName());
+        assertEquals("foo.metrics.host.name", textKeywordMultiField.fullPath());
         FieldMapper fieldMapper = textKeywordMultiField.multiFields.iterator().next();
-        assertEquals("keyword", fieldMapper.simpleName());
-        assertEquals("foo.metrics.host.name.keyword", fieldMapper.name());
+        assertEquals("keyword", fieldMapper.leafName());
+        assertEquals("foo.metrics.host.name.keyword", fieldMapper.fullPath());
         return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).add(
             new ObjectMapper.Builder("metrics", Explicit.EXPLICIT_FALSE).add(fieldBuilder)
         );

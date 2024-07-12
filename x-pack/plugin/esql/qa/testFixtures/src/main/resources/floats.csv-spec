@@ -1,4 +1,11 @@
 // Floating point types-specific tests
+parseLargeMagnitudeValues
+required_capability: fix_parsing_large_negative_numbers
+row a = 92233720368547758090, b = -9223372036854775809;
+
+a:double              | b:double
+9.223372036854776E+19 | -9.223372036854776E+18
+;
 
 inDouble
 from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002) | sort emp_no;
@@ -95,8 +102,8 @@ lessThanMultivalue
 required_capability: mv_warn
 
 from employees | where salary_change < 1 | keep emp_no, salary_change | sort emp_no | limit 5;
-warning:Line 1:24: evaluation of [salary_change < 1] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[salary_change < 1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -111,8 +118,8 @@ greaterThanMultivalue
 required_capability: mv_warn
 
 from employees | where salary_change > 1 | keep emp_no, salary_change | sort emp_no | limit 5;
-warning:Line 1:24: evaluation of [salary_change > 1] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[salary_change > 1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -165,8 +172,8 @@ notLessThanMultivalue
 required_capability: mv_warn
 
 from employees | where not(salary_change < 1) | keep emp_no, salary_change | sort emp_no | limit 5;
-warning:Line 1:24: evaluation of [not(salary_change < 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change < 1] failed, treating result as null. Only first 20 failures recorded.]
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
+warningRegex:evaluation of \[.*salary_change < 1.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -181,8 +188,8 @@ notGreaterThanMultivalue
 required_capability: mv_warn
 
 from employees | where not(salary_change > 1) | keep emp_no, salary_change | sort emp_no | limit 5;
-warning:Line 1:24: evaluation of [not(salary_change > 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change > 1] failed, treating result as null. Only first 20 failures recorded.]
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
+warningRegex:evaluation of \[.*salary_change > 1.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -197,8 +204,8 @@ notEqualToMultivalue
 required_capability: mv_warn
 
 from employees | where not(salary_change == 1.19) | keep emp_no, salary_change | sort emp_no | limit 5;
-warning:Line 1:24: evaluation of [not(salary_change == 1.19)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change == 1.19] failed, treating result as null. Only first 20 failures recorded.]
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
+warningRegex:evaluation of \[.*salary_change == 1.19.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double

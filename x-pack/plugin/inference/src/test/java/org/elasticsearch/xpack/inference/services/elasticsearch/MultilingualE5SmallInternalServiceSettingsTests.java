@@ -24,7 +24,8 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
         return new MultilingualE5SmallInternalServiceSettings(
             randomIntBetween(1, 4),
             randomIntBetween(1, 4),
-            randomFrom(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS)
+            randomFrom(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS),
+            null
         );
     }
 
@@ -56,7 +57,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
                 )
             )
         ).build();
-        assertEquals(new MultilingualE5SmallInternalServiceSettings(1, 4, randomModelVariant), serviceSettings);
+        assertEquals(new MultilingualE5SmallInternalServiceSettings(1, 4, randomModelVariant, null), serviceSettings);
     }
 
     public void testFromMapInvalidVersion() {
@@ -96,7 +97,10 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
             )
         );
 
-        assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_allocations]"));
+        assertThat(
+            e.getMessage(),
+            containsString("[service_settings] does not contain one of the required settings [num_allocations, adaptive_allocations]")
+        );
     }
 
     public void testFromMapInvalidSettings() {
@@ -130,12 +134,14 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
             case 0 -> new MultilingualE5SmallInternalServiceSettings(
                 instance.getNumAllocations() + 1,
                 instance.getNumThreads(),
-                instance.getModelId()
+                instance.getModelId(),
+                null
             );
             case 1 -> new MultilingualE5SmallInternalServiceSettings(
                 instance.getNumAllocations(),
                 instance.getNumThreads() + 1,
-                instance.getModelId()
+                instance.getModelId(),
+                null
             );
             case 2 -> {
                 var versions = new HashSet<>(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS);
@@ -143,7 +149,8 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
                 yield new MultilingualE5SmallInternalServiceSettings(
                     instance.getNumAllocations(),
                     instance.getNumThreads(),
-                    versions.iterator().next()
+                    versions.iterator().next(),
+                    null
                 );
             }
             default -> throw new IllegalStateException();

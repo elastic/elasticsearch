@@ -148,6 +148,9 @@ setup:
 
 ---
 "Test nonexistent field":
+  - skip:
+      cluster_features: 'gte_v8.16.0'
+      reason: 'non-existent field handling improved in 8.16'
   - do:
       catch: bad_request
       search:
@@ -159,8 +162,26 @@ setup:
             query_vector: [ 1, 0, 0, 0, -1 ]
             k: 2
             num_candidates: 3
+
   - match: { error.root_cause.0.type: "query_shard_exception" }
   - match: { error.root_cause.0.reason: "failed to create query: field [nonexistent] does not exist in the mapping" }
+---
+"Test nonexistent field is match none":
+  - requires:
+      cluster_features: 'gte_v8.16.0'
+      reason: 'non-existent field handling improved in 8.16'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nonexistent
+            query_vector: [ 1, 0, 0, 0, -1 ]
+            k: 2
+            num_candidates: 3
+
+  - length: {hits.hits: 0}
 
 ---
 "Vector similarity search only":

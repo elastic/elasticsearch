@@ -25,14 +25,14 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testBuilderCtor_GivenDuplicateNode() {
         Node n = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 1, 2, Map.of(), 0, 0, 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 1, 2, Map.of(), 0, null, 0, 0);
 
         expectThrows(IllegalArgumentException.class, () -> AssignmentPlan.builder(List.of(n, n), List.of(m)));
     }
 
     public void testBuilderCtor_GivenDuplicateModel() {
         Node n = new Node("n_1", 100, 4);
-        Deployment m = new AssignmentPlan.Deployment("m_1", 40, 1, 2, Map.of(), 0, 0, 0);
+        Deployment m = new AssignmentPlan.Deployment("m_1", 40, 1, 2, Map.of(), 0, null, 0, 0);
 
         expectThrows(IllegalArgumentException.class, () -> AssignmentPlan.builder(List.of(n), List.of(m, m)));
     }
@@ -41,7 +41,17 @@ public class AssignmentPlanTests extends ESTestCase {
         Node n = new Node("n_1", ByteSizeValue.ofMb(350).getBytes(), 4);
 
         { // old memory format
-            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(40).getBytes(), 1, 2, Map.of(), 0, 0, 0);
+            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+                "m_1",
+                ByteSizeValue.ofMb(40).getBytes(),
+                1,
+                2,
+                Map.of(),
+                0,
+                null,
+                0,
+                0
+            );
 
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -71,6 +81,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 2,
                 Map.of(),
                 0,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(30).getBytes()
             );
@@ -107,6 +118,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 2,
                 Map.of("n_1", 1),
                 0,
+                null,
                 0,
                 0
             );
@@ -134,6 +146,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 2,
                 Map.of("n_1", 1),
                 0,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(25).getBytes()
             );
@@ -160,7 +173,7 @@ public class AssignmentPlanTests extends ESTestCase {
         Node n = new Node("n_1", ByteSizeValue.ofMb(300).getBytes(), 4);
         {
             // old memory format
-            Deployment m = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 2, Map.of("n_1", 2), 0, 0, 0);
+            Deployment m = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 2, Map.of("n_1", 2), 0, null, 0, 0);
 
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -186,6 +199,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 2,
                 Map.of("n_1", 2),
                 0,
+                null,
                 ByteSizeValue.ofMb(250).getBytes(),
                 ByteSizeValue.ofMb(25).getBytes()
             );
@@ -209,7 +223,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNode_GivenPreviouslyUnassignedModelDoesNotFit() {
         Node n = new Node("n_1", ByteSizeValue.ofMb(340 - 1).getBytes(), 4);
-        Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 2, 2, Map.of(), 0, 0, 0);
+        Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 2, 2, Map.of(), 0, null, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
         Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 1));
@@ -227,6 +241,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 2,
                 Map.of("n_1", 1),
                 0,
+                null,
                 0,
                 0
             );
@@ -249,6 +264,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 2,
                 Map.of("n_1", 1),
                 0,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(5).getBytes()
             );
@@ -266,7 +282,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNode_GivenNotEnoughCores_AndSingleThreadPerAllocation() {
         Node n = new Node("n_1", ByteSizeValue.ofMb(500).getBytes(), 4);
-        Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 5, 1, Map.of(), 0, 0, 0);
+        Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 5, 1, Map.of(), 0, null, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
         Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 5));
@@ -279,7 +295,17 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNode_GivenNotEnoughCores_AndMultipleThreadsPerAllocation() {
         Node n = new Node("n_1", ByteSizeValue.ofMb(500).getBytes(), 5);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 3, 2, Map.of(), 0, 0, 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            3,
+            2,
+            Map.of(),
+            0,
+            null,
+            0,
+            0
+        );
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
         Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 3));
@@ -299,6 +325,7 @@ public class AssignmentPlanTests extends ESTestCase {
             2,
             Map.of(),
             0,
+            null,
             ByteSizeValue.ofMb(300).getBytes(),
             ByteSizeValue.ofMb(50).getBytes()
         );
@@ -335,7 +362,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testCanAssign_GivenPreviouslyUnassignedModelDoesNotFit() {
         Node n = new Node("n_1", 100, 5);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 101, 1, 1, Map.of(), 0, 0, 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 101, 1, 1, Map.of(), 0, null, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -346,7 +373,7 @@ public class AssignmentPlanTests extends ESTestCase {
         Node n = new Node("n_1", ByteSizeValue.ofMb(300).getBytes(), 5);
         {
             // old memory format
-            Deployment m = new Deployment("m_1", ByteSizeValue.ofMb(31).getBytes(), 1, 1, Map.of("n_1", 1), 0, 0, 0);
+            Deployment m = new Deployment("m_1", ByteSizeValue.ofMb(31).getBytes(), 1, 1, Map.of("n_1", 1), 0, null, 0, 0);
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             assertThat(builder.canAssign(m, n, 1), is(true));
         }
@@ -359,6 +386,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 1,
                 Map.of("n_1", 1),
                 0,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(10).getBytes()
             );
@@ -369,7 +397,17 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testCanAssign_GivenEnoughMemory() {
         Node n = new Node("n_1", ByteSizeValue.ofMb(440).getBytes(), 5);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 3, 2, Map.of(), 0, 0, 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            3,
+            2,
+            Map.of(),
+            0,
+            null,
+            0,
+            0
+        );
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -384,7 +422,7 @@ public class AssignmentPlanTests extends ESTestCase {
         Node n = new Node("n_1", ByteSizeValue.ofMb(300).getBytes(), 5);
 
         {
-            Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 3, 2, Map.of("n_1", 2), 0, 0, 0);
+            Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 3, 2, Map.of("n_1", 2), 0, null, 0, 0);
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             builder.assignModelToNode(m, n, 2);
             planSatisfyingPreviousAssignments = builder.build();
@@ -397,6 +435,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 2,
                 Map.of("n_1", 3),
                 0,
+                null,
                 0,
                 0
             );
@@ -420,6 +459,7 @@ public class AssignmentPlanTests extends ESTestCase {
             2,
             Map.of("n_1", 1),
             0,
+            null,
             0,
             0
         );
@@ -445,7 +485,7 @@ public class AssignmentPlanTests extends ESTestCase {
         Node n = new Node("n_1", ByteSizeValue.ofMb(300).getBytes(), 5);
 
         {
-            Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 3, 2, Map.of("n_1", 1), 0, 0, 0);
+            Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 3, 2, Map.of("n_1", 1), 0, null, 0, 0);
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             builder.assignModelToNode(m, n, 2);
             planUsingMoreMemory = builder.build();
@@ -458,6 +498,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 2,
                 Map.of("n_1", 1),
                 0,
+                null,
                 0,
                 0
             );
@@ -482,6 +523,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 2,
                 Map.of(),
                 0,
+                null,
                 0,
                 0
             );
@@ -492,6 +534,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 1,
                 Map.of(),
                 0,
+                null,
                 0,
                 0
             );
@@ -502,6 +545,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 1,
                 Map.of(),
                 0,
+                null,
                 0,
                 0
             );
@@ -522,6 +566,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 2,
                 Map.of(),
                 0,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(10).getBytes()
             );
@@ -532,6 +577,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 1,
                 Map.of(),
                 0,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(10).getBytes()
             );
@@ -542,6 +588,7 @@ public class AssignmentPlanTests extends ESTestCase {
                 1,
                 Map.of(),
                 0,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(10).getBytes()
             );
@@ -558,9 +605,9 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testSatisfiesAllModels_GivenOneModelHasOneAllocationLess() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 0, 0, 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of(), 0, 0, 0);
-        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(20).getBytes(), 4, 1, Map.of(), 0, 0, 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 0, null, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(20).getBytes(), 4, 1, Map.of(), 0, null, 0, 0);
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2, deployment3))
             .assignModelToNode(deployment1, node1, 1)
             .assignModelToNode(deployment2, node2, 2)
@@ -573,9 +620,9 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testArePreviouslyAssignedModelsAssigned_GivenTrue() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 3, 0, 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of(), 4, 0, 0);
-        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(20).getBytes(), 4, 1, Map.of(), 0, 0, 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 3, null, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of(), 4, null, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(20).getBytes(), 4, 1, Map.of(), 0, null, 0, 0);
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2, deployment3))
             .assignModelToNode(deployment1, node1, 1)
             .assignModelToNode(deployment2, node2, 1)
@@ -586,8 +633,8 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testArePreviouslyAssignedModelsAssigned_GivenFalse() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 3, 0, 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of(), 4, 0, 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 3, null, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of(), 4, null, 0, 0);
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2))
             .assignModelToNode(deployment1, node1, 1)
             .build();
@@ -597,7 +644,7 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testCountPreviouslyAssignedThatAreStillAssigned() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
-        Deployment deployment1 = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 3, 0, 0);
+        Deployment deployment1 = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 3, null, 0, 0);
         AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment(
             "m_2",
             ByteSizeValue.ofMb(30).getBytes(),
@@ -605,6 +652,7 @@ public class AssignmentPlanTests extends ESTestCase {
             1,
             Map.of(),
             4,
+            null,
             0,
             0
         );
@@ -615,6 +663,7 @@ public class AssignmentPlanTests extends ESTestCase {
             1,
             Map.of(),
             1,
+            null,
             0,
             0
         );
@@ -625,6 +674,7 @@ public class AssignmentPlanTests extends ESTestCase {
             1,
             Map.of(),
             0,
+            null,
             0,
             0
         );

@@ -189,7 +189,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.compress;
     exports org.elasticsearch.common.document;
     exports org.elasticsearch.common.file;
-    exports org.elasticsearch.common.filesystem;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
     exports org.elasticsearch.common.inject;
@@ -431,6 +430,7 @@ module org.elasticsearch.server {
             org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
+            org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.reservedstate.service.FileSettingsFeatures;
@@ -449,7 +449,10 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat,
-            org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
+            org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat,
+            org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
+
     provides org.apache.lucene.codecs.Codec with Elasticsearch814Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;

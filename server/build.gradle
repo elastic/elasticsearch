@@ -40,8 +40,6 @@ dependencies {
   implementation project(":libs:elasticsearch-simdvec")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
-  // no compile dependency by server, but server defines security policy for this codebase so it i>
-  runtimeOnly project(":libs:elasticsearch-preallocate")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -82,7 +80,8 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
-
+  internalClusterTestImplementation(project(':modules:reindex'))
+  internalClusterTestImplementation(project(':modules:mapper-extras'))
 }
 
 spotless {
@@ -147,6 +146,18 @@ if (BuildParams.isSnapshotBuild() == false) {
 
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
+  excludes << '**/IndexSettingsOverrideTests.class'
+}
+
+TaskProvider<Test> indexSettingsOverrideTest = tasks.register("indexSettingsOverrideTest", Test) {
+  include '**/IndexSettingsOverrideTests.class'
+  systemProperty 'es.stateless.allow.index.refresh_interval.override', 'true'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
+}
+
+tasks.named("check").configure {
+  dependsOn(indexSettingsOverrideTest)
 }
 
 tasks.named("thirdPartyAudit").configure {

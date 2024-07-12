@@ -1,5 +1,5 @@
 pr: 110630
-summary: Inference autoscaling telemetry
+summary: Telemetry for inference adaptive allocations
 area: Machine Learning
 type: feature
 issues: []

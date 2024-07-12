@@ -104,7 +104,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 ByteRange.of(0L, 1L),
                 ByteRange.of(0L, 1L),
                 (channel, channelPos, relativePos, length) -> 1,
-                (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
                 taskQueue.getThreadPool().generic(),
                 bytesReadFuture
             );
@@ -538,7 +538,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final long size = size(250);
                 AtomicLong bytesRead = new AtomicLong(size);
                 final PlainActionFuture<Void> future = new PlainActionFuture<>();
-                cacheService.maybeFetchFullEntry(cacheKey, size, (channel, channelPos, relativePos, length, progressUpdater) -> {
+                cacheService.maybeFetchFullEntry(cacheKey, size, (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
+                    assert streamFactory == null : streamFactory;
                     bytesRead.addAndGet(-length);
                     progressUpdater.accept(length);
                 }, bulkExecutor, future);
@@ -552,7 +553,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 // a download that would use up all regions should not run
                 final var cacheKey = generateCacheKey();
                 assertEquals(2, cacheService.freeRegionCount());
-                var configured = cacheService.maybeFetchFullEntry(cacheKey, size(500), (ch, chPos, relPos, len, update) -> {
+                var configured = cacheService.maybeFetchFullEntry(cacheKey, size(500), (ch, chPos, streamFactory, relPos, len, update) -> {
                     throw new AssertionError("Should never reach here");
                 }, bulkExecutor, ActionListener.noop());
                 assertFalse(configured);
@@ -596,7 +597,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                 f -> cacheService.maybeFetchFullEntry(
                                     cacheKey,
                                     size,
-                                    (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
+                                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
                                     bulkExecutor,
                                     f
                                 )
@@ -843,7 +844,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 var entry = cacheService.get(cacheKey, regionSize, 0);
                 entry.populate(
                     ByteRange.of(0L, regionSize),
-                    (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
                     taskQueue.getThreadPool().generic(),
                     ActionListener.noop()
                 );
@@ -934,7 +935,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final long blobLength = size(250); // 3 regions
                 AtomicLong bytesRead = new AtomicLong(0L);
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-                cacheService.maybeFetchRegion(cacheKey, 0, blobLength, (channel, channelPos, relativePos, length, progressUpdater) -> {
+                cacheService.maybeFetchRegion(cacheKey, 0, blobLength, (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
+                    assert streamFactory == null : streamFactory;
                     bytesRead.addAndGet(length);
                     progressUpdater.accept(length);
                 }, bulkExecutor, future);
@@ -961,7 +963,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         cacheKey,
                         region,
                         blobLength,
-                        (channel, channelPos, relativePos, length, progressUpdater) -> {
+                        (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
+                            assert streamFactory == null : streamFactory;
                             bytesRead.addAndGet(length);
                             progressUpdater.accept(length);
                         },
@@ -985,7 +988,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     cacheKey,
                     randomIntBetween(0, 10),
                     randomLongBetween(1L, regionSize),
-                    (channel, channelPos, relativePos, length, progressUpdater) -> {
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
                         throw new AssertionError("should not be executed");
                     },
                     bulkExecutor,
@@ -1003,7 +1006,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 long blobLength = randomLongBetween(1L, regionSize);
                 AtomicLong bytesRead = new AtomicLong(0L);
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-                cacheService.maybeFetchRegion(cacheKey, 0, blobLength, (channel, channelPos, relativePos, length, progressUpdater) -> {
+                cacheService.maybeFetchRegion(cacheKey, 0, blobLength, (channel, channelPos, ignore, relativePos, length, progressUpdater) -> {
+                    assert ignore == null : ignore;
                     bytesRead.addAndGet(length);
                     progressUpdater.accept(length);
                 }, bulkExecutor, future);
@@ -1077,7 +1081,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     region,
                     range,
                     blobLength,
-                    (channel, channelPos, relativePos, length, progressUpdater) -> {
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
                         assertThat(range.start() + relativePos, equalTo(cacheService.getRegionStart(region) + regionRange.start()));
                         assertThat(channelPos, equalTo(Math.toIntExact(regionRange.start())));
                         assertThat(length, equalTo(Math.toIntExact(regionRange.length())));
@@ -1117,7 +1121,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         region,
                         ByteRange.of(0L, blobLength),
                         blobLength,
-                        (channel, channelPos, relativePos, length, progressUpdater) -> bytesCopied.addAndGet(length),
+                        (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> bytesCopied.addAndGet(length),
                         bulkExecutor,
                         listener
                     );
@@ -1140,7 +1144,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     randomIntBetween(0, 10),
                     ByteRange.of(0L, blobLength),
                     blobLength,
-                    (channel, channelPos, relativePos, length, progressUpdater) -> {
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
                         throw new AssertionError("should not be executed");
                     },
                     bulkExecutor,
@@ -1163,7 +1167,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     0,
                     ByteRange.of(0L, blobLength),
                     blobLength,
-                    (channel, channelPos, relativePos, length, progressUpdater) -> bytesCopied.addAndGet(length),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> bytesCopied.addAndGet(length),
                     bulkExecutor,
                     future
                 );
@@ -1204,7 +1208,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             var entry = cacheService.get(cacheKey, blobLength, 0);
             AtomicLong bytesWritten = new AtomicLong(0L);
             final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
-            entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos, relativePos, length, progressUpdater) -> {
+            entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
                 bytesWritten.addAndGet(length);
                 progressUpdater.accept(length);
             }, taskQueue.getThreadPool().generic(), future1);
@@ -1215,7 +1219,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // start populating the second region
             entry = cacheService.get(cacheKey, blobLength, 1);
             final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
-            entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos, relativePos, length, progressUpdater) -> {
+            entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos,  streamFactory, relativePos, length, progressUpdater) -> {
                 bytesWritten.addAndGet(length);
                 progressUpdater.accept(length);
             }, taskQueue.getThreadPool().generic(), future2);
@@ -1223,7 +1227,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // start populating again the first region, listener should be called immediately
             entry = cacheService.get(cacheKey, blobLength, 0);
             final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
-            entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos, relativePos, length, progressUpdater) -> {
+            entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
                 bytesWritten.addAndGet(length);
                 progressUpdater.accept(length);
             }, taskQueue.getThreadPool().generic(), future3);

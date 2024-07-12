@@ -58,7 +58,8 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
         Matcher m = ELASTICSEARCH_THREAD_NAME_PATTERN.matcher(threadName);
         if (m.matches()) {
             // Thread looks like a node thread so use the node name
-            return m.group(1);
+//            return m.group(1);
+            return threadName.substring(13);
         }
         m = TEST_THREAD_NAME_PATTERN.matcher(threadName);
         if (m.matches()) {

@@ -32,4 +32,9 @@ public class MasterNotDiscoveredException extends ElasticsearchException {
     public MasterNotDiscoveredException(StreamInput in) throws IOException {
         super(in);
     }
+
+    @Override
+    public Throwable fillInStackTrace() {
+        return this; // this exception doesn't imply a bug, no need for a stack trace
+    }
 }

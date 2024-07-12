@@ -1159,6 +1159,21 @@ word_count:long
 ;
 
 count_or_null
+// tag::count-where[]
+ROW n=1
+| WHERE n < 0
+| STATS COUNT(n)
+// end::count-where[]
+;
+
+// tag::count-where-result[]
+COUNT(n):long
+            0
+// end::count-where-result[]
+;
+
+
+count_or_null
 // tag::count-or-null[]
 ROW n=1
 | STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)

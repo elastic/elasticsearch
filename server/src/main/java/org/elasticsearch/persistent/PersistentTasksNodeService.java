@@ -187,7 +187,6 @@ public class PersistentTasksNodeService implements ClusterStateListener {
 
             @Override
             public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                // this is the place where we call PersistentTasksExecutor createTask
                 return executor.createTask(id, type, action, parentTaskId, taskInProgress, headers);
             }
         };

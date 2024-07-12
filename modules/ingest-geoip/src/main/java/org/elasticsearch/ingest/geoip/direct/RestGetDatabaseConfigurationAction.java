@@ -22,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
-@ServerlessScope(Scope.INTERNAL) // TODO expose eventually
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetDatabaseConfigurationAction extends BaseRestHandler {
 
     @Override

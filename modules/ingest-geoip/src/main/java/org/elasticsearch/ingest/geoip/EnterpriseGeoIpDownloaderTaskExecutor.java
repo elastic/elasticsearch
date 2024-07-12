@@ -38,8 +38,8 @@ import java.security.GeneralSecurityException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
@@ -59,8 +59,8 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         Setting.Property.NodeScope
     );
 
-    public static final Setting<SecureString> MAXMIND_DEFAULT_LICENSE_KEY_SETTING = SecureSetting.secureString(
-        MAXMIND_SETTINGS_PREFIX + "default.license_key",
+    public static final Setting<SecureString> MAXMIND_LICENSE_KEY_SETTING = SecureSetting.secureString(
+        MAXMIND_SETTINGS_PREFIX + "license_key",
         null
     );
 
@@ -70,22 +70,19 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
     private final ThreadPool threadPool;
     private final Settings settings;
     private volatile TimeValue pollInterval;
-    private final AtomicBoolean taskIsBootstrapped = new AtomicBoolean(false);
     private final AtomicReference<EnterpriseGeoIpDownloader> currentTask = new AtomicReference<>();
 
     private volatile String defaultMaxmindAccountId;
     private volatile SecureSettings cachedSecureSettings;
 
     EnterpriseGeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
-        // this registers that the 'geoip-downloader' is the kind of task this thing creates, that is, we could create many of them,
-        // but we happen to only create just the one ('name' is a bit like a 'kind', versus 'id' which identifies a specific one)
         super(ENTERPRISE_GEOIP_DOWNLOADER, threadPool.generic());
         this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
         this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.settings = clusterService.getSettings(); // the javadocs say "the node's settings" -- this is interesting
-        this.pollInterval = POLL_INTERVAL_SETTING.get(settings); // TODO right we should watch for changes on this
+        this.settings = clusterService.getSettings();
+        this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
 
         // grab the account id from the node settings on startup
         setDefaultMaxmindAccountId(MAXMIND_DEFAULT_ACCOUNT_ID_SETTING.get(clusterService.getSettings()));
@@ -98,7 +95,18 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
      */
     public void init() {
         clusterService.addListener(this);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAXMIND_DEFAULT_ACCOUNT_ID_SETTING, this::setDefaultMaxmindAccountId);
+    }
+
+    private void setPollInterval(TimeValue pollInterval) {
+        if (Objects.equals(this.pollInterval, pollInterval) == false) {
+            this.pollInterval = pollInterval;
+            EnterpriseGeoIpDownloader currentDownloader = getCurrentTask();
+            if (currentDownloader != null) {
+                currentDownloader.requestReschedule();
+            }
+        }
     }
 
     private void setDefaultMaxmindAccountId(String defaultMaxmindAccountId) {
@@ -108,8 +116,8 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
     private HttpClient.PasswordAuthenticationHolder buildCredentials() {
         final String username = this.defaultMaxmindAccountId;
         final char[] passwordChars;
-        if (cachedSecureSettings.getSettingNames().contains(MAXMIND_DEFAULT_LICENSE_KEY_SETTING.getKey())) {
-            passwordChars = cachedSecureSettings.getString(MAXMIND_DEFAULT_LICENSE_KEY_SETTING.getKey()).getChars();
+        if (cachedSecureSettings.getSettingNames().contains(MAXMIND_LICENSE_KEY_SETTING.getKey())) {
+            passwordChars = cachedSecureSettings.getString(MAXMIND_LICENSE_KEY_SETTING.getKey()).getChars();
         } else {
             passwordChars = null;
         }
@@ -154,18 +162,10 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
 
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, EnterpriseGeoIpTaskParams params, PersistentTaskState state) {
-        // TODO so we'd want to override createTask and have our own AllocatedPersistentTask and its associated state,
-        // but this is enough to prove the principle in the meantime.
-        logger.info("Running enterprise downloader, state was [{}]", state);
-
-        // this runs on the node that was allocated to have the task,
-        // and runDownloader uses a scheduler to schedule its own next run,
-        // so this kicks things off if the thing is enabled
         EnterpriseGeoIpDownloader downloader = (EnterpriseGeoIpDownloader) task;
         EnterpriseGeoIpTaskState geoIpTaskState = (state == null) ? EnterpriseGeoIpTaskState.EMPTY : (EnterpriseGeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
         currentTask.set(downloader);
-        // this double-settings check is very unusual
         if (ENABLED_SETTING.get(clusterService.state().metadata().settings(), settings)) {
             downloader.runDownloader();
         }
@@ -182,7 +182,6 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
             boolean hasGeoIpMetadataChanges = event.metadataChanged()
                 && event.changedCustomMetadataSet().contains(IngestGeoIpMetadata.TYPE);
             if (hasGeoIpMetadataChanges) {
-                logger.info("Something changed in (the custom metadata of) the cluster state, re-running the downloader now");
                 currentDownloader.requestReschedule(); // watching the cluster changed events to kick the thing off if it's not running
             }
         }
@@ -192,10 +191,9 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         // `SecureSettings` are available here! cache them as they will be needed
         // whenever dynamic cluster settings change and we have to rebuild the accounts
         try {
-            this.cachedSecureSettings = extractSecureSettings(settings, List.of(MAXMIND_DEFAULT_LICENSE_KEY_SETTING));
+            this.cachedSecureSettings = extractSecureSettings(settings, List.of(MAXMIND_LICENSE_KEY_SETTING));
         } catch (GeneralSecurityException e) {
             logger.error("Keystore exception while reloading enterprise geoip download task executor", e);
-            return;
         }
     }
 

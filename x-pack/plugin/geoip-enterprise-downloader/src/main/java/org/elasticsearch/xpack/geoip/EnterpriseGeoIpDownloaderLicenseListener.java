@@ -67,7 +67,6 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
     private volatile boolean licenseStateListenerRegistered;
 
     public void init() {
-        // TODO alternatively we could have the equivalent of this code in EnterpriseDownloaderPlugin itself... :shrug:
         listenForLicenseStateChanges();
         clusterService.addListener(this);
     }

@@ -78,7 +78,7 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
         );
         this.deleteDatabaseConfigurationTaskQueue = clusterService.createTaskQueue(
             "delete-geoip-database-configuration-state-update",
-            Priority.LOW, // TODO ask the distributed team ;)
+            Priority.NORMAL,
             DELETE_TASK_EXECUTOR
         );
     }
@@ -88,21 +88,15 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
         throws Exception {
         final String id = request.getDatabaseId();
         deleteDatabaseConfigurationTaskQueue.submitTask(
-            Strings.format("delete-geoip-database-configuration-[%s]", id), // TODO ask the distributed team ;)
+            Strings.format("delete-geoip-database-configuration-[%s]", id),
             new DeleteDatabaseConfigurationTask(listener, id),
             null
         );
     }
 
-    // TODO can be a record?
-    private static class DeleteDatabaseConfigurationTask implements ClusterStateTaskListener {
-        private final ActionListener<AcknowledgedResponse> listener;
-        private final String databaseId;
-
-        DeleteDatabaseConfigurationTask(ActionListener<AcknowledgedResponse> listener, String databaseId) {
-            this.listener = listener;
-            this.databaseId = databaseId;
-        }
+    private record DeleteDatabaseConfigurationTask(ActionListener<AcknowledgedResponse> listener, String databaseId)
+        implements
+            ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
             IngestGeoIpMetadata geoIpMeta = currentState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
@@ -114,7 +108,7 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
             }
 
             // delete
-            logger.info("deleting database configuration [{}]", id);
+            logger.debug("deleting database configuration [{}]", id);
             Map<String, DatabaseConfigurationMetadata> databases = new HashMap<>(geoIpMeta.getDatabases());
             databases.remove(id);
             geoIpMeta = new IngestGeoIpMetadata(databases);

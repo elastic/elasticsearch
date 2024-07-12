@@ -28,7 +28,11 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * TODO javadocs
+ * A database configuration is an identified (has an id) configuration of a named geoip location database to download,
+ * and the identifying information/configuration to download the named database from some database provider.
+ * <p>
+ * That is, it has an id e.g. "my_db_config_1" and it says "download the file named XXXX from SomeCompany, and here's the
+ * magic token to use to do that."
  */
 public record DatabaseConfiguration(String id, String name) implements Writeable, ToXContentObject {
 
@@ -57,10 +61,16 @@ public record DatabaseConfiguration(String id, String name) implements Writeable
         "GeoIP2-Country",
         "GeoIP2-Domain",
         "GeoIP2-Enterprise",
-        "GeoIP2-ISP",
-        "GeoLite2-ASN",
-        "GeoLite2-City",
-        "GeoLite2-Country"
+        "GeoIP2-ISP"
+
+        // in order to prevent a conflict between the (ordinary) geoip downloader and the enterprise geoip downloader,
+        // the enterprise geoip downloader is limited only to downloading the commercial files that the (ordinary) geoip downloader
+        // doesn't support out of the box -- in the future if we would like to relax this constraint, then we'll need to resolve that
+        // conflict at the same time.
+
+        // "GeoLite2-ASN",
+        // "GeoLite2-City",
+        // "GeoLite2-Country"
     );
 
     private static final ParseField NAME = new ParseField("name");
@@ -107,7 +117,8 @@ public record DatabaseConfiguration(String id, String name) implements Writeable
     }
 
     /**
-     * TODO javadocs
+     * An id is intended to be alphanumerics and underscores (only), but we're reserving leading underscores for ourselves
+     * in the future, that is, they're not for the ones that users can PUT.
      */
     public static void validateId(String id) {
         if (Strings.isNullOrEmpty(id)) {

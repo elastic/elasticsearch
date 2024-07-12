@@ -110,7 +110,7 @@ public class IngestGeoIpPlugin extends Plugin
             GeoIpDownloader.ENDPOINT_SETTING,
             GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING,
             EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_DEFAULT_ACCOUNT_ID_SETTING,
-            EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_DEFAULT_LICENSE_KEY_SETTING
+            EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_LICENSE_KEY_SETTING
         );
     }
 
@@ -172,8 +172,6 @@ public class IngestGeoIpPlugin extends Plugin
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        // we return to the world that we're doing stuff with a persistent tasks executor,
-        // and we return an initialized instance of the class in question
         return List.of(geoIpDownloaderTaskExecutor, enterpriseGeoIpDownloaderTaskExecutor);
     }
 
@@ -209,7 +207,6 @@ public class IngestGeoIpPlugin extends Plugin
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        // TODO we're going to need this at some point ;)
         return List.of(
             new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskParams::fromXContent),
             new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskState::fromXContent),
@@ -228,7 +225,6 @@ public class IngestGeoIpPlugin extends Plugin
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        // TODO we're going to need this at some point, too ;)
         return List.of(
             new NamedWriteableRegistry.Entry(Metadata.Custom.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.GeoIpMetadataDiff::new),

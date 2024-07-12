@@ -21,7 +21,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
-@ServerlessScope(Scope.INTERNAL) // TODO expose eventually
+@ServerlessScope(Scope.INTERNAL)
 public class RestDeleteDatabaseConfigurationAction extends BaseRestHandler {
 
     @Override

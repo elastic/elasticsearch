@@ -90,7 +90,7 @@ class EqualMatcher<T> extends Matcher {
         }
     }
 
-    private boolean matchArraysEqualIgnoringSorting(T[] actualArray, T[] expectedArray) {
+    private static <T> boolean matchArraysEqualIgnoringSorting(T[] actualArray, T[] expectedArray) {
         final List<T> actualList = Arrays.asList(actualArray);
         final List<T> expectedList = Arrays.asList(expectedArray);
         return actualList.containsAll(expectedList) && expectedList.containsAll(actualList);

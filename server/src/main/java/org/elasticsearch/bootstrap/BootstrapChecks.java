@@ -22,6 +22,8 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.ProcessLimits;
 import org.elasticsearch.node.NodeValidationException;
 
 import java.io.BufferedReader;
@@ -260,7 +262,7 @@ final class BootstrapChecks {
         }
 
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
         }
 
     }
@@ -332,7 +334,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
         }
 
         @Override
@@ -349,7 +351,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD) {
+            if (getMaxNumberOfThreads() != ProcessLimits.UNKNOWN && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max number of threads [%d] for user [%s] is too low, increase to at least [%d]",
@@ -365,7 +367,7 @@ final class BootstrapChecks {
 
         // visible for testing
         long getMaxNumberOfThreads() {
-            return JNANatives.MAX_NUMBER_OF_THREADS;
+            return NativeAccess.instance().getProcessLimits().maxThreads();
         }
 
         @Override
@@ -378,7 +380,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != getRlimInfinity()) {
+            if (getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != ProcessLimits.UNLIMITED) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max size virtual memory [%d] for user [%s] is too low, increase to [unlimited]",
@@ -392,13 +394,8 @@ final class BootstrapChecks {
         }
 
         // visible for testing
-        long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
-        }
-
-        // visible for testing
         long getMaxSizeVirtualMemory() {
-            return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
+            return NativeAccess.instance().getProcessLimits().maxVirtualMemorySize();
         }
 
         @Override
@@ -415,7 +412,7 @@ final class BootstrapChecks {
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
             final long maxFileSize = getMaxFileSize();
-            if (maxFileSize != Long.MIN_VALUE && maxFileSize != getRlimInfinity()) {
+            if (maxFileSize != Long.MIN_VALUE && maxFileSize != ProcessLimits.UNLIMITED) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max file size [%d] for user [%s] is too low, increase to [unlimited]",
@@ -428,12 +425,8 @@ final class BootstrapChecks {
             }
         }
 
-        long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
-        }
-
         long getMaxFileSize() {
-            return JNANatives.MAX_FILE_SIZE;
+            return NativeAccess.instance().getProcessLimits().maxVirtualMemorySize();
         }
 
         @Override
@@ -591,7 +584,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
         @Override
@@ -615,7 +608,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
         // visible for testing

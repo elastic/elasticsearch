@@ -1069,7 +1069,8 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             Priority.NORMAL,
                             0L,
                             0L
-                        )
+                        ),
+                        null
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
                         new StartTrainedModelDeploymentAction.TaskParams(
@@ -1083,7 +1084,8 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             Priority.NORMAL,
                             0L,
                             0L
-                        )
+                        ),
+                        null
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2"),
@@ -1105,7 +1107,8 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             Priority.NORMAL,
                             0L,
                             0L
-                        )
+                        ),
+                        null
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
                         new StartTrainedModelDeploymentAction.TaskParams(
@@ -1119,7 +1122,8 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             Priority.NORMAL,
                             0L,
                             0L
-                        )
+                        ),
+                        null
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2"),
@@ -1141,7 +1145,8 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             Priority.NORMAL,
                             0L,
                             0L
-                        )
+                        ),
+                        null
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
                         new StartTrainedModelDeploymentAction.TaskParams(
@@ -1155,7 +1160,8 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             Priority.NORMAL,
                             0L,
                             0L
-                        )
+                        ),
+                        null
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2", "ml_node_3", "ml_node_4"),

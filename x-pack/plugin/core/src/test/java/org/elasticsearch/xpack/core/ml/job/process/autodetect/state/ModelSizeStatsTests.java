@@ -31,6 +31,7 @@ public class ModelSizeStatsTests extends AbstractXContentSerializingTestCase<Mod
         assertEquals(0, stats.getBucketAllocationFailuresCount());
         assertEquals(MemoryStatus.OK, stats.getMemoryStatus());
         assertNull(stats.getAssignmentMemoryBasis());
+        assertNull(stats.getOutputMemmoryAllocatorBytes());
         assertEquals(0, stats.getCategorizedDocCount());
         assertEquals(0, stats.getTotalCategoryCount());
         assertEquals(0, stats.getFrequentCategoryCount());

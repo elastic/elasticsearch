@@ -54,7 +54,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 [[cluster-nodes-usage-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeout-nodes-request]
 
 
 [[cluster-nodes-usage-api-example]]

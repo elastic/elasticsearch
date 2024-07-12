@@ -30,6 +30,7 @@ steps:
           localSsds: 1
           localSsdInterface: nvme
           machineType: custom-32-98304
+          diskSizeGb: 250
         env: {}
   - group: platform-support-windows
     steps:
@@ -48,6 +49,7 @@ steps:
               - checkPart2
               - checkPart3
               - checkPart4
+              - checkPart5
               - checkRestCompat
         agents:
           provider: gcp
@@ -72,6 +74,7 @@ steps:
               - checkPart2
               - checkPart3
               - checkPart4
+              - checkPart5
               - checkRestCompat
         agents:
           provider: aws

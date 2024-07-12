@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -25,7 +23,6 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
  * @param user a unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
  */
 public record AzureOpenAiEmbeddingsRequestTaskSettings(@Nullable String user) {
-    private static final Logger logger = LogManager.getLogger(AzureOpenAiEmbeddingsRequestTaskSettings.class);
 
     public static final AzureOpenAiEmbeddingsRequestTaskSettings EMPTY_SETTINGS = new AzureOpenAiEmbeddingsRequestTaskSettings(null);
 

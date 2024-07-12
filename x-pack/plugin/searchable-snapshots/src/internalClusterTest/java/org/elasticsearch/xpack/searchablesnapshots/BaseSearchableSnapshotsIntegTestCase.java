@@ -184,6 +184,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         final Storage storage
     ) throws Exception {
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             repositoryName,
             snapshotName,

@@ -31,31 +31,24 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_CLUSTER_PRIVILEGE_NAMES;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_CLUSTER_PRIVILEGE_NAMES;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.ROLE_DESCRIPTOR_NAME;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivilegesBuilder;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteClusterPermissions;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -153,17 +146,19 @@ public class RoleDescriptorTests extends ESTestCase {
                     + ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], privileges=[read]"
                     + ", field_security=[grant=[body,title], except=null], query={\"match_all\": {}}],]"
                     + ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]"
-                    + ", runAs=[sudo], metadata=[{}], remoteIndicesPrivileges=[], restriction=Restriction[workflows=[]]]"
+                    + ", runAs=[sudo], metadata=[{}], remoteIndicesPrivileges=[], remoteClusterPrivileges=[]"
+                    + ", restriction=Restriction[workflows=[]], description=]"
             )
         );
     }
 
     public void testToXContentRoundtrip() throws Exception {
-        final RoleDescriptor descriptor = randomRoleDescriptor(true, true, true);
+        final RoleDescriptor descriptor = RoleDescriptorTestHelper.randomRoleDescriptor();
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference xContentValue = toShuffledXContent(descriptor, xContentType, ToXContent.EMPTY_PARAMS, false);
         final RoleDescriptor parsed = RoleDescriptor.parserBuilder()
             .allowRestriction(true)
+            .allowDescription(true)
             .build()
             .parse(descriptor.getName(), xContentValue, xContentType);
         assertThat(parsed, equalTo(descriptor));
@@ -245,19 +240,47 @@ public class RoleDescriptorTests extends ESTestCase {
                   "clusters": ["*"]
                 }
               ],
+              "remote_cluster": [
+                {
+                  "privileges": [
+                      "monitor_enrich"
+                  ],
+                  "clusters": [
+                      "one"
+                  ]
+                },
+                {
+                  "privileges": [
+                      "monitor_enrich"
+                  ],
+                  "clusters": [
+                      "two", "three"
+                  ]
+                }
+              ],
               "restriction":{
                 "workflows": ["search_application_query"]
-              }
+              },
+              "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
             }""";
-        rd = RoleDescriptor.parserBuilder().allowRestriction(true).build().parse("test", new BytesArray(q), XContentType.JSON);
+        rd = RoleDescriptor.parserBuilder()
+            .allowRestriction(true)
+            .allowDescription(true)
+            .build()
+            .parse("test", new BytesArray(q), XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
         assertEquals(3, rd.getIndicesPrivileges().length);
         assertEquals(3, rd.getRemoteIndicesPrivileges().length);
+        assertEquals(2, rd.getRemoteClusterPermissions().groups().size());
         assertArrayEquals(new String[] { "r1" }, rd.getRemoteIndicesPrivileges()[0].remoteClusters());
         assertArrayEquals(new String[] { "r1", "*-*" }, rd.getRemoteIndicesPrivileges()[1].remoteClusters());
         assertArrayEquals(new String[] { "*" }, rd.getRemoteIndicesPrivileges()[2].remoteClusters());
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
+        assertArrayEquals(new String[] { "one" }, rd.getRemoteClusterPermissions().groups().get(0).remoteClusterAliases());
+        assertArrayEquals(new String[] { "monitor_enrich" }, rd.getRemoteClusterPermissions().groups().get(0).clusterPrivileges());
+        assertArrayEquals(new String[] { "two", "three" }, rd.getRemoteClusterPermissions().groups().get(1).remoteClusterAliases());
+        assertArrayEquals(new String[] { "monitor_enrich" }, rd.getRemoteClusterPermissions().groups().get(1).clusterPrivileges());
         assertThat(rd.hasRestriction(), equalTo(true));
         assertThat(rd.getRestriction().hasWorkflows(), equalTo(true));
         assertArrayEquals(new String[] { "search_application_query" }, rd.getRestriction().getWorkflows());
@@ -453,6 +476,72 @@ public class RoleDescriptorTests extends ESTestCase {
         );
     }
 
+    public void testParseInvalidRemoteCluster() throws IOException {
+        // missing clusters
+        String q = """
+            {
+              "remote_cluster": [
+                {
+                  "privileges": [
+                      "monitor_enrich"
+                  ]
+                }
+              ]
+            }""";
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q), XContentType.JSON)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("failed to parse remote_cluster for role [test]. " + "[clusters] must be defined when [privileges] are defined")
+        );
+
+        // missing privileges
+        String q2 = """
+            {
+              "remote_cluster": [
+                {
+                  "clusters": [
+                      "two", "three"
+                  ]
+                }
+              ]
+            }""";
+        exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q2), XContentType.JSON)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("failed to parse remote_cluster for role [test]. " + "[privileges] must be defined when [clusters] are defined")
+        );
+
+        // missing both does not cause an exception while parsing. However, we generally want to avoid any assumptions about the behavior
+        // and is allowed for legacy reasons to better match how other fields work
+        String q3 = """
+            {
+              "remote_cluster": []
+            }""";
+        RoleDescriptor rd = RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q3), XContentType.JSON);
+        assertThat(rd.getRemoteClusterPermissions().groups().size(), equalTo(0));
+        assertThat(rd.getRemoteClusterPermissions(), equalTo(RemoteClusterPermissions.NONE));
+        if (assertsAreEnabled) {
+            expectThrows(AssertionError.class, () -> rd.getRemoteClusterPermissions().validate());
+        }
+        // similarly, missing both but with a group placeholder does not cause an exception while parsing but will still raise an exception
+        String q4 = """
+            {
+              "remote_cluster": [{}]
+            }""";
+
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q4), XContentType.JSON)
+        );
+        assertThat(illegalArgumentException.getMessage(), containsString("remote cluster groups must not be null or empty"));
+    }
+
     public void testParsingFieldPermissionsUsesCache() throws IOException {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
@@ -500,12 +589,20 @@ public class RoleDescriptorTests extends ESTestCase {
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
+        final boolean canIncludeRemoteClusters = version.onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS);
         final boolean canIncludeWorkflows = version.onOrAfter(WORKFLOWS_RESTRICTION_VERSION);
+        final boolean canIncludeDescription = version.onOrAfter(TransportVersions.SECURITY_ROLE_DESCRIPTION);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
 
-        final RoleDescriptor descriptor = randomRoleDescriptor(true, canIncludeRemoteIndices, canIncludeWorkflows);
+        final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder()
+            .allowReservedMetadata(true)
+            .allowRemoteIndices(canIncludeRemoteIndices)
+            .allowRestriction(canIncludeWorkflows)
+            .allowDescription(canIncludeDescription)
+            .allowRemoteClusters(canIncludeRemoteClusters)
+            .build();
         descriptor.writeTo(output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(
@@ -518,7 +615,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(serialized, equalTo(descriptor));
     }
 
-    public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
+    public void testSerializationWithRemoteIndicesWithElderVersion() throws IOException {
         final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_8_0);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
@@ -528,7 +625,14 @@ public class RoleDescriptorTests extends ESTestCase {
         final BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
 
-        final RoleDescriptor descriptor = randomRoleDescriptor(true, true, false);
+        final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder()
+            .allowReservedMetadata(true)
+            .allowRemoteIndices(true)
+            .allowRestriction(false)
+            .allowDescription(false)
+            .allowRemoteClusters(false)
+            .build();
+
         descriptor.writeTo(output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(
@@ -551,12 +655,67 @@ public class RoleDescriptorTests extends ESTestCase {
                         descriptor.getMetadata(),
                         descriptor.getTransientMetadata(),
                         null,
-                        descriptor.getRestriction()
+                        null,
+                        descriptor.getRestriction(),
+                        descriptor.getDescription()
                     )
                 )
             );
         } else {
             assertThat(descriptor, equalTo(serialized));
+        }
+    }
+
+    public void testSerializationWithRemoteClusterWithElderVersion() throws IOException {
+        final TransportVersion versionBeforeRemoteCluster = TransportVersionUtils.getPreviousVersion(
+            TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
+        );
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_7_17_0,
+            versionBeforeRemoteCluster
+        );
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(version);
+
+        final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder()
+            .allowReservedMetadata(true)
+            .allowRemoteIndices(false)
+            .allowRestriction(false)
+            .allowDescription(false)
+            .allowRemoteClusters(true)
+            .build();
+        descriptor.writeTo(output);
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+        StreamInput streamInput = new NamedWriteableAwareStreamInput(
+            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
+            registry
+        );
+        streamInput.setTransportVersion(version);
+        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
+        if (descriptor.hasRemoteClusterPermissions()) {
+            assertThat(
+                serialized,
+                equalTo(
+                    new RoleDescriptor(
+                        descriptor.getName(),
+                        descriptor.getClusterPrivileges(),
+                        descriptor.getIndicesPrivileges(),
+                        descriptor.getApplicationPrivileges(),
+                        descriptor.getConditionalClusterPrivileges(),
+                        descriptor.getRunAs(),
+                        descriptor.getMetadata(),
+                        descriptor.getTransientMetadata(),
+                        descriptor.getRemoteIndicesPrivileges(),
+                        null,
+                        descriptor.getRestriction(),
+                        descriptor.getDescription()
+                    )
+                )
+            );
+        } else {
+            assertThat(descriptor, equalTo(serialized));
+            assertThat(descriptor.getRemoteClusterPermissions(), equalTo(RemoteClusterPermissions.NONE));
         }
     }
 
@@ -570,7 +729,13 @@ public class RoleDescriptorTests extends ESTestCase {
         final BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
 
-        final RoleDescriptor descriptor = randomRoleDescriptor(true, false, true);
+        final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder()
+            .allowReservedMetadata(true)
+            .allowRemoteIndices(false)
+            .allowRestriction(true)
+            .allowDescription(false)
+            .allowRemoteClusters(false)
+            .build();
         descriptor.writeTo(output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(
@@ -593,7 +758,9 @@ public class RoleDescriptorTests extends ESTestCase {
                         descriptor.getMetadata(),
                         descriptor.getTransientMetadata(),
                         descriptor.getRemoteIndicesPrivileges(),
-                        null
+                        descriptor.getRemoteClusterPermissions(),
+                        null,
+                        descriptor.getDescription()
                     )
                 )
             );
@@ -645,6 +812,96 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(role.hasRestriction(), equalTo(true));
         assertThat(role.hasWorkflowsRestriction(), equalTo(true));
         assertThat(role.getRestriction().getWorkflows(), arrayContaining("search_application"));
+    }
+
+    public void testSerializationWithDescriptionAndUnsupportedVersions() throws IOException {
+        final TransportVersion versionBeforeRoleDescription = TransportVersionUtils.getPreviousVersion(
+            TransportVersions.SECURITY_ROLE_DESCRIPTION
+        );
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_7_17_0,
+            versionBeforeRoleDescription
+        );
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(version);
+
+        final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder().allowDescription(true).build();
+        descriptor.writeTo(output);
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+        StreamInput streamInput = new NamedWriteableAwareStreamInput(
+            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
+            registry
+        );
+        streamInput.setTransportVersion(version);
+        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
+        if (descriptor.hasDescription()) {
+            assertThat(
+                serialized,
+                equalTo(
+                    new RoleDescriptor(
+                        descriptor.getName(),
+                        descriptor.getClusterPrivileges(),
+                        descriptor.getIndicesPrivileges(),
+                        descriptor.getApplicationPrivileges(),
+                        descriptor.getConditionalClusterPrivileges(),
+                        descriptor.getRunAs(),
+                        descriptor.getMetadata(),
+                        descriptor.getTransientMetadata(),
+                        descriptor.getRemoteIndicesPrivileges(),
+                        descriptor.getRemoteClusterPermissions(),
+                        descriptor.getRestriction(),
+                        null
+                    )
+                )
+            );
+        } else {
+            assertThat(descriptor, equalTo(serialized));
+        }
+    }
+
+    public void testParseRoleWithDescriptionFailsWhenAllowDescriptionIsFalse() {
+        final String json = """
+            {
+              "description": "Lorem ipsum",
+              "cluster": ["manage_security"]
+            }""";
+        final ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parserBuilder()
+                .allowRestriction(randomBoolean())
+                .allowDescription(false)
+                .build()
+                .parse(
+                    "test_role_with_description",
+                    XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON)
+                )
+        );
+        assertThat(
+            e,
+            TestMatchers.throwableWithMessage(
+                containsString("failed to parse role [test_role_with_description]. unexpected field [description]")
+            )
+        );
+    }
+
+    public void testParseRoleWithDescriptionWhenAllowDescriptionIsTrue() throws IOException {
+        final String json = """
+            {
+              "description": "Lorem ipsum",
+              "cluster": ["manage_security"]
+            }""";
+        RoleDescriptor role = RoleDescriptor.parserBuilder()
+            .allowRestriction(randomBoolean())
+            .allowDescription(true)
+            .build()
+            .parse(
+                "test_role_with_description",
+                XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON)
+            );
+        assertThat(role.getName(), equalTo("test_role_with_description"));
+        assertThat(role.getDescription(), equalTo("Lorem ipsum"));
+        assertThat(role.getClusterPrivileges(), arrayContaining("manage_security"));
     }
 
     public void testParseEmptyQuery() throws Exception {
@@ -1001,11 +1258,14 @@ public class RoleDescriptorTests extends ESTestCase {
                 new HashMap<>(),
                 new HashMap<>(),
                 new RoleDescriptor.RemoteIndicesPrivileges[0],
+                RemoteClusterPermissions.NONE,
+                null,
                 null
             ).isEmpty()
         );
 
         final List<Boolean> booleans = Arrays.asList(
+            randomBoolean(),
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
@@ -1040,7 +1300,9 @@ public class RoleDescriptorTests extends ESTestCase {
                 ? new RoleDescriptor.RemoteIndicesPrivileges[0]
                 : new RoleDescriptor.RemoteIndicesPrivileges[] {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() },
-            booleans.get(7) ? null : RoleRestrictionTests.randomWorkflowsRestriction(1, 2)
+            booleans.get(7) ? null : randomRemoteClusterPermissions(5),
+            booleans.get(8) ? null : RoleRestrictionTests.randomWorkflowsRestriction(1, 2),
+            randomAlphaOfLengthBetween(0, 20)
         );
 
         if (booleans.stream().anyMatch(e -> e.equals(false))) {
@@ -1062,222 +1324,29 @@ public class RoleDescriptorTests extends ESTestCase {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
-            ).hasPrivilegesOtherThanIndex(),
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
             is(false)
         );
-        final RoleDescriptor roleDescriptor = randomRoleDescriptor();
+        final RoleDescriptor roleDescriptor = RoleDescriptorTestHelper.builder()
+            .allowReservedMetadata(true)
+            .allowRemoteIndices(true)
+            .allowRestriction(true)
+            .allowDescription(true)
+            .allowRemoteClusters(true)
+            .build();
         final boolean expected = roleDescriptor.hasClusterPrivileges()
             || roleDescriptor.hasConfigurableClusterPrivileges()
             || roleDescriptor.hasApplicationPrivileges()
             || roleDescriptor.hasRunAs()
             || roleDescriptor.hasRemoteIndicesPrivileges();
-        assertThat(roleDescriptor.hasPrivilegesOtherThanIndex(), equalTo(expected));
-    }
-
-    public static List<RoleDescriptor> randomUniquelyNamedRoleDescriptors(int minSize, int maxSize) {
-        return randomValueOtherThanMany(
-            roleDescriptors -> roleDescriptors.stream().map(RoleDescriptor::getName).distinct().count() != roleDescriptors.size(),
-            () -> randomList(minSize, maxSize, () -> randomRoleDescriptor(false))
-        );
-    }
-
-    public static RoleDescriptor randomRoleDescriptor() {
-        return randomRoleDescriptor(true);
-    }
-
-    public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata) {
-        return randomRoleDescriptor(allowReservedMetadata, false, false);
-    }
-
-    public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata, boolean allowRemoteIndices, boolean allowWorkflows) {
-        final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges;
-        if (false == allowRemoteIndices || randomBoolean()) {
-            remoteIndexPrivileges = null;
-        } else {
-            remoteIndexPrivileges = randomRemoteIndicesPrivileges(0, 3);
-        }
-
-        return new RoleDescriptor(
-            randomAlphaOfLengthBetween(3, 90),
-            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
-            randomIndicesPrivileges(0, 3),
-            randomApplicationPrivileges(),
-            randomClusterPrivileges(),
-            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
-            randomRoleDescriptorMetadata(allowReservedMetadata),
-            Map.of(),
-            remoteIndexPrivileges,
-            allowWorkflows ? RoleRestrictionTests.randomWorkflowsRestriction(1, 3) : null
-        );
-    }
-
-    public static Map<String, Object> randomRoleDescriptorMetadata(boolean allowReservedMetadata) {
-        final Map<String, Object> metadata = new HashMap<>();
-        while (randomBoolean()) {
-            String key = randomAlphaOfLengthBetween(4, 12);
-            if (allowReservedMetadata && randomBoolean()) {
-                key = MetadataUtils.RESERVED_PREFIX + key;
-            }
-            final Object value = randomBoolean() ? randomInt() : randomAlphaOfLengthBetween(3, 50);
-            metadata.put(key, value);
-        }
-        return metadata;
-    }
-
-    public static ConfigurableClusterPrivilege[] randomClusterPrivileges() {
-        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = switch (randomIntBetween(0, 4)) {
-            case 0 -> new ConfigurableClusterPrivilege[0];
-            case 1 -> new ConfigurableClusterPrivilege[] {
-                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
-                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                ) };
-            case 2 -> new ConfigurableClusterPrivilege[] {
-                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
-                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                ) };
-            case 3 -> new ConfigurableClusterPrivilege[] {
-                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
-                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                ),
-                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
-                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                ) };
-            case 4 -> new ConfigurableClusterPrivilege[] {
-                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
-                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                ),
-                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
-                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                ) };
-            default -> throw new IllegalStateException("Unexpected value");
-        };
-        return configurableClusterPrivileges;
-    }
-
-    public static ApplicationResourcePrivileges[] randomApplicationPrivileges() {
-        final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(0, 2)];
-        for (int i = 0; i < applicationPrivileges.length; i++) {
-            final ApplicationResourcePrivileges.Builder builder = ApplicationResourcePrivileges.builder();
-            builder.application("app" + randomAlphaOfLengthBetween(5, 12) + (randomBoolean() ? "*" : ""));
-            if (randomBoolean()) {
-                builder.privileges("*");
-            } else {
-                builder.privileges(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
-            }
-            if (randomBoolean()) {
-                builder.resources("*");
-            } else {
-                builder.resources(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
-            }
-            applicationPrivileges[i] = builder.build();
-        }
-        return applicationPrivileges;
-    }
-
-    public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max) {
-        return randomRemoteIndicesPrivileges(min, max, Set.of());
-    }
-
-    public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max, Set<String> excludedPrivileges) {
-        final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPrivileges(min, max, excludedPrivileges);
-        final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges =
-            new RoleDescriptor.RemoteIndicesPrivileges[innerIndexPrivileges.length];
-        for (int i = 0; i < remoteIndexPrivileges.length; i++) {
-            remoteIndexPrivileges[i] = new RoleDescriptor.RemoteIndicesPrivileges(
-                innerIndexPrivileges[i],
-                generateRandomStringArray(5, randomIntBetween(3, 9), false, false)
-            );
-        }
-        return remoteIndexPrivileges;
-    }
-
-    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges(int min, int max) {
-        return randomIndicesPrivileges(min, max, Set.of());
-    }
-
-    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges(int min, int max, Set<String> excludedPrivileges) {
-        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(min, max)];
-        for (int i = 0; i < indexPrivileges.length; i++) {
-            indexPrivileges[i] = randomIndicesPrivilegesBuilder(excludedPrivileges).build();
-        }
-        return indexPrivileges;
-    }
-
-    private static RoleDescriptor.IndicesPrivileges.Builder randomIndicesPrivilegesBuilder() {
-        return randomIndicesPrivilegesBuilder(Set.of());
-    }
-
-    private static RoleDescriptor.IndicesPrivileges.Builder randomIndicesPrivilegesBuilder(Set<String> excludedPrivileges) {
-        final Set<String> candidatePrivilegesNames = Sets.difference(IndexPrivilege.names(), excludedPrivileges);
-        assert false == candidatePrivilegesNames.isEmpty() : "no candidate privilege names to random from";
-        final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
-            .privileges(randomSubsetOf(randomIntBetween(1, 4), candidatePrivilegesNames))
-            .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
-            .allowRestrictedIndices(randomBoolean());
-        randomDlsFls(builder);
-        return builder;
-    }
-
-    private static void randomDlsFls(RoleDescriptor.IndicesPrivileges.Builder builder) {
-        if (randomBoolean()) {
-            builder.query(
-                randomBoolean()
-                    ? "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
-                    : "{ \"match_all\": {} }"
-            );
-        }
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                builder.grantedFields("*");
-                builder.deniedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
-            } else {
-                builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
-            }
-        }
+        assertThat(roleDescriptor.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(), equalTo(expected));
     }
 
     private static void resetFieldPermssionsCache() {
         RoleDescriptor.setFieldPermissionsCache(new FieldPermissionsCache(Settings.EMPTY));
-    }
-
-    public static RoleDescriptor randomCrossClusterAccessRoleDescriptor() {
-        final int searchSize = randomIntBetween(0, 3);
-        final int replicationSize = randomIntBetween(searchSize == 0 ? 1 : 0, 3);
-        assert searchSize + replicationSize > 0;
-
-        final String[] clusterPrivileges;
-        if (searchSize > 0 && replicationSize > 0) {
-            clusterPrivileges = CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
-        } else if (searchSize > 0) {
-            clusterPrivileges = CCS_CLUSTER_PRIVILEGE_NAMES;
-        } else {
-            clusterPrivileges = CCR_CLUSTER_PRIVILEGE_NAMES;
-        }
-
-        final List<RoleDescriptor.IndicesPrivileges> indexPrivileges = new ArrayList<>();
-        for (int i = 0; i < searchSize; i++) {
-            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
-                .privileges(CCS_INDICES_PRIVILEGE_NAMES)
-                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
-                .allowRestrictedIndices(randomBoolean());
-            randomDlsFls(builder);
-            indexPrivileges.add(builder.build());
-        }
-        for (int i = 0; i < replicationSize; i++) {
-            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
-                .privileges(CCR_INDICES_PRIVILEGE_NAMES)
-                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
-                .allowRestrictedIndices(randomBoolean());
-            indexPrivileges.add(builder.build());
-        }
-
-        return new RoleDescriptor(
-            ROLE_DESCRIPTOR_NAME,
-            clusterPrivileges,
-            indexPrivileges.toArray(RoleDescriptor.IndicesPrivileges[]::new),
-            null
-        );
     }
 
 }

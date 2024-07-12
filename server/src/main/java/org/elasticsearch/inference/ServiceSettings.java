@@ -12,12 +12,7 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 
-public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteable {
-
-    /**
-     * Returns a {@link ToXContentObject} that only writes the exposed fields. Any hidden fields are not written.
-     */
-    ToXContentObject getFilteredXContentObject();
+public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteable, FilteredXContent {
 
     /**
      * Similarity used in the service. Will be null if not applicable.

@@ -275,7 +275,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "role_descriptors": {
                     "cross_cluster": {
                       "cluster": [
-                        "cross_cluster_search", "cross_cluster_replication"
+                        "cross_cluster_search", "monitor_enrich", "cross_cluster_replication"
                       ],
                       "indices": [
                         {

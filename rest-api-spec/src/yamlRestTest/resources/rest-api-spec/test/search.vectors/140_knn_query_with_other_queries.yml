@@ -1,9 +1,9 @@
 # test how knn query interact with other queries
 setup:
-  - skip:
-      version: ' - 8.11.99'
+  - requires:
+      cluster_features: "gte_v8.12.0"
       reason: 'knn as query added in 8.12'
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       indices.create:
@@ -26,15 +26,6 @@ setup:
               my_name:
                 type: keyword
                 store: true
-          aliases:
-            my_alias:
-              filter:
-                term:
-                  my_name: v2
-            my_alias1:
-              filter:
-                term:
-                  my_name: v1
 
   - do:
       bulk:

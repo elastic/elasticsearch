@@ -1,5 +1,0 @@
-pr: 107122
-summary: Avoid unintentionally clearing the `DataStream.rolloverOnWrite` flag
-area: Data streams
-type: bug
-issues: []

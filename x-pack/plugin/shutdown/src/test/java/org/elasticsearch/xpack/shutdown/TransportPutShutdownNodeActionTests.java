@@ -86,7 +86,16 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         var type = randomFrom(Type.REMOVE, Type.REPLACE, Type.RESTART);
         var allocationDelay = type == Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
         var targetNodeName = type == Type.REPLACE ? randomAlphaOfLength(5) : null;
-        var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName, null);
+        var request = new PutShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "node1",
+            type,
+            "sunsetting",
+            allocationDelay,
+            targetNodeName,
+            null
+        );
         action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
         var updateTask = ArgumentCaptor.forClass(PutShutdownNodeTask.class);
         var taskExecutor = ArgumentCaptor.forClass(PutShutdownNodeExecutor.class);
@@ -121,10 +130,21 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
             var targetNodeName = type == Type.REPLACE ? randomAlphaOfLength(5) : null;
             assertThat(
                 format("type [%s] should work without grace period", type),
-                new PutShutdownNodeAction.Request("node1", type, "test", allocationDelay, targetNodeName, null),
+                new PutShutdownNodeAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    "node1",
+                    type,
+                    "test",
+                    allocationDelay,
+                    targetNodeName,
+                    null
+                ),
                 notNullValue()
             );
             ActionRequestValidationException arve = new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 "node1",
                 type,
                 "test",
@@ -140,12 +160,23 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         });
 
         assertThat(
-            new PutShutdownNodeAction.Request("node1", Type.SIGTERM, "test", null, null, TimeValue.timeValueMinutes(5)).validate(),
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "node1",
+                Type.SIGTERM,
+                "test",
+                null,
+                null,
+                TimeValue.timeValueMinutes(5)
+            ).validate(),
             nullValue()
         );
 
         assertThat(
-            new PutShutdownNodeAction.Request("node1", Type.SIGTERM, "test", null, null, null).validate().getMessage(),
+            new PutShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "node1", Type.SIGTERM, "test", null, null, null)
+                .validate()
+                .getMessage(),
             containsString("grace period is required for SIGTERM shutdowns")
         );
     }

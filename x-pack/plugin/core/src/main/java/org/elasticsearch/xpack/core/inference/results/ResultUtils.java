@@ -12,11 +12,11 @@ import org.elasticsearch.rest.RestStatus;
 
 public class ResultUtils {
 
-    public static ElasticsearchStatusException createInvalidChunkedResultException(String receivedResultName) {
+    public static ElasticsearchStatusException createInvalidChunkedResultException(String expectedResultName, String receivedResultName) {
         return new ElasticsearchStatusException(
             "Expected a chunked inference [{}] received [{}]",
             RestStatus.INTERNAL_SERVER_ERROR,
-            ChunkedTextEmbeddingResults.NAME,
+            expectedResultName,
             receivedResultName
         );
     }

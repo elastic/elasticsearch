@@ -69,7 +69,13 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
         DocumentParser documentParser = new DocumentParser(null, null);
-        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged, merged.toCompressedXContent(), IndexVersion.current());
+        DocumentMapper mergedMapper = new DocumentMapper(
+            documentParser,
+            merged,
+            merged.toCompressedXContent(),
+            IndexVersion.current(),
+            MapperMetrics.NOOP
+        );
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }
@@ -319,7 +325,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(DocCountFieldMapper.class)
                 .item(FieldNamesFieldMapper.class)
                 .item(IgnoredFieldMapper.class)
+                .item(IgnoredSourceFieldMapper.class)
                 .item(IndexFieldMapper.class)
+                .item(IndexModeFieldMapper.class)
                 .item(NestedPathFieldMapper.class)
                 .item(ProvidedIdFieldMapper.class)
                 .item(RoutingFieldMapper.class)
@@ -336,7 +344,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(FieldNamesFieldMapper.CONTENT_TYPE)
                 .item(IdFieldMapper.CONTENT_TYPE)
                 .item(IgnoredFieldMapper.CONTENT_TYPE)
+                .item(IgnoredSourceFieldMapper.NAME)
                 .item(IndexFieldMapper.CONTENT_TYPE)
+                .item(IndexModeFieldMapper.CONTENT_TYPE)
                 .item(NestedPathFieldMapper.NAME)
                 .item(RoutingFieldMapper.CONTENT_TYPE)
                 .item(SeqNoFieldMapper.CONTENT_TYPE)

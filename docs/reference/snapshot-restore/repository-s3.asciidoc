@@ -80,10 +80,10 @@ bin/elasticsearch-keystore remove s3.client.default.session_token
 ----
 
 *All* client secure settings of this repository type are
-{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. 
-You can define these settings before the node is started, 
-or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>> 
-after the settings are defined to apply them to a running node. 
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable].
+You can define these settings before the node is started,
+or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>>
+after the settings are defined to apply them to a running node.
 
 After you reload the settings, the internal `s3` clients, used to transfer the snapshot
 contents, will utilize the latest settings from the keystore. Any existing `s3`
@@ -309,6 +309,14 @@ include::repository-shared-settings.asciidoc[]
     `intelligent_tiering`. Defaults to `standard`. See
     <<repository-s3-storage-classes>> for more information.
 
+`delete_objects_max_size`::
+
+    (<<number,numeric>>) Sets the maxmimum batch size, betewen 1 and 1000, used
+    for `DeleteObjects` requests. Defaults to 1000 which is the maximum number
+    supported by the
+    https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS
+    DeleteObjects API].
+
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future
 version.
@@ -531,7 +539,7 @@ VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
 ==== S3-compatible services
 
 There are a number of storage systems that provide an S3-compatible API, and
-the `repository-s3` type allows you to use these systems in place of AWS S3.
+the `s3` repository type allows you to use these systems in place of AWS S3.
 To do so, you should set the `s3.client.CLIENT_NAME.endpoint` setting to the
 system's endpoint. This setting accepts IP addresses and hostnames and may
 include a port. For example, the endpoint may be `172.17.0.2` or
@@ -544,7 +552,7 @@ you wish to use unsecured HTTP communication instead of HTTPS, set
 `s3.client.CLIENT_NAME.protocol` to `http`.
 
 https://minio.io[MinIO] is an example of a storage system that provides an
-S3-compatible API. The `repository-s3` type allows {es} to work with
+S3-compatible API. The `s3` repository type allows {es} to work with
 MinIO-backed repositories as well as repositories stored on AWS S3. Other
 S3-compatible storage systems may also work with {es}, but these are not
 covered by the {es} test suite.
@@ -554,7 +562,7 @@ which claim to offer an S3-compatible API despite failing to emulate S3's
 behaviour in full. If you are using such a system for your snapshots, consider
 using a <<snapshots-filesystem-repository,shared filesystem repository>> based
 on a standardized protocol such as NFS to access your storage system instead.
-The `repository-s3` type requires full compatibility with S3. In particular it
+The `s3` repository type requires full compatibility with S3. In particular it
 must support the same set of API endpoints, with the same parameters, return
 the same errors in case of failures, and offer consistency and performance at
 least as good as S3 even when accessed concurrently by multiple nodes. You will

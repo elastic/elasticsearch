@@ -167,7 +167,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
         var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", Base64.getEncoder().encodeToString(randomByteArrayOfLength(10)));
-            b.field("@timestamp", randomMillisUpToYear9999());
+            b.field("@timestamp", "2000-10-10T23:40:53.384Z");
             b.field("dimension", "dimension1");
         }, null);
         ParsedDocument doc = mapper.parse(source);
@@ -255,7 +255,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
                 b.field("type", "binary").field("doc_values", "true");
 
                 if (rarely()) {
-                    b.field("store", true);
+                    b.field("store", false);
                 }
             }
 

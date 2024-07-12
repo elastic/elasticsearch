@@ -182,9 +182,4 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
             throw e;
         }
     }
-
-    @Override
-    public long estimatedBytes() {
-        return estimatedBytes;
-    }
 }

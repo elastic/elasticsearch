@@ -184,6 +184,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder()
             .setNames(node2)
             .build()
+            .masterNodeTimeout(TimeValue.timeValueSeconds(1))
             .timeout(TimeValue.timeValueSeconds(1));
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
         assertFalse("prevalidation result should return false", resp.getPrevalidation().isSafe());

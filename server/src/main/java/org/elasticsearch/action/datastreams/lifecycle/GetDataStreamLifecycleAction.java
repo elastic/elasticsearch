@@ -49,10 +49,12 @@ public class GetDataStreamLifecycleAction {
         private boolean includeDefaults = false;
 
         public Request(String[] names) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.names = names;
         }
 
         public Request(String[] names, boolean includeDefaults) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.names = names;
             this.includeDefaults = includeDefaults;
         }
@@ -137,22 +139,30 @@ public class GetDataStreamLifecycleAction {
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
-        public record DataStreamLifecycle(String dataStreamName, @Nullable org.elasticsearch.cluster.metadata.DataStreamLifecycle lifecycle)
-            implements
-                Writeable,
-                ToXContentObject {
+        public record DataStreamLifecycle(
+            String dataStreamName,
+            @Nullable org.elasticsearch.cluster.metadata.DataStreamLifecycle lifecycle,
+            boolean isSystemDataStream
+        ) implements Writeable, ToXContentObject {
 
             public static final ParseField NAME_FIELD = new ParseField("name");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
 
             DataStreamLifecycle(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalWriteable(org.elasticsearch.cluster.metadata.DataStreamLifecycle::new));
+                this(
+                    in.readString(),
+                    in.readOptionalWriteable(org.elasticsearch.cluster.metadata.DataStreamLifecycle::new),
+                    in.getTransportVersion().onOrAfter(TransportVersions.NO_GLOBAL_RETENTION_FOR_SYSTEM_DATA_STREAMS) && in.readBoolean()
+                );
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(dataStreamName);
                 out.writeOptionalWriteable(lifecycle);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.NO_GLOBAL_RETENTION_FOR_SYSTEM_DATA_STREAMS)) {
+                    out.writeBoolean(isSystemDataStream);
+                }
             }
 
             @Override
@@ -174,7 +184,12 @@ public class GetDataStreamLifecycleAction {
                 builder.field(NAME_FIELD.getPreferredName(), dataStreamName);
                 if (lifecycle != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
+                    lifecycle.toXContent(
+                        builder,
+                        org.elasticsearch.cluster.metadata.DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                        rolloverConfiguration,
+                        isSystemDataStream ? null : globalRetention
+                    );
                 }
                 builder.endObject();
                 return builder;
@@ -220,6 +235,10 @@ public class GetDataStreamLifecycleAction {
             return rolloverConfiguration;
         }
 
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreamLifecycles);
@@ -240,7 +259,7 @@ public class GetDataStreamLifecycleAction {
                     dataStreamLifecycles.iterator(),
                     dataStreamLifecycle -> (builder, params) -> dataStreamLifecycle.toXContent(
                         builder,
-                        params,
+                        outerParams,
                         rolloverConfiguration,
                         globalRetention
                     )

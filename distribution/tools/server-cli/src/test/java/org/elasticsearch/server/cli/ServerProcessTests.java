@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -393,15 +394,24 @@ public class ServerProcessTests extends ESTestCase {
             stderr.println("final message");
         };
         var server = startProcess(false, false);
+
+        CompletableFuture<Void> stopping = new CompletableFuture<>();
         new Thread(() -> {
-            // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
-            nonInterruptibleVoid(mainReady::await);
-            server.stop();
+            try {
+                // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
+                nonInterruptibleVoid(mainReady::await);
+                server.stop();
+                stopping.complete(null);
+            } catch (Throwable e) {
+                stopping.completeExceptionally(e);
+            }
         }).start();
         int exitCode = server.waitFor();
         assertThat(process.main.isDone(), is(true));
         assertThat(exitCode, equalTo(0));
         assertThat(terminal.getErrorOutput(), containsString("final message"));
+        // rethrow any potential exception observed while stopping
+        stopping.get();
     }
 
     public void testProcessDies() throws Exception {

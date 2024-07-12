@@ -89,18 +89,17 @@ public class StringStatsAggregator extends MetricsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                final long overSize = BigArrays.overSize(bucket + 1);
-                if (bucket >= count.size()) {
-                    final long from = count.size();
-                    count = bigArrays().resize(count, overSize);
-                    totalLength = bigArrays().resize(totalLength, overSize);
-                    minLength = bigArrays().resize(minLength, overSize);
-                    maxLength = bigArrays().resize(maxLength, overSize);
-                    minLength.fill(from, overSize, Integer.MAX_VALUE);
-                    maxLength.fill(from, overSize, Integer.MIN_VALUE);
-                }
-
                 if (values.advanceExact(doc)) {
+                    final long overSize = BigArrays.overSize(bucket + 1);
+                    if (bucket >= count.size()) {
+                        final long from = count.size();
+                        count = bigArrays().resize(count, overSize);
+                        totalLength = bigArrays().resize(totalLength, overSize);
+                        minLength = bigArrays().resize(minLength, overSize);
+                        maxLength = bigArrays().resize(maxLength, overSize);
+                        minLength.fill(from, overSize, Integer.MAX_VALUE);
+                        maxLength.fill(from, overSize, Integer.MIN_VALUE);
+                    }
                     final int valuesCount = values.docValueCount();
                     count.increment(bucket, valuesCount);
 

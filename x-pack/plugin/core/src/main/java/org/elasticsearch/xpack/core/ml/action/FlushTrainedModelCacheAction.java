@@ -27,11 +27,11 @@ public class FlushTrainedModelCacheAction extends ActionType<AcknowledgedRespons
 
     public static class Request extends AcknowledgedRequest<FlushTrainedModelCacheAction.Request> {
         public Request() {
-            super();
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         }
 
         Request(TimeValue timeout) {
-            super(timeout);
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
         }
 
         public Request(StreamInput in) throws IOException {

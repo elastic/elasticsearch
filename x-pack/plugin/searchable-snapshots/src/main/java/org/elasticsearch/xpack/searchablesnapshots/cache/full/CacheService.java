@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -347,7 +348,7 @@ public class CacheService extends AbstractLifecycleComponent {
             if (allowShardsEvictions) {
                 final ShardEviction shardEviction = new ShardEviction(snapshotUUID, snapshotIndexName, shardId);
                 pendingShardsEvictions.computeIfAbsent(shardEviction, shard -> {
-                    final PlainActionFuture<?> future = new PlainActionFuture<>();
+                    final PlainActionFuture<?> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
                     threadPool.generic().execute(new AbstractRunnable() {
                         @Override
                         protected void doRun() {

@@ -133,6 +133,9 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         if (preFilterQueryBuilders != null) {
             knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);
         }
+        if (retrieverName != null) {
+            knnSearchBuilder.queryName(retrieverName);
+        }
         List<KnnSearchBuilder> knnSearchBuilders = new ArrayList<>(searchSourceBuilder.knnSearch());
         knnSearchBuilders.add(knnSearchBuilder);
         searchSourceBuilder.knnSearch(knnSearchBuilders);

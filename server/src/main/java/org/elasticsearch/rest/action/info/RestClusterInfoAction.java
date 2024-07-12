@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -122,7 +122,7 @@ public class RestClusterInfoAction extends BaseRestHandler {
 
                     return RestResponse.chunked(
                         RestStatus.OK,
-                        ChunkedRestResponseBody.fromXContent(
+                        ChunkedRestResponseBodyPart.fromXContent(
                             outerParams -> Iterators.concat(
                                 ChunkedToXContentHelper.startObject(),
                                 Iterators.single((builder, params) -> builder.field("cluster_name", response.getClusterName().value())),

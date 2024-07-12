@@ -25,7 +25,8 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
         return new ElserInternalServiceSettings(
             randomIntBetween(1, 4),
             randomIntBetween(1, 2),
-            randomFrom(ElserInternalService.VALID_ELSER_MODEL_IDS)
+            randomFrom(ElserInternalService.VALID_ELSER_MODEL_IDS),
+            null
         );
     }
 
@@ -49,7 +50,7 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
                 )
             )
         ).build();
-        assertEquals(new ElserInternalServiceSettings(1, 4, ".elser_model_1"), serviceSettings);
+        assertEquals(new ElserInternalServiceSettings(1, 4, ".elser_model_1", null), serviceSettings);
     }
 
     public void testFromMapInvalidVersion() {
@@ -84,17 +85,20 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
             () -> ElserInternalServiceSettings.fromMap(new HashMap<>(Map.of(ElserInternalServiceSettings.NUM_THREADS, 1)))
         );
 
-        assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_allocations]"));
+        assertThat(
+            e.getMessage(),
+            containsString("[service_settings] does not contain one of the required settings [num_allocations, adaptive_allocations]")
+        );
     }
 
     public void testBwcWrite() throws IOException {
         {
-            var settings = new ElserInternalServiceSettings(1, 1, ".elser_model_1");
+            var settings = new ElserInternalServiceSettings(1, 1, ".elser_model_1", null);
             var copy = copyInstance(settings, TransportVersions.V_8_12_0);
             assertEquals(settings, copy);
         }
         {
-            var settings = new ElserInternalServiceSettings(1, 1, ".elser_model_1");
+            var settings = new ElserInternalServiceSettings(1, 1, ".elser_model_1", null);
             var copy = copyInstance(settings, TransportVersions.V_8_11_X);
             assertEquals(settings, copy);
         }
@@ -123,12 +127,27 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
     @Override
     protected ElserInternalServiceSettings mutateInstance(ElserInternalServiceSettings instance) {
         return switch (randomIntBetween(0, 2)) {
-            case 0 -> new ElserInternalServiceSettings(instance.getNumAllocations() + 1, instance.getNumThreads(), instance.getModelId());
-            case 1 -> new ElserInternalServiceSettings(instance.getNumAllocations(), instance.getNumThreads() + 1, instance.getModelId());
+            case 0 -> new ElserInternalServiceSettings(
+                instance.getNumAllocations() + 1,
+                instance.getNumThreads(),
+                instance.getModelId(),
+                null
+            );
+            case 1 -> new ElserInternalServiceSettings(
+                instance.getNumAllocations(),
+                instance.getNumThreads() + 1,
+                instance.getModelId(),
+                null
+            );
             case 2 -> {
                 var versions = new HashSet<>(ElserInternalService.VALID_ELSER_MODEL_IDS);
                 versions.remove(instance.getModelId());
-                yield new ElserInternalServiceSettings(instance.getNumAllocations(), instance.getNumThreads(), versions.iterator().next());
+                yield new ElserInternalServiceSettings(
+                    instance.getNumAllocations(),
+                    instance.getNumThreads(),
+                    versions.iterator().next(),
+                    null
+                );
             }
             default -> throw new IllegalStateException();
         };

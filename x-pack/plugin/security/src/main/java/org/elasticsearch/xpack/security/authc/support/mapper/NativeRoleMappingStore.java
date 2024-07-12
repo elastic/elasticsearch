@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
@@ -49,7 +48,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
@@ -399,18 +397,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     @Override
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
         getRoleMappings(null, ActionListener.wrap(mappings -> {
-            final ExpressionModel model = user.asModel();
-            final Set<String> roles = mappings.stream()
-                .filter(ExpressionRoleMapping::isEnabled)
-                .filter(m -> m.getExpression().match(model))
-                .flatMap(m -> {
-                    final Set<String> roleNames = m.getRoleNames(scriptService, model);
-                    logger.trace("Applying role-mapping [{}] to user-model [{}] produced role-names [{}]", m.getName(), model, roleNames);
-                    return roleNames.stream();
-                })
-                .collect(Collectors.toSet());
-            logger.debug("Mapping user [{}] to roles [{}]", user, roles);
-            listener.onResponse(roles);
+            listener.onResponse(ExpressionRoleMapping.resolveRoles(user, mappings, scriptService, logger));
         }, listener::onFailure));
     }
 

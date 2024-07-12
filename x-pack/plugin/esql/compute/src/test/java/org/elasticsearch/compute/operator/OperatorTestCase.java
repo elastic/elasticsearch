@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
+import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
@@ -112,7 +113,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     private void runWithLimit(Operator.OperatorFactory factory, List<Page> input, ByteSizeValue limit) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+        MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
         List<Page> localInput = CannedSourceOperator.deepCopyOf(blockFactory, input);
         boolean driverStarted = false;
@@ -125,7 +126,8 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 // if drive hasn't even started then we need to release the input pages manually
                 Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(localInput.iterator(), p -> p::releaseBlocks)));
             }
-            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+            blockFactory.ensureAllBlocksAreReleased();
+            assertThat(breaker.getUsed(), equalTo(0L));
         }
     }
 
@@ -201,19 +203,13 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
-        BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
 
         List<Page> results = drive(simple().get(context), input.iterator(), context);
         assertSimpleOutput(origInput, results);
-        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        assertThat(context.breaker().getUsed(), equalTo(0L));
 
-        List<Block> resultBlocks = new ArrayList<>();
         // Release all result blocks. After this, all input blocks should be released as well, otherwise we have a leak.
         for (Page p : results) {
-            for (int i = 0; i < p.getBlockCount(); i++) {
-                resultBlocks.add(p.getBlock(i));
-            }
-
             p.releaseBlocks();
         }
 

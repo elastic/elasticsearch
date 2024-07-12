@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.rules.QueryRule;
@@ -19,8 +20,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils.randomQueryRuleset;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CRITERIA_METADATA_VALUES_TRANSPORT_VERSION;
-import static org.elasticsearch.xpack.application.search.SearchApplicationTestUtils.randomQueryRuleset;
 
 public class GetQueryRulesetActionResponseBWCSerializingTests extends AbstractBWCSerializationTestCase<GetQueryRulesetAction.Response> {
     public QueryRuleset queryRuleset;
@@ -57,7 +58,13 @@ public class GetQueryRulesetActionResponseBWCSerializingTests extends AbstractBW
                         new QueryRuleCriteria(criteria.criteriaType(), criteria.criteriaMetadata(), criteria.criteriaValues().subList(0, 1))
                     );
                 }
-                rules.add(new QueryRule(rule.id(), rule.type(), newCriteria, rule.actions()));
+                rules.add(new QueryRule(rule.id(), rule.type(), newCriteria, rule.actions(), null));
+            }
+            return new GetQueryRulesetAction.Response(new QueryRuleset(instance.queryRuleset().id(), rules));
+        } else if (version.before(TransportVersions.QUERY_RULE_CRUD_API_PUT)) {
+            List<QueryRule> rules = new ArrayList<>();
+            for (QueryRule rule : instance.queryRuleset().rules()) {
+                rules.add(new QueryRule(rule.id(), rule.type(), rule.criteria(), rule.actions(), null));
             }
             return new GetQueryRulesetAction.Response(new QueryRuleset(instance.queryRuleset().id(), rules));
         }

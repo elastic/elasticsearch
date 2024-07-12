@@ -173,6 +173,7 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return totalSamples;
     }
 
+    @UpdateForV9 // change casing from Camel Case to Snake Case (requires updates in Kibana as well)
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(

@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 
-public class PropagateNullable extends LogicalPlanOptimizer.PropagateNullable {
+public class PropagateNullable extends org.elasticsearch.xpack.esql.optimizer.rules.PropagateNullable {
     @Override
     public Expression rule(And and) {
         return super.rule(and);

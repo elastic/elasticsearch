@@ -26,7 +26,10 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
 
     public static RoleDescriptorsIntersection EMPTY = new RoleDescriptorsIntersection(Collections.emptyList());
 
-    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+        .allowRestriction(true)
+        .allowDescription(true)
+        .build();
 
     public RoleDescriptorsIntersection(RoleDescriptor roleDescriptor) {
         this(List.of(Set.of(roleDescriptor)));

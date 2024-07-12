@@ -209,6 +209,49 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
         );
     }
 
+    public void testGetTimeSeriesDataStreamWithOutOfOrderIndices() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        String dataStream = "ds-1";
+        Instant sixHoursAgo = now.minus(6, ChronoUnit.HOURS);
+        Instant fourHoursAgo = now.minus(4, ChronoUnit.HOURS);
+        Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
+        Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
+
+        ClusterState state;
+        {
+            var mBuilder = new Metadata.Builder();
+            DataStreamTestHelper.getClusterStateWithDataStream(
+                mBuilder,
+                dataStream,
+                List.of(
+                    new Tuple<>(fourHoursAgo, twoHoursAgo),
+                    new Tuple<>(sixHoursAgo, fourHoursAgo),
+                    new Tuple<>(twoHoursAgo, twoHoursAhead)
+                )
+            );
+            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
+        }
+
+        var req = new GetDataStreamAction.Request(new String[] {});
+        var response = GetDataStreamsTransportAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionResolver
+        );
+        assertThat(
+            response.getDataStreams(),
+            contains(
+                allOf(
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream)),
+                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
+                )
+            )
+        );
+    }
+
     public void testGetTimeSeriesMixedDataStream() {
         Instant instant = Instant.parse("2023-06-06T14:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
         String dataStream1 = "ds-1";

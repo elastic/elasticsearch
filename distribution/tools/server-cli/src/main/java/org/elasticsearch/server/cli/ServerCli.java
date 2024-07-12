@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -231,7 +232,7 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         if (server != null) {
             server.stop();
         }
@@ -250,7 +251,7 @@ class ServerCli extends EnvironmentAwareCommand {
     // protected to allow tests to override
     protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
         var tempDir = ServerProcessUtils.setupTempDir(processInfo);
-        var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir);
+        var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap());
         var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
             .withProcessInfo(processInfo)
             .withServerArgs(args)

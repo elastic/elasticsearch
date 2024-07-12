@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -38,7 +37,10 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
@@ -239,7 +241,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             exampleMalformedValue("a").errorMatches("For input string: \"a\""),
             exampleMalformedValue("NaN").errorMatches("[scaled_float] only supports finite values, but got [NaN]"),
             exampleMalformedValue("Infinity").errorMatches("[scaled_float] only supports finite values, but got [Infinity]"),
-            exampleMalformedValue("-Infinity").errorMatches("[scaled_float] only supports finite values, but got [-Infinity]")
+            exampleMalformedValue("-Infinity").errorMatches("[scaled_float] only supports finite values, but got [-Infinity]"),
+            exampleMalformedValue(b -> b.value(true)).errorMatches("Current token (VALUE_TRUE) not numeric")
         );
     }
 
@@ -361,35 +364,62 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("scaled_float doesn't support ignore_malformed with synthetic _source", ignoreMalformed);
-        return new ScaledFloatSyntheticSourceSupport();
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed);
     }
 
     private static class ScaledFloatSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final boolean ignoreMalformedEnabled;
         private final double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
         private final Double nullValue = usually() ? null : round(randomValue());
+
+        private ScaledFloatSyntheticSourceSupport(boolean ignoreMalformedEnabled) {
+            this.ignoreMalformedEnabled = ignoreMalformedEnabled;
+        }
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
             if (randomBoolean()) {
-                Tuple<Double, Double> v = generateValue();
-                return new SyntheticSourceExample(v.v1(), v.v2(), roundDocValues(v.v2()), this::mapping);
+                Value v = generateValue();
+                if (v.malformedOutput == null) {
+                    return new SyntheticSourceExample(v.input, v.output, roundDocValues(v.output), this::mapping);
+                }
+                return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
             }
-            List<Tuple<Double, Double>> values = randomList(1, maxValues, this::generateValue);
-            List<Double> in = values.stream().map(Tuple::v1).toList();
-            List<Double> outList = values.stream().map(Tuple::v2).sorted().toList();
+            List<Value> values = randomList(1, maxValues, this::generateValue);
+            List<Object> in = values.stream().map(Value::input).toList();
+
+            List<Double> outputFromDocValues = values.stream().filter(v -> v.malformedOutput == null).map(Value::output).sorted().toList();
+            Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+
+            // Malformed values are always last in the implementation.
+            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
-            List<Double> outBlockList = values.stream().map(v -> roundDocValues(v.v2())).sorted().toList();
+
+            List<Double> outBlockList = outputFromDocValues.stream().map(this::roundDocValues).sorted().toList();
             Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
             return new SyntheticSourceExample(in, out, outBlock, this::mapping);
         }
 
-        private Tuple<Double, Double> generateValue() {
+        private record Value(Object input, Double output, Object malformedOutput) {}
+
+        private Value generateValue() {
             if (nullValue != null && randomBoolean()) {
-                return Tuple.tuple(null, nullValue);
+                return new Value(null, nullValue, null);
+            }
+            // Examples in #exampleMalformedValues() are also tested with synthetic source
+            // so this is not an exhaustive list.
+            // Here we mostly want to verify behavior of arrays that contain malformed
+            // values since there are modifications specific to synthetic source.
+            if (ignoreMalformedEnabled && randomBoolean()) {
+                List<Supplier<Object>> choices = List.of(
+                    () -> randomAlphaOfLengthBetween(1, 10),
+                    () -> Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
+                );
+                var malformedInput = randomFrom(choices).get();
+                return new Value(malformedInput, null, malformedInput);
             }
             double d = randomValue();
-            return Tuple.tuple(d, round(d));
+            return new Value(d, round(d), null);
         }
 
         private double round(double d) {
@@ -433,6 +463,9 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             if (rarely()) {
                 b.field("store", false);
             }
+            if (ignoreMalformedEnabled) {
+                b.field("ignore_malformed", true);
+            }
         }
 
         @Override
@@ -441,10 +474,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
                 new SyntheticSourceInvalidExample(
                     equalTo("field [field] of type [scaled_float] doesn't support synthetic source because it doesn't have doc values"),
                     b -> b.field("type", "scaled_float").field("scaling_factor", 10).field("doc_values", false)
-                ),
-                new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [scaled_float] doesn't support synthetic source because it ignores malformed numbers"),
-                    b -> b.field("type", "scaled_float").field("scaling_factor", 10).field("ignore_malformed", true)
                 )
             );
         }

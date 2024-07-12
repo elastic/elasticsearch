@@ -33,6 +33,7 @@ public class UpdateTrainedModelAssignmentRoutingInfoAction extends ActionType<Ac
         private final RoutingInfoUpdate update;
 
         public Request(String nodeId, String deploymentId, RoutingInfoUpdate update) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.nodeId = ExceptionsHelper.requireNonNull(nodeId, "node_id");
             this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
             this.update = ExceptionsHelper.requireNonNull(update, "update");

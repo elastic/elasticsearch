@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
+public class DesiredNodesUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private final int desiredNodesVersion;
 

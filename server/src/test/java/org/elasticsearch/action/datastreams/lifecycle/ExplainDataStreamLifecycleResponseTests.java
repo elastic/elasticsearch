@@ -204,6 +204,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
             ExplainIndexDataStreamLifecycle explainIndexWithNullGenerationDate = new ExplainIndexDataStreamLifecycle(
                 index,
                 true,
+                randomBoolean(),
                 now,
                 randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
                 null,
@@ -263,6 +264,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         return new ExplainIndexDataStreamLifecycle(
             index,
             true,
+            randomBoolean(),
             now,
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
             randomBoolean() ? TimeValue.timeValueMillis(now) : null,

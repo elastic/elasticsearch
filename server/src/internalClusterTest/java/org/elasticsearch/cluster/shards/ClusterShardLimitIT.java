@@ -253,7 +253,13 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         repoSettings.put("compress", randomBoolean());
         repoSettings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
 
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(repoSettings.build()));
+        assertAcked(
+            client.admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo")
+                .setType("fs")
+                .setSettings(repoSettings.build())
+        );
 
         int dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();
         ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
@@ -270,7 +276,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
             .setWaitForCompletion(true)
             .setIndices("snapshot-index")
             .get();
@@ -282,7 +288,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
         List<SnapshotInfo> snapshotInfos = client.admin()
             .cluster()
-            .prepareGetSnapshots("test-repo")
+            .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "test-repo")
             .setSnapshots("test-snap")
             .get()
             .getSnapshots();
@@ -310,7 +316,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         try {
             RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
                 .cluster()
-                .prepareRestoreSnapshot("test-repo", "test-snap")
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
                 .setWaitForCompletion(true)
                 .setIndices("snapshot-index")
                 .get();

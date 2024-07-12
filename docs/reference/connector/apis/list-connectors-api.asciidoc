@@ -5,9 +5,11 @@
 <titleabbrev>List connectors</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Returns information about all created connectors.
+
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 
 [[list-connector-api-request]]

@@ -1,0 +1,175 @@
+[[infer-service-amazon-bedrock]]
+=== Amazon Bedrock {infer} service
+
+Creates an {infer} endpoint to perform an {infer} task with the `amazonbedrock` service.
+
+[discrete]
+[[infer-service-amazon-bedrock-api-request]]
+==== {api-request-title}
+
+`PUT /_inference/<task_type>/<inference_id>`
+
+[discrete]
+[[infer-service-amazon-bedrock-api-path-params]]
+==== {api-path-parms-title}
+
+`<inference_id>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=inference-id]
+
+`<task_type>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=task-type]
++
+--
+Available task types:
+
+* `completion`,
+* `text_embedding`.
+--
+
+[discrete]
+[[infer-service-amazon-bedrock-api-request-body]]
+==== {api-request-body-title}
+
+`service`::
+(Required, string) The type of service supported for the specified task type.
+In this case,
+`amazonbedrock`.
+
+`service_settings`::
+(Required, object)
+include::inference-shared.asciidoc[tag=service-settings]
++
+--
+These settings are specific to the `amazonbedrock` service.
+--
+
+`access_key`:::
+(Required, string)
+A valid AWS access key that has permissions to use Amazon Bedrock and access to models for inference requests.
+
+`secret_key`:::
+(Required, string)
+A valid AWS secret key that is paired with the `access_key`.
+To create or manage access and secret keys, see https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html[Managing access keys for IAM users] in the AWS documentation.
+
+IMPORTANT: You need to provide the access and secret keys only once, during the {infer} model creation.
+The <<get-inference-api>> does not retrieve your access or secret keys.
+After creating the {infer} model, you cannot change the associated key pairs.
+If you want to use a different access and secret key pair, delete the {infer} model and recreate it with the same name and the updated keys.
+
+`provider`:::
+(Required, string)
+The model provider for your deployment.
+Note that some providers may support only certain task types.
+Supported providers include:
+
+* `amazontitan` - available for `text_embedding` and `completion` task types
+* `anthropic` - available for `completion` task type only
+* `ai21labs` - available for `completion` task type only
+* `cohere` - available for `text_embedding` and `completion` task types
+* `meta` - available for `completion` task type only
+* `mistral` - available for `completion` task type only
+
+`model`:::
+(Required, string)
+The base model ID or an ARN to a custom model based on a foundational model.
+The base model IDs can be found in the https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html[Amazon Bedrock model IDs] documentation.
+Note that the model ID must be available for the provider chosen, and your IAM user must have access to the model.
+
+`region`:::
+(Required, string)
+The region that your model or ARN is deployed in.
+The list of available regions per model can be found in the https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html[Model support by AWS region] documentation.
+
+`rate_limit`:::
+(Optional, object)
+By default, the `amazonbedrock` service sets the number of requests allowed per minute to `240`.
+This helps to minimize the number of rate limit errors returned from Amazon Bedrock.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+--
+include::inference-shared.asciidoc[tag=request-per-minute-example]
+--
+
+`task_settings`::
+(Optional, object)
+include::inference-shared.asciidoc[tag=task-settings]
++
+.`task_settings` for the `completion` task type
+[%collapsible%closed]
+=====
+
+`max_new_tokens`:::
+(Optional, integer)
+Sets the maximum number for the output tokens to be generated.
+Defaults to 64.
+
+`temperature`:::
+(Optional, float)
+A number between 0.0 and 1.0 that controls the apparent creativity of the results. At temperature 0.0 the model is most deterministic, at temperature 1.0 most random.
+Should not be used if `top_p` or `top_k` is specified.
+
+`top_p`:::
+(Optional, float)
+Alternative to `temperature`. A number in the range of 0.0 to 1.0, to eliminate low-probability tokens. Top-p uses nucleus sampling to select top tokens whose sum of likelihoods does not exceed a certain value, ensuring both variety and coherence.
+Should not be used if `temperature` is specified.
+
+`top_k`:::
+(Optional, float)
+Only available for `anthropic`, `cohere`, and `mistral` providers.
+Alternative to `temperature`. Limits samples to the top-K most likely words, balancing coherence and variability.
+Should not be used if `temperature` is specified.
+
+=====
++
+.`task_settings` for the `text_embedding` task type
+[%collapsible%closed]
+=====
+
+There are no `task_settings` available for the `text_embedding` task type.
+
+=====
+
+[discrete]
+[[inference-example-amazonbedrock]]
+==== Amazon Bedrock service example
+
+The following example shows how to create an {infer} endpoint called `amazon_bedrock_embeddings` to perform a `text_embedding` task type.
+
+Choose chat completion and embeddings models that you have access to from the https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html[Amazon Bedrock base models].
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/amazon_bedrock_embeddings
+{
+    "service": "amazonbedrock",
+    "service_settings": {
+        "access_key": "<aws_access_key>",
+        "secret_key": "<aws_secret_key>",
+        "region": "us-east-1",
+        "provider": "amazontitan",
+        "model": "amazon.titan-embed-text-v2:0"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The next example shows how to create an {infer} endpoint called `amazon_bedrock_completion` to perform a `completion` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/completion/amazon_bedrock_completion
+{
+    "service": "amazonbedrock",
+    "service_settings": {
+        "access_key": "<aws_access_key>",
+        "secret_key": "<aws_secret_key>",
+        "region": "us-east-1",
+        "provider": "amazontitan",
+        "model": "amazon.titan-text-premier-v1:0"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]

@@ -203,6 +203,92 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
+    public void testFromMap_ThrowsException_WhenDimensionsAreZero() {
+        var resourceName = "this-resource";
+        var deploymentId = "this-deployment";
+        var apiVersion = "2024-01-01";
+        var dimensions = 0;
+
+        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, dimensions, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenDimensionsAreNegative() {
+        var resourceName = "this-resource";
+        var deploymentId = "this-deployment";
+        var apiVersion = "2024-01-01";
+        var dimensions = randomNegativeInt();
+
+        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, dimensions, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [dimensions] must be a positive integer;",
+                    dimensions
+                )
+            )
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreZero() {
+        var resourceName = "this-resource";
+        var deploymentId = "this-deployment";
+        var apiVersion = "2024-01-01";
+        var maxInputTokens = 0;
+
+        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, null, maxInputTokens);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [max_input_tokens] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreNegative() {
+        var resourceName = "this-resource";
+        var deploymentId = "this-deployment";
+        var apiVersion = "2024-01-01";
+        var maxInputTokens = randomNegativeInt();
+
+        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, null, maxInputTokens);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer;",
+                    maxInputTokens
+                )
+            )
+        );
+    }
+
     public void testFromMap_Persistent_CreatesSettingsCorrectly() {
         var resourceName = "this-resource";
         var deploymentId = "this-deployment";

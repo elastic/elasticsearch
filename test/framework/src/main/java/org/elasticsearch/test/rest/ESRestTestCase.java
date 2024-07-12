@@ -43,6 +43,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.common.Strings;
@@ -1158,6 +1159,15 @@ public abstract class ESRestTestCase extends ESTestCase {
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
+            }
+        } catch (WarningFailureException warningFailureException) {
+            // We do not want warnings to interfere with tear down if the indices were successfully deleted
+            if (warningFailureException.getResponse().getStatusLine().getStatusCode() == 200) {
+                try (InputStream is = warningFailureException.getResponse().getEntity().getContent()) {
+                    assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
+                }
+            } else {
+                throw warningFailureException;
             }
         } catch (ResponseException e) {
             // 404 here just means we had no indexes

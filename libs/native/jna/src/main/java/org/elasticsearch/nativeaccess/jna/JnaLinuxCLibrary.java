@@ -60,6 +60,8 @@ class JnaLinuxCLibrary implements LinuxCLibrary {
          * this is the only way, DON'T use it on some other architecture unless you know wtf you are doing
          */
         NativeLong syscall(NativeLong number, Object... args);
+
+        int fallocate(int fd, int mode, long offset, long length);
     }
 
     private final NativeFunctions functions;
@@ -90,5 +92,10 @@ class JnaLinuxCLibrary implements LinuxCLibrary {
     @Override
     public long syscall(long number, int operation, int flags, long address) {
         return functions.syscall(new NativeLong(number), operation, flags, address).longValue();
+    }
+
+    @Override
+    public int fallocate(int fd, int mode, long offset, long length) {
+        return functions.fallocate(fd, mode, offset, length);
     }
 }

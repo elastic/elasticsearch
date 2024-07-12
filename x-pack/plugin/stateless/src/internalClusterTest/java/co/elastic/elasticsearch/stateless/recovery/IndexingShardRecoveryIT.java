@@ -804,7 +804,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
         if (numCommits == 0) {
             return new ExpectedCommits(initial, initial, null, null);
         }
-        int uploadMaxCommits = STATELESS_UPLOAD_DELAYED ? getUploadMaxCommits() : 1;
+        int uploadMaxCommits = getUploadMaxCommits();
         int uploads = numCommits / uploadMaxCommits;
         if (uploads == 0) {
             return new ExpectedCommits(

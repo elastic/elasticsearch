@@ -198,12 +198,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .build();
-        if (STATELESS_UPLOAD_DELAYED) {
-            cacheSettings = Settings.builder()
-                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), randomIntBetween(1, 10))
-                .put(cacheSettings)
-                .build();
-        }
+        cacheSettings = Settings.builder()
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), randomIntBetween(1, 10))
+            .put(cacheSettings)
+            .build();
         startIndexNode(cacheSettings);
 
         var searchNodeA = startSearchNode(cacheSettings);

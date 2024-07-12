@@ -318,10 +318,6 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testTranslogReplicatorReaderEmitsMetrics() throws Exception {
-
-        // get control over all uploads to be sure that no uploads happens and hence translog files are not pruned
-        assumeTrue("Test only works when uploads are delayed", STATELESS_UPLOAD_DELAYED);
-
         startMasterOnlyNode();
         var indexNode = startIndexNode(
             Settings.builder()

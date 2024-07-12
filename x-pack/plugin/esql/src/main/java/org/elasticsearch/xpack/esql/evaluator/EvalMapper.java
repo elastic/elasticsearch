@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEqualsMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
@@ -39,7 +38,6 @@ import java.util.List;
 public final class EvalMapper {
 
     private static final List<ExpressionMapper<?>> MAPPERS = List.of(
-        InMapper.IN_MAPPER,
         new InsensitiveEqualsMapper(),
         new BooleanLogic(),
         new Nots(),

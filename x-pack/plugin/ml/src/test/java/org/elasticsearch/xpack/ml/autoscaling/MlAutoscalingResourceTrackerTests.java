@@ -130,33 +130,48 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
     }
 
     public void testScaleUpByProcessorsWhenAlreadyStarted() throws InterruptedException, IOException {
-        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext();
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
 
         long memory = randomLongBetween(100, 1_000_000);
-        var taskParams = new StartTrainedModelDeploymentAction.TaskParams(
+        var taskParams1 = new StartTrainedModelDeploymentAction.TaskParams(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomNonNegativeLong(),
+            memory,
             randomIntBetween(10, 80),
             1,
             randomIntBetween(1, 10000),
-            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
-            randomFrom(Priority.values()),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(0, memory)),
+            Priority.NORMAL,
+            memory,
+            memory
         );
 
-        var randomAssignment = TrainedModelAssignmentTests.randomInstanceBuilder(taskParams)
-            .setAssignmentState(AssignmentState.STARTED)
+        var taskParams2 = new StartTrainedModelDeploymentAction.TaskParams(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            memory,
+            randomIntBetween(10, 80),
+            1,
+            randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(0, memory)),
+            Priority.NORMAL,
+            memory,
+            memory
+        );
+
+        var randomAssignment1 = TrainedModelAssignmentTests.randomInstanceBuilder(taskParams1, AssignmentState.STARTED)
             .clearNodeRoutingTable()
             .addRoutingEntry("ml-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             .addRoutingEntry("ml-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             .build();
 
-        List<DiscoveryNode> nodes = randomAssignment.getNodeRoutingTable()
-            .values()
-            .stream()
+        var randomAssignment2 = TrainedModelAssignmentTests.randomInstanceBuilder(taskParams2, AssignmentState.STARTED)
+            .clearNodeRoutingTable()
+            .addRoutingEntry("ml-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            .addRoutingEntry("ml-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            .build();
+
+        List<DiscoveryNode> nodes = Stream.of(randomAssignment1.getNodeRoutingTable().values())
             .map(r -> mock(DiscoveryNode.class))
             .peek(n -> when(n.getRoles()).thenReturn(Set.of(DiscoveryNodeRole.ML_ROLE)))
             .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "2.0")))
@@ -166,7 +181,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             List.of(),
             List.of(),
             List.of(),
-            Map.of("ml-1", randomAssignment),
+            Map.of("deployment-1", randomAssignment1, "deployment-2", randomAssignment2),
             nodes,
             null
         );
@@ -193,16 +208,16 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 scaleUpContext,
                 mockTracker,
-                Map.of("ml-1", randomLongBetween(0, memory), "ml-2", randomLongBetween(0, memory)),
+                Map.of("ml-1", memory, "ml-2", memory),
                 memory,
                 2,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
-                MlDummyAutoscalingEntity.of(memory / 2, 1),
+                MlDummyAutoscalingEntity.of(0, 0),
                 listener,
                 1
             ),
             stats -> {
-                assertEquals(0, stats.perNodeMemoryInBytes());
+                assertEquals(memory, stats.perNodeMemoryInBytes());
                 assertEquals(2, stats.nodes());
                 assertEquals(extraProcessors, stats.extraProcessors());
                 assertEquals(expectedProcessorsPerNode, stats.extraSingleNodeProcessors());
@@ -230,8 +245,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             model_size
         );
 
-        logger.info("taskParams: {}", taskParams);
-        var randomAssignment = TrainedModelAssignmentTests.randomInstanceBuilder(taskParams)
+        var randomAssignment = TrainedModelAssignmentTests.randomInstanceBuilder(taskParams, AssignmentState.STARTING)
             .setAssignmentState(AssignmentState.STARTING)
             .setNumberOfAllocations(0)
             .clearNodeRoutingTable()

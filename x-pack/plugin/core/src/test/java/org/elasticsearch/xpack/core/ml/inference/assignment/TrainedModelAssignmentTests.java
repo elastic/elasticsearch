@@ -52,7 +52,10 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         return builder.build();
     }
 
-    public static TrainedModelAssignment.Builder randomInstanceBuilder(@Nullable StartTrainedModelDeploymentAction.TaskParams taskParams) {
+    public static TrainedModelAssignment.Builder randomInstanceBuilder(
+        @Nullable StartTrainedModelDeploymentAction.TaskParams taskParams,
+        AssignmentState assignmentState
+    ) {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(
             taskParams != null ? taskParams : randomParams(),
             null
@@ -61,7 +64,11 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         for (String node : nodes) {
             builder.addRoutingEntry(node, RoutingInfoTests.randomInstance());
         }
-        builder.setAssignmentState(randomFrom(AssignmentState.values()));
+        if (assignmentState == null) {
+            builder.setAssignmentState(randomFrom(AssignmentState.values()));
+        } else {
+            builder.setAssignmentState(assignmentState);
+        }
         if (randomBoolean()) {
             builder.setReason(randomAlphaOfLength(10));
         }

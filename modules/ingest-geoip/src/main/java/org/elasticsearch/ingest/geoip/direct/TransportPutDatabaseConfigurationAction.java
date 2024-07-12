@@ -80,7 +80,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         );
         this.updateDatabaseConfigurationTaskQueue = clusterService.createTaskQueue(
             "update-geoip-database-configuration-state-update",
-            Priority.LOW, // TODO ask the distributed team ;)
+            Priority.NORMAL,
             UPDATE_TASK_EXECUTOR
         );
     }
@@ -103,7 +103,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         DatabaseConfiguration.validateId(id);
 
         updateDatabaseConfigurationTaskQueue.submitTask(
-            Strings.format("update-geoip-database-configuration-[%s]", id), // TODO ask the distributed team ;)
+            Strings.format("update-geoip-database-configuration-[%s]", id),
             new UpdateDatabaseConfigurationTask(listener, request.getDatabase()),
             null
         );

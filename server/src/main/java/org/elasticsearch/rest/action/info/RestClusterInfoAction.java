@@ -121,7 +121,11 @@ public class RestClusterInfoAction extends BaseRestHandler {
             .nodesStats(nodesStatsRequest, new RestResponseListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(NodesStatsResponse response) throws Exception {
-                    var chunkedResponses = targets.stream().map(RESPONSE_MAPPER::get).map(mapper -> mapper.apply(response)).iterator();
+                    var chunkedResponses = targets.stream()
+                        .map(Metric::get)
+                        .map(RESPONSE_MAPPER::get)
+                        .map(mapper -> mapper.apply(response))
+                        .iterator();
 
                     return RestResponse.chunked(
                         RestStatus.OK,

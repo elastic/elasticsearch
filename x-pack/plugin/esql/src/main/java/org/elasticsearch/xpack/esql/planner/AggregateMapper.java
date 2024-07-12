@@ -48,9 +48,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-
 final class AggregateMapper {
 
     private static final List<String> NUMERIC = List.of("Int", "Long", "Double");
@@ -278,25 +275,10 @@ final class AggregateMapper {
         if (aggClass == ToPartial.class || aggClass == FromPartial.class) {
             return "";
         }
-        if (type.equals(DataType.BOOLEAN)) {
-            return "Boolean";
-        } else if (type.equals(DataType.INTEGER) || type.equals(DataType.COUNTER_INTEGER)) {
-            return "Int";
-        } else if (type.equals(DataType.LONG) || type.equals(DataType.DATETIME) || type.equals(DataType.COUNTER_LONG)) {
-            return "Long";
-        } else if (type.equals(DataType.DOUBLE) || type.equals(DataType.COUNTER_DOUBLE)) {
-            return "Double";
-        } else if (type.equals(DataType.KEYWORD)
-            || type.equals(DataType.IP)
-            || type.equals(DataType.VERSION)
-            || type.equals(DataType.TEXT)) {
-                return "BytesRef";
-            } else if (type.equals(GEO_POINT)) {
-                return "GeoPoint";
-            } else if (type.equals(CARTESIAN_POINT)) {
-                return "CartesianPoint";
-            } else {
-                throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
-            }
+        String aggName = type.getAggregationName();
+        if (aggName == null) {
+            throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
+        }
+        return aggName;
     }
 }

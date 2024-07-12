@@ -29,7 +29,7 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 public enum DataType {
     UNSUPPORTED(builder().typeName("UNSUPPORTED")),
     NULL(builder().esType("null")),
-    BOOLEAN(builder().esType("boolean").size(1)),
+    BOOLEAN(builder().esType("boolean").aggregationName("Boolean").size(1)),
 
     /**
      * These are numeric fields labeled as metric counters in time-series indices. Although stored
@@ -38,32 +38,32 @@ public enum DataType {
      * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
      * parent numeric type.
      */
-    COUNTER_LONG(builder().esType("counter_long").size(Long.BYTES).docValues().counter()),
-    COUNTER_INTEGER(builder().esType("counter_integer").size(Integer.BYTES).docValues().counter()),
-    COUNTER_DOUBLE(builder().esType("counter_double").size(Double.BYTES).docValues().counter()),
+    COUNTER_LONG(builder().esType("counter_long").aggregationName("Long").size(Long.BYTES).docValues().counter()),
+    COUNTER_INTEGER(builder().esType("counter_integer").aggregationName("Int").size(Integer.BYTES).docValues().counter()),
+    COUNTER_DOUBLE(builder().esType("counter_double").aggregationName("Double").size(Double.BYTES).docValues().counter()),
 
-    LONG(builder().esType("long").size(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG)),
-    INTEGER(builder().esType("integer").size(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER)),
+    LONG(builder().esType("long").aggregationName("Long").size(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG)),
+    INTEGER(builder().esType("integer").aggregationName("Int").size(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER)),
     SHORT(builder().esType("short").size(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
     BYTE(builder().esType("byte").size(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
     UNSIGNED_LONG(builder().esType("unsigned_long").size(Long.BYTES).wholeNumber().docValues()),
-    DOUBLE(builder().esType("double").size(Double.BYTES).rationalNumber().docValues().counter(COUNTER_DOUBLE)),
+    DOUBLE(builder().esType("double").aggregationName("Double").size(Double.BYTES).rationalNumber().docValues().counter(COUNTER_DOUBLE)),
     FLOAT(builder().esType("float").size(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
     HALF_FLOAT(builder().esType("half_float").size(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
     SCALED_FLOAT(builder().esType("scaled_float").size(Long.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
 
-    KEYWORD(builder().esType("keyword").unknownSize().docValues()),
-    TEXT(builder().esType("text").unknownSize()),
-    DATETIME(builder().esType("date").typeName("DATETIME").size(Long.BYTES).docValues()),
-    IP(builder().esType("ip").size(45).docValues()),
-    VERSION(builder().esType("version").unknownSize().docValues()),
+    KEYWORD(builder().esType("keyword").aggregationName("BytesRef").unknownSize().docValues()),
+    TEXT(builder().esType("text").aggregationName("BytesRef").unknownSize()),
+    DATETIME(builder().esType("date").typeName("DATETIME").aggregationName("Long").size(Long.BYTES).docValues()),
+    IP(builder().esType("ip").aggregationName("BytesRef").size(45).docValues()),
+    VERSION(builder().esType("version").aggregationName("BytesRef").unknownSize().docValues()),
     OBJECT(builder().esType("object")),
     NESTED(builder().esType("nested")),
     SOURCE(builder().esType(SourceFieldMapper.NAME).unknownSize()),
     DATE_PERIOD(builder().typeName("DATE_PERIOD").size(3 * Integer.BYTES)),
     TIME_DURATION(builder().typeName("TIME_DURATION").size(Integer.BYTES + Long.BYTES)),
-    GEO_POINT(builder().esType("geo_point").size(Double.BYTES * 2).docValues()),
-    CARTESIAN_POINT(builder().esType("cartesian_point").size(Double.BYTES * 2).docValues()),
+    GEO_POINT(builder().esType("geo_point").aggregationName("GeoPoint").size(Double.BYTES * 2).docValues()),
+    CARTESIAN_POINT(builder().esType("cartesian_point").aggregationName("CartesianPoint").size(Double.BYTES * 2).docValues()),
     CARTESIAN_SHAPE(builder().esType("cartesian_shape").unknownSize().docValues()),
     GEO_SHAPE(builder().esType("geo_shape").unknownSize().docValues()),
 
@@ -111,6 +111,12 @@ public enum DataType {
      */
     private final DataType counter;
 
+    /**
+     * The name we return from AggregateMapper#dataTypeToString.  Neither Nik nor I know where this string comes from,
+     * so that's fun.
+     */
+    private final String aggregationName;
+
     DataType(Builder builder) {
         String typeString = builder.typeName != null ? builder.typeName : builder.esType;
         this.typeName = typeString.toLowerCase(Locale.ROOT);
@@ -123,6 +129,7 @@ public enum DataType {
         this.isCounter = builder.isCounter;
         this.widenSmallNumeric = builder.widenSmallNumeric;
         this.counter = builder.counter;
+        this.aggregationName = builder.aggregationName;
     }
 
     private static final Collection<DataType> TYPES = Arrays.stream(values())
@@ -298,6 +305,14 @@ public enum DataType {
     }
 
     /**
+     * The name we return from AggregateMapper#dataTypeToString.  Neither Nik nor I know where this string comes from,
+     * so that's fun.
+     */
+    public String getAggregationName() {
+        return aggregationName;
+    }
+
+    /**
      * If this is a "small" numeric type this contains the type ESQL will
      * widen it into, otherwise this returns {@code this}.
      */
@@ -386,6 +401,8 @@ public enum DataType {
          */
         private DataType counter;
 
+        private String aggregationName;
+
         Builder() {}
 
         Builder esType(String esType) {
@@ -436,6 +453,11 @@ public enum DataType {
         Builder counter(DataType counter) {
             assert counter.isCounter;
             this.counter = counter;
+            return this;
+        }
+
+        Builder aggregationName(String aggregationName) {
+            this.aggregationName = aggregationName;
             return this;
         }
     }

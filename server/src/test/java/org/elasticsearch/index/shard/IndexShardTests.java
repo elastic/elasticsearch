@@ -659,7 +659,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testPrimaryPromotionRollsGeneration() throws Exception {
         final IndexShard indexShard = newStartedShard(false);
 
-        final long currentTranslogGeneration = getTranslog(indexShard).getGeneration().translogFileGeneration;
+        final long currentTranslogGeneration = getTranslog(indexShard).getGeneration().translogFileGeneration();
 
         // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
@@ -698,7 +698,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }, threadPool.generic());
 
         latch.await();
-        assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration, equalTo(currentTranslogGeneration + 1));
+        assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration(), equalTo(currentTranslogGeneration + 1));
         assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(newPrimaryTerm));
 
         closeShards(indexShard);
@@ -995,7 +995,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         final long primaryTerm = indexShard.getPendingPrimaryTerm();
-        final long translogGen = engineClosed ? -1 : getTranslog(indexShard).getGeneration().translogFileGeneration;
+        final long translogGen = engineClosed ? -1 : getTranslog(indexShard).getGeneration().translogFileGeneration();
 
         final Releasable operation1;
         final Releasable operation2;
@@ -1115,7 +1115,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(onResponse.get());
                     assertNull(onFailure.get());
                     assertThat(
-                        getTranslog(indexShard).getGeneration().translogFileGeneration,
+                        getTranslog(indexShard).getGeneration().translogFileGeneration(),
                         // if rollback happens we roll translog twice: one when we flush a commit before opening a read-only engine
                         // and one after replaying translog (upto the global checkpoint); otherwise we roll translog once.
                         either(equalTo(translogGen + 1)).or(equalTo(translogGen + 2))

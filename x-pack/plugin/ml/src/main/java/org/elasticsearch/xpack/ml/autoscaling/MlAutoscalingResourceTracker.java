@@ -272,7 +272,7 @@ public final class MlAutoscalingResourceTracker {
                     // we don't have enough processors to start the new allocations, we need to scale up
                     extraProcessors += numMissingAllocations * numberOfThreadsPerAllocation;
                     extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
-                    final int extraProcessorsNeededForAssignment = numMissingAllocations * numberOfThreadsPerAllocation;
+                    final int extraProcessorsNeededForAssignment = numMissingAllocations * numberOfThreadsPerAllocation + extraProcessors;
                     logger.warn(
                         () -> format(
                             "trained model [%s] assigned to [%s], waiting for [%d] allocations to start; waiting on [%d] extra processors "

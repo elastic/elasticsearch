@@ -1997,6 +1997,7 @@ public abstract class Engine implements Closeable {
     private void drainForClose(ActionListener<Void> listener) {
         if (isClosing.compareAndSet(false, true) == false) {
             logger.trace("drainForClose(): already closing");
+            listener.onFailure(new AlreadyClosedException("Already closing"));
             return;
         }
 
@@ -2143,9 +2144,9 @@ public abstract class Engine implements Closeable {
             // This is a (temporary) adapter between the older synchronous (blocking) code and the newer (async) API. Callers expect
             // exceptions to be thrown directly, but Future#get adds an ExecutionException wrapper which we must remove to preserve the
             // expected exception semantics.
-            if (e.getCause() instanceof IOException ioException) {
+            if (e.getCause()instanceof IOException ioException) {
                 throw ioException;
-            } else if (e.getCause() instanceof RuntimeException runtimeException) {
+            } else if (e.getCause()instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             } else {
                 // the old code was "throws IOException" so we shouldn't see any other exception types here

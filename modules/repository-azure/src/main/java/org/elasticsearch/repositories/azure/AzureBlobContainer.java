@@ -74,8 +74,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
                 if (blobStorageException.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
                     throw new NoSuchFileException("Blob [" + blobKey + "] not found");
                 }
-                if (length != null && blobStorageException.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
-                    throw new RequestedRangeNotSatisfiedException(blobKey, position, length, blobStorageException);
+                if (blobStorageException.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                    throw new RequestedRangeNotSatisfiedException(blobKey, position, length == null ? -1 : length, blobStorageException);
                 }
             }
             throw new IOException("Unable to get input stream for blob [" + blobKey + "]", e);

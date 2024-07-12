@@ -78,6 +78,15 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
     GoogleCloudStorageRetryingInputStream(
         com.google.cloud.storage.Storage client,
         Supplier<com.google.api.services.storage.Storage> storage,
+        BlobId blobId
+    ) throws IOException {
+        this(client, storage, blobId, 0, Long.MAX_VALUE - 1);
+    }
+
+    // Used for testing only
+    GoogleCloudStorageRetryingInputStream(
+        com.google.cloud.storage.Storage client,
+        Supplier<com.google.api.services.storage.Storage> storage,
         BlobId blobId,
         long start,
         long end
@@ -94,7 +103,7 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         this.end = end;
         this.maxAttempts = client.getOptions().getRetrySettings().getMaxAttempts();
         SpecialPermission.check();
-        this.storage = storage.get();
+        this.storage = storage.get();   // to bypass static init for unit testing
         this.currentStream = openStream();
     }
 

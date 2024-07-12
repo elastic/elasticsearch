@@ -19,8 +19,6 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
@@ -32,9 +30,6 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -44,7 +39,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.Client;
@@ -61,10 +55,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.blobstore.support.BlobMetadata;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
@@ -76,7 +66,6 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -93,13 +82,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -116,7 +102,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -565,203 +550,32 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return internalCluster().getInstance(StatelessComponents.class, nodeName).getTranslogReplicator();
     }
 
-    protected static void indexDocumentsWithFlush(String indexName) {
-        indexDocuments(indexName, true);
+    protected static void indexDocumentsThenFlushOrRefreshOrForceMerge(String indexName) {
+        indexDocumentsThenFlushOrRefreshOrForceMerge(indexName, () -> {}, () -> {}, () -> {});
     }
 
-    protected static void indexDocuments(String indexName, boolean expectObjectStoreAndIndexShardConsistency) {
+    protected static void indexDocumentsThenFlushOrRefreshOrForceMerge(
+        String indexName,
+        Runnable afterFlush,
+        Runnable afterRefresh,
+        Runnable afterForceMerge
+    ) {
         final int iters = randomIntBetween(1, 20);
         for (int i = 0; i < iters; i++) {
             indexDocs(indexName, randomIntBetween(1, 100));
             switch (randomInt(2)) {
-                case 0 -> client().admin().indices().prepareFlush(indexName).setForce(randomBoolean()).get();
+                case 0 -> {
+                    client().admin().indices().prepareFlush(indexName).setForce(randomBoolean()).get();
+                    afterFlush.run();
+                }
                 case 1 -> {
                     client().admin().indices().prepareRefresh(indexName).get();
-                    if (expectObjectStoreAndIndexShardConsistency) {
-                        client().admin().indices().prepareFlush(indexName).setForce(false).setWaitIfOngoing(false).get();
-                    }
+                    afterRefresh.run();
                 }
-                case 2 -> client().admin().indices().prepareForceMerge(indexName).get();
-            }
-            if (expectObjectStoreAndIndexShardConsistency) {
-                assertObjectStoreConsistentWithIndexShards();
-            }
-        }
-    }
-
-    protected static void assertObjectStoreConsistentWithIndexShards() {
-        assertObjectStoreConsistentWithShards(DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
-    }
-
-    protected static void assertObjectStoreConsistentWithSearchShards() {
-        assertObjectStoreConsistentWithShards(DiscoveryNodeRole.SEARCH_ROLE, ShardRouting.Role.SEARCH_ONLY);
-    }
-
-    private static void assertObjectStoreConsistentWithShards(DiscoveryNodeRole nodeRole, ShardRouting.Role shardRole) {
-        final Map<Index, Integer> indices = resolveIndices();
-        assertThat(indices.isEmpty(), is(false));
-
-        for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
-            assertThat(entry.getValue(), greaterThan(0));
-            for (int shardId = 0; shardId < entry.getValue(); shardId++) {
-                assertThatObjectStoreIsConsistentWithLastCommit(findShard(entry.getKey(), shardId, nodeRole, shardRole));
-            }
-        }
-    }
-
-    protected static void assertThatObjectStoreIsConsistentWithLastCommit(final IndexShard indexShard) {
-        final Store store = indexShard.store();
-        store.incRef();
-        try {
-            ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
-            var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
-
-            final SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
-
-            // can take some time for files to be uploaded to the object store
-            assertBusy(() -> {
-                // New commit can be uploaded after we read segmentInfos, so we bound the read by the known generation
-                final var latestUploadedBcc = readLatestUploadedBccUptoGen(blobContainerForCommit, segmentInfos.getGeneration());
-                StatelessCompoundCommit commit = latestUploadedBcc.lastCompoundCommit();
-
-                assertThat(commit.primaryTermAndGeneration().generation(), equalTo(segmentInfos.getGeneration()));
-                var localFiles = segmentInfos.files(false);
-                var expectedBlobFile = localFiles.stream().map(s -> commit.commitFiles().get(s).blobName()).collect(Collectors.toSet());
-                var remoteFiles = blobContainerForCommit.listBlobs(operationPurpose).keySet();
-                assertThat(
-                    "Expected that all local files " + localFiles + " exist in remote " + remoteFiles,
-                    remoteFiles,
-                    hasItems(expectedBlobFile.toArray(String[]::new))
-                );
-                for (String localFile : segmentInfos.files(false)) {
-                    BlobLocation blobLocation = commit.commitFiles().get(localFile);
-                    final BlobContainer blobContainerForFile = objectStoreService.getBlobContainer(
-                        indexShard.shardId(),
-                        blobLocation.primaryTerm()
-                    );
-                    assertThat(localFile, blobContainerForFile.blobExists(operationPurpose, blobLocation.blobName()), is(true));
-                    try (
-                        IndexInput input = store.directory().openInput(localFile, IOContext.READONCE);
-                        InputStream local = new InputStreamIndexInput(input, input.length());
-                        InputStream remote = blobContainerForFile.readBlob(
-                            operationPurpose,
-                            blobLocation.blobName(),
-                            blobLocation.offset(),
-                            blobLocation.fileLength()
-                        );
-                    ) {
-                        assertEquals("File [" + blobLocation + "] in object store has a different content than local file ", local, remote);
-                    }
+                case 2 -> {
+                    client().admin().indices().prepareForceMerge(indexName).get();
+                    afterForceMerge.run();
                 }
-            });
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        } finally {
-            store.decRef();
-        }
-    }
-
-    /**
-     * Read the latest BCC from the object store bounded by the given generation (inclusive), i.e. the BCC generation
-     * must not be higher than the specified generation.
-     */
-    protected static BatchedCompoundCommit readLatestUploadedBccUptoGen(BlobContainer blobContainerForCommit, long maxGeneration)
-        throws IOException {
-        final BlobMetadata latestUploadBccMetadata = blobContainerForCommit.listBlobsByPrefix(
-            operationPurpose,
-            StatelessCompoundCommit.PREFIX
-        )
-            .values()
-            .stream()
-            .filter(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name()) <= maxGeneration)
-            .max(Comparator.comparingLong(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name())))
-            .orElseThrow(() -> new AssertionError("retry with assertBusy"));
-        final var latestUploadedBcc = BatchedCompoundCommit.readFromStore(
-            latestUploadBccMetadata.name(),
-            latestUploadBccMetadata.length(),
-            (blobName, offset, length) -> new InputStreamStreamInput(
-                blobContainerForCommit.readBlob(operationPurpose, blobName, offset, length)
-            )
-        );
-        return latestUploadedBcc;
-    }
-
-    protected static void assertThatSearchShardIsConsistentWithLastCommit(final IndexShard indexShard, final IndexShard searchShard) {
-        final Store indexStore = indexShard.store();
-        final Store searchStore = searchShard.store();
-        indexStore.incRef();
-        searchStore.incRef();
-        try {
-            ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
-            var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
-
-            // Wait for the latest commit on the index shard is processed on the search engine
-            var listener = new SubscribableListener<Long>();
-            searchShard.getEngineOrNull()
-                .addPrimaryTermAndGenerationListener(
-                    indexShard.getOperationPrimaryTerm(),
-                    indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration(),
-                    listener
-                );
-            safeAwait(listener);
-            final SegmentInfos segmentInfos = Lucene.readSegmentInfos(indexStore.directory());
-
-            // New commit can be uploaded after we read segmentInfos, so we bound the read by the known generation
-            final var latestUploadedBcc = readLatestUploadedBccUptoGen(blobContainerForCommit, segmentInfos.getGeneration());
-            StatelessCompoundCommit commit = latestUploadedBcc.lastCompoundCommit();
-            assertThat(commit.primaryTermAndGeneration().generation(), equalTo(segmentInfos.getGeneration()));
-
-            for (String localFile : segmentInfos.files(false)) {
-                var blobPath = commit.commitFiles().get(localFile);
-                BlobContainer blobContainer = objectStoreService.getBlobContainer(indexShard.shardId(), blobPath.primaryTerm());
-                var blobFile = blobPath.blobName();
-                // can take some time for files to be uploaded to the object store
-                assertBusy(() -> {
-                    assertThat(blobFile, blobContainer.blobExists(operationPurpose, blobFile), is(true));
-
-                    try (
-                        IndexInput input = indexStore.directory().openInput(localFile, IOContext.READONCE);
-                        InputStream local = new InputStreamIndexInput(input, input.length());
-                        IndexInput searchInput = searchStore.directory().openInput(localFile, IOContext.READONCE);
-                        InputStream searchInputStream = new InputStreamIndexInput(searchInput, searchInput.length());
-                    ) {
-                        assertEquals(
-                            "File [" + blobFile + "] on search shard has a different content than local file ",
-                            local,
-                            searchInputStream
-                        );
-                    }
-                });
-            }
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        } finally {
-            indexStore.decRef();
-            searchStore.decRef();
-        }
-    }
-
-    private static void assertEquals(String message, InputStream expected, InputStream actual) throws IOException {
-        // adapted from Files.mismatch()
-        final int BUFFER_SIZE = 8192;
-        byte[] buffer1 = new byte[BUFFER_SIZE];
-        byte[] buffer2 = new byte[BUFFER_SIZE];
-        try (
-            InputStream expectedStream = new BufferedInputStream(expected, BUFFER_SIZE);
-            InputStream actualStream = new BufferedInputStream(actual, BUFFER_SIZE)
-        ) {
-            long totalRead = 0;
-            while (true) {
-                int nRead1 = expectedStream.readNBytes(buffer1, 0, BUFFER_SIZE);
-                int nRead2 = actualStream.readNBytes(buffer2, 0, BUFFER_SIZE);
-
-                int i = Arrays.mismatch(buffer1, 0, nRead1, buffer2, 0, nRead2);
-                assertThat(message + "(position: " + (totalRead + i) + ')', i, equalTo(-1));
-                if (nRead1 < BUFFER_SIZE) {
-                    // we've reached the end of the files, but found no mismatch
-                    break;
-                }
-                totalRead += nRead1;
             }
         }
     }

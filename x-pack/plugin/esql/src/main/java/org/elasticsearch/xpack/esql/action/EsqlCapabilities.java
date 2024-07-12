@@ -132,7 +132,18 @@ public class EsqlCapabilities {
         /**
          * Fix for union-types when aggregating over an inline conversion with conversion function. Done in #110652.
          */
-        UNION_TYPES_INLINE_FIX;
+        UNION_TYPES_INLINE_FIX,
+
+        /**
+         * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
+         */
+        FIX_PARSING_LARGE_NEGATIVE_NUMBERS,
+
+        /**
+         * Use RangeQuery for BinaryComparison on DateTime fields.
+         * */
+        RANGEQUERY_FOR_DATETIME;
 
         private final boolean snapshotOnly;
 

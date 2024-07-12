@@ -171,7 +171,7 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         builder.timeField(
             SnapshotLifecyclePolicyMetadata.NEXT_EXECUTION_MILLIS.getPreferredName(),
             SnapshotLifecyclePolicyMetadata.NEXT_EXECUTION.getPreferredName(),
-            policy.calculateNextExecution()
+            policy.calculateNextExecution(modifiedDate)
         );
         if (snapshotInProgress != null) {
             builder.field(SNAPSHOT_IN_PROGRESS.getPreferredName(), snapshotInProgress);

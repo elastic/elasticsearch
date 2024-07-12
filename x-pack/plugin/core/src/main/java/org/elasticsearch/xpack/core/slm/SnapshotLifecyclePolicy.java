@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -45,12 +47,15 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     private final String id;
     private final String name;
     private final String schedule;
+    private final String interval;
     private final String repository;
     private final Map<String, Object> configuration;
     private final SnapshotRetentionConfiguration retentionPolicy;
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField SCHEDULE = new ParseField("schedule");
+    private static final ParseField INTERVAL = new ParseField("interval");
+    private static final ParseField INTERVAL_START_TIME = new ParseField("interval_start_time");
     private static final ParseField REPOSITORY = new ParseField("repository");
     private static final ParseField CONFIG = new ParseField("config");
     private static final ParseField RETENTION = new ParseField("retention");
@@ -66,7 +71,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             String repo = (String) a[2];
             Map<String, Object> config = (Map<String, Object>) a[3];
             SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
-            return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention);
+            String interval = (String) a[5];
+            return new SnapshotLifecyclePolicy(id, name, schedule, interval, repo, config, retention);
         }
     );
 
@@ -76,19 +82,25 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), CONFIG);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INTERVAL);
     }
 
     public SnapshotLifecyclePolicy(
         final String id,
         final String name,
-        final String schedule,
+        @Nullable final String schedule,
+        @Nullable final String interval,
         final String repository,
         @Nullable final Map<String, Object> configuration,
         @Nullable final SnapshotRetentionConfiguration retentionPolicy
     ) {
         this.id = Objects.requireNonNull(id, "policy id is required");
         this.name = Objects.requireNonNull(name, "policy snapshot name is required");
-        this.schedule = Objects.requireNonNull(schedule, "policy schedule is required");
+        if (schedule == null && interval == null) {
+            throw new IllegalArgumentException("policy schedule or interval is required");
+        }
+        this.schedule = schedule;
+        this.interval = interval;
         this.repository = Objects.requireNonNull(repository, "policy snapshot repository is required");
         this.configuration = configuration;
         this.retentionPolicy = retentionPolicy;
@@ -97,7 +109,13 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     public SnapshotLifecyclePolicy(StreamInput in) throws IOException {
         this.id = in.readString();
         this.name = in.readString();
-        this.schedule = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SLM_SCHEDULE_BY_INTERVAL))  {
+            this.schedule = in.readOptionalString();
+            this.interval = in.readOptionalString();
+        } else {
+            this.schedule = in.readString();
+            this.interval = null;
+        }
         this.repository = in.readString();
         this.configuration = in.readGenericMap();
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
@@ -115,6 +133,11 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         return this.schedule;
     }
 
+    @Nullable
+    public String getInterval() {
+        return this.interval;
+    }
+
     public String getRepository() {
         return this.repository;
     }
@@ -129,9 +152,15 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         return this.retentionPolicy;
     }
 
-    public long calculateNextExecution() {
-        final Cron scheduleEvaluator = new Cron(this.schedule);
-        return scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
+    public long calculateNextExecution(long modifiedDate) {
+        if (Strings.hasText(this.schedule)) {
+            final Cron scheduleEvaluator = new Cron(this.schedule);
+            return scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
+        } else {
+            final TimeValue interval = TimeValue.parseTimeValue(this.interval, INTERVAL.getPreferredName());
+            final TimeValueSchedule timeValueSchedule = new TimeValueSchedule(interval);
+            return timeValueSchedule.nextScheduledTimeAfter(modifiedDate, System.currentTimeMillis());
+        }
     }
 
     /**
@@ -144,6 +173,10 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
      *         if either of the next two times after now is unsupported according to @{@link Cron#getNextValidTimeAfter(long)}
      */
     public TimeValue calculateNextInterval() {
+        if (this.interval != null) {
+            TimeValue.parseTimeValue(interval, INTERVAL.getPreferredName());
+        }
+
         final Cron scheduleEvaluator = new Cron(this.schedule);
         long next1 = scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
         long next2 = scheduleEvaluator.getNextValidTimeAfter(next1);
@@ -181,14 +214,25 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             err.addValidationErrors(nameValidationErrors.validationErrors());
         }
 
-        // Schedule validation
-        if (Strings.hasText(schedule) == false) {
-            err.addValidationError("invalid schedule [" + schedule + "]: must not be empty");
+        final boolean hasSchedule = Strings.hasText(schedule);
+        final boolean hasInterval = Strings.hasText(interval);
+        if (hasSchedule == false && hasInterval == false) {
+            err.addValidationError("invalid schedule/interval: one of schedule or interval must not be empty");
+        } else if (hasSchedule && hasInterval) {
+            err.addValidationError("invalid schedule/interval: only one of schedule or interval can be non-empty");
         } else {
-            try {
-                new Cron(schedule);
-            } catch (IllegalArgumentException e) {
-                err.addValidationError("invalid schedule: " + ExceptionsHelper.unwrapCause(e).getMessage());
+            if (hasSchedule) {
+                try {
+                    new Cron(schedule);
+                } catch (IllegalArgumentException e) {
+                    err.addValidationError("invalid schedule: " + ExceptionsHelper.unwrapCause(e).getMessage());
+                }
+            } else {
+                try {
+                    TimeValue.parseTimeValue(interval, INTERVAL.getPreferredName());
+                } catch (IllegalArgumentException e) {
+                    err.addValidationError("invalid interval: " + ExceptionsHelper.unwrapCause(e).getMessage());
+                }
             }
         }
 
@@ -277,6 +321,10 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         out.writeString(this.id);
         out.writeString(this.name);
         out.writeString(this.schedule);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SLM_SCHEDULE_BY_INTERVAL)) {
+            out.writeOptionalString(this.interval);
+        }
+        out.writeString(this.schedule);
         out.writeString(this.repository);
         out.writeGenericMap(this.configuration);
         out.writeOptionalWriteable(this.retentionPolicy);
@@ -287,6 +335,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         builder.startObject();
         builder.field(NAME.getPreferredName(), this.name);
         builder.field(SCHEDULE.getPreferredName(), this.schedule);
+        builder.field(INTERVAL.getPreferredName(), this.interval);
         builder.field(REPOSITORY.getPreferredName(), this.repository);
         if (this.configuration != null) {
             builder.field(CONFIG.getPreferredName(), this.configuration);

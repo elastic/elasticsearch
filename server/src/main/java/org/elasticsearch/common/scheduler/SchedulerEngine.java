@@ -42,10 +42,16 @@ public class SchedulerEngine {
     public static class Job {
         private final String id;
         private final Schedule schedule;
+        private final Long startTime;
 
         public Job(String id, Schedule schedule) {
+            this(id, schedule, null);
+        }
+
+        public Job(String id, Schedule schedule, Long startTime) {
             this.id = id;
             this.schedule = schedule;
+            this.startTime = startTime;
         }
 
         public String getId() {
@@ -54,6 +60,10 @@ public class SchedulerEngine {
 
         public Schedule getSchedule() {
             return schedule;
+        }
+
+        public Long getStartTime() {
+            return startTime;
         }
     }
 
@@ -159,7 +169,8 @@ public class SchedulerEngine {
     }
 
     public void add(Job job) {
-        ActiveSchedule schedule = new ActiveSchedule(job.getId(), job.getSchedule(), clock.millis());
+        final long startTime = job.getStartTime() == null ? clock.millis() : job.getStartTime();
+        ActiveSchedule schedule = new ActiveSchedule(job.getId(), job.getSchedule(), startTime);
         schedules.compute(schedule.name, (name, previousSchedule) -> {
             if (previousSchedule != null) {
                 previousSchedule.cancel();

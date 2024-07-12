@@ -139,8 +139,7 @@ public class EsqlCapabilities {
          * Fix the status code returned when trying to run count_distinct on the _source type (which is not supported).
          * see <a href="https://github.com/elastic/elasticsearch/issues/105240">count_distinct(_source) returns a 500 response</a>
          */
-        FIX_COUNT_DISTINCT_SOURCE_ERROR
-        ;
+        FIX_COUNT_DISTINCT_SOURCE_ERROR;
 
         private final boolean snapshotOnly;
 

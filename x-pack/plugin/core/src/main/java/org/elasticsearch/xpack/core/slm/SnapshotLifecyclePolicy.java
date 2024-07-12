@@ -109,7 +109,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     public SnapshotLifecyclePolicy(StreamInput in) throws IOException {
         this.id = in.readString();
         this.name = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SLM_SCHEDULE_BY_INTERVAL))  {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SLM_SCHEDULE_BY_INTERVAL)) {
             this.schedule = in.readOptionalString();
             this.interval = in.readOptionalString();
         } else {

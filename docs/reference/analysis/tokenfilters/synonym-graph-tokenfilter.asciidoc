@@ -90,7 +90,7 @@ See <<synonym-graph-tokenizer-expand-equivalent-synonyms,expand equivalent synon
 * `lenient` (defaults to `false`).
 If `true` ignores errors while parsing the synonym configuration.
 It is important to note that only those synonym rules which cannot get parsed are ignored.
-See <<synonym-graph-tokenizer-stop-token-filter,synoyms and stop token filters>> for an example of lenient behaviour for invalid synonym rules.
+See <<synonym-graph-tokenizer-stop-token-filter,synoyms and stop token filters>> for an example of `lenient` behaviour for invalid synonym rules.
 
 [discrete]
 [[synonym-graph-tokenizer-expand-equivalent-synonyms]]
@@ -173,55 +173,34 @@ Synonyms and <<analysis-stop-tokenfilter,stop token filter>> interact with each 
 [discrete]
 ====== Stop token filter *before* synonym token filter
 
-Stop words will be removed from the synonym rule definition, making it potentially invalid.
+Stop words will be removed from the synonym rule definition.
+This can can cause errors on the synonym rule.
 
-Consider the following request:
+WARNING: An invalid synonym rule will cause an error applying your analyzer changes.
+For reloadable analyzers, the analyzer will not be reloaded and the changes will not be applied.
+You must correct the error in the synonym rules and reload the analyzer, as an index that contains an invalid synonym rule won't be able to be reopened.
+This means that the index will be inoperable when a node that contains the index is started, or the index is opened from a closed state.
 
-[source,console]
---------------------------------------------------
-PUT /test_index
-{
-  "settings": {
-    "index": {
-      "analysis": {
-        "analyzer": {
-          "synonym": {
-            "tokenizer": "standard",
-            "filter": [ "my_stop", "synonym_graph" ]
-          }
-        },
-        "filter": {
-          "my_stop": {
-            "type": "stop",
-            "stopwords": [ "bar" ]
-          },
-          "synonym_graph": {
-            "type": "synonym_graph",
-            "lenient": true,
-            "synonyms": [ "foo, bar => baz" ]
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
+For *explicit mappings* like `foo, bar => baz` with a stop filter that removes `bar`:
 
-This should be an error, as `foo` would be removed by the stopword filter.
-Using `lenient: true` means that the word `bar` gets skipped but a mapping `foo => baz` is still added.
+- If `lenient` is set to `false`, an error will be raised as `bar` would be removed from the left hand side of the synonym rule.
+- If `lenient` is set to `true`, the mapping `foo => baz` will be added and `bar => baz` will be ignored.
 
-However, if the mapping  being added was `foo, baz => bar` nothing would get added to the synonym list.
-This is because the target word for the mapping is itself eliminated because it was a stop word.
+If the stop filter removed `baz` instead:
 
-Similarly, if the mapping was "bar, foo, baz" and `expand` was set to `false` no mapping would get added as when `expand=false` the target mapping is the first word.
-However, if `expand=true` then the mappings added would be equivalent to `foo, baz => foo, baz` i.e, all mappings other than the stop word.
+- If `lenient` is set to `false`, an error will be raised as `baz` would be removed from the right hand side of the synonym rule.
+- If `lenient` is set to `true`, the mapping will have no effect as the target word is removed.
+
+For *equivalent mappings* like `foo, bar, baz` with a stop filter that removes `bar`:
+
+- If `lenient` is set to `false`, an error will be raised as `bar` would be removed from the synonym rule.
+- If `lenient` is set to `true`, the mappings added would be equivalent to `foo => baz` and `baz => foo`, which do not contain the removed word.
 
 [discrete]
 ====== Stop token filter *after* synonym token filter
 
-If the stop filter removes a term that is part of a synonym rule, there will be no matching for it at query time.
-For example, given the following synonym rules:
+The stop filter will remove the terms from the resulting synonym expansion.
 
-`foo => bar`
+For example, a synonym like `foo => baz` and a stop filter that removes `baz` will get no matches for `foo` or `bar`, as both would get expanded to `baz` which is removed by the stop filter.
 
-and a stopword filter that removes `foo`, then searching for `foo` won't produce any results that contain `foo` or `bar`.
+If the stop filter removed `foo` instead, then searching for `foo` would get expanded to `baz`, which is not removed by the stop filter thus potentially providing matches for `baz`.

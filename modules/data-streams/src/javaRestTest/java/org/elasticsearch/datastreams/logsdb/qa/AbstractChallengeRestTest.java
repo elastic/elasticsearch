@@ -99,17 +99,11 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
 
     public void beforeStart() throws Exception {}
 
-    public void beforeEnd() throws Exception {
+    public void beforeEnd() throws Exception {};
 
-    };
+    public void afterStart() throws Exception {}
 
-    public void afterStart() throws Exception {
-
-    }
-
-    public void afterEnd() throws Exception {
-
-    }
+    public void afterEnd() throws Exception {}
 
     private void createTemplates() throws IOException {
         final Response createBaselineTemplateResponse = createTemplates(

@@ -1173,7 +1173,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 "converted_to",
                 resolvedField.getDataType().typeName()
             );
-            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), unionTypedFieldName, resolvedField);
+            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parent(), unionTypedFieldName, resolvedField);
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs

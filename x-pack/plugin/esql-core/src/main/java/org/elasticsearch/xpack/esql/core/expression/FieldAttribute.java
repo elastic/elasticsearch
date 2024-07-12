@@ -143,7 +143,7 @@ public class FieldAttribute extends TypedAttribute {
         // On later versions, the attribute can be renamed when creating synthetic attributes.
         // TODO: We should use synthetic() to check for that case.
         // https://github.com/elastic/elasticsearch/issues/105821
-        boolean isSynthetic = field.getName().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX); // See
+        boolean isSynthetic = field.getName().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX);
 
         if (isSynthetic == false) {
             return name();

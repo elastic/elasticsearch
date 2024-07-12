@@ -48,7 +48,7 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns a substring of a string, specified by a start position and an optional length",
+        description = "Returns a substring of a string, specified by a start position and an optional length.",
         examples = {
             @Example(file = "docs", tag = "substring", description = "This example returns the first three characters of every last name:"),
             @Example(file = "docs", tag = "substringEnd", description = """

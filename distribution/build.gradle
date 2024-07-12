@@ -280,8 +280,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   dependencies {
     libs project(':server')
-    // this is a special circumstance of a jar that is not a dependency of server, but needs to be in the module path
-    libs project(':libs:elasticsearch-preallocate')
 
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')

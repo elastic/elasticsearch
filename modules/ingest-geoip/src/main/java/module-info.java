@@ -17,4 +17,6 @@ module org.elasticsearch.ingest.geoip {
 
     exports org.elasticsearch.ingest.geoip.direct to org.elasticsearch.server;
     exports org.elasticsearch.ingest.geoip.stats to org.elasticsearch.server;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.ingest.geoip.IngestGeoIpFeatures;
 }

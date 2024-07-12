@@ -427,7 +427,7 @@ public final class ConfigurableClusterPrivileges {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.field(
                 Fields.MANAGE.getPreferredName(),
-                Map.of(Fields.INDICES.getPreferredName(), List.of(Map.of(Fields.NAMES, indices)))
+                Map.of(Fields.INDICES.getPreferredName(), List.of(Map.of(Fields.NAMES.getPreferredName(), indices)))
             );
         }
 

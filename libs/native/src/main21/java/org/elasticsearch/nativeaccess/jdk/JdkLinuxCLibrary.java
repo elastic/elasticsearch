@@ -49,6 +49,10 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
         CAPTURE_ERRNO_OPTION,
         Linker.Option.firstVariadicArg(1)
     );
+    private static final MethodHandle fallocate$mh = downcallHandleWithErrno(
+        "fallocate",
+        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG)
+    );
 
     private static class JdkSockFProg implements SockFProg {
         private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_SHORT, paddingLayout(6), ADDRESS);
@@ -96,6 +100,15 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     public long syscall(long number, int operation, int flags, long address) {
         try {
             return (long) syscall$mh.invokeExact(errnoState, number, operation, flags, address);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int fallocate(int fd, int mode, long offset, long length) {
+        try {
+            return (int) fallocate$mh.invokeExact(errnoState, fd, mode, offset, length);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

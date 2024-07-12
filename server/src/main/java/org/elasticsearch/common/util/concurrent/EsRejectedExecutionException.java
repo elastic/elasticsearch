@@ -27,6 +27,11 @@ public class EsRejectedExecutionException extends RejectedExecutionException {
         this(null, false);
     }
 
+    @Override
+    public Throwable fillInStackTrace() {
+        return this; // this exception doesn't imply a bug, no need for a stack trace
+    }
+
     /**
      * Checks if the thread pool that rejected the execution was terminated
      * shortly after the rejection. Its possible that this returns false and the

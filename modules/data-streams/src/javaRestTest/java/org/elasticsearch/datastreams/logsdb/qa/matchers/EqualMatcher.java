@@ -73,8 +73,8 @@ class EqualMatcher<T> extends Matcher {
         if (actual.getClass().isArray()) {
             return matchArraysEqual((T[]) actual, (T[]) expected, ignoringSort);
         }
-        if (actual instanceof List<?> && expected instanceof List<?>) {
-            return matchArraysEqual((T[]) ((List<?>) actual).toArray(), (T[]) ((List<?>) expected).toArray(), ignoringSort);
+        if (actual instanceof List<?> act && expected instanceof List<?> exp) {
+            return matchArraysEqual((T[]) (act).toArray(), (T[]) (exp).toArray(), ignoringSort);
         }
         return actual.equals(expected);
     }

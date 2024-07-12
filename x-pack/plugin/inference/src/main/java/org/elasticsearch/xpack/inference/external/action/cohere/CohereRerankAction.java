@@ -32,10 +32,7 @@ public class CohereRerankAction implements ExecutableAction {
     public CohereRerankAction(Sender sender, CohereRerankModel model, ThreadPool threadPool) {
         Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
-        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            model.getServiceSettings().getCommonSettings().uri(),
-            "Cohere rerank"
-        );
+        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.getServiceSettings().uri(), "Cohere rerank");
         requestCreator = CohereRerankRequestManager.of(model, threadPool);
     }
 

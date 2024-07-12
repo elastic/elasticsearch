@@ -37,7 +37,7 @@ public class DatabaseConfigurationMetadataTests extends AbstractXContentSerializ
         return new DatabaseConfigurationMetadata(
             new DatabaseConfiguration(id, randomFrom(MAXMIND_NAMES)),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomPositiveTimeValue().millis()
         );
     }
 
@@ -60,7 +60,7 @@ public class DatabaseConfigurationMetadataTests extends AbstractXContentSerializ
                 return new DatabaseConfigurationMetadata(
                     instance.database(),
                     instance.version(),
-                    randomValueOtherThan(instance.modifiedDate(), ESTestCase::randomNonNegativeLong)
+                    randomValueOtherThan(instance.modifiedDate(), () -> ESTestCase.randomPositiveTimeValue().millis())
                 );
             default:
                 throw new AssertionError("failure, got illegal switch case");

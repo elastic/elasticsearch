@@ -10,6 +10,14 @@ setup:
 
 ---
 stored _source mode is not supported:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [logs_index_mode]
+      reason: "Support for 'logs' index mode capability required"
+
   - do:
       catch: bad_request
       indices.create:
@@ -28,6 +36,14 @@ stored _source mode is not supported:
 
 ---
 disabled _source is not supported:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [logs_index_mode]
+      reason: "Support for 'logs' index mode capability required"
+
   - do:
       catch: bad_request
       indices.create:

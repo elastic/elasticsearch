@@ -1,5 +1,5 @@
 [[query-dsl-sparse-vector-query]]
-== Sparse vector query
+=== Sparse vector query
 
 ++++
 <titleabbrev>Sparse vector</titleabbrev>
@@ -19,7 +19,7 @@ For example, a stored vector `{"feature_0": 0.12, "feature_1": 1.2, "feature_2":
 
 [discrete]
 [[sparse-vector-query-ex-request]]
-=== Example request using an {nlp} model
+==== Example request using an {nlp} model
 
 [source,console]
 ----
@@ -37,7 +37,7 @@ GET _search
 // TEST[skip: Requires inference]
 
 [discrete]
-=== Example request using precomputed vectors
+==== Example request using precomputed vectors
 
 [source,console]
 ----
@@ -55,7 +55,7 @@ GET _search
 
 [discrete]
 [[sparse-vector-field-params]]
-=== Top level parameters for `sparse_vector`
+==== Top level parameters for `sparse_vector`
 
 `field`::
 (Required, string) The name of the field that contains the token-weight pairs to be searched against.
@@ -120,7 +120,7 @@ NOTE: The default values for `tokens_freq_ratio_threshold` and `tokens_weight_th
 
 [discrete]
 [[sparse-vector-query-example]]
-=== Example ELSER query
+==== Example ELSER query
 
 The following is an example of the `sparse_vector` query that references the ELSER model to perform semantic search.
 For a more detailed description of how to perform semantic search by using ELSER and the `sparse_vector` query, refer to <<semantic-search-elser,this tutorial>>.
@@ -241,7 +241,7 @@ GET my-index/_search
 
 [discrete]
 [[sparse-vector-query-with-pruning-config-and-rescore-example]]
-=== Example ELSER query with pruning configuration and rescore
+==== Example ELSER query with pruning configuration and rescore
 
 The following is an extension to the above example that adds a preview:[] pruning configuration to the `sparse_vector` query.
 The pruning configuration identifies non-significant tokens to prune from the query in order to improve query performance.

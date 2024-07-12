@@ -13,6 +13,12 @@ If your cluster is running on ECK 2.12.1 and above, this may cause problems with
 To resolve this issue, perform a rolling restart on the non-master-eligible nodes once all Elasticsearch nodes
 are upgraded.
 
+* The `pytorch_inference` process used to run Machine Learning models can consume large amounts of memory.
+In environments where the available memory is limited, the OS Out of Memory Killer will kill the `pytorch_inference`
+process to reclaim memory. This can cause inference requests to fail.
+Elasticsearch will automatically restart the `pytorch_inference` process
+after it is killed up to four times in 24 hours. (issue: {es-issue}110530[#110530])
+
 [[bug-8.13.2]]
 [float]
 
@@ -46,5 +52,3 @@ Packaging::
 Security::
 * Query API Key Information API support for the `typed_keys` request parameter {es-pull}106873[#106873] (issue: {es-issue}106817[#106817])
 * Query API Keys support for both `aggs` and `aggregations` keywords {es-pull}107054[#107054] (issue: {es-issue}106839[#106839])
-
-

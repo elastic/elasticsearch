@@ -14,6 +14,9 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Map;
 
+/**
+ * Container class for aggregated metrics about search responses.
+ */
 public class SearchResponseMetrics {
 
     public enum ResponseCountTotalStatus {

@@ -43,7 +43,7 @@ public class InferenceAPMStats extends InferenceStats {
     }
 
     @Override
-    public void increment() {
+    public synchronized void increment() {
         super.increment();
         inferenceAPMRequestCounter.increment();
     }

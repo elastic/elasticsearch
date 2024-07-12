@@ -11,16 +11,14 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.InferenceRequestStats;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
-public class InferenceStats implements Stats, Transformable<org.elasticsearch.xpack.core.inference.InferenceRequestStats>, Closeable {
+public class InferenceStats implements Stats, Transformable<InferenceRequestStats> {
     protected final String service;
     protected final TaskType taskType;
     protected final String modelId;
-    private final LongAdder counter = new LongAdder();
+    protected final LongAdder counter = new LongAdder();
 
     public static String key(Model model) {
         StringBuilder builder = new StringBuilder();
@@ -58,7 +56,4 @@ public class InferenceStats implements Stats, Transformable<org.elasticsearch.xp
     public InferenceRequestStats transform() {
         return new InferenceRequestStats(service, taskType, modelId, getCount());
     }
-
-    @Override
-    public void close() throws IOException {}
 }

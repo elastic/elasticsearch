@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.inference.telemetry;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -26,12 +23,11 @@ import java.util.stream.Collectors;
  *                         {@link org.elasticsearch.common.io.stream.StreamInput}
  * @param <Value> The type of the values stored in the map
  */
-public class StatsMap<Input, SerializedValue, Value extends Stats & Transformable<SerializedValue> & Closeable> implements Closeable {
+public class StatsMap<Input, SerializedValue, Value extends Stats & Transformable<SerializedValue>> {
 
     private final ConcurrentMap<String, Value> stats = new ConcurrentHashMap<>();
     private final Function<Input, String> keyCreator;
     private final Function<Input, Value> valueCreator;
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
      * @param keyCreator a function for creating a key in the map based on the input provided
@@ -47,15 +43,8 @@ public class StatsMap<Input, SerializedValue, Value extends Stats & Transformabl
      * @param input the input to derive the appropriate key in the map
      */
     public void increment(Input input) {
-        final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
-
-        readLock.lock();
-        try {
-            var value = stats.computeIfAbsent(keyCreator.apply(input), key -> valueCreator.apply(input));
-            value.increment();
-        } finally {
-            readLock.unlock();
-        }
+        var value = stats.computeIfAbsent(keyCreator.apply(input), key -> valueCreator.apply(input));
+        value.increment();
     }
 
     /**
@@ -64,34 +53,6 @@ public class StatsMap<Input, SerializedValue, Value extends Stats & Transformabl
      * @return a map that is more easily serializable
      */
     public Map<String, SerializedValue> toSerializableMap() {
-        final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
-
-        readLock.lock();
-        try {
-            return stats.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().transform()));
-        } finally {
-            readLock.unlock();
-        }
-    }
-
-    @Override
-    public void close() throws IOException {
-        final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
-
-        writeLock.lock();
-        try {
-            for (var value : stats.values()) {
-                value.close();
-            }
-
-            stats.clear();
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    // default for testing
-    int size() {
-        return stats.size();
+        return stats.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().transform()));
     }
 }

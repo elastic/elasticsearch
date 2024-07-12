@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbedd
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -116,25 +115,5 @@ public class StatsMapTests extends ESTestCase {
                 )
             )
         );
-    }
-
-    public void testCloseClearsMap() throws IOException {
-        var stats = new StatsMap<>(InferenceStats::key, InferenceStats::new);
-
-        stats.increment(
-            new CohereEmbeddingsModel(
-                "inference_id",
-                TaskType.TEXT_EMBEDDING,
-                "cohere",
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null),
-                CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap(null, null),
-                null,
-                ConfigurationParseContext.REQUEST
-            )
-        );
-
-        assertThat(stats.size(), is(1));
-        stats.close();
-        assertThat(stats.size(), is(0));
     }
 }

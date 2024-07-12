@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: ["geoip.downloader.metadata"]
-      reason: "geoip downloader metadata APIs added in 8.15"
+      cluster_features: ["geoip.downloader.database.configuration"]
+      reason: "geoip downloader database configuration APIs added in 8.15"
 
 ---
 "Test adding, getting, and removing geoip databases":

@@ -13,10 +13,10 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
-import static org.elasticsearch.ingest.geoip.direct.TransportPutDatabaseConfigurationAction.SIMULATE_MAPPING_VALIDATION;
+import static org.elasticsearch.ingest.geoip.direct.TransportPutDatabaseConfigurationAction.GEOIP_DOWNLOADER_DATABASE_CONFIGURATION;
 
 public class IngestGeoIpFeatures implements FeatureSpecification {
     public Set<NodeFeature> getFeatures() {
-        return Set.of(SIMULATE_MAPPING_VALIDATION);
+        return Set.of(GEOIP_DOWNLOADER_DATABASE_CONFIGURATION);
     }
 }

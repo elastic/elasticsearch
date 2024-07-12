@@ -44,7 +44,7 @@ import java.util.Optional;
 public class TransportPutDatabaseConfigurationAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutDatabaseConfigurationAction.class);
-    public static final NodeFeature SIMULATE_MAPPING_VALIDATION = new NodeFeature("geoip.downloader.metadata");
+    public static final NodeFeature GEOIP_DOWNLOADER_DATABASE_CONFIGURATION = new NodeFeature("geoip.downloader.database.configuration");
 
     private static final SimpleBatchedExecutor<UpdateDatabaseConfigurationTask, Void> UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
         @Override

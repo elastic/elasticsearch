@@ -48,7 +48,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
     private static final ConstructingObjectParser<IngestGeoIpMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "ingest_geoip_metadata",
         a -> new IngestGeoIpMetadata(
-            ((List<DatabaseConfigurationMetadata>) a[1]).stream().collect(Collectors.toMap((m) -> m.database().id(), Function.identity()))
+            ((List<DatabaseConfigurationMetadata>) a[0]).stream().collect(Collectors.toMap((m) -> m.database().id(), Function.identity()))
         )
     );
     static {

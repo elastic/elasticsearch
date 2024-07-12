@@ -206,11 +206,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
             } else {
                 final String interval = snapshotLifecyclePolicy.getPolicy().getInterval();
                 TimeValue timeValue = TimeValue.parseTimeValue(interval, "interval");
-                job = new SchedulerEngine.Job(
-                    jobId,
-                    new TimeValueSchedule(timeValue),
-                    snapshotLifecyclePolicy.getModifiedDate()
-                );
+                job = new SchedulerEngine.Job(jobId, new TimeValueSchedule(timeValue), snapshotLifecyclePolicy.getModifiedDate());
             }
 
             scheduler.add(job);

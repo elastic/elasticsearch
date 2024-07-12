@@ -182,7 +182,9 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 Map.of(
                     "test-policy",
                     SnapshotLifecyclePolicyMetadata.builder()
-                        .setPolicy(new SnapshotLifecyclePolicy("test-policy", "<test-policy-{now/d}>", "", null, "test-repository", null, null))
+                        .setPolicy(
+                            new SnapshotLifecyclePolicy("test-policy", "<test-policy-{now/d}>", "", null, "test-repository", null, null)
+                        )
                         .setVersion(1L)
                         .setModifiedDate(System.currentTimeMillis())
                         .setLastSuccess(snapshotInvocation(execTime, execTime + 1000L))

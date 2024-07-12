@@ -194,7 +194,15 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
             }
         }
-        return new SnapshotLifecyclePolicy(id, randomAlphaOfLength(4), randomSchedule(), randomTimeValue().toString(), randomAlphaOfLength(4), config, null);
+        return new SnapshotLifecyclePolicy(
+            id,
+            randomAlphaOfLength(4),
+            randomSchedule(),
+            randomTimeValue().toString(),
+            randomAlphaOfLength(4),
+            config,
+            null
+        );
     }
 
     private static String randomSchedule() {

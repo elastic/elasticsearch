@@ -268,7 +268,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testRecoverSearchShardFromVirtualBcc() {
-        assumeTrue("Test only works when uploads are delayed", STATELESS_UPLOAD_DELAYED);
         startIndexNode(Settings.builder().put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10).build());
 
         var indexName = randomIdentifier();
@@ -592,7 +591,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         // Establishing a handler on the search node for receiving the new commit notification request from the indexing node
         // and tracking the new commit notification response before it is sent to the indexing node.
         // countdown for both non-uploaded and uploaded when upload is delayed
-        CountDownLatch newCommitNotificationReceived = new CountDownLatch(STATELESS_UPLOAD_DELAYED ? 2 : 1);
+        CountDownLatch newCommitNotificationReceived = new CountDownLatch(2);
         AtomicLong newCommitNotificationResponseGeneration = new AtomicLong(-1L);
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {

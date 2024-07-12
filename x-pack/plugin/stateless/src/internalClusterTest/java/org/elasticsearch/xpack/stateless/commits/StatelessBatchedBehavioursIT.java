@@ -60,7 +60,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -186,36 +185,6 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
             }
         } finally {
             safeAwait(afterRelocatedBarrier);
-        }
-    }
-
-    public void testDefaultToNotifyOnlyForUpload() {
-        assumeFalse("skip test because stateless.upload.delayed is enabled", STATELESS_UPLOAD_DELAYED);
-
-        final String indexNode = startMasterAndIndexNode();
-        startSearchNode();
-
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
-        ensureGreen(indexName);
-
-        final MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
-        final var requestRef = new AtomicReference<NewCommitNotificationRequest>();
-        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportNewCommitNotificationAction.NAME + "[u]")) {
-                final boolean success = requestRef.compareAndSet(null, (NewCommitNotificationRequest) request);
-                assertThat("expect null requestRef, but got " + requestRef.get(), success, is(true));
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-
-        final int numberOfRuns = between(1, 5);
-        for (int i = 0; i < numberOfRuns; i++) {
-            indexDocs(indexName, randomIntBetween(1, 100));
-            refresh(indexName);
-            final NewCommitNotificationRequest request = requestRef.getAndSet(null);
-            assertThat(request, notNullValue());
-            assertThat(request.isUploaded(), is(true));
         }
     }
 

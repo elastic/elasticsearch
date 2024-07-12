@@ -1,21 +1,11 @@
 ---
-setup:
-  - requires:
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [logs_index_mode]
-      reason: "Support for 'logs' index mode capability required"
-
----
 stored _source mode is not supported:
   - requires:
       test_runner_features: [capabilities]
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [logs_index_mode]
+          capabilities: [logs_index_mode_synthetic_source]
       reason: "Support for 'logs' index mode capability required"
 
   - do:
@@ -29,6 +19,11 @@ stored _source mode is not supported:
           mappings:
             _source:
               mode: stored
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
 
   - match: { error.type: "mapper_parsing_exception" }
   - match: { error.root_cause.0.type: "mapper_parsing_exception" }
@@ -41,7 +36,7 @@ disabled _source is not supported:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [logs_index_mode]
+          capabilities: [logs_index_mode_synthetic_source]
       reason: "Support for 'logs' index mode capability required"
 
   - do:
@@ -55,6 +50,11 @@ disabled _source is not supported:
           mappings:
             _source:
               enabled: false
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
 
   - match: { error.type: "mapper_parsing_exception" }
   - match: { error.root_cause.0.type: "mapper_parsing_exception" }
@@ -71,6 +71,11 @@ disabled _source is not supported:
           mappings:
             _source:
               mode: disabled
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
 
   - match: { error.type: "mapper_parsing_exception" }
   - match: { error.root_cause.0.type: "mapper_parsing_exception" }

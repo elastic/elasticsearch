@@ -138,7 +138,12 @@ public class EsqlCapabilities {
         /**
          * Use RangeQuery for BinaryComparison on DateTime fields.
          * */
-        RANGEQUERY_FOR_DATETIME;
+        RANGEQUERY_FOR_DATETIME,
+
+        /**
+         * Add tests for #105383, STATS BY constant.
+         */
+        STATS_BY_CONSTANT;
 
         private final boolean snapshotOnly;
 

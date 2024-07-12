@@ -191,6 +191,54 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         );
     }
 
+    @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
+    public void testCacheIsWarmedBeforeIndexingShardRecovery() {
+        startMasterOnlyNode();
+
+        var cacheSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .build();
+        var indexNode = startIndexNode(cacheSettings);
+
+        final String indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+            )
+        );
+
+        indexDocs(indexName, randomIntBetween(100, 10000));
+        refresh(indexName);
+
+        ensureStableCluster(2);
+
+        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, indexNode);
+
+        assertThatLogger(() -> {
+            try {
+                internalCluster().restartNode(indexNode);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            ensureGreen(indexName);
+            assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNode)));
+        },
+            SharedBlobCacheWarmingService.class,
+            new MockLog.SeenEventExpectation(
+                "notifies warming completed",
+                SharedBlobCacheWarmingService.class.getCanonicalName(),
+                Level.DEBUG,
+                "* warming completed in *"
+            )
+        );
+    }
+
     public void testCacheIsWarmedBeforeSearchShardRecovery() {
         startMasterOnlyNode();
 

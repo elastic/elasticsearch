@@ -55,6 +55,12 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public final class MlAutoscalingResourceTracker {
     private static final Logger logger = LogManager.getLogger(MlAutoscalingResourceTracker.class);
 
+    /**
+     *
+     * @param memory (bytes)
+     * @param processors (count)
+     * @param jobs (count)
+     */
     record MlJobRequirements(long memory, int processors, int jobs) {
         static MlJobRequirements of(long memory, int processors, int jobs) {
             return new MlJobRequirements(memory, processors, jobs);
@@ -247,7 +253,6 @@ public final class MlAutoscalingResourceTracker {
                         estimatedMemoryUsage
                     )
                 );
-
                 extraSingleNodeModelMemoryInBytes = Math.max(extraSingleNodeModelMemoryInBytes, estimatedMemoryUsage);
                 extraModelMemoryInBytes += estimatedMemoryUsage;
 
@@ -266,6 +271,7 @@ public final class MlAutoscalingResourceTracker {
                 if (numberOfAvailableProcessors(autoscalingContext, allocatedProcessorsScale) < numProcessorsNeeded) {
                     // we don't have enough processors to start the new allocations, we need to scale up
                     extraProcessors += numMissingAllocations * numberOfThreadsPerAllocation;
+                    extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
                     final int extraProcessorsNeededForAssignment = numMissingAllocations * numberOfThreadsPerAllocation;
                     logger.warn(
                         () -> format(

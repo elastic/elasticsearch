@@ -45,6 +45,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingResourceTracker.MlDummyAutoscalingEntity;
 import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingResourceTracker.MlJobRequirements;
@@ -212,7 +213,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         );
     }
 
-    public void testScaleUpByProcessorsWhenStarting() throws InterruptedException, IOException {
+    public void testScaleUpByProcessorsWhenStarting() throws InterruptedException {
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
         long memory = randomLongBetween(100, 1_000_000);
         long model_size = randomLongBetween(10, 10_000_000);
@@ -224,39 +225,26 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             1,
             randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
-            randomFrom(Priority.values()),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
+            Priority.NORMAL,
+            model_size,
+            model_size
         );
 
+        logger.info("taskParams: {}", taskParams);
         var randomAssignment = TrainedModelAssignmentTests.randomInstanceBuilder(taskParams)
             .setAssignmentState(AssignmentState.STARTING)
             .setNumberOfAllocations(0)
+            .clearNodeRoutingTable()
             .build();
 
-        List<DiscoveryNode> nodes = randomAssignment.getNodeRoutingTable()
-            .values()
-            .stream()
-            .map(r -> mock(DiscoveryNode.class))
+        List<DiscoveryNode> nodes = Stream.of("ml-1", "ml-2")
+            .map(n -> mock(DiscoveryNode.class))
             .peek(n -> when(n.getRoles()).thenReturn(Set.of(DiscoveryNodeRole.ML_ROLE)))
             .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "2.0")))
             .toList();
 
-        MlAutoscalingContext scaleUpContext = new MlAutoscalingContext(
-            List.of(),
-            List.of(),
-            List.of(),
-            Map.of("ml-1", randomAssignment),
-            nodes,
-            null
-        );
+        MlAutoscalingContext scaleUpContext = new MlAutoscalingContext(List.of(), List.of(), List.of(), Map.of(), nodes, null);
 
-        int expectedProcessorsPerNode = scaleUpContext.modelAssignments.values()
-            .stream()
-            .map(TrainedModelAssignment::getTaskParams)
-            .mapToInt(StartTrainedModelDeploymentAction.TaskParams::getThreadsPerAllocation)
-            .max()
-            .orElse(0);
         int expectedTotalProccessors = scaleUpContext.modelAssignments.values()
             .stream()
             .map(TrainedModelAssignment::getTaskParams)
@@ -277,7 +265,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 memory,
                 2,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
-                MlDummyAutoscalingEntity.of(memory / 2, 1),
+                MlDummyAutoscalingEntity.of(0, 0),
                 listener,
                 1
             ),
@@ -285,7 +273,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(memory, stats.perNodeMemoryInBytes());
                 assertEquals(2, stats.nodes());
                 assertEquals(Math.max(extraProcessors, 0), stats.extraProcessors());
-                assertEquals(extraProcessors > 0 ? expectedProcessorsPerNode : 0, stats.extraSingleNodeProcessors());
+                assertEquals(extraProcessors > 0 ? 1 : 0, stats.extraSingleNodeProcessors());
                 assertEquals(0, stats.extraSingleNodeModelMemoryInBytes());
                 assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
             }

@@ -202,7 +202,6 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
-            .size(numberOfDocuments)
             .size(0)
             .aggregation(new TermsAggregationBuilder("agg").field("host.name"));
 

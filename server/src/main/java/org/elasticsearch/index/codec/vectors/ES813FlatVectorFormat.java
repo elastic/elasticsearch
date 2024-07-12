@@ -65,7 +65,7 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
 
         @Override
         public KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-            return writer.addField(fieldInfo, null);
+            return writer.addField(fieldInfo);
         }
 
         @Override

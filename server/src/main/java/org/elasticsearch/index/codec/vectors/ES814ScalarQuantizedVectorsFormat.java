@@ -135,8 +135,8 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo, KnnFieldVectorsWriter<?> knnFieldVectorsWriter) throws IOException {
-            return delegate.addField(fieldInfo, knnFieldVectorsWriter);
+        public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
+            return delegate.addField(fieldInfo);
         }
 
         @Override

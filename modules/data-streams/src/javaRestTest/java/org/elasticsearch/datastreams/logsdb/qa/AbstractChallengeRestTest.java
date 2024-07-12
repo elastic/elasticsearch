@@ -92,8 +92,8 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     @After
     public void afterTest() throws Exception {
         afterStart();
-        deleteTemplates();
         deleteDataStreams();
+        deleteTemplates();
         afterEnd();
     }
 
@@ -168,7 +168,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         return client.performRequest(request);
     }
 
-    private void deleteTemplates() throws IOException {
+    private void deleteDataStreams() throws IOException {
         final Response deleteBaselineDataStream = client.performRequest(
             new Request("DELETE", "/_data_stream/" + getBaselineDataStreamName())
         );
@@ -180,7 +180,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         assert deleteContenderDataStream.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
     }
 
-    private void deleteDataStreams() throws IOException {
+    private void deleteTemplates() throws IOException {
         final Response deleteBaselineTemplate = client.performRequest(
             new Request("DELETE", "/_index_template/" + getBaselineTemplateName())
         );

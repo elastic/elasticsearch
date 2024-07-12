@@ -42,6 +42,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
+    // for clarity inside this file, it's useful to have an alias that reads like what we're using it for
+    // rather than what the version is -- previously this was two separate conceptual versions, but it's not
+    // especially useful to make that distinction in the TransportVersions class itself
+    private static final TransportVersion INCLUDE_SHA256 = TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+
     private static final ParseField DATABASES = new ParseField("databases");
 
     static final GeoIpTaskState EMPTY = new GeoIpTaskState(Map.of());
@@ -78,7 +83,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
                 in.readVInt(),
                 in.readString(),
                 in.readLong(),
-                in.getTransportVersion().onOrAfter(TransportVersions.GEOIP_DOWNLOADER_METADATA_SHA256) ? input.readOptionalString() : null
+                in.getTransportVersion().onOrAfter(INCLUDE_SHA256) ? input.readOptionalString() : null
             )
         );
     }
@@ -138,7 +143,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             o.writeVInt(v.lastChunk);
             o.writeString(v.md5);
             o.writeLong(v.lastCheck);
-            if (o.getTransportVersion().onOrAfter(TransportVersions.GEOIP_DOWNLOADER_METADATA_SHA256)) {
+            if (o.getTransportVersion().onOrAfter(INCLUDE_SHA256)) {
                 o.writeOptionalString(v.sha256);
             }
         });

@@ -2010,9 +2010,14 @@ public abstract class Engine implements Closeable {
      * Flush the engine (committing segments to disk and truncating the translog) and close it.
      */
     public void flushAndClose() throws IOException {
+        // TODO Do we have to wait here?
+        flushAndClose(ActionListener.noop());
+    }
+
+    private void flushAndClose(ActionListener<Void> listener) throws IOException {
         logger.trace("flushAndClose() maybe draining ops");
         if (isClosed.get() == false) {
-            drainForClose(ActionListener.running(() -> {
+            drainForClose(listener.map(unused -> {
                 logger.trace("flushAndClose drained ops");
                 try {
                     logger.debug("flushing shard on close - this might take some time to sync files to disk");
@@ -2022,6 +2027,7 @@ public abstract class Engine implements Closeable {
                     } catch (AlreadyClosedException ex) {
                         logger.debug("engine already closed - skipping flushAndClose");
                     }
+                    return null;
                 } finally {
                     closeNoLock("flushAndClose", closedLatch);
                 }
@@ -2032,11 +2038,16 @@ public abstract class Engine implements Closeable {
 
     @Override
     public void close() throws IOException {
+        close(ActionListener.noop());
+    }
+
+    private void close(ActionListener<Void> listener) throws IOException {
         logger.debug("close() maybe draining ops");
         if (isClosed.get() == false) {
-            drainForClose(ActionListener.running(() -> {
+            drainForClose(listener.map(unused -> {
                 logger.debug("close drained ops");
                 closeNoLock("api", closedLatch);
+                return null;
             }));
         }
         awaitPendingClose();

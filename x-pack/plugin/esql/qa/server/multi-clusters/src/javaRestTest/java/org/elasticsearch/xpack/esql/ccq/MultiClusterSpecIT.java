@@ -104,7 +104,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
-        assumeTrue("CCS requires new field-caps API", remoteFeaturesService().clusterHasFeature("esql.new_resolve_fields_api"));
+        assumeTrue("CCS requires new resolve_fields API", remoteFeaturesService().clusterHasFeature("esql.new_resolve_fields_api"));
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
         assumeTrue(
             "Test " + testName + " is skipped on " + Clusters.oldVersion(),

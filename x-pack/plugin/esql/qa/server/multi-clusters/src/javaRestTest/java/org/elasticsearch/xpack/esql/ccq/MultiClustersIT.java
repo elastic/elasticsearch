@@ -62,7 +62,7 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @Before
     public void setUpIndices() throws Exception {
-        assumeTrue("CCS requires new field-caps API", remoteFeaturesService().clusterHasFeature("esql.new_resolve_fields_api"));
+         assumeTrue("CCS requires new resolve_fields API", remoteFeaturesService().clusterHasFeature("esql.new_resolve_fields_api"));
         final String mapping = """
              "properties": {
                "data": { "type": "long" },
@@ -139,8 +139,6 @@ public class MultiClustersIT extends ESRestTestCase {
             return RestEsqlTestCase.runEsqlSync(requestObject);
         }
     }
-
-
 
     public void testCount() throws Exception {
         {

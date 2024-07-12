@@ -972,14 +972,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     );
 
                     if (gaps.isEmpty() == false) {
-                        final SourceInputStreamFactory sourceInputStreamFactory = writer.onGaps(gaps);
-                        if (sourceInputStreamFactory == null) {
+                        final SourceInputStreamFactory streamFactory = writer.onGaps(gaps);
+                        if (streamFactory == null) {
                             for (SparseFileTracker.Gap gap : gaps) {
                                 executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
                             }
                         } else {
                             final List<AbstractRunnable> gapFillingTasks = gaps.stream()
-                                .map(gap -> fillGapRunnable(gap, writer, sourceInputStreamFactory, refs.acquireListener()))
+                                .map(gap -> fillGapRunnable(gap, writer, streamFactory, refs.acquireListener()))
                                 .toList();
                             executor.execute(() -> {
                                 gapFillingTasks.forEach(Runnable::run);

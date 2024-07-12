@@ -6,7 +6,7 @@ experimental[]
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
 {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure, Google AI Studio or
-Hugging Face. For built-in models and models uploaded though Eland, the {infer}
+Hugging Face. For built-in models and models uploaded through Eland, the {infer}
 APIs offer an alternative way to use and manage trained models. However, if you
 do not plan to use the {infer} APIs to use these models or if you want to use
 non-NLP models, use the <<ml-df-trained-models-apis>>.
@@ -25,6 +25,7 @@ include::delete-inference.asciidoc[]
 include::get-inference.asciidoc[]
 include::post-inference.asciidoc[]
 include::put-inference.asciidoc[]
+include::service-amazon-bedrock.asciidoc[]
 include::service-azure-ai-studio.asciidoc[]
 include::service-azure-openai.asciidoc[]
 include::service-cohere.asciidoc[]

@@ -422,11 +422,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 newPolicyMetadata.setInvocationsSinceLastSuccess(0L);
             }
 
-            // There are likely scenarios where inc/decrements to preRegisteredRuns can be lost, so lower bound to 0 after run.
-
             Set<SnapshotId> preRegisteredSnapshots = policyMetadata.getPreRegisteredSnapshots();
             assert preRegisteredSnapshots.contains(snapshotId)
-                : "PreRegisteredSnapshots must contain a running snapshot's id until a success/failure is emitted to acquiesce it.";
+                : "PreRegisteredSnapshots must contain a running snapshotId until a success/failure is emitted to acquiesce it.";
             preRegisteredSnapshots.remove(snapshotId);
             newPolicyMetadata.setPreRegisteredSnapshots(preRegisteredSnapshots);
 

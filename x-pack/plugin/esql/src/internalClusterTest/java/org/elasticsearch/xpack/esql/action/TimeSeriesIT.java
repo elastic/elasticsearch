@@ -13,6 +13,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.Before;
 
 import java.time.ZoneOffset;
@@ -741,6 +742,49 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             assertThat(values, hasSize(1));
             assertThat(values.get(0), hasSize(1));
             assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> 20. * d + 10.0 * Math.floor(d)).sum(), 0.1));
+        }
+    }
+
+    public void testIndexMode() {
+        createIndex("events");
+        int numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            index("events", Integer.toString(i), Map.of("v", i));
+        }
+        refresh("events");
+        List<ColumnInfoImpl> columns = List.of(
+            new ColumnInfoImpl("_index", DataType.KEYWORD),
+            new ColumnInfoImpl("_index_mode", DataType.KEYWORD)
+        );
+        try (EsqlQueryResponse resp = run("""
+            FROM events,hosts METADATA _index_mode, _index
+            | WHERE _index_mode == "time_series"
+            | STATS BY _index, _index_mode
+            """)) {
+            assertThat(resp.columns(), equalTo(columns));
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values, equalTo(List.of(List.of("hosts", "time_series"))));
+        }
+        try (EsqlQueryResponse resp = run("""
+            FROM events,hosts METADATA _index_mode, _index
+            | WHERE _index_mode == "standard"
+            | STATS BY _index, _index_mode
+            """)) {
+            assertThat(resp.columns(), equalTo(columns));
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values, equalTo(List.of(List.of("events", "standard"))));
+        }
+        try (EsqlQueryResponse resp = run("""
+            FROM events,hosts METADATA _index_mode, _index
+            | STATS BY _index, _index_mode
+            | SORT _index
+            """)) {
+            assertThat(resp.columns(), equalTo(columns));
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(2));
+            assertThat(values, equalTo(List.of(List.of("events", "standard"), List.of("hosts", "time_series"))));
         }
     }
 }

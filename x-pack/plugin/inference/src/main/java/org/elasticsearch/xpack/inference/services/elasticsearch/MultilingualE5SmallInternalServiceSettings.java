@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,8 +21,10 @@ import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettin
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 
 public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInternalServiceSettings {
@@ -34,7 +35,7 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     static final SimilarityMeasure SIMILARITY = SimilarityMeasure.COSINE;
 
     public MultilingualE5SmallInternalServiceSettings(
-        int numAllocations,
+        Integer numAllocations,
         int numThreads,
         String modelId,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings
@@ -44,7 +45,7 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
 
     public MultilingualE5SmallInternalServiceSettings(StreamInput in) throws IOException {
         super(
-            in.readVInt(),
+            in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS) ? in.readOptionalVInt() : in.readVInt(),
             in.readVInt(),
             in.readString(),
             in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)
@@ -74,7 +75,7 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     }
 
     private static RequestFields extractRequestFields(Map<String, Object> map, ValidationException validationException) {
-        Integer numAllocations = extractRequiredPositiveInteger(
+        Integer numAllocations = extractOptionalPositiveInteger(
             map,
             NUM_ALLOCATIONS,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -83,13 +84,16 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
         Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
             map,
-            ADAPTIVE_ALLOCATIONS
+            ADAPTIVE_ALLOCATIONS,
+            validationException
         );
-        if (adaptiveAllocationsSettings != null) {
-            ActionRequestValidationException exception = adaptiveAllocationsSettings.validate();
-            if (exception != null) {
-                validationException.addValidationErrors(exception.validationErrors());
-            }
+        if (numAllocations == null && adaptiveAllocationsSettings == null) {
+            validationException.addValidationError(
+                ServiceUtils.missingOneOfSettingsErrorMsg(
+                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
+                    ModelConfigurations.SERVICE_SETTINGS
+                )
+            );
         }
         String modelId = ServiceUtils.removeAsType(map, MODEL_ID, String.class);
         if (modelId != null) {

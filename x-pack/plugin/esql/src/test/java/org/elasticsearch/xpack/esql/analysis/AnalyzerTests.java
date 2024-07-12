@@ -1832,7 +1832,7 @@ public class AnalyzerTests extends ESTestCase {
             Found 8 problems
             line 2:12: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
-            line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long or counter types],\
+            line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
             line 2:39: argument of [max(x)] must be [boolean, datetime or numeric except unsigned_long or counter types],\
              found value [max(x)] type [unsigned_long]

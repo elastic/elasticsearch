@@ -73,6 +73,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             "policyWithout",
             "snap",
             "1 * * * * ?",
+            null,
             "repo",
             null,
             SnapshotRetentionConfiguration.EMPTY
@@ -81,6 +82,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             "policyWithout2",
             "snap",
             "1 * * * * ?",
+            null,
             "repo",
             null,
             new SnapshotRetentionConfiguration(null, null, null)
@@ -89,6 +91,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             "policyWith",
             "snap",
             "1 * * * * ?",
+            null,
             "repo",
             null,
             new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null)
@@ -144,6 +147,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 policyId,
                 "snap",
                 "1 * * * * ?",
+                null,
                 repoId,
                 null,
                 new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null)
@@ -255,6 +259,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 policyId,
                 "snap",
                 "1 * * * * ?",
+                null,
                 repoId,
                 null,
                 new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null)
@@ -277,7 +282,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
             task.getSnapshotsEligibleForDeletion(
                 Collections.singleton(repoId),
-                Map.of(policyId, new SnapshotLifecyclePolicy(policyId, "test", "* * * * *", repoId, null, null)),
+                Map.of(policyId, new SnapshotLifecyclePolicy(policyId, "test", "* * * * *", null, repoId, null, null)),
                 new ActionListener<>() {
                     @Override
                     public void onResponse(Map<String, List<Tuple<SnapshotId, String>>> snapshotsToBeDeleted) {
@@ -332,6 +337,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 policyId,
                 "snap",
                 "1 * * * * ?",
+                null,
                 repoId,
                 null,
                 new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null)
@@ -403,6 +409,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 policyId,
                 "snap",
                 "1 * * * * ?",
+                null,
                 repoId,
                 null,
                 new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null)
@@ -460,6 +467,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 policyId,
                 "snap",
                 "1 * * * * ?",
+                null,
                 repoId,
                 null,
                 new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null)

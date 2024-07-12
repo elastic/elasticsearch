@@ -38,6 +38,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             "id",
             "name",
             "0 1 2 3 4 ? 2099",
+            null,
             "repo",
             Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY
@@ -47,7 +48,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             Collections.singletonMap("policy", "id")
         );
 
-        p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", null, null);
+        p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", null, "repo", null, null);
         request = p.toRequest(TEST_REQUEST_TIMEOUT);
         expected.waitForCompletion(true).snapshot(request.snapshot()).repository("repo");
         assertEquals(expected, request);
@@ -58,11 +59,12 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             "id",
             "name",
             "0 1 2 3 4 ? 2099",
+            null,
             "repo",
             Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY
         );
-        assertThat(p.calculateNextExecution(), equalTo(4078864860000L));
+        assertThat(p.calculateNextExecution(-1), equalTo(4078864860000L));
     }
 
     public void testCalculateNextInterval() {
@@ -71,6 +73,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "id",
                 "name",
                 "0 0/5 * * * ?",
+                null,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -83,6 +86,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "id",
                 "name",
                 "0 1 2 3 4 ? 2099",
+                null,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -95,6 +99,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "id",
                 "name",
                 "* * * 31 FEB ? *",
+                null,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -109,6 +114,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "a,b",
                 "<my, snapshot-{now/M}>",
                 "* * * * * L",
+                null,
                 "  ",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -133,6 +139,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "_my_policy",
                 "mySnap",
                 " ",
+                null,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -154,6 +161,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "my_policy",
                 "my_snap",
                 "0 0/30 * * * ?",
+                null,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -173,6 +181,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "mypolicy",
                 "<mysnapshot-{now/M}>",
                 "1 * * * * ?",
+                null,
                 "myrepo",
                 configuration,
                 SnapshotRetentionConfiguration.EMPTY
@@ -194,6 +203,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "mypolicy",
                 "<mysnapshot-{now/M}>",
                 "1 * * * * ?",
+                null,
                 "myrepo",
                 configuration,
                 SnapshotRetentionConfiguration.EMPTY
@@ -224,6 +234,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "mypolicy",
                 "<mysnapshot-{now/M}>",
                 "1 * * * * ?",
+                null,
                 "myrepo",
                 configuration,
                 SnapshotRetentionConfiguration.EMPTY
@@ -255,6 +266,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getId() + randomAlphaOfLength(2),
                     instance.getName(),
                     instance.getSchedule(),
+                    instance.getInterval(),
                     instance.getRepository(),
                     instance.getConfig(),
                     instance.getRetentionPolicy()
@@ -264,6 +276,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getId(),
                     instance.getName() + randomAlphaOfLength(2),
                     instance.getSchedule(),
+                    instance.getInterval(),
                     instance.getRepository(),
                     instance.getConfig(),
                     instance.getRetentionPolicy()
@@ -273,6 +286,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getId(),
                     instance.getName(),
                     randomValueOtherThan(instance.getSchedule(), SnapshotLifecyclePolicyMetadataTests::randomSchedule),
+                    instance.getInterval(),
                     instance.getRepository(),
                     instance.getConfig(),
                     instance.getRetentionPolicy()
@@ -282,6 +296,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getId(),
                     instance.getName(),
                     instance.getSchedule(),
+                    instance.getInterval(),
                     instance.getRepository() + randomAlphaOfLength(2),
                     instance.getConfig(),
                     instance.getRetentionPolicy()
@@ -295,6 +310,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getId(),
                     instance.getName() + randomAlphaOfLength(2),
                     instance.getSchedule(),
+                    instance.getInterval(),
                     instance.getRepository(),
                     newConfig,
                     instance.getRetentionPolicy()
@@ -304,6 +320,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getId(),
                     instance.getName(),
                     instance.getSchedule(),
+                    instance.getInterval(),
                     instance.getRepository(),
                     instance.getConfig(),
                     randomValueOtherThan(instance.getRetentionPolicy(), SnapshotLifecyclePolicyMetadataTests::randomRetention)

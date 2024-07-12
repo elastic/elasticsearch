@@ -106,6 +106,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
             policyId,
             randomAlphaOfLength(4),
             randomSchedule(),
+            randomTimeValue().toString(),
             randomAlphaOfLength(4),
             config,
             randomRetention()

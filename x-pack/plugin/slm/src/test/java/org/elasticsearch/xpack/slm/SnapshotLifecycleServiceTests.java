@@ -529,6 +529,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             id,
             randomAlphaOfLength(4),
             schedule,
+            randomTimeValue().toString(),
             randomAlphaOfLength(4),
             config,
             SnapshotRetentionConfiguration.EMPTY

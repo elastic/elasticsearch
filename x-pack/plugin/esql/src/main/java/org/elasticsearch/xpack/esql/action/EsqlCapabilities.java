@@ -140,10 +140,10 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/105240">count_distinct(_source) returns a 500 response</a>
          */
         FIX_COUNT_DISTINCT_SOURCE_ERROR,
-      
-         /**
-         * Use RangeQuery for BinaryComparison on DateTime fields.
-         * */
+
+        /**
+        * Use RangeQuery for BinaryComparison on DateTime fields.
+        * */
         RANGEQUERY_FOR_DATETIME;
 
         private final boolean snapshotOnly;

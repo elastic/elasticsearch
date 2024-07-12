@@ -968,8 +968,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     );
 
                     if (gaps.isEmpty() == false) {
-                        for (SparseFileTracker.Gap gap : gaps) {
-                            executor.execute(fillGapRunnable(gap, writer, refs.acquireListener()));
+                        if (writer.onGaps(gaps)) {
+                            for (SparseFileTracker.Gap gap : gaps) {
+                                executor.execute(fillGapRunnable(gap, writer, refs.acquireListener()));
+                            }
+                        } else {
+                            final List<AbstractRunnable> gapFillingTasks = gaps.stream()
+                                .map(gap -> fillGapRunnable(gap, writer, refs.acquireListener()))
+                                .toList();
+                            executor.execute(() -> gapFillingTasks.forEach(Runnable::run));
                         }
                     }
                 }
@@ -1072,16 +1079,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
             final long startTime = relativeTimeInNanosSupplier.getAsLong();
-            RangeMissingHandler writerInstrumentationDecorator = (
-                SharedBytes.IO channel,
-                int channelPos,
-                int relativePos,
-                int length,
-                IntConsumer progressUpdater) -> {
-                writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
-                var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
-                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
-                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissCounter().increment();
+            RangeMissingHandler writerInstrumentationDecorator = new DelegatingRangeMissingHandler(writer) {
+                @Override
+                public void fillCacheRange(SharedBytes.IO channel, int channelPos, int relativePos, int length, IntConsumer progressUpdater)
+                    throws IOException {
+                    writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
+                    var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
+                    SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
+                    SharedBlobCacheService.this.blobCacheMetrics.getCacheMissCounter().increment();
+                }
             };
             if (rangeToRead.isEmpty()) {
                 // nothing to read, skip
@@ -1165,20 +1171,34 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 // no need to allocate a new capturing lambda if the offset isn't adjusted
                 adjustedWriter = writer;
             } else {
-                adjustedWriter = (channel, channelPos, relativePos, len, progressUpdater) -> writer.fillCacheRange(
-                    channel,
-                    channelPos,
-                    relativePos - writeOffset,
-                    len,
-                    progressUpdater
-                );
+                adjustedWriter = new DelegatingRangeMissingHandler(writer) {
+                    @Override
+                    public void fillCacheRange(
+                        SharedBytes.IO channel,
+                        int channelPos,
+                        int relativePos,
+                        int len,
+                        IntConsumer progressUpdater
+                    ) throws IOException {
+                        delegate.fillCacheRange(channel, channelPos, relativePos - writeOffset, len, progressUpdater);
+                    }
+                };
             }
             if (Assertions.ENABLED) {
-                return (channel, channelPos, relativePos, len, progressUpdater) -> {
-                    assert assertValidRegionAndLength(fileRegion, channelPos, len);
-                    adjustedWriter.fillCacheRange(channel, channelPos, relativePos, len, progressUpdater);
-                    assert regionOwners.get(fileRegion.io) == fileRegion
-                        : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                return new DelegatingRangeMissingHandler(adjustedWriter) {
+                    @Override
+                    public void fillCacheRange(
+                        SharedBytes.IO channel,
+                        int channelPos,
+                        int relativePos,
+                        int len,
+                        IntConsumer progressUpdater
+                    ) throws IOException {
+                        assert assertValidRegionAndLength(fileRegion, channelPos, len);
+                        delegate.fillCacheRange(channel, channelPos, relativePos, len, progressUpdater);
+                        assert regionOwners.get(fileRegion.io) == fileRegion
+                            : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                    }
                 };
             }
             return adjustedWriter;
@@ -1241,6 +1261,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     @FunctionalInterface
     public interface RangeMissingHandler {
         /**
+         * Callback method to notify the handler the list of gaps to fill before actually fetching the data
+         * with {@link #fillCacheRange}.
+         * @param gaps The list of gaps to fill, i.e. fetching from source storage and writing into the cache.
+         * @return {@code true} if the gaps can be filled in parallel or {@code false} if they must be filled sequentially
+         */
+        default boolean onGaps(List<SparseFileTracker.Gap> gaps) {
+            return true;
+        }
+
+        /**
          * Callback method used to fetch data (usually from a remote storage) and write it in the cache.
          *
          * @param channel is the cache region to write to
@@ -1252,6 +1282,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          */
         void fillCacheRange(SharedBytes.IO channel, int channelPos, int relativePos, int length, IntConsumer progressUpdater)
             throws IOException;
+    }
+
+    public abstract static class DelegatingRangeMissingHandler implements RangeMissingHandler {
+        protected final RangeMissingHandler delegate;
+
+        protected DelegatingRangeMissingHandler(RangeMissingHandler delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean onGaps(List<SparseFileTracker.Gap> gaps) {
+            return delegate.onGaps(gaps);
+        }
     }
 
     public record Stats(

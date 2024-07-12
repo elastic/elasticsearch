@@ -1242,6 +1242,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class DropSyntheticUnionTypeAttributes extends Rule<LogicalPlan, LogicalPlan> {
         public LogicalPlan apply(LogicalPlan plan) {
+            if (plan.resolved() == false) {
+                return plan;
+            }
+
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
 

@@ -143,6 +143,13 @@ setup:
 
 ---
 "Count_distinct on _source is a 400 error":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [fix_count_distinct_source_error]
+      reason: "Capability marks fixing this bug"
   - do:
       catch: bad_request
       esql.query:

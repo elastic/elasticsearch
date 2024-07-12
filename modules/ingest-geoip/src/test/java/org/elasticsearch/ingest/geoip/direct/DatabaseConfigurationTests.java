@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.geoip.direct;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration.Maxmind;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -34,16 +35,26 @@ public class DatabaseConfigurationTests extends AbstractXContentSerializingTestC
     }
 
     public static DatabaseConfiguration randomDatabaseConfiguration(String id) {
-        return new DatabaseConfiguration(id, randomFrom(MAXMIND_NAMES));
+        return new DatabaseConfiguration(id, randomFrom(MAXMIND_NAMES), new Maxmind(randomAlphaOfLength(5)));
     }
 
     @Override
     protected DatabaseConfiguration mutateInstance(DatabaseConfiguration instance) {
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
             case 0:
-                return new DatabaseConfiguration(instance.id() + randomAlphaOfLength(2), instance.name());
+                return new DatabaseConfiguration(instance.id() + randomAlphaOfLength(2), instance.name(), instance.maxmind());
             case 1:
-                return new DatabaseConfiguration(instance.id(), randomValueOtherThan(instance.name(), () -> randomFrom(MAXMIND_NAMES)));
+                return new DatabaseConfiguration(
+                    instance.id(),
+                    randomValueOtherThan(instance.name(), () -> randomFrom(MAXMIND_NAMES)),
+                    instance.maxmind()
+                );
+            case 2:
+                return new DatabaseConfiguration(
+                    instance.id(),
+                    instance.name(),
+                    new Maxmind(instance.maxmind().accountId() + randomAlphaOfLength(2))
+                );
             default:
                 throw new AssertionError("failure, got illegal switch case");
         }

@@ -35,7 +35,7 @@ public class DatabaseConfigurationMetadataTests extends AbstractXContentSerializ
 
     public static DatabaseConfigurationMetadata randomDatabaseConfigurationMetadata(String id) {
         return new DatabaseConfigurationMetadata(
-            new DatabaseConfiguration(id, randomFrom(MAXMIND_NAMES)),
+            new DatabaseConfiguration(id, randomFrom(MAXMIND_NAMES), new DatabaseConfiguration.Maxmind(randomAlphaOfLength(5))),
             randomNonNegativeLong(),
             randomPositiveTimeValue().millis()
         );

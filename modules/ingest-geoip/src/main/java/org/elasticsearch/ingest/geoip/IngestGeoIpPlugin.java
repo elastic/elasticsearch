@@ -109,7 +109,6 @@ public class IngestGeoIpPlugin extends Plugin
             GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
             GeoIpDownloader.ENDPOINT_SETTING,
             GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING,
-            EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_DEFAULT_ACCOUNT_ID_SETTING,
             EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_LICENSE_KEY_SETTING
         );
     }

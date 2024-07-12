@@ -86,6 +86,6 @@ public class IngestGeoIpMetadataTests extends AbstractChunkedSerializingTestCase
     }
 
     private DatabaseConfiguration randomDatabaseConfiguration(String id) {
-        return new DatabaseConfiguration(id, randomAlphaOfLength(10));
+        return new DatabaseConfiguration(id, randomAlphaOfLength(10), new DatabaseConfiguration.Maxmind(randomAlphaOfLength(10)));
     }
 }

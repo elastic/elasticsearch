@@ -53,12 +53,6 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
 
     static final String MAXMIND_SETTINGS_PREFIX = "ingest.geoip.downloader.maxmind.";
 
-    public static final Setting<String> MAXMIND_DEFAULT_ACCOUNT_ID_SETTING = Setting.simpleString(
-        MAXMIND_SETTINGS_PREFIX + "default.account_id",
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
     public static final Setting<SecureString> MAXMIND_LICENSE_KEY_SETTING = SecureSetting.secureString(
         MAXMIND_SETTINGS_PREFIX + "license_key",
         null
@@ -72,7 +66,6 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
     private volatile TimeValue pollInterval;
     private final AtomicReference<EnterpriseGeoIpDownloader> currentTask = new AtomicReference<>();
 
-    private volatile String defaultMaxmindAccountId;
     private volatile SecureSettings cachedSecureSettings;
 
     EnterpriseGeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
@@ -84,9 +77,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         this.settings = clusterService.getSettings();
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
 
-        // grab the account id from the node settings on startup
-        setDefaultMaxmindAccountId(MAXMIND_DEFAULT_ACCOUNT_ID_SETTING.get(clusterService.getSettings()));
-        // and do an initial load using the node settings as well
+        // do an initial load using the node settings
         reload(clusterService.getSettings());
     }
 
@@ -96,7 +87,6 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
     public void init() {
         clusterService.addListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAXMIND_DEFAULT_ACCOUNT_ID_SETTING, this::setDefaultMaxmindAccountId);
     }
 
     private void setPollInterval(TimeValue pollInterval) {
@@ -109,12 +99,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         }
     }
 
-    private void setDefaultMaxmindAccountId(String defaultMaxmindAccountId) {
-        this.defaultMaxmindAccountId = defaultMaxmindAccountId;
-    }
-
-    private HttpClient.PasswordAuthenticationHolder buildCredentials() {
-        final String username = this.defaultMaxmindAccountId;
+    private HttpClient.PasswordAuthenticationHolder buildCredentials(final String username) {
         final char[] passwordChars;
         if (cachedSecureSettings.getSettingNames().contains(MAXMIND_LICENSE_KEY_SETTING.getKey())) {
             passwordChars = cachedSecureSettings.getString(MAXMIND_LICENSE_KEY_SETTING.getKey()).getChars();

@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -103,7 +104,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     protected volatile EnterpriseGeoIpTaskState state;
     private volatile Scheduler.ScheduledCancellable scheduled;
     private final Supplier<TimeValue> pollIntervalSupplier;
-    private final Supplier<HttpClient.PasswordAuthenticationHolder> credentialsSupplier;
+    private final Function<String, HttpClient.PasswordAuthenticationHolder> credentialsBuilder;
 
     EnterpriseGeoIpDownloader(
         Client client,
@@ -117,7 +118,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         TaskId parentTask,
         Map<String, String> headers,
         Supplier<TimeValue> pollIntervalSupplier,
-        Supplier<HttpClient.PasswordAuthenticationHolder> credentialsSupplier
+        Function<String, HttpClient.PasswordAuthenticationHolder> credentialsBuilder
     ) {
         super(id, type, action, description, parentTask, headers);
         this.client = client;
@@ -125,7 +126,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.pollIntervalSupplier = pollIntervalSupplier;
-        this.credentialsSupplier = credentialsSupplier;
+        this.credentialsBuilder = credentialsBuilder;
     }
 
     void setState(EnterpriseGeoIpTaskState state) {
@@ -173,7 +174,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                 if (metas.contains(database.name() + ".mmdb") == false) {
                     logger.debug("A new database appeared [{}]", database.name());
 
-                    try (HttpClient.PasswordAuthenticationHolder holder = credentialsSupplier.get()) {
+                    final String accountId = database.maxmind().accountId();
+                    try (HttpClient.PasswordAuthenticationHolder holder = credentialsBuilder.apply(accountId)) {
                         if (holder == null) {
                             logger.warn("No credentials found to download database [{}], skipping download...", id);
                         } else {
@@ -218,7 +220,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                 final String id = entry.getKey();
                 DatabaseConfiguration database = entry.getValue().database();
 
-                try (HttpClient.PasswordAuthenticationHolder holder = credentialsSupplier.get()) {
+                final String accountId = database.maxmind().accountId();
+                try (HttpClient.PasswordAuthenticationHolder holder = credentialsBuilder.apply(accountId)) {
                     if (holder == null) {
                         logger.warn("No credentials found to download database [{}], skipping download...", id);
                     } else {

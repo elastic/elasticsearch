@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,7 +21,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -34,7 +32,7 @@ import java.util.regex.Pattern;
  * That is, it has an id e.g. "my_db_config_1" and it says "download the file named XXXX from SomeCompany, and here's the
  * magic token to use to do that."
  */
-public record DatabaseConfiguration(String id, String name) implements Writeable, ToXContentObject {
+public record DatabaseConfiguration(String id, String name, Maxmind maxmind) implements Writeable, ToXContentObject {
 
     // id is a user selected signifier like 'my_domain_db'
     // name is the name of a file that can be downloaded (like 'GeoIP2-Domain')
@@ -46,6 +44,7 @@ public record DatabaseConfiguration(String id, String name) implements Writeable
         // these are invariants, not actual validation
         Objects.requireNonNull(id);
         Objects.requireNonNull(name);
+        Objects.requireNonNull(maxmind);
     }
 
     /**
@@ -81,20 +80,18 @@ public record DatabaseConfiguration(String id, String name) implements Writeable
         false,
         (a, id) -> {
             String name = (String) a[0];
-            Object ignoredMaxmind = a[1];
-            return new DatabaseConfiguration(id, name);
+            Maxmind maxmind = (Maxmind) a[1];
+            return new DatabaseConfiguration(id, name, maxmind);
         }
     );
 
-    public static final ObjectParser<Object, String> MAXMIND_PARSER = new ObjectParser<>("maxmind", Object::new);
-
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), MAXMIND_PARSER::apply, MAXMIND);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (parser, id) -> Maxmind.PARSER.apply(parser, null), MAXMIND);
     }
 
     public DatabaseConfiguration(StreamInput in) throws IOException {
-        this(in.readString(), in.readString());
+        this(in.readString(), in.readString(), new Maxmind(in));
     }
 
     public static DatabaseConfiguration parse(XContentParser parser, String id) {
@@ -105,13 +102,14 @@ public record DatabaseConfiguration(String id, String name) implements Writeable
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeString(name);
+        maxmind.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("name", name);
-        builder.field("maxmind", Map.of()); // we serialize an empty map here for json future-proofing
+        builder.field("maxmind", maxmind);
         builder.endObject();
         return builder;
     }
@@ -168,5 +166,45 @@ public record DatabaseConfiguration(String id, String name) implements Writeable
         // but we validate that in the cluster state update, not here.
 
         return err.validationErrors().isEmpty() ? null : err;
+    }
+
+    public record Maxmind(String accountId) implements Writeable, ToXContentObject {
+
+        public Maxmind {
+            // this is an invariant, not actual validation
+            Objects.requireNonNull(accountId);
+        }
+
+        private static final ParseField ACCOUNT_ID = new ParseField("account_id");
+
+        private static final ConstructingObjectParser<Maxmind, Void> PARSER = new ConstructingObjectParser<>("database", false, (a, id) -> {
+            String accountId = (String) a[0];
+            return new Maxmind(accountId);
+        });
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), ACCOUNT_ID);
+        }
+
+        public Maxmind(StreamInput in) throws IOException {
+            this(in.readString());
+        }
+
+        public static Maxmind parse(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(accountId);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("account_id", accountId);
+            builder.endObject();
+            return builder;
+        }
     }
 }

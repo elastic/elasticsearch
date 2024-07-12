@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -45,7 +46,9 @@ public class MetadataAttribute extends TypedAttribute {
         IgnoredFieldMapper.NAME,
         tuple(DataType.KEYWORD, true),
         SourceFieldMapper.NAME,
-        tuple(DataType.SOURCE, false)
+        tuple(DataType.SOURCE, false),
+        IndexModeFieldMapper.NAME,
+        tuple(DataType.KEYWORD, true)
     );
 
     private final boolean searchable;

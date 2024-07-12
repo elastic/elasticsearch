@@ -1,0 +1,30 @@
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+esplugin {
+  name 'repository-s3-advanced-storage-tiering'
+  description 'A plugin that implements advanced storage tiering for S3 repositories'
+  classname 'org.elasticsearch.repositories.s3.advancedstoragetiering.S3AdvancedStorageTieringPlugin'
+  extendedPlugins = ['x-pack-core', 'repository-s3']
+}
+base {
+  archivesName = 'x-pack-repository-s3-advanced-storage-tiering'
+}
+
+dependencies {
+  testImplementation project(path: ':test:test-clusters')
+  compileOnly project(":server")
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':modules:repository-s3:spi')
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation project(':modules:repository-s3:spi')
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}

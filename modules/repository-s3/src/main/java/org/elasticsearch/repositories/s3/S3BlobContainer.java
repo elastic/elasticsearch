@@ -275,7 +275,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     private InitiateMultipartUploadRequest initiateMultiPartUpload(OperationPurpose purpose, String blobName) {
         final InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(blobStore.bucket(), blobName);
-        initRequest.setStorageClass(blobStore.getStorageClass());
+        initRequest.setStorageClass(blobStore.getStorageClass(purpose));
         initRequest.setCannedACL(blobStore.getCannedACL());
         S3BlobStore.configureRequestForMetrics(initRequest, blobStore, Operation.PUT_MULTIPART_OBJECT, purpose);
         if (blobStore.serverSideEncryption()) {
@@ -429,7 +429,7 @@ class S3BlobContainer extends AbstractBlobContainer {
      * Uploads a blob using a single upload request
      */
     void executeSingleUpload(
-        OperationPurpose purpose,
+        final OperationPurpose purpose,
         final S3BlobStore s3BlobStore,
         final String blobName,
         final InputStream input,
@@ -450,7 +450,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
         }
         final PutObjectRequest putRequest = new PutObjectRequest(s3BlobStore.bucket(), blobName, input, md);
-        putRequest.setStorageClass(s3BlobStore.getStorageClass());
+        putRequest.setStorageClass(s3BlobStore.getStorageClass(purpose));
         putRequest.setCannedAcl(s3BlobStore.getCannedACL());
         S3BlobStore.configureRequestForMetrics(putRequest, blobStore, Operation.PUT_OBJECT, purpose);
 

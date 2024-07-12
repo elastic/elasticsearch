@@ -23,6 +23,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.s3.spi.S3StorageClassStrategyProvider;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -262,8 +263,13 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-            return new ProxyS3Service(environment, nodeSettings, resourceWatcherService);
+        S3Service s3Service(
+            Environment environment,
+            Settings nodeSettings,
+            ResourceWatcherService resourceWatcherService,
+            S3StorageClassStrategyProvider storageClassStrategyProvider
+        ) {
+            return new ProxyS3Service(environment, nodeSettings, resourceWatcherService, storageClassStrategyProvider);
         }
 
         public static final class ClientAndCredentials extends AmazonS3Wrapper {
@@ -279,8 +285,13 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
-            ProxyS3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-                super(environment, nodeSettings, resourceWatcherService);
+            ProxyS3Service(
+                Environment environment,
+                Settings nodeSettings,
+                ResourceWatcherService resourceWatcherService,
+                S3StorageClassStrategyProvider storageClassStrategyProvider
+            ) {
+                super(environment, nodeSettings, resourceWatcherService, storageClassStrategyProvider);
             }
 
             @Override

@@ -26,6 +26,7 @@ import com.amazonaws.services.s3.model.UploadPartResult;
 
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -43,6 +44,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomP
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
@@ -106,7 +108,8 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
-        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        final OperationPurpose purpose = randomPurpose();
+        when(blobStore.getStorageClass(eq(purpose))).thenReturn(storageClass);
 
         final CannedAccessControlList cannedAccessControlList = randomBoolean() ? randomFrom(CannedAccessControlList.values()) : null;
         if (cannedAccessControlList != null) {
@@ -121,7 +124,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(client.putObject(argumentCaptor.capture())).thenReturn(new PutObjectResult());
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
-        blobContainer.executeSingleUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
+        blobContainer.executeSingleUpload(purpose, blobStore, blobName, inputStream, blobSize);
 
         final PutObjectRequest request = argumentCaptor.getValue();
         assertEquals(bucketName, request.getBucketName());
@@ -179,7 +182,8 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
-        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        final OperationPurpose purpose = randomPurpose();
+        when(blobStore.getStorageClass(eq(purpose))).thenReturn(storageClass);
 
         final CannedAccessControlList cannedAccessControlList = randomBoolean() ? randomFrom(CannedAccessControlList.values()) : null;
         if (cannedAccessControlList != null) {
@@ -218,7 +222,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[0]);
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
-        blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
+        blobContainer.executeMultipartUpload(purpose, blobStore, blobName, inputStream, blobSize);
 
         final InitiateMultipartUploadRequest initRequest = initArgCaptor.getValue();
         assertEquals(bucketName, initRequest.getBucketName());
@@ -272,7 +276,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
-        when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
+        when(blobStore.getStorageClass(any(OperationPurpose.class))).thenReturn(randomFrom(StorageClass.values()));
 
         final AmazonS3 client = mock(AmazonS3.class);
         final AmazonS3Reference clientReference = new AmazonS3Reference(client);

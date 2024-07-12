@@ -21,6 +21,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -48,7 +49,7 @@ public class S3RepositoryTests extends ESTestCase {
     private static class DummyS3Service extends S3Service {
 
         DummyS3Service(Environment environment, ResourceWatcherService resourceWatcherService) {
-            super(environment, Settings.EMPTY, resourceWatcherService);
+            super(environment, Settings.EMPTY, resourceWatcherService, SimpleS3StorageClassStrategyProvider.INSTANCE);
         }
 
         @Override

@@ -43,6 +43,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -104,7 +105,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @Before
     public void setUp() throws Exception {
         shouldErrorOnDns = new AtomicBoolean(false);
-        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class)) {
+        service = new S3Service(
+            Mockito.mock(Environment.class),
+            Settings.EMPTY,
+            Mockito.mock(ResourceWatcherService.class),
+            SimpleS3StorageClassStrategyProvider.INSTANCE
+        ) {
             @Override
             protected AmazonS3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
                 final AmazonS3ClientBuilder builder = super.buildClientBuilder(clientSettings);
@@ -191,7 +197,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
             bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
-            S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+            service.getStorageClassStrategy(Settings.EMPTY),
             repositoryMetadata,
             BigArrays.NON_RECYCLING_INSTANCE,
             new DeterministicTaskQueue().getThreadPool(),

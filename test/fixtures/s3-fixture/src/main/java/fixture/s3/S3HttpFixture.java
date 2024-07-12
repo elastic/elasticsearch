@@ -62,8 +62,15 @@ public class S3HttpFixture extends ExternalResource {
                     throw e;
                 }
             }
+
+            @Override
+            protected void validateStorageClass(String path, String storageClass) {
+                S3HttpFixture.this.validateStorageClass(path, storageClass);
+            }
         };
     }
+
+    protected void validateStorageClass(String path, String storageClass) {}
 
     public String getAddress() {
         return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();

@@ -128,7 +128,12 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
-                final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), requestComponents.path.substring(bucket.length() + 2));
+                validateStorageClass(exchange);
+
+                final var upload = new MultipartUpload(
+                    UUIDs.randomBase64UUID(),
+                    exchange.getRequestURI().getPath().substring(bucket.length() + 2)
+                );
                 uploads.put(upload.getUploadId(), upload);
 
                 final var uploadResult = new StringBuilder();
@@ -188,6 +193,8 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (Regex.simpleMatch("PUT /" + path + "/*", request)) {
+                validateStorageClass(exchange);
+
                 final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
                 blobs.put(requestComponents.uri(), blob.v2());
                 exchange.getResponseHeaders().add("ETag", blob.v1());
@@ -547,5 +554,14 @@ public class S3HttpHandler implements HttpHandler {
                 return path + "?" + query;
             }
         }
+    }
+
+    protected void validateStorageClass(String path, String storageClass) {}
+
+    private void validateStorageClass(HttpExchange exchange) {
+        validateStorageClass(
+            exchange.getRequestURI().getPath().substring(bucket.length() + 2),
+            exchange.getRequestHeaders().getFirst("x-amz-storage-class")
+        );
     }
 }

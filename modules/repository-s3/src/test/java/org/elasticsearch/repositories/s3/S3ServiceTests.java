@@ -10,6 +10,7 @@ package org.elasticsearch.repositories.s3;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.Mockito;
@@ -22,7 +23,8 @@ public class S3ServiceTests extends ESTestCase {
         final S3Service s3Service = new S3Service(
             Mockito.mock(Environment.class),
             Settings.EMPTY,
-            Mockito.mock(ResourceWatcherService.class)
+            Mockito.mock(ResourceWatcherService.class),
+            SimpleS3StorageClassStrategyProvider.INSTANCE
         );
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);

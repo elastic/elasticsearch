@@ -20,11 +20,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.s3.spi.S3StorageClassStrategyProvider;
+import org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -40,7 +43,7 @@ import java.util.Map;
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
-public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
+public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin, ExtensiblePlugin {
 
     static {
         SpecialPermission.check();
@@ -61,6 +64,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private final SetOnce<S3Service> service = new SetOnce<>();
+    private S3StorageClassStrategyProvider storageClassStrategyProvider = null;
     private final Settings settings;
 
     public S3RepositoryPlugin(Settings settings) {
@@ -85,13 +89,41 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
+        if (storageClassStrategyProvider == null) {
+            storageClassStrategyProvider = SimpleS3StorageClassStrategyProvider.INSTANCE;
+        }
+        service.set(
+            s3Service(
+                services.environment(),
+                services.clusterService().getSettings(),
+                services.resourceWatcherService(),
+                storageClassStrategyProvider
+            )
+        );
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         return List.of(service);
     }
 
-    S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-        return new S3Service(environment, nodeSettings, resourceWatcherService);
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        if (storageClassStrategyProvider != null) {
+            throw new IllegalStateException("storage class provider already set: " + storageClassStrategyProvider);
+        }
+        final var storageClassStrategyProviders = loader.loadExtensions(S3StorageClassStrategyProvider.class);
+        if (storageClassStrategyProviders.size() == 1) {
+            storageClassStrategyProvider = storageClassStrategyProviders.get(0);
+        } else if (storageClassStrategyProviders.size() > 1) {
+            throw new IllegalStateException("multiple storage class providers found: " + storageClassStrategyProviders);
+        }
+    }
+
+    S3Service s3Service(
+        Environment environment,
+        Settings nodeSettings,
+        ResourceWatcherService resourceWatcherService,
+        S3StorageClassStrategyProvider storageClassStrategyProvider
+    ) {
+        return new S3Service(environment, nodeSettings, resourceWatcherService, storageClassStrategyProvider);
     }
 
     @Override

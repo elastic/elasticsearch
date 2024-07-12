@@ -309,6 +309,15 @@ include::repository-shared-settings.asciidoc[]
     `intelligent_tiering`. Defaults to `standard`. See
     <<repository-s3-storage-classes>> for more information.
 
+`metadata_storage_class`::
+
+    Sets the S3 storage class for metadata objects written to the repository,
+    if advanced storage tiering is in use. Values may be `standard`,
+    `reduced_redundancy`, `standard_ia`, `onezone_ia` and
+    `intelligent_tiering`. If unset, metadata objects use the same storage
+    class as data objects, as set by the `storage_class` setting. See
+    <<repository-s3-storage-classes>> for more information.
+
 `delete_objects_max_size`::
 
     (<<number,numeric>>) Sets the maxmimum batch size, betewen 1 and 1000, used
@@ -355,8 +364,23 @@ different operational characteristics. For instance, some classes cost less per
 byte stored per month, but cost more per request, and other classes may vary in
 terms of their availability guarantees.
 
+{es} writes two different kinds of object to a S3 repository, known as _data
+objects_ and _metadata objects_. Data objects contain a copy of the data in
+your indices, which means that data objects typically make up the majority of
+the data volume held in a repository. Metadata objects contain information
+about the data objects, for example details about the snapshots to which they
+belong and when each of those snapshots was taken, and are usually much smaller
+than the data objects. However, every operation on a repository will access one
+or more metadata objects, which means that typically the majority of requests
+to a repository will target metadata objects.
+
 You may specify the storage class that {es} uses to store data objects with the
-`storage_class` repository setting.
+`storage_class` repository setting. If advanced storage tiering is in use you
+may also specify a different storage class for metadata objects with the
+`metadata_storage_class` repository setting. The `standard` storage class is
+well-suited to metadata objects since they are small and accessed frequently.
+In contrast, the larger data objects are accessed less frequently so a
+different storage class may be more suitable.
 
 Changing the `storage_class` setting on an existing repository only affects the
 storage class for newly created objects, resulting in a mixed usage of storage

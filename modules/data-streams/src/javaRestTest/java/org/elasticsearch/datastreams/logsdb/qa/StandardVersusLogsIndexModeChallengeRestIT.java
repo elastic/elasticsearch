@@ -27,13 +27,10 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregati
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -44,26 +41,8 @@ import java.util.Map;
 
 public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
 
-    @ClassRule()
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .module("constant-keyword")
-        .module("data-streams")
-        .module("mapper-extras")
-        .module("x-pack-aggregate-metric")
-        .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("cluster.logsdb.enabled", "true")
-        .build();
-
     public StandardVersusLogsIndexModeChallengeRestIT() {
         super("logs-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 99, 99);
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
     }
 
     @Override

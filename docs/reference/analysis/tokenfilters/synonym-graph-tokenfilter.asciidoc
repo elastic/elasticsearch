@@ -194,7 +194,7 @@ If the stop filter removed `baz` instead:
 For *equivalent synonyms* like `foo, bar, baz` with a stop filter that removes `bar`:
 
 - If `lenient` is set to `false`, an error will be raised as `bar` would be removed from the synonym rule.
-- If `lenient` is set to `true`, the mappings added would be equivalent to `foo => baz` and `baz => foo`, which do not contain the removed word.
+- If `lenient` is set to `true`, the mappings added would be equivalent to `foo => foo` and `baz => foo`, which do not contain the removed word.
 
 [discrete]
 ====== Stop token filter *after* synonym token filter

@@ -225,13 +225,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return list;
     }
 
-    private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
+    private static void mappingAsAttributes(List<Attribute> list, Source source, FieldAttribute parent, Map<String, EsField> mapping) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
             EsField t = entry.getValue();
 
             if (t != null) {
-                name = parentName == null ? name : parentName + "." + name;
+                name = parent == null ? name : parent.fieldName() + "." + name;
                 var fieldProperties = t.getProperties();
                 var type = t.getDataType().widenSmallNumeric();
                 // due to a bug also copy the field since the Attribute hierarchy extracts the data type
@@ -240,19 +240,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias());
                 }
 
+                FieldAttribute attribute = t instanceof UnsupportedEsField uef
+                    ? new UnsupportedAttribute(source, name, uef)
+                    : new FieldAttribute(source, parent, name, t);
                 // primitive branch
                 if (EsqlDataTypes.isPrimitive(type)) {
-                    Attribute attribute;
-                    if (t instanceof UnsupportedEsField uef) {
-                        attribute = new UnsupportedAttribute(source, name, uef);
-                    } else {
-                        attribute = new FieldAttribute(source, null, name, t);
-                    }
                     list.add(attribute);
                 }
                 // allow compound object even if they are unknown (but not NESTED)
                 if (type != NESTED && fieldProperties.isEmpty() == false) {
-                    mappingAsAttributes(list, source, name, fieldProperties);
+                    mappingAsAttributes(list, source, attribute, fieldProperties);
                 }
             }
         }
@@ -1249,7 +1246,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> newOutput = new ArrayList<>(output.size());
 
             for (Attribute attr : output) {
-                // TODO: this should really use .isSynthetic
+                // TODO: this should really use .synthetic()
                 // https://github.com/elastic/elasticsearch/issues/105821
                 if (attr.name().contains("$$") == false) {
                     newOutput.add(attr);

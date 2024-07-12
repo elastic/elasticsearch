@@ -72,7 +72,7 @@ public class FieldAttribute extends TypedAttribute {
         boolean synthetic
     ) {
         super(source, name, type, qualifier, nullability, id, synthetic);
-        this.path = parent != null ? parent.name() : StringUtils.EMPTY;
+        this.path = parent != null ? parent.fieldName() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
     }
@@ -129,6 +129,22 @@ public class FieldAttribute extends TypedAttribute {
 
     public String path() {
         return path;
+    }
+
+    /**
+     * The full name of the field in the index, including all parent fields. E.g. {@code parent.subfield.this_field}.
+     */
+    public String fieldName() {
+        // Before 8.15, the field name was the same as the attribute's name.
+        // On later versions, the attribute can be renamed when creating synthetic attributes.
+        // TODO: We should use synthetic() to check for that case.
+        // https://github.com/elastic/elasticsearch/issues/105821
+        boolean isSynthetic = field.getName().contains("$$");
+
+        if (isSynthetic == false) {
+            return name();
+        }
+        return Strings.hasText(path) ? path + "." + field.getName() : field.getName();
     }
 
     public String qualifiedPath() {

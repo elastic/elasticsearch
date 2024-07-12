@@ -43,8 +43,10 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
     }
 
     /**
-     * The model to use in the inference endpoint (e.g. text-embedding-ada-002)
-     * @return the model used to perform inference
+     * The model to use in the inference endpoint (e.g. text-embedding-ada-002). Sometimes the model is not defined in the service
+     * settings. This can happen for external providers (e.g. hugging face, azure ai studio) where the provider requires that the model
+     * be chosen when initializing a deployment within their service. In this situation, return null.
+     * @return the model used to perform inference or null if the model is not defined
      */
     String modelId();
 }

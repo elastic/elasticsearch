@@ -85,45 +85,42 @@ Additional settings are:
 <<indices-reload-analyzers,reloading>> search analyzers to pick up
 changes to synonym files. Only to be used for search analyzers.
 * `expand` (defaults to `true`).
-* `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration. It is important
-to note that only those synonym rules which cannot get parsed are ignored. For instance consider the following request:
+Expand definitions for equivalent synonyms mappings.
+See <<synonym-graph-tokenizer-expand-equivalent-synonyms,expand equivalent synonyms>>.
+* `lenient` (defaults to `false`).
+If `true` ignores errors while parsing the synonym configuration.
+It is important to note that only those synonym rules which cannot get parsed are ignored.
+See <<synonym-graph-tokenizer-stop-token-filter,synoyms and stop token filters>> for an example of lenient behaviour for invalid synonym rules.
 
-[source,console]
---------------------------------------------------
-PUT /test_index
-{
-  "settings": {
-    "index": {
-      "analysis": {
-        "analyzer": {
-          "synonym": {
-            "tokenizer": "standard",
-            "filter": [ "my_stop", "synonym_graph" ]
-          }
-        },
-        "filter": {
-          "my_stop": {
-            "type": "stop",
-            "stopwords": [ "bar" ]
-          },
-          "synonym_graph": {
-            "type": "synonym_graph",
-            "lenient": true,
-            "synonyms": [ "foo, bar => baz" ]
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
+[discrete]
+[[synonym-graph-tokenizer-expand-equivalent-synonyms]]
+===== `expand` equivalent synonyms
 
-With the above request the word `bar` gets skipped but a mapping `foo => baz` is still added. However, if the mapping
-being added was `foo, baz => bar` nothing would get added to the synonym list. This is because the target word for the
-mapping is itself eliminated because it was a stop word. Similarly, if the mapping was "bar, foo, baz" and `expand` was
-set to `false` no mapping would get added as when `expand=false` the target mapping is the first word. However, if
-`expand=true` then the mappings added would be equivalent to `foo, baz => foo, baz` i.e, all mappings other than the
-stop word.
+The `expand` parameter controls whether to expand equivalent synonyms mappings.
+Consider a synonym defined like:
+
+`foo, bar, baz`
+
+Using `expand: true` would get the synonym expanded into:
+
+```
+foo => bar
+foo => baz
+bar => foo
+bar => baz
+baz => foo
+baz => bar
+```
+
+When `expand` is set to `false`, the mappings are not expanded and only the first word is considered as the source word. The synonym would be equivalent to:
+
+```
+foo => foo
+bar => foo
+baz => foo
+```
+
+The `expand` parameter does not affect explicit synonyms mappings, like `foo, bar => baz`.
 
 [discrete]
 [[synonym-graph-tokenizer-ignore_case-deprecated]]
@@ -160,12 +157,71 @@ Text will be processed first through filters preceding the synonym filter before
 {es} will also use the token filters preceding the synonym filter in a tokenizer chain to parse the entries in a synonym file or synonym set.
 In the above example, the synonyms graph token filter is placed after a stemmer. The stemmer will also be applied to the synonym entries.
 
-The synonym rules should not contain words that are removed by a filter that appears later in the chain (like a `stop` filter).
-Removing a term from a synonym rule means there will be no matching for it at query time.
-
 Because entries in the synonym map cannot have stacked positions, some token filters may cause issues here.
 Token filters that produce multiple versions of a token may choose which version of the token to emit when parsing synonyms.
 For example, `asciifolding` will only produce the folded version of the token.
 Others, like `multiplexer`, `word_delimiter_graph` or `ngram` will throw an error.
 
 If you need to build analyzers that include both multi-token filters and synonym filters, consider using the <<analysis-multiplexer-tokenfilter,multiplexer>> filter, with the multi-token filters in one branch and the synonym filter in the other.
+
+[discrete]
+[[synonym-graph-tokenizer-stop-token-filter]]
+===== Synonyms and `stop` token filter
+
+Synonyms and <<analysis-stop-tokenfilter,stop token filter>> interact with each other in the following ways:
+
+[discrete]
+====== Stop token filter *before* synonym token filter
+
+Stop words will be removed from the synonym rule definition, making it potentially invalid.
+
+Consider the following request:
+
+[source,console]
+--------------------------------------------------
+PUT /test_index
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "synonym": {
+            "tokenizer": "standard",
+            "filter": [ "my_stop", "synonym_graph" ]
+          }
+        },
+        "filter": {
+          "my_stop": {
+            "type": "stop",
+            "stopwords": [ "bar" ]
+          },
+          "synonym_graph": {
+            "type": "synonym_graph",
+            "lenient": true,
+            "synonyms": [ "foo, bar => baz" ]
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+This should be an error, as `foo` would be removed by the stopword filter.
+Using `lenient: true` means that the word `bar` gets skipped but a mapping `foo => baz` is still added.
+
+However, if the mapping  being added was `foo, baz => bar` nothing would get added to the synonym list.
+This is because the target word for the mapping is itself eliminated because it was a stop word.
+
+Similarly, if the mapping was "bar, foo, baz" and `expand` was set to `false` no mapping would get added as when `expand=false` the target mapping is the first word.
+However, if `expand=true` then the mappings added would be equivalent to `foo, baz => foo, baz` i.e, all mappings other than the stop word.
+
+[discrete]
+====== Stop token filter *after* synonym token filter
+
+If the stop filter removes a term that is part of a synonym rule, there will be no matching for it at query time.
+For example, given the following synonym rules:
+
+`foo => bar`
+
+and a stopword filter that removes `foo`, then searching for `foo` won't produce any results that contain `foo` or `bar`.

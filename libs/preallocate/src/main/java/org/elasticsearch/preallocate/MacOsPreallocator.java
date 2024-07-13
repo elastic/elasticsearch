@@ -12,7 +12,6 @@ import com.sun.jna.Memory;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Platform;
-import com.sun.jna.Pointer;
 
 import java.lang.invoke.MethodHandles;
 import java.security.AccessController;

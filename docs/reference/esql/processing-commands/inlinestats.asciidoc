@@ -2,6 +2,9 @@
 [[esql-inlinestats-by]]
 === `INLINESTATS ... BY`
 
+The `INLINESTATS` command calculates an aggregate result and merges that result
+back into the stream of input data.
+
 **Syntax**
 
 [source,esql]
@@ -35,6 +38,17 @@ matching group keys.
 All of the <<esql-agg-functions,aggregation functions>> are supported.
 
 *Examples*
+
+Add the maximum :
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/inlinestats.csv-spec[tag=max-languages]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/inlinestats.csv-spec[tag=max-languages-result]
+|===
 
 Find the employees that speak the most languages (it's a tie!):
 
@@ -72,4 +86,24 @@ include::{esql-specs}/inlinestats.csv-spec[tag=extreme-airports-result]
 NOTE: Our test data doesn't have many "small" airports.
 
 If a `BY` field is multivalued then `INLINESTATS` will put the row in *each*
-bucket like <<esql-stats-by>>.
+bucket like <<esql-stats-by>>:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/inlinestats.csv-spec[tag=mv-group]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/inlinestats.csv-spec[tag=mv-group-result]
+|===
+
+To treat each group key as its own row use <<esql-mv_expand>> before `INLINESTATS`:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/inlinestats.csv-spec[tag=mv-expand]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/inlinestats.csv-spec[tag=mv-expand-result]
+|===

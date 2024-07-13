@@ -8,20 +8,26 @@
 
 package org.elasticsearch.preallocate;
 
-import com.sun.jna.FunctionMapper;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
+import com.sun.jna.NativeLibrary;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Platform;
 import com.sun.jna.Structure;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 abstract class AbstractPosixPreallocator implements Preallocator {
+
+    static final Logger logger = LogManager.getLogger(AbstractPosixPreallocator.class);
 
     /**
      * Constants relating to posix libc.
@@ -35,7 +41,7 @@ abstract class AbstractPosixPreallocator implements Preallocator {
 
     private static final int O_WRONLY = 1;
 
-    static final class Stat64 extends Structure implements Structure.ByReference {
+    public static final class Stat64 extends Structure implements Structure.ByReference {
         public byte[] _ignore1;
         public NativeLong st_size = new NativeLong(0);
         public byte[] _ignore2;
@@ -43,6 +49,11 @@ abstract class AbstractPosixPreallocator implements Preallocator {
         Stat64(int sizeof, int stSizeOffset) {
             this._ignore1 = new byte[stSizeOffset];
             this._ignore2 = new byte[sizeof - stSizeOffset - 8];
+        }
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("_ignore1", "st_size", "_ignore2");
         }
     }
 
@@ -58,6 +69,10 @@ abstract class AbstractPosixPreallocator implements Preallocator {
         int fstat64(int fd, Stat64 stat);
     }
 
+    private interface FXStatFunction extends Library {
+        int __fxstat(int version, int fd, Stat64 stat);
+    }
+
     public static final boolean NATIVES_AVAILABLE;
     private static final NativeFunctions functions;
     private static final FStat64Function fstat64;
@@ -67,18 +82,29 @@ abstract class AbstractPosixPreallocator implements Preallocator {
             try {
                 return Native.load(Platform.C_LIBRARY_NAME, NativeFunctions.class);
             } catch (final UnsatisfiedLinkError e) {
+                logger.warn("Failed to load posix functions for preallocate");
                 return null;
             }
         });
         fstat64 = AccessController.doPrivileged((PrivilegedAction<FStat64Function>) () -> {
             try {
+                // JNA lazily finds symbols, so even though we try to bind two different functions below, if fstat64
+                // isn't found, we won't know until runtime when calling the function. To force resolution of the
+                // symbol we get a function object directly from the native library. We don't use it, we just want to
+                // see if it will throw UnsatisfiedLinkError
+                NativeLibrary.getInstance(Platform.C_LIBRARY_NAME).getFunction("fstat64");
                 return Native.load(Platform.C_LIBRARY_NAME, FStat64Function.class);
             } catch (final UnsatisfiedLinkError e) {
+                // fstat has a long history in linux from the 32-bit architecture days. On some modern linux systems,
+                // fstat64 doesn't exist as a symbol in glibc. Instead, the compiler replaces fstat64 calls with
+                // the internal __fxstat method. Here we fall back to __fxstat, and statically bind the special
+                // "version" argument so that the call site looks the same as that of fstat64
                 try {
-                    // on Linux fstat64 isn't available as a symbol, but instead uses a special __ name
-                    var options = Map.of(Library.OPTION_FUNCTION_MAPPER, (FunctionMapper) (lib, method) -> "__fxstat64");
-                    return Native.load(Platform.C_LIBRARY_NAME, FStat64Function.class, options);
+                    var fxstat = Native.load(Platform.C_LIBRARY_NAME, FXStatFunction.class);
+                    int version = System.getProperty("os.arch").equals("aarch64") ? 0 : 1;
+                    return (fd, stat) -> fxstat.__fxstat(version, fd, stat);
                 } catch (UnsatisfiedLinkError e2) {
+                    logger.warn("Failed to load __fxstat for preallocate");
                     return null;
                 }
             }
@@ -124,7 +150,7 @@ abstract class AbstractPosixPreallocator implements Preallocator {
 
     @Override
     public boolean useNative() {
-        return false;
+        return NATIVES_AVAILABLE;
     }
 
     @Override

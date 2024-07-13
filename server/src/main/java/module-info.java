@@ -33,6 +33,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.simdvec;
+    requires org.elasticsearch.preallocate;
 
     requires com.sun.jna;
     requires hppc;

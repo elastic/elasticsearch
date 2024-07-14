@@ -16,16 +16,15 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -84,20 +83,18 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     private IpPrefix(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression()
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        List<Expression> fields = children();
-        assert fields.size() == 3;
-        ((PlanStreamOutput) out).writeExpression(fields.get(0));
-        ((PlanStreamOutput) out).writeExpression(fields.get(1));
-        ((PlanStreamOutput) out).writeExpression(fields.get(2));
+        out.writeNamedWriteable(ipField);
+        out.writeNamedWriteable(prefixLengthV4Field);
+        out.writeNamedWriteable(prefixLengthV6Field);
     }
 
     @Override

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.optimizer;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -36,6 +38,16 @@ public class OptimizerRulesTests extends ESTestCase {
         public DummyBooleanExpression(Source source, int id) {
             super(source, Collections.emptyList());
             this.id = id;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
         }
 
         @Override

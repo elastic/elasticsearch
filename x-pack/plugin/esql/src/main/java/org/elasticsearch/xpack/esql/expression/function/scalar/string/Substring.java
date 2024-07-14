@@ -16,16 +16,15 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,7 +48,7 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns a substring of a string, specified by a start position and an optional length",
+        description = "Returns a substring of a string, specified by a start position and an optional length.",
         examples = {
             @Example(file = "docs", tag = "substring", description = "This example returns the first three characters of every last name:"),
             @Example(file = "docs", tag = "substringEnd", description = """
@@ -83,18 +82,18 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
     private Substring(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readOptionalNamed(Expression.class)
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(str);
-        ((PlanStreamOutput) out).writeExpression(start);
-        ((PlanStreamOutput) out).writeOptionalExpression(length);
+        out.writeNamedWriteable(str);
+        out.writeNamedWriteable(start);
+        out.writeOptionalNamedWriteable(length);
     }
 
     @Override

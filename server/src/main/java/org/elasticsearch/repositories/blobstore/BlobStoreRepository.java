@@ -3987,4 +3987,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public int getReadBufferSizeInBytes() {
         return bufferSize;
     }
+
+    /**
+     * @return extra information to be included in the exception message emitted on failure of a repository analysis.
+     */
+    public String getAnalysisFailureExtraDetail() {
+        return Strings.format(
+            """
+                Elasticsearch observed the storage system underneath this repository behaved incorrectly which indicates it is not \
+                suitable for use with Elasticsearch snapshots. See [%s] for further information.""",
+            ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS
+        );
+    }
 }

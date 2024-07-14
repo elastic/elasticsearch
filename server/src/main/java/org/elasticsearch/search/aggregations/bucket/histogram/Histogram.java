@@ -11,8 +11,6 @@ import org.elasticsearch.cluster.service.Tags;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.xcontent.ParseField;
 
-import java.util.List;
-
 /**
  * A {@code histogram} aggregation. Defines multiple buckets, each representing an interval in a histogram.
  */
@@ -25,6 +23,7 @@ public interface Histogram extends MultiBucketsAggregation {
     ParseField MIN_DOC_COUNT_FIELD = new ParseField("min_doc_count");
     ParseField EXTENDED_BOUNDS_FIELD = new ParseField("extended_bounds");
     ParseField HARD_BOUNDS_FIELD = new ParseField("hard_bounds");
+
 
     void record(Double value, Tags tags);
 

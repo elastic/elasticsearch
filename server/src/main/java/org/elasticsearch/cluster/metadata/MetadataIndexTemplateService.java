@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -713,7 +714,9 @@ public class MetadataIndexTemplateService {
                 )
             );
         }
-        // Then apply settings resolved from templates:
+        // Then apply setting from component templates:
+        finalSettings.put(combinedSettings);
+        // Then finally apply settings resolved from index template:
         finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
 
         var templateToValidate = indexTemplate.toBuilder()
@@ -1652,7 +1655,12 @@ public class MetadataIndexTemplateService {
         final ClusterState stateWithIndex = ClusterState.builder(stateWithTemplate)
             .metadata(
                 Metadata.builder(stateWithTemplate.metadata())
-                    .put(IndexMetadata.builder(temporaryIndexName).settings(finalResolvedSettings))
+                    .put(
+                        IndexMetadata.builder(temporaryIndexName)
+                            // necessary to pass asserts in ClusterState constructor
+                            .eventIngestedRange(IndexLongFieldRange.UNKNOWN, state.getMinTransportVersion())
+                            .settings(finalResolvedSettings)
+                    )
                     .build()
             )
             .build();

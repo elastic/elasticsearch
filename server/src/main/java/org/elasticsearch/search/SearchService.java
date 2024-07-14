@@ -482,6 +482,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     protected ReaderContext removeReaderContext(long id) {
+        logger.trace("removing reader context [{}]", id);
         return activeReaders.remove(id);
     }
 
@@ -1182,6 +1183,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public boolean freeReaderContext(ShardSearchContextId contextId) {
+        logger.trace("freeing reader context [{}]", contextId);
         if (sessionId.equals(contextId.getSessionId())) {
             try (ReaderContext context = removeReaderContext(contextId.getId())) {
                 return context != null;
@@ -1845,7 +1847,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, aggs);
+                return new AggregationReduceContext.ForPartial(
+                    bigArrays,
+                    scriptService,
+                    isCanceled,
+                    aggs,
+                    multiBucketConsumerService.createForPartial()
+                );
             }
 
             @Override
@@ -1855,7 +1863,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     scriptService,
                     isCanceled,
                     aggs,
-                    multiBucketConsumerService.create()
+                    multiBucketConsumerService.createForFinal()
                 );
             }
         };

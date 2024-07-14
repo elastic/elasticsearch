@@ -10,8 +10,10 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -2129,8 +2131,97 @@ public final class RestoreService implements ClusterStateApplier {
 
         }
 
+
         static class Task {
             final String uuid;
+
+            final IndexVersion minIndexCompatibilityVersion = currentState.getNodes().getMinSupportedIndexVersion();
+            final String localNodeId = clusterService.state().nodes().getLocalNodeId();
+            for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
+                final IndexId index = indexEntry.getValue();
+                final IndexMetadata originalIndexMetadata = metadata.index(index.getName());
+                repositoriesService.getPreRestoreVersionChecks()
+                    .forEach(check -> check.accept(snapshot, originalIndexMetadata.getCreationVersion()));
+                IndexMetadata snapshotIndexMetadata = updateIndexSettings(
+                    snapshot,
+                    originalIndexMetadata,
+                    request.indexSettings(),
+                    request.ignoreIndexSettings()
+                );
+                if (snapshotIndexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
+                    // adapt index metadata so that it can be understood by current version
+                    snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState, indicesService);
+                }
+                try {
+                    snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(snapshotIndexMetadata, minIndexCompatibilityVersion);
+                } catch (Exception ex) {
+                    throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
+                }
+                final String renamedIndexName = indexEntry.getKey();
+                final IndexMetadata currentIndexMetadata = currentState.metadata().index(renamedIndexName);
+                final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
+                    restoreUUID,
+                    snapshot,
+                    snapshotInfo.version(),
+                    index
+                );
+                final boolean partial = checkPartial(index.getName());
+                final Set<Integer> ignoreShards = new HashSet<>();
+                final IndexMetadata updatedIndexMetadata;
+
+                // different paths depending on whether we are restoring to create a new index or restoring over an existing closed index
+                // that will be opened by the restore
+                if (currentIndexMetadata == null) {
+                    // Index doesn't exist - create it and start recovery
+                    // Make sure that the index we are about to create has a valid name
+                    ensureValidIndexName(currentState, snapshotIndexMetadata, renamedIndexName);
+                    shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
+
+                    final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(
+                        snapshotIndexMetadata,
+                        renamedIndexName,
+                        currentState.getMinTransportVersion()
+                    );
+                    if (request.includeAliases() == false
+                        && snapshotIndexMetadata.getAliases().isEmpty() == false
+                        && isSystemIndex(snapshotIndexMetadata) == false) {
+                        // Remove all aliases - they shouldn't be restored
+                        indexMdBuilder.removeAllAliases();
+                    } else {
+                        ensureNoAliasNameConflicts(snapshotIndexMetadata);
+                    }
+                    updatedIndexMetadata = indexMdBuilder.build();
+                    if (partial) {
+                        populateIgnoredShards(index.getName(), ignoreShards);
+                    }
+                    rtBuilder.addAsNewRestore(updatedIndexMetadata, recoverySource, ignoreShards);
+                    blocks.addBlocks(updatedIndexMetadata);
+                } else {
+                    // Index exists and it's closed - open it in metadata and start recovery
+                    validateExistingClosedIndex(currentIndexMetadata, snapshotIndexMetadata, renamedIndexName, partial);
+                    final IndexMetadata.Builder indexMdBuilder = restoreOverClosedIndex(
+                        snapshotIndexMetadata,
+                        currentIndexMetadata,
+                        currentState.getMinTransportVersion()
+                    );
+
+                    if (request.includeAliases() == false && isSystemIndex(snapshotIndexMetadata) == false) {
+                        // Remove all snapshot aliases
+                        if (snapshotIndexMetadata.getAliases().isEmpty() == false) {
+                            indexMdBuilder.removeAllAliases();
+                        }
+                        // Add existing aliases
+                        for (AliasMetadata alias : currentIndexMetadata.getAliases().values()) {
+                            indexMdBuilder.putAlias(alias);
+                        }
+                    } else {
+                        ensureNoAliasNameConflicts(snapshotIndexMetadata);
+                    }
+                    updatedIndexMetadata = indexMdBuilder.build();
+                    rtBuilder.addAsRestore(updatedIndexMetadata, recoverySource);
+                    blocks.updateBlocks(updatedIndexMetadata);
+                }
+
 
             Task(String uuid) {
                 this.uuid = uuid;
@@ -2488,17 +2579,26 @@ public final class RestoreService implements ClusterStateApplier {
         return convertedIndexMetadataBuilder.build();
     }
 
-    private static IndexMetadata.Builder restoreToCreateNewIndex(IndexMetadata snapshotIndexMetadata, String renamedIndexName) {
+    private static IndexMetadata.Builder restoreToCreateNewIndex(
+        IndexMetadata snapshotIndexMetadata,
+        String renamedIndexName,
+        TransportVersion minClusterTransportVersion
+    ) {
         return IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .index(renamedIndexName)
             .settings(
                 Settings.builder().put(snapshotIndexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             )
-            .timestampRange(IndexLongFieldRange.NO_SHARDS);
+            .timestampRange(IndexLongFieldRange.NO_SHARDS)
+            .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, minClusterTransportVersion);
     }
 
-    private static IndexMetadata.Builder restoreOverClosedIndex(IndexMetadata snapshotIndexMetadata, IndexMetadata currentIndexMetadata) {
+    private static IndexMetadata.Builder restoreOverClosedIndex(
+        IndexMetadata snapshotIndexMetadata,
+        IndexMetadata currentIndexMetadata,
+        TransportVersion minTransportVersion
+    ) {
         final IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .version(Math.max(snapshotIndexMetadata.getVersion(), 1 + currentIndexMetadata.getVersion()))
@@ -2507,6 +2607,7 @@ public final class RestoreService implements ClusterStateApplier {
             .settingsVersion(Math.max(snapshotIndexMetadata.getSettingsVersion(), 1 + currentIndexMetadata.getSettingsVersion()))
             .aliasesVersion(Math.max(snapshotIndexMetadata.getAliasesVersion(), 1 + currentIndexMetadata.getAliasesVersion()))
             .timestampRange(IndexLongFieldRange.NO_SHARDS)
+            .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, minTransportVersion)
             .index(currentIndexMetadata.getIndex().getName())
             .settings(
                 Settings.builder()

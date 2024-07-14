@@ -18,6 +18,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
@@ -32,21 +33,6 @@ public final class EsqlDataTypes {
 
     public static DataType fromTypeName(String name) {
         return DataType.fromTypeName(name.toLowerCase(Locale.ROOT));
-    }
-
-    public static DataType fromName(String name) {
-        return DataType.fromEs(name);
-    }
-
-    public static boolean isUnsupported(DataType type) {
-        return DataType.isUnsupported(type);
-    }
-
-    public static String outputType(DataType type) {
-        if (type != null && type.esType() != null) {
-            return type.esType();
-        }
-        return "unsupported";
     }
 
     public static boolean isString(DataType t) {
@@ -104,6 +90,7 @@ public final class EsqlDataTypes {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
+            && t != PARTIAL_AGG
             && t.isCounter() == false;
     }
 

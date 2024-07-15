@@ -14,7 +14,6 @@ import com.sun.jna.Memory;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLibrary;
 import com.sun.jna.Platform;
-
 import com.sun.jna.Pointer;
 
 import org.apache.logging.log4j.LogManager;
@@ -71,7 +70,7 @@ final class PosixFileSystemNatives implements FileSystemNatives.Provider {
             statFunction = Native.load(Platform.C_LIBRARY_NAME, Stat64Library.class);
         } catch (UnsatisfiedLinkError e) {
             var xstat = Native.load(Platform.C_LIBRARY_NAME, XStatLibrary.class);
-            var version =loadStatVersion();
+            var version = loadStatVersion();
             statFunction = (path, stats) -> xstat.__xstat(version, path, stats);
         }
         lib = statFunction;
@@ -119,7 +118,7 @@ final class PosixFileSystemNatives implements FileSystemNatives.Provider {
     }
 
     public static class Stat {
-        final Memory memory =  new Memory(144);
+        final Memory memory = new Memory(144);
         final int blocksOffset;
 
         Stat(int blocksOffset) {

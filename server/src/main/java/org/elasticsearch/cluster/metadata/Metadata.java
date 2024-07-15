@@ -213,7 +213,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     private final Settings transientSettings;
     private final Settings persistentSettings;
     private final Settings settings;
-    private final DiffableStringMap hashesOfConsistentSettings;
     private final ImmutableOpenMap<String, IndexMetadata> indices;
     private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
     private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
@@ -253,7 +252,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         Settings transientSettings,
         Settings persistentSettings,
         Settings settings,
-        DiffableStringMap hashesOfConsistentSettings,
         int totalNumberOfShards,
         int totalOpenIndexShards,
         ImmutableOpenMap<String, IndexMetadata> indices,
@@ -278,7 +276,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         this.transientSettings = transientSettings;
         this.persistentSettings = persistentSettings;
         this.settings = settings;
-        this.hashesOfConsistentSettings = hashesOfConsistentSettings;
         this.indices = indices;
         this.aliasedIndices = aliasedIndices;
         this.customs = customs;
@@ -333,7 +330,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             transientSettings,
             persistentSettings,
             settings,
-            hashesOfConsistentSettings,
             totalNumberOfShards,
             totalOpenIndexShards,
             indices,
@@ -394,7 +390,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             transientSettings,
             persistentSettings,
             settings,
-            hashesOfConsistentSettings,
             totalNumberOfShards,
             totalOpenIndexShards,
             builder.build(),
@@ -434,7 +429,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             transientSettings,
             persistentSettings,
             settings,
-            hashesOfConsistentSettings,
             totalNumberOfShards,
             totalOpenIndexShards,
             builder.build(),
@@ -463,7 +457,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             transientSettings,
             persistentSettings,
             settings,
-            hashesOfConsistentSettings,
             totalNumberOfShards,
             totalOpenIndexShards,
             indices,
@@ -499,7 +492,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             transientSettings,
             persistentSettings,
             settings,
-            hashesOfConsistentSettings,
             totalNumberOfShards,
             totalOpenIndexShards,
             indices,
@@ -540,7 +532,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             transientSettings,
             persistentSettings,
             settings,
-            hashesOfConsistentSettings,
             totalNumberOfShards,
             totalOpenIndexShards,
             updatedIndicesBuilder.build(),
@@ -635,7 +626,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             transientSettings,
             persistentSettings,
             settings,
-            hashesOfConsistentSettings,
             totalNumberOfShards + index.getTotalNumberOfShards(),
             totalOpenIndexShards + (index.getState() == IndexMetadata.State.OPEN ? index.getTotalNumberOfShards() : 0),
             indicesMap,
@@ -721,10 +711,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     public Settings persistentSettings() {
         return this.persistentSettings;
-    }
-
-    public Map<String, String> hashesOfConsistentSettings() {
-        return this.hashesOfConsistentSettings;
     }
 
     public CoordinationMetadata coordinationMetadata() {
@@ -1454,9 +1440,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         if (metadata1.persistentSettings.equals(metadata2.persistentSettings) == false) {
             return false;
         }
-        if (metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings) == false) {
-            return false;
-        }
         if (metadata1.templates.equals(metadata2.templates()) == false) {
             return false;
         }
@@ -1569,7 +1552,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         private final CoordinationMetadata coordinationMetadata;
         private final Settings transientSettings;
         private final Settings persistentSettings;
-        private final Diff<DiffableStringMap> hashesOfConsistentSettings;
         private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
         private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
@@ -1589,13 +1571,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
             if (empty) {
-                hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
                 indices = DiffableUtils.emptyDiff();
                 templates = DiffableUtils.emptyDiff();
                 customs = DiffableUtils.emptyDiff();
                 reservedStateMetadata = DiffableUtils.emptyDiff();
             } else {
-                hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
                 indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
                 templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
                 customs = DiffableUtils.diff(
@@ -1627,11 +1607,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             coordinationMetadata = new CoordinationMetadata(in);
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-                hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
-            } else {
-                hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
-            }
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
@@ -1664,9 +1639,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             coordinationMetadata.writeTo(out);
             transientSettings.writeTo(out);
             persistentSettings.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-                hashesOfConsistentSettings.writeTo(out);
-            }
             indices.writeTo(out);
             templates.writeTo(out);
             customs.writeTo(out);
@@ -1690,7 +1662,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             builder.coordinationMetadata(coordinationMetadata);
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
-            builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
             builder.indices(updatedIndices);
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
@@ -1713,9 +1684,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         builder.coordinationMetadata(new CoordinationMetadata(in));
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-            builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
-        }
         final Function<String, MappingMetadata> mappingLookup;
         if (in.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
             final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
@@ -1757,9 +1725,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         coordinationMetadata.writeTo(out);
         transientSettings.writeTo(out);
         persistentSettings.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-            hashesOfConsistentSettings.writeTo(out);
-        }
         // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
         // we avoid writing duplicate mappings twice
         if (out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
@@ -1800,7 +1765,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         private CoordinationMetadata coordinationMetadata = CoordinationMetadata.EMPTY_METADATA;
         private Settings transientSettings = Settings.EMPTY;
         private Settings persistentSettings = Settings.EMPTY;
-        private DiffableStringMap hashesOfConsistentSettings = DiffableStringMap.EMPTY;
 
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
         private final ImmutableOpenMap.Builder<String, Set<Index>> aliasedIndices;
@@ -1830,7 +1794,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             this.coordinationMetadata = metadata.coordinationMetadata;
             this.transientSettings = metadata.transientSettings;
             this.persistentSettings = metadata.persistentSettings;
-            this.hashesOfConsistentSettings = metadata.hashesOfConsistentSettings;
             this.version = metadata.version;
             this.indices = ImmutableOpenMap.builder(metadata.indices);
             this.aliasedIndices = ImmutableOpenMap.builder(metadata.aliasedIndices);
@@ -2310,16 +2273,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             return this;
         }
 
-        public Builder hashesOfConsistentSettings(DiffableStringMap hashesOfConsistentSettings) {
-            this.hashesOfConsistentSettings = hashesOfConsistentSettings;
-            return this;
-        }
-
-        public Builder hashesOfConsistentSettings(Map<String, String> hashesOfConsistentSettings) {
-            this.hashesOfConsistentSettings = new DiffableStringMap(hashesOfConsistentSettings);
-            return this;
-        }
-
         public Builder version(long version) {
             this.version = version;
             return this;
@@ -2436,7 +2389,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 transientSettings,
                 persistentSettings,
                 Settings.builder().put(persistentSettings).put(transientSettings).build(),
-                hashesOfConsistentSettings,
                 totalNumberOfShards,
                 totalOpenIndexShards,
                 indicesMap,
@@ -2774,8 +2726,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexMetadata.Builder.fromXContent(parser), false);
                         }
-                    } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
-                        builder.hashesOfConsistentSettings(parser.mapStrings());
                     } else if ("templates".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));

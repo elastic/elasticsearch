@@ -72,21 +72,20 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
     }
 
     void listenForLicenseStateChanges() {
-        assert licenseStateListenerRegistered == false;
-        licenseState.addListener(this);
+        assert licenseStateListenerRegistered == false : "listenForLicenseStateChanges() should only be called once";
         licenseStateListenerRegistered = true;
+        licenseState.addListener(this);
     }
 
     @Override
     public void licenseStateChanged() {
-        assert licenseStateListenerRegistered;
         licenseIsValid = ENTERPRISE_GEOIP_FEATURE.checkWithoutTracking(licenseState);
         maybeUpdateTaskState(clusterService.state());
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        hasIngestGeoIpMetadata = hasIngestGeoIpMetadata(event.state());
+        hasIngestGeoIpMetadata = event.state().metadata().custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
         final boolean ingestGeoIpCustomMetaChangedInEvent = event.metadataChanged()
             && event.changedCustomMetadataSet().contains(INGEST_GEOIP_CUSTOM_METADATA_TYPE);
         final boolean masterNodeChanged = Objects.equals(
@@ -95,7 +94,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
         ) == false;
         /*
          * We don't want to potentially start the task on every cluster state change, so only maybeUpdateTaskState if this cluster change
-         * event involved the modification of custom geoip metadata OR a master node change
+         * event involved the addition of custom geoip metadata OR a master node change
          */
         if (ingestGeoIpCustomMetaChangedInEvent || (masterNodeChanged && hasIngestGeoIpMetadata)) {
             maybeUpdateTaskState(event.state());
@@ -103,7 +102,8 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
     }
 
     private void maybeUpdateTaskState(ClusterState state) {
-        if (onMasterNode(state)) {
+        // We should only start/stop task from single node, master is the best as it will go through it anyway
+        if (state.nodes().isLocalNodeElectedMaster()) {
             if (licenseIsValid) {
                 if (hasIngestGeoIpMetadata) {
                     ensureTaskStarted();
@@ -141,14 +141,5 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
             }
         );
         persistentTasksService.sendRemoveRequest(ENTERPRISE_GEOIP_DOWNLOADER, MASTER_TIMEOUT, listener);
-    }
-
-    private boolean hasIngestGeoIpMetadata(ClusterState state) {
-        return state.metadata().custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
-    }
-
-    private boolean onMasterNode(ClusterState state) {
-        // We should only start/stop task from single node, master is the best as it will go through it anyway
-        return state.nodes().isLocalNodeElectedMaster();
     }
 }

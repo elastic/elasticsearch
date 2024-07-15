@@ -145,6 +145,35 @@ city:keyword | x:text
 Zürich       | Bezirk Zürich
 ;
 
+shadowingInternalImplicit
+required_capability: enrich_load
+ROW city = "Zürich"
+| ENRICH city_names ON city WITH airport = region
+;
+
+city:keyword | airport:text
+Zürich       | Bezirk Zürich
+;
+
+shadowingInternalImplicit2
+required_capability: enrich_load
+ROW city = "Zürich"
+| ENRICH city_names ON city WITH airport, airport = region
+;
+
+city:keyword | airport:text
+Zürich       | Bezirk Zürich
+;
+
+shadowingInternalImplicit3
+required_capability: enrich_load
+ROW city = "Zürich"
+| ENRICH city_names ON city WITH airport = region, airport
+;
+
+city:keyword | airport:text
+Zürich       | Zurich Int'l
+;
 
 simple
 required_capability: enrich_load

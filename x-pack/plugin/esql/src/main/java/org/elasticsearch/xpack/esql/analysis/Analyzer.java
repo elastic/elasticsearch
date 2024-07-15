@@ -1111,8 +1111,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // And add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
             // and thereby get used in FieldExtractExec
             plan = plan.transformDown(EsRelation.class, esr -> {
-                // Copy output so we do not accidentally mutate the previous plan
-                List<Attribute> output = new ArrayList<>(esr.output());
+                List<Attribute> output = esr.output();
                 List<Attribute> missing = new ArrayList<>();
                 for (FieldAttribute fa : unionFieldAttributes) {
                     if (output.stream().noneMatch(a -> a.id().equals(fa.id()))) {

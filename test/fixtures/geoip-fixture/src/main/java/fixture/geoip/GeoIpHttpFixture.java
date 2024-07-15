@@ -11,7 +11,6 @@ package fixture.geoip;
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.geoip.GeoIpCli;
 import org.junit.rules.ExternalResource;
 
@@ -27,7 +26,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
 
 public class GeoIpHttpFixture extends ExternalResource {
 
@@ -98,35 +96,8 @@ public class GeoIpHttpFixture extends ExternalResource {
                 }
             });
 
-            createContextForEnterpriseDatabase("GeoIP2-City");
             server.start();
         }
-    }
-
-    private void createContextForEnterpriseDatabase(String databaseType) {
-        this.server.createContext("/" + databaseType + "/download", exchange -> {
-            exchange.sendResponseHeaders(200, 0);
-            if (exchange.getRequestURI().toString().contains("sha256")) {
-                MessageDigest sha256 = MessageDigests.sha256();
-                try (InputStream inputStream = GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/" + databaseType + ".tgz")) {
-                    sha256.update(inputStream.readAllBytes());
-                }
-                exchange.getResponseBody()
-                    .write(
-                        (MessageDigests.toHexString(sha256.digest()) + "  " + databaseType + "_20240709.tar.gz").getBytes(
-                            StandardCharsets.UTF_8
-                        )
-                    );
-            } else {
-                try (
-                    OutputStream outputStream = exchange.getResponseBody();
-                    InputStream inputStream = GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/" + databaseType + ".tgz")
-                ) {
-                    inputStream.transferTo(outputStream);
-                }
-            }
-            exchange.getResponseBody().close();
-        });
     }
 
     @Override
@@ -155,11 +126,6 @@ public class GeoIpHttpFixture extends ExternalResource {
         Files.copy(
             GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/MyCustomGeoLite2-City.mmdb"),
             source.resolve("MyCustomGeoLite2-City.mmdb"),
-            StandardCopyOption.REPLACE_EXISTING
-        );
-        Files.copy(
-            GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoIP2-City.tgz"),
-            source.resolve("GeoIP2-City.tgz"),
             StandardCopyOption.REPLACE_EXISTING
         );
 

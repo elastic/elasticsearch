@@ -81,6 +81,7 @@
              warmer.total_time                .+   \n
              path.data                        .+   \n
              path.state                       .+   \n
+             refresh.is_search_idle           .+   \n
              bulk.total_operations            .+   \n
              bulk.total_time                  .+   \n
              bulk.total_size_in_bytes         .+   \n

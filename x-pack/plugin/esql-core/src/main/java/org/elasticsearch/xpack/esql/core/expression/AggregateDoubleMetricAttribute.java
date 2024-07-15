@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class AggregateDoubleMetricAttribute extends FieldAttribute {
 
@@ -64,19 +65,33 @@ public class AggregateDoubleMetricAttribute extends FieldAttribute {
     }
 
     public FieldAttribute getMinSubField() {
-        return new AggregateDoubleMetricSubAttribute(source(), name(), minSubNameId, "min");
+        return createSubAttribute("min", minSubNameId);
     }
 
     public FieldAttribute getMaxSubField() {
-        return new AggregateDoubleMetricSubAttribute(source(), name(), maxSubNameId, "max");
+        return createSubAttribute("max", maxSubNameId);
     }
 
     public FieldAttribute getSumSubField() {
-        return new AggregateDoubleMetricSubAttribute(source(), name(), sumSubNameId, "sum");
+        return createSubAttribute("sum", sumSubNameId);
     }
 
     public FieldAttribute getValueCountSubField() {
-        return new AggregateDoubleMetricSubAttribute(source(), name(), valueCountNameId, "value_count");
+        return createSubAttribute("value_count", valueCountNameId);
+    }
+
+    public String metric(FieldAttribute subAttribute) {
+        if (minSubNameId.equals(subAttribute.id())) {
+            return "min";
+        } else if (maxSubNameId.equals(subAttribute.id())) {
+            return "max";
+        } else if (sumSubNameId.equals(subAttribute.id())) {
+            return "sum";
+        } else if (valueCountNameId.equals(subAttribute.id())) {
+            return "value_count";
+        } else {
+            throw new UnsupportedOperationException("unsupported subfield [" + subAttribute + "]");
+        }
     }
 
     @Override
@@ -118,5 +133,10 @@ public class AggregateDoubleMetricAttribute extends FieldAttribute {
         maxSubNameId.writeTo(out);
         sumSubNameId.writeTo(out);
         valueCountNameId.writeTo(out);
+    }
+
+    FieldAttribute createSubAttribute(String metric, NameId nameId) {
+        var esField = new EsField(metric, "value_count".equals(metric) ? DataType.INTEGER : DataType.DOUBLE, Map.of(), true);
+        return new FieldAttribute(source(), this, name() + "." + metric, esField, null, Nullability.TRUE, nameId, false);
     }
 }

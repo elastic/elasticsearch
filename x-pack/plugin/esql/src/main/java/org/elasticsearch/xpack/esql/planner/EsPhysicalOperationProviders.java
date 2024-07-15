@@ -48,7 +48,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricSubAttribute;
+import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -127,9 +127,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
             final String hint;
             final String fieldName;
-            if (attr instanceof AggregateDoubleMetricSubAttribute subAttribute) {
-                fieldName = subAttribute.getParentFieldName();
-                hint = subAttribute.getMetric();
+            if (attr instanceof FieldAttribute fieldAttribute
+                && fieldAttribute.parent() instanceof AggregateDoubleMetricAttribute aggregatedAttribute) {
+                fieldName = aggregatedAttribute.name();
+                hint = aggregatedAttribute.metric(fieldAttribute);
             } else {
                 fieldName = attr.name();
                 hint = null;

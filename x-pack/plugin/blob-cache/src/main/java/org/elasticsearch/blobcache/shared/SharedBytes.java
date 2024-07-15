@@ -221,10 +221,8 @@ public class SharedBytes extends AbstractRefCounted {
         while (true) {
             final int bytesRead = Streams.read(input, buffer, buffer.remaining());
             if (bytesRead <= 0) {
-                logger.info("--> breaking bytesRead {}", bytesRead);
                 break;
             }
-            logger.info("--> bytesRead {}", bytesRead);
             bytesCopied += copyBufferToCacheFileAligned(fc, fileChannelPos + bytesCopied, buffer);
             progressUpdater.accept(bytesCopied);
         }

@@ -33,6 +33,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -973,7 +974,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
                     if (gaps.isEmpty() == false) {
                         final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                        logger.trace(
+                            () -> Strings.format(
+                                "fill gaps %s %s shared input stream factory",
+                                gaps,
+                                (streamFactory == null ? "without" : "with"),
+                                (streamFactory == null ? "" : " " + streamFactory)
+                            )
+                        );
                         if (streamFactory == null) {
+
                             for (SparseFileTracker.Gap gap : gaps) {
                                 executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
                             }
@@ -984,7 +994,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             executor.execute(() -> {
                                 try (streamFactory) {
                                     gapFillingTasks.forEach(Runnable::run);
-                                    logger.info("--> done running all gaps");
                                 }
                             });
                         }
@@ -1143,10 +1152,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 ioExecutor,
                 readFuture
             );
-            logger.info("--> blocking readSingleRegion");
-            final Integer i = readFuture.get();
-            logger.info("--> done blocking readSingleRegion [{}]", i);
-            return i;
+            return readFuture.get();
         }
 
         private int readMultiRegions(
@@ -1324,7 +1330,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         ) throws IOException;
     }
 
+    /**
+     * Factory to create the input stream for reading data from the remote storage as the source for filling local cache regions.
+     */
     public interface SourceInputStreamFactory extends Releasable {
+
+        /**
+         * Create the input stream at the specified position.
+         * @param relativePos the relative position in the remote storage to read from.
+         * @return the input stream ready to be read from.
+         */
         InputStream create(int relativePos) throws IOException;
     }
 

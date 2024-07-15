@@ -17,35 +17,12 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
-import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
-import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
-import co.elastic.elasticsearch.stateless.recovery.RegisterCommitRequest;
-import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
-import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -53,13 +30,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -73,9 +47,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TestTransportChannel;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
@@ -86,15 +57,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
-import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -103,20 +71,13 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.oneOf;
 
 public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
@@ -240,123 +201,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         for (BulkItemResponse bulkResponseItem : bulkResponse.getItems()) {
             assertEquals(RestStatus.CONFLICT, bulkResponseItem.status());
         }
-    }
-
-    public void testRecoverSearchShard() throws IOException {
-
-        startIndexNode();
-
-        var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-
-        int numDocs = randomIntBetween(1, 100);
-        indexDocs(indexName, numDocs);
-        refresh(indexName);
-
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
-
-        var searchNode1 = startSearchNode();
-        ensureGreen(indexName);
-        assertHitCount(prepareSearch(indexName), numDocs);
-        internalCluster().stopNode(searchNode1);
-
-        var searchNode2 = startSearchNode();
-        ensureGreen(indexName);
-        assertHitCount(prepareSearch(indexName), numDocs);
-        internalCluster().stopNode(searchNode2);
-    }
-
-    public void testRecoverSearchShardFromVirtualBcc() {
-        startIndexNode(Settings.builder().put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10).build());
-
-        var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-
-        long totalDocs = 0L;
-        int initialCommits = randomIntBetween(0, 3);
-        for (int i = 0; i < initialCommits; i++) {
-            int numDocs = randomIntBetween(1, 100);
-            indexDocs(indexName, numDocs);
-            flush(indexName);
-            totalDocs += numDocs;
-        }
-
-        var indexEngine = asInstanceOf(IndexEngine.class, findIndexShard(resolveIndex(indexName), 0).getEngineOrNull());
-        final long initialGeneration = indexEngine.getCurrentGeneration();
-
-        final int iters = randomIntBetween(1, 5);
-        for (int i = 0; i < iters; i++) {
-            int numDocs = randomIntBetween(1, 100);
-            indexDocs(indexName, numDocs);
-            refresh(indexName);
-            totalDocs += numDocs;
-        }
-
-        var commitService = indexEngine.getStatelessCommitService();
-        VirtualBatchedCompoundCommit virtualBcc = commitService.getCurrentVirtualBcc(indexEngine.config().getShardId());
-        assertThat(virtualBcc, notNullValue());
-        assertThat(virtualBcc.getPrimaryTermAndGeneration().generation(), equalTo(initialGeneration + 1));
-        assertThat(virtualBcc.lastCompoundCommit().generation(), equalTo(initialGeneration + iters));
-
-        startSearchNode();
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
-        ensureGreen(indexName);
-
-        var searchEngine = asInstanceOf(SearchEngine.class, findSearchShard(resolveIndex(indexName), 0).getEngineOrNull());
-        assertThat(searchEngine.getLastCommittedSegmentInfos().getGeneration(), equalTo(virtualBcc.lastCompoundCommit().generation()));
-        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), hasItem(virtualBcc.getPrimaryTermAndGeneration()));
-        assertHitCount(prepareSearch(indexName), totalDocs);
-
-        flush(indexName); // TODO Fix this, the flush should not be mandatory to delete the index (see ES-8335)
-    }
-
-    public void testRecoverMultipleIndexingShardsWithCoordinatingRetries() throws Exception {
-        String firstIndexingShard = startIndexNode();
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-
-        ensureGreen(indexName);
-
-        MockTransportService.getInstance(firstIndexingShard)
-            .addRequestHandlingBehavior(
-                TransportShardBulkAction.ACTION_NAME,
-                (handler, request, channel, task) -> handler.messageReceived(request, new TestTransportChannel(ActionListener.noop()), task)
-            );
-
-        String coordinatingNode = startIndexNode();
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", coordinatingNode), indexName);
-
-        ActionFuture<BulkResponse> bulkRequest = client(coordinatingNode).prepareBulk(indexName)
-            .add(new IndexRequest(indexName).source(Map.of("custom", "value")))
-            .execute();
-
-        assertBusy(() -> {
-            IndicesStatsResponse statsResponse = client(firstIndexingShard).admin().indices().prepareStats(indexName).get();
-            SeqNoStats seqNoStats = statsResponse.getIndex(indexName).getShards()[0].getSeqNoStats();
-            assertThat(seqNoStats.getMaxSeqNo(), equalTo(0L));
-        });
-        flush(indexName);
-
-        internalCluster().stopNode(firstIndexingShard);
-
-        String secondIndexingShard = startIndexNode();
-        ensureGreen(indexName);
-
-        BulkResponse response = bulkRequest.actionGet();
-        assertFalse(response.hasFailures());
-
-        internalCluster().stopNode(secondIndexingShard);
-
-        startIndexNodes(1);
-        ensureGreen(indexName);
-
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
-        startSearchNode();
-        ensureGreen(indexName);
-
-        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.termQuery("custom", "value")), 1);
     }
 
     public void testStartingTranslogFileWrittenInCommit() throws Exception {
@@ -543,331 +387,5 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             .findFirst()
             .get();
         assertThat((long) recoveryState.getTranslog().recoveredOperations(), lessThanOrEqualTo(maxSeqNoAfterFlush - maxSeqNoBeforeFlush));
-    }
-
-    public void testNewCommitNotificationOfRecoveringSearchShard() throws Exception {
-        String indexNode = startIndexNode();
-        String searchNode = startSearchNode();
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-        int totalDocs = randomIntBetween(1, 10);
-        indexDocs(indexName, totalDocs);
-        IndexShard indexShard = findIndexShard(indexName);
-        long initialGeneration = Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
-        logger.info("--> Indexed {} docs, initial indexing shard generation is {}", totalDocs, initialGeneration);
-
-        // Establishing a handler on the indexing node for receiving the request from the search node to recover the initial commit
-        CountDownLatch initialCommitRegistrationProcessed = new CountDownLatch(1);
-        MockTransportService.getInstance(indexNode)
-            .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
-                RegisterCommitRequest r = (RegisterCommitRequest) request;
-                handler.messageReceived(request, channel, task);
-                initialCommitRegistrationProcessed.countDown();
-            });
-
-        // Establishing a sender on the search node to block recovery after sending the request to the indexing node to register the commit
-        ObjectStoreService objectStoreService = getObjectStoreService(searchNode);
-        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
-                logger.info("--> Blocking recovery on search node before sending request to register recovering commit");
-                repository.setBlockOnAnyFiles();
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-
-        // Block fetching data from indexing node in addition to blobstore to control the progress on search node
-        CountDownLatch getVbccChunkLatch = new CountDownLatch(1);
-        MockTransportService.getInstance(indexNode)
-            .addRequestHandlingBehavior(
-                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
-                (handler, request, channel, task) -> {
-                    safeAwait(getVbccChunkLatch);
-                    handler.messageReceived(request, channel, task);
-                }
-            );
-
-        // Establishing a handler on the search node for receiving the new commit notification request from the indexing node
-        // and tracking the new commit notification response before it is sent to the indexing node.
-        // countdown for both non-uploaded and uploaded when upload is delayed
-        CountDownLatch newCommitNotificationReceived = new CountDownLatch(2);
-        AtomicLong newCommitNotificationResponseGeneration = new AtomicLong(-1L);
-        MockTransportService.getInstance(searchNode)
-            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
-                handler.messageReceived(request, new TestTransportChannel(new ChannelActionListener<>(channel).delegateFailure((l, tr) -> {
-                    var termGens = ((NewCommitNotificationResponse) tr).getPrimaryTermAndGenerationsInUse();
-                    // The search shard will use the latest notified generation.
-                    // It can also sometimes still refers to the old generation if it is not closed fast enough
-                    assertThat(termGens.size(), oneOf(1, 2));
-                    termGens.stream()
-                        .max(PrimaryTermAndGeneration::compareTo)
-                        .ifPresent(termAndGen -> newCommitNotificationResponseGeneration.set(termAndGen.generation()));
-                    l.onResponse(tr);
-                })), task);
-                assertThat(newCommitNotificationReceived.getCount(), greaterThan(0L));
-                newCommitNotificationReceived.countDown();
-            });
-
-        logger.info("--> Initiating search shard recovery");
-        setReplicaCount(1, indexName);
-        ensureYellow(indexName);
-
-        logger.info("--> Waiting for index node to process the registration of the initial commit recovery on the search node");
-        safeAwait(initialCommitRegistrationProcessed);
-
-        logger.info("--> Flushing a new commit and send out notification to the search node");
-        client().admin().indices().prepareFlush(indexName).setForce(true).get();
-
-        logger.info("--> Waiting for search node to process new commit notification request");
-        safeAwait(newCommitNotificationReceived);
-        assertThat(newCommitNotificationResponseGeneration.get(), equalTo(-1L));
-        Index index = resolveIndices().entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
-        IndexShard searchShard = internalCluster().getInstance(IndicesService.class, searchNode).indexService(index).getShard(0);
-        assertNull(searchShard.getEngineOrNull());
-
-        logger.info("--> Unblocking the recovery of the search shard");
-        repository.unblock();
-        getVbccChunkLatch.countDown();
-        ensureGreen(indexName);
-
-        logger.info("--> Waiting for the new commit notification success");
-        assertBusy(() -> assertThat(newCommitNotificationResponseGeneration.get(), greaterThan(initialGeneration)));
-
-        // Assert that the search shard is on the new commit generation
-        long searchGeneration = Lucene.readSegmentInfos(searchShard.store().directory()).getGeneration();
-        assertThat(searchGeneration, equalTo(newCommitNotificationResponseGeneration.get()));
-
-        // Assert that a search returns all the documents
-        assertResponse(prepareSearch(indexName).setQuery(matchAllQuery()), searchResponse -> {
-            assertNoFailures(searchResponse);
-            assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
-        });
-    }
-
-    public void testRefreshOfRecoveringSearchShard() throws Exception {
-        startIndexNode();
-        var searchNode = startSearchNode();
-        final var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-        int totalDocs = randomIntBetween(1, 10);
-        indexDocs(indexName, totalDocs);
-        logger.info("--> Indexed {} docs", totalDocs);
-
-        var unpromotableRefreshLatch = new CountDownLatch(1);
-        var mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
-        mockTransportService.addRequestHandlingBehavior(
-            TransportUnpromotableShardRefreshAction.NAME + "[u]",
-            (handler, request, channel, task) -> {
-                handler.messageReceived(request, channel, task);
-                unpromotableRefreshLatch.countDown();
-            }
-        );
-
-        ObjectStoreService objectStoreService = getObjectStoreService(searchNode);
-        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        repository.setBlockOnAnyFiles();
-        setReplicaCount(1, indexName);
-        var future = client().admin().indices().prepareRefresh(indexName).execute();
-        safeAwait(unpromotableRefreshLatch);
-        repository.unblock();
-
-        var refreshResponse = future.get();
-        assertThat("Refresh should have been successful", refreshResponse.getSuccessfulShards(), equalTo(1));
-
-        assertResponse(prepareSearch(indexName).setQuery(matchAllQuery()), searchResponse -> {
-            assertNoFailures(searchResponse);
-            assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
-        });
-    }
-
-    public void testRefreshOfRecoveringSearchShardAndDeleteIndex() throws Exception {
-        var indexNode = startIndexNode();
-        var searchNode = startSearchNode();
-        final var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-        int totalDocs = randomIntBetween(1, 10);
-        indexDocs(indexName, totalDocs);
-        logger.info("--> Indexed {} docs", totalDocs);
-
-        var unpromotableRefreshLatch = new CountDownLatch(1);
-        var mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
-        mockTransportService.addRequestHandlingBehavior(
-            TransportUnpromotableShardRefreshAction.NAME + "[u]",
-            (handler, request, channel, task) -> {
-                handler.messageReceived(request, channel, task);
-                unpromotableRefreshLatch.countDown();
-            }
-        );
-
-        ObjectStoreService objectStoreService = getObjectStoreService(searchNode);
-        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        repository.setBlockOnAnyFiles();
-        setReplicaCount(1, indexName);
-        var future = client(indexNode).admin().indices().prepareRefresh(indexName).execute();
-        safeAwait(unpromotableRefreshLatch);
-
-        logger.info("--> deleting index");
-        assertAcked(client(indexNode).admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet());
-        logger.info("--> unblocking recovery");
-        repository.unblock();
-        var refreshResponse = future.get();
-        assertThat("Refresh should have failed", refreshResponse.getFailedShards(), equalTo(1));
-        Throwable cause = ExceptionsHelper.unwrapCause(refreshResponse.getShardFailures()[0].getCause());
-        assertThat("Cause should be engine closed", cause, instanceOf(AlreadyClosedException.class));
-    }
-
-    public void testPreferredNodeIdsAreUsedDuringRelocation() {
-        startMasterOnlyNode();
-
-        int maxNonUploadedCommits = randomIntBetween(1, 4);
-        var nodeSettings = Settings.builder()
-            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
-            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
-            .build();
-
-        final var indexNodeSource = startIndexNode(nodeSettings);
-        final var searchNode = startSearchNode(nodeSettings);
-
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            indexSettings(1, 1)
-                // make sure nothing triggers flushes
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
-                .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
-                .build()
-        );
-        ensureGreen(indexName);
-
-        int nbUploadedBatchedCommits = between(1, 3);
-        for (int i = 0; i < nbUploadedBatchedCommits; i++) {
-            for (int j = 0; j < maxNonUploadedCommits; j++) {
-                indexDocs(indexName, scaledRandomIntBetween(100, 1_000));
-                flush(indexName);
-            }
-        }
-
-        // block the start of the relocation
-        final var pauseRelocation = new CountDownLatch(1);
-        final var resumeRelocation = new CountDownLatch(1);
-        MockTransportService.getInstance(indexNodeSource)
-            .addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
-                pauseRelocation.countDown();
-                logger.info("--> relocation is paused");
-                safeAwait(resumeRelocation);
-                logger.info("--> relocation is resumed");
-                handler.messageReceived(request, channel, task);
-            });
-
-        var index = resolveIndex(indexName);
-        var indexShardSource = findIndexShard(index, 0, indexNodeSource);
-        final var primaryTerm = indexShardSource.getOperationPrimaryTerm();
-
-        // start another indexing node
-        var indexNodeTarget = startIndexNode(nodeSettings);
-
-        // last generation on source
-        final var generation = indexShardSource.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
-        // expected generation on source when refreshing the index (before relocation completes)
-        final var beforeGeneration = generation + 1L;
-        // expected generation for flush on target (after relocation completes)
-        final var afterGeneration = beforeGeneration + 1L;
-
-        logger.info("--> move index shard from: {} to: {}", indexNodeSource, indexNodeTarget);
-        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeSource, indexNodeTarget));
-
-        logger.info("--> wait for relocation to start on source");
-        safeAwait(pauseRelocation);
-
-        logger.info("--> add more docs so that the refresh produces a new commit");
-        indexDocs(indexName, scaledRandomIntBetween(100, 1_000));
-
-        // check that the source indexing shard sent a new commit notification with the correct generation and node id
-        final var sourceNotificationReceived = new CountDownLatch(1);
-        MockTransportService.getInstance(searchNode)
-            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
-                var notification = asInstanceOf(NewCommitNotificationRequest.class, request);
-                assertThat(notification.getTerm(), equalTo(primaryTerm));
-
-                if (notification.getGeneration() == beforeGeneration) {
-                    assertThat(notification.getNodeId(), equalTo(getNodeId(indexNodeSource)));
-                    sourceNotificationReceived.countDown();
-                }
-                handler.messageReceived(request, channel, task);
-            });
-
-        // check that the source indexing shard receives at least one GetVirtualBatchedCompoundCommitChunkRequest
-        final var sourceGetChunkRequestReceived = new CountDownLatch(1);
-        MockTransportService.getInstance(indexNodeSource)
-            .addRequestHandlingBehavior(
-                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
-                (handler, request, channel, task) -> {
-                    var chunkRequest = asInstanceOf(GetVirtualBatchedCompoundCommitChunkRequest.class, request);
-                    assertThat(chunkRequest.getPrimaryTerm(), equalTo(primaryTerm));
-
-                    if (chunkRequest.getVirtualBatchedCompoundCommitGeneration() == beforeGeneration) {
-                        assertThat(chunkRequest.getPreferredNodeId(), equalTo(getNodeId(indexNodeSource)));
-                        sourceGetChunkRequestReceived.countDown();
-                    }
-                    handler.messageReceived(request, channel, task);
-                }
-            );
-
-        var refreshFuture = admin().indices().prepareRefresh(indexName).execute();
-        safeAwait(sourceNotificationReceived);
-        safeAwait(sourceGetChunkRequestReceived);
-
-        // check that the target indexing shard sent a new commit notification with the correct generation and node id
-        final var targetNotificationReceived = new CountDownLatch(1);
-        MockTransportService.getInstance(searchNode)
-            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
-                var notification = asInstanceOf(NewCommitNotificationRequest.class, request);
-                assertThat(notification.getTerm(), equalTo(primaryTerm));
-
-                if (notification.getGeneration() == afterGeneration) {
-                    assertThat(
-                        "Commit notification " + notification + " has the wrong preferred node id",
-                        notification.getNodeId(),
-                        equalTo(getNodeId(indexNodeTarget))
-                    );
-                    targetNotificationReceived.countDown();
-                }
-                handler.messageReceived(request, channel, task);
-            });
-
-        // check that the target indexing shard receives at least one GetVirtualBatchedCompoundCommitChunkRequest
-        final var targetGetChunkRequestReceived = new CountDownLatch(1);
-        MockTransportService.getInstance(indexNodeTarget)
-            .addRequestHandlingBehavior(
-                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
-                (handler, request, channel, task) -> {
-                    var chunkRequest = asInstanceOf(GetVirtualBatchedCompoundCommitChunkRequest.class, request);
-                    assertThat(chunkRequest.getPrimaryTerm(), equalTo(primaryTerm));
-
-                    if (chunkRequest.getVirtualBatchedCompoundCommitGeneration() == afterGeneration) {
-                        assertThat(
-                            "Chunk request " + chunkRequest + " has the wrong preferred node id",
-                            chunkRequest.getPreferredNodeId(),
-                            equalTo(getNodeId(indexNodeTarget))
-                        );
-                        targetGetChunkRequestReceived.countDown();
-                    }
-                    handler.messageReceived(request, channel, task);
-                }
-            );
-
-        logger.info("--> resume relocation");
-        resumeRelocation.countDown();
-
-        safeAwait(targetNotificationReceived);
-        safeAwait(targetGetChunkRequestReceived);
-        assertThat(refreshFuture.actionGet().getFailedShards(), equalTo(0));
-
-        // also waits for no relocating shards.
-        ensureGreen(indexName);
     }
 }

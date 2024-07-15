@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopLongAggregatorFunctionSupplier;
@@ -46,7 +47,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     private static final String ORDER_DESC = "DESC";
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long", "date" },
+        returnType = { "boolean", "double", "integer", "long", "date" },
         description = "Collects the top values for a field. Includes repeated values.",
         isAggregation = true,
         examples = @Example(file = "stats_top", tag = "top")
@@ -55,7 +56,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         Source source,
         @Param(
             name = "field",
-            type = { "double", "integer", "long", "date" },
+            type = { "boolean", "double", "integer", "long", "date" },
             description = "The field to collect the top values for."
         ) Expression field,
         @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit,
@@ -120,7 +121,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
         var typeResolution = isType(
             field(),
-            dt -> dt == DataType.DATETIME || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt == DataType.BOOLEAN || dt == DataType.DATETIME || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
             sourceText(),
             FIRST,
             "numeric except unsigned_long or counter types"
@@ -175,6 +176,9 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         }
         if (type == DataType.DOUBLE) {
             return new TopDoubleAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+        }
+        if (type == DataType.BOOLEAN) {
+            return new TopBooleanAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

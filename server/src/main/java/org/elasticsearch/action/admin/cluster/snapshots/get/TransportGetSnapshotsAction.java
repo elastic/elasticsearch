@@ -344,6 +344,50 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         /**
+         * @return an {@link AsyncSnapshotInfo} for the given in-progress snapshot entry.
+         */
+        private static AsyncSnapshotInfo forSnapshotInProgress(SnapshotsInProgress.Entry snapshotInProgress) {
+            return new AsyncSnapshotInfo() {
+                @Override
+                public SnapshotId getSnapshotId() {
+                    return snapshotInProgress.snapshot().getSnapshotId();
+                }
+
+                @Override
+                public void getSnapshotInfo(ActionListener<SnapshotInfo> listener) {
+                    listener.onResponse(SnapshotInfo.inProgress(snapshotInProgress));
+                }
+
+                @Override
+                public String toString() {
+                    return snapshotInProgress.snapshot().toString();
+                }
+            };
+        }
+
+        /**
+         * @return an {@link AsyncSnapshotInfo} for the given completed snapshot.
+         */
+        private AsyncSnapshotInfo forCompletedSnapshot(Repository repository, SnapshotId snapshotId) {
+            return new AsyncSnapshotInfo() {
+                @Override
+                public SnapshotId getSnapshotId() {
+                    return snapshotId;
+                }
+
+                @Override
+                public void getSnapshotInfo(ActionListener<SnapshotInfo> listener) {
+                    getSnapshotInfoExecutor.getSnapshotInfo(repository, snapshotId, listener);
+                }
+
+                @Override
+                public String toString() {
+                    return repository.getMetadata().name() + ":" + snapshotId;
+                }
+            };
+        }
+
+        /**
          * @return an iterator over the snapshot IDs in the given repository which match {@link #snapshotNamePredicate}.
          */
         private Iterator<AsyncSnapshotInfo> getSnapshotIdIterator(Repository repository, @Nullable RepositoryData repositoryData) {
@@ -361,22 +405,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                             return false;
                         }
                     }),
-                    snapshotInProgress -> new AsyncSnapshotInfo() {
-                        @Override
-                        public SnapshotId getSnapshotId() {
-                            return snapshotInProgress.snapshot().getSnapshotId();
-                        }
-
-                        @Override
-                        public void getSnapshotInfo(ActionListener<SnapshotInfo> listener) {
-                            listener.onResponse(SnapshotInfo.inProgress(snapshotInProgress));
-                        }
-
-                        @Override
-                        public String toString() {
-                            return snapshotInProgress.snapshot().toString();
-                        }
-                    }
+                    GetSnapshotsOperation::forSnapshotInProgress
                 ),
                 repositoryData == null
                     // only returning in-progress snapshots
@@ -389,22 +418,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                 && snapshotNamePredicate.test(snapshotId.getName(), false)
                                 && matchesPredicates(snapshotId, repositoryData)
                         ),
-                        snapshotId -> new AsyncSnapshotInfo() {
-                            @Override
-                            public SnapshotId getSnapshotId() {
-                                return snapshotId;
-                            }
-
-                            @Override
-                            public void getSnapshotInfo(ActionListener<SnapshotInfo> listener) {
-                                getSnapshotInfoExecutor.getSnapshotInfo(repository, snapshotId, listener);
-                            }
-
-                            @Override
-                            public String toString() {
-                                return repository.getMetadata().name() + ":" + snapshotId;
-                            }
-                        }
+                        snapshotId -> forCompletedSnapshot(repository, snapshotId)
                     )
             );
         }

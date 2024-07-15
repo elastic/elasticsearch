@@ -53,6 +53,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomN
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -237,9 +238,12 @@ public class FsBlobContainerTests extends ESTestCase {
         }
 
         container.writeBlob(randomPurpose(), key, new BytesArray(new byte[17]), false);
-        expectThrows(
-            IllegalStateException.class,
-            () -> getBytesAsync(l -> container.compareAndExchangeRegister(randomPurpose(), key, expectedValue.get(), BytesArray.EMPTY, l))
+        assertThat(
+            safeAwaitFailure(
+                OptionalBytesReference.class,
+                l -> container.compareAndExchangeRegister(randomPurpose(), key, expectedValue.get(), BytesArray.EMPTY, l)
+            ),
+            instanceOf(IllegalStateException.class)
         );
     }
 

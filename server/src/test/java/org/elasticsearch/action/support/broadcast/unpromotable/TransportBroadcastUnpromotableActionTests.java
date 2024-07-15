@@ -378,16 +378,13 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
 
     public void testNullIndexShardRoutingTable() {
         assertThat(
-            asInstanceOf(
+            expectThrows(
                 NullPointerException.class,
-                safeAwaitFailure(
-                    ActionResponse.Empty.class,
-                    listener -> ActionTestUtils.execute(
-                        broadcastUnpromotableAction,
-                        null,
-                        new TestBroadcastUnpromotableRequest((IndexShardRoutingTable) null),
-                        listener
-                    )
+                () -> ActionTestUtils.execute(
+                    broadcastUnpromotableAction,
+                    null,
+                    new TestBroadcastUnpromotableRequest((IndexShardRoutingTable) null),
+                    ActionListener.running(ESTestCase::fail)
                 )
             ).toString(),
             containsString("index shard routing table is null")

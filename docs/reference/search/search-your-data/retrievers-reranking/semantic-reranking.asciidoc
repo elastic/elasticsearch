@@ -28,7 +28,7 @@ The final sections include a practical, high-level overview of how to implement 
 
 Semantic reranking enables a variety of use cases:
 
-* *Lexical (BM25) retrieveal results reranking*
+* *Lexical (BM25) retrieval results reranking*
 ** Out-of-the-box semantic search by adding a simple API call to any lexical/BM25 retrieval pipeline.
 ** Add semantic search capabilities on top of existing indices without reindexing, perfect for quick improvements.
 ** Ideal for environments with complex existing indices.

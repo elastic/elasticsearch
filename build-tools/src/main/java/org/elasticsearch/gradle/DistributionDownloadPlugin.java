@@ -42,8 +42,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private static final String FAKE_SNAPSHOT_IVY_GROUP = "elasticsearch-distribution-snapshot";
     private static final String DOWNLOAD_REPO_NAME = "elasticsearch-downloads";
     private static final String SNAPSHOT_REPO_NAME = "elasticsearch-snapshots";
-    public static final String DISTRO_EXTRACTED_CONFIG_PREFIX = "es_distro_extracted_";
-    public static final String DISTRO_CONFIG_PREFIX = "es_distro_file_";
+
+    public static final String ES_DISTRO_CONFIG_PREFIX = "es_distro_";
+    public static final String DISTRO_EXTRACTED_CONFIG_PREFIX = ES_DISTRO_CONFIG_PREFIX + "extracted_";
+    public static final String DISTRO_CONFIG_PREFIX = ES_DISTRO_CONFIG_PREFIX + "file_";
 
     private final ObjectFactory objectFactory;
     private NamedDomainObjectContainer<ElasticsearchDistribution> distributionsContainer;

@@ -286,7 +286,11 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
+            if (sourceFieldMapper.isSynthetic() == false) {
+                throw new IllegalArgumentException("Indices with with index mode [logs] only support synthetic source");
+            }
+        }
 
         @Override
         public boolean isSyntheticSourceEnabled() {

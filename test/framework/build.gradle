@@ -63,7 +63,15 @@ tasks.named("thirdPartyAudit").configure {
           // mockito
           'net.bytebuddy.agent.ByteBuddyAgent',
           'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
-          'org.opentest4j.AssertionFailedError'
+          'org.opentest4j.AssertionFailedError',
+
+          // not using JNA
+         'com.sun.jna.FunctionMapper',
+         'com.sun.jna.JNIEnv',
+         'com.sun.jna.Library',
+         'com.sun.jna.Native',
+         'com.sun.jna.NativeLibrary',
+         'com.sun.jna.Platform'
   )
 
   ignoreViolations(

@@ -112,6 +112,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         return uri;
     }
 
+    @Override
     public String modelId() {
         return modelId;
     }

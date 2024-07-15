@@ -90,15 +90,15 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         if (getEndpoint() != null) {
             EnterpriseGeoIpDownloader.DEFAULT_MAXMIND_ENDPOINT = getEndpoint();
         }
-        final String piplineName = "enterprise_geoip_pipeline";
+        final String pipelineName = "enterprise_geoip_pipeline";
         final String indexName = "enterprise_geoip_test_index";
         final String sourceField = "ip";
         final String targetField = "ip-city";
 
         startEnterpriseGeoIpDownloaderTask();
         configureDatabase(DATABASE_TYPE);
-        createGeoIpPipeline(piplineName, DATABASE_TYPE, sourceField, targetField);
-        String documentId = ingestDocument(indexName, piplineName, sourceField);
+        createGeoIpPipeline(pipelineName, DATABASE_TYPE, sourceField, targetField);
+        String documentId = ingestDocument(indexName, pipelineName, sourceField);
         GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
         Map<String, Object> returnedSource = getResponse.getSource();
         assertNotNull(returnedSource);

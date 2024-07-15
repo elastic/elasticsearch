@@ -159,6 +159,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         return maxInputTokens;
     }
 
+    @Override
     public String modelId() {
         return modelId;
     }

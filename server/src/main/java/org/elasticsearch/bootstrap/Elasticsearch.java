@@ -211,7 +211,7 @@ class Elasticsearch {
     private static void ensureInitialized(Class<?>... classes) {
         for (final var clazz : classes) {
             try {
-                MethodHandles.publicLookup().ensureInitialized(clazz);
+                MethodHandles.lookup().ensureInitialized(clazz);
             } catch (IllegalAccessException unexpected) {
                 throw new AssertionError(unexpected);
             }

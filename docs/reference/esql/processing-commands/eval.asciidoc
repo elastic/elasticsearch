@@ -21,7 +21,7 @@ If a column name is used more than once, only the rightmost duplicate creates a 
 
 `valueX`::
 The value for the column. Can be a literal, an expression, or a
-<<esql-functions,function>>. Can refer to columns defined left of this one.
+<<esql-functions,function>>. Can use columns defined left of this one.
 
 *Description*
 

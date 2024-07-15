@@ -188,7 +188,7 @@ last_name:integer  | first_name:keyword
              10002 | Bezalel
 ;
 
-shadowingHierarchical
+shadowingSubfields
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.continent.name, city.country.name, city.name
 | RENAME city.name AS city.country.continent.planet.name, city.country.name AS city.country.continent.name

@@ -148,7 +148,7 @@ emp_no:integer | first_name:keyword
          10002 | Bezalel
 ;
 
-hierarchical
+subfields
 FROM addresses
 | DROP city.country.continent.planet.name, city.country.continent.name, city.country.name, number, street, zip_code, city.country.continent.planet.name
 | SORT city.name
@@ -160,7 +160,7 @@ Milky Way                                    | San Francisco
 Milky Way                                    | Tokyo
 ;
 
-hierarchical
+subfieldsWildcard
 FROM addresses
 | DROP *.name, number, street, zip_code, *ame
 ;

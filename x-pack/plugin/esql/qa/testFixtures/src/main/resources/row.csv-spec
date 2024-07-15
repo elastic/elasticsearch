@@ -44,7 +44,7 @@ a:integer
         2
 ;
 
-shadowingInternalHierarchical
+shadowingInternalSubfields
 // Fun fact: "Sissi" is an actual exoplanet name, after the character from the movie with the same name. A.k.a. HAT-P-14 b.
 ROW city.country.continent.planet.name = "Earth", city.country.continent.name = "Netherlands", city.country.continent.planet.name = "Sissi"
 ;

@@ -26,7 +26,7 @@ first_name:keyword | left:keyword | full_name:keyword | right:keyword | last_nam
 Georgi             | left         |    Georgi Facello | right         | Facello
 ;
 
-shadowingHierarchical
+shadowingSubfields
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.name, city.name
 | DISSECT city.name "%{city.country.continent.planet.name} %{?}"

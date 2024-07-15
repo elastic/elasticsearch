@@ -69,7 +69,7 @@ ROW left = "left", foo = "foo", client_ip = "172.21.0.5", env = "env", right = "
 left:keyword | client_ip:keyword | env:keyword | right:keyword | foo:keyword
 ;
 
-shadowingHierarchical
+shadowingSubfields
 required_capability: enrich_load
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.name, city.name
@@ -84,7 +84,7 @@ United States of America  | South San Francisco | San Francisco Int'l
 Japan                     | Tokyo               | null
 ;
 
-shadowingHierarchicalLimit0
+shadowingSubfieldsLimit0
 required_capability: enrich_load
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.name, city.name

@@ -565,7 +565,7 @@ Facello
 Simmel
 ;
 
-shadowingHierarchical
+shadowingSubfields
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.continent.name, city.country.name, city.name, city.country.continent.planet.name
 | SORT city.name
@@ -577,7 +577,7 @@ North America                       | United States of America  | San Francisco 
 Asia                                | Japan                     | Tokyo             | Earth
 ;
 
-shadowingHierarchicalWildcard
+shadowingSubfieldsWildcard
 FROM addresses
 | KEEP *name, city.country.continent.planet.name
 | SORT city.name

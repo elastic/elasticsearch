@@ -110,9 +110,9 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     }
 
     /**
-     * This creates a temporary with the mappings of the index in the request, and then attempts to index the source from the request
+     * This creates a temporary index with the mappings of the index in the request, and then attempts to index the source from the request
      * into it. If there is a mapping exception, that exception is returned. On success the returned exception is null.
-     * @param request The IndexReqeust whose source will be validated against the mapping (if it exists) of its index
+     * @param request The IndexRequest whose source will be validated against the mapping (if it exists) of its index
      * @return a mapping exception if the source does not match the mappings, otherwise null
      */
     private Exception validateMappings(IndexRequest request) {

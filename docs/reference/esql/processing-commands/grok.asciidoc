@@ -70,4 +70,16 @@ include::{esql-specs}/docs.csv-spec[tag=grokWithToDatetime]
 |===
 include::{esql-specs}/docs.csv-spec[tag=grokWithToDatetime-result]
 |===
+
+In case a field name is used more than once, `GROK` creates a multi-valued
+column:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=grokWithDuplicateFieldNames]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=grokWithDuplicateFieldNames-result]
+|===
 // end::examples[]

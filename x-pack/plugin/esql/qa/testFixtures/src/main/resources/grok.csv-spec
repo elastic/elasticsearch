@@ -64,15 +64,16 @@ Facello           | left         | Georgi1 Georgi2 Facello | middle         | ri
 ;
 
 shadowingInternal
-FROM employees
-| KEEP last_name
-| WHERE last_name == "Facello"
-| EVAL name = concat("1 ", last_name)
-| GROK name "%{WORD:foo} %{WORD:foo}"
+FROM addresses
+| KEEP city.name, zip_code
+| GROK zip_code "%{WORD:zip_parts} %{WORD:zip_parts}"
+| SORT city.name
 ;
 
-last_name:keyword | name:keyword | foo:keyword
-Facello           | 1 Facello    | [1, Facello]
+city.name:keyword | zip_code:keyword | zip_parts:keyword
+Amsterdam         | 1016 ED          | ["1016", "ED"]
+San Francisco     | CA 94108         | ["CA", "94108"]
+Tokyo             | 100-7014         | null
 ;
 
 complexPattern

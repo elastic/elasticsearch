@@ -31,12 +31,6 @@ public class PutDatabaseConfigurationAction extends ActionType<AcknowledgedRespo
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        public interface Factory {
-            Request create(DatabaseConfiguration database);
-
-            String getId();
-        }
-
         private final DatabaseConfiguration database;
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, DatabaseConfiguration database) {

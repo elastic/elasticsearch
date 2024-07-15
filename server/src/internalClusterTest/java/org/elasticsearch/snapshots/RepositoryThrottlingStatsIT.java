@@ -57,11 +57,11 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
         createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
         logger.info("--> restore from snapshot");
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
-            .setRenamePattern("test-")
-            .setRenameReplacement("test2-")
-            .setWaitForCompletion(true)
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            "test-snap"
+        ).setRenamePattern("test-").setRenameReplacement("test2-").setWaitForCompletion(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertDocCount("test-idx", 100);
 

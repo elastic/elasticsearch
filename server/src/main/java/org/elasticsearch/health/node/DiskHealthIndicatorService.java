@@ -120,7 +120,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             diskHealthAnalyzer.getSymptom(),
             diskHealthAnalyzer.getDetails(verbose),
             diskHealthAnalyzer.getImpacts(),
-            diskHealthAnalyzer.getDiagnoses(maxAffectedResourcesCount)
+            diskHealthAnalyzer.getDiagnoses(verbose, maxAffectedResourcesCount)
         );
     }
 
@@ -357,8 +357,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             return impacts;
         }
 
-        private List<Diagnosis> getDiagnoses(int size) {
-            if (healthStatus == HealthStatus.GREEN) {
+        private List<Diagnosis> getDiagnoses(boolean verbose, int size) {
+            if (verbose == false || healthStatus == HealthStatus.GREEN) {
                 return List.of();
             }
             List<Diagnosis> diagnosisList = new ArrayList<>();

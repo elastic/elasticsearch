@@ -10,8 +10,10 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -124,6 +126,11 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
             filtered.set(i, values.get(positions[i]));
         }
         return new IntBigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new IntLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

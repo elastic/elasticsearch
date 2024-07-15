@@ -10,8 +10,10 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.$Array$;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -44,6 +46,9 @@ $endif$
     }
 
     static $Type$BigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+$if(float)$
+        throw new UnsupportedOperationException();
+$else$
 $if(boolean)$
         $Array$ values = new BitArray(blockFactory.bigArrays(), true, in);
 $else$
@@ -63,10 +68,15 @@ $endif$
                 values.close();
             }
         }
+$endif$
     }
 
     void writeArrayVector(int positions, StreamOutput out) throws IOException {
+$if(float)$
+        throw new UnsupportedOperationException();
+$else$
         values.writeTo(out);
+$endif$
     }
 
     @Override
@@ -146,6 +156,11 @@ $endif$
         }
     $endif$
         return new $Type$BigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new $Type$Lookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

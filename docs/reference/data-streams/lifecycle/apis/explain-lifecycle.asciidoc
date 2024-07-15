@@ -38,7 +38,7 @@ execution.
   (Optional, Boolean) Includes default configurations related to the lifecycle of the target.
   Defaults to `false`.
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[data-streams-explain-lifecycle-example]]
 ==== {api-examples-title}

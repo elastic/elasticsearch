@@ -49,6 +49,60 @@ setup:
   - match: { last_access_control_sync_scheduled_at: "2023-05-25T12:30:00.000Z" }
 
 ---
+"Update Connector Last Sync Stats - Supports different partial updates":
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_deleted_document_count: 43
+
+  - match: { result: updated }
+
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_indexed_document_count: 42
+
+  - match: { result: updated }
+
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { last_deleted_document_count: 43 }
+  - match: { last_indexed_document_count: 42 }
+
+
+---
+"Update Connector Last Sync Stats - Supports sync_cursor updates":
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_deleted_document_count: 123
+
+  - match: { result: updated }
+
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          sync_cursor: { pointer: 42 }
+
+  - match: { result: updated }
+
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { sync_cursor: { pointer: 42 } }
+  - match: { last_deleted_document_count: 123 }
+
+
+---
 "Update Connector Last Sync Stats - Connector doesn't exist":
   - do:
       catch: "missing"

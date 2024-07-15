@@ -8,6 +8,8 @@ preview::[]
 
 Updates the `last_seen` field of a connector with current timestamp.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [[check-in-connector-api-request]]
 ==== {api-request-title}
 

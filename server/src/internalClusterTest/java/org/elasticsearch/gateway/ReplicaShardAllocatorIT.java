@@ -439,7 +439,9 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), empty());
-                assertThat(recovery.getTranslog().totalLocal(), equalTo(recovery.getTranslog().totalOperations()));
+                var translog = recovery.getTranslog();
+                logger.info("Verifying recovery translog state: {} for index: {}", translog, indexName);
+                assertThat(translog.totalLocal(), equalTo(translog.totalOperations()));
             }
         }
     }

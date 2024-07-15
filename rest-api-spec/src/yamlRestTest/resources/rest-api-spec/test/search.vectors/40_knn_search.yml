@@ -283,12 +283,11 @@ setup:
   - match: {hits.total.value: 0}
 
 ---
-"Test nonexistent field":
+"Test nonexistent field is match none":
   - requires:
-      cluster_features: "gte_v8.4.0"
-      reason: 'kNN added to search endpoint in 8.4'
+      cluster_features: "gte_v8.16.0"
+      reason: 'non-existent field handling improved in 8.16'
   - do:
-      catch: bad_request
       search:
         index: test
         body:
@@ -298,8 +297,40 @@ setup:
             query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
+
+  - length: {hits.hits: 0}
+
+  - do:
+      indices.create:
+        index: test_nonexistent
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: float
+                dims: 5
+                index: true
+                similarity: l2_norm
+          settings:
+            index.query.parse.allow_unmapped_fields: false
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_nonexistent
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nonexistent
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            k: 2
+            num_candidates: 3
+
   - match: { error.root_cause.0.type: "query_shard_exception" }
-  - match: { error.root_cause.0.reason: "failed to create query: field [nonexistent] does not exist in the mapping" }
+  - match: { error.root_cause.0.reason: "No field mapping can be found for the field with name [nonexistent]" }
 
 ---
 "KNN Vector similarity search only":

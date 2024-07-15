@@ -48,7 +48,11 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=nodes]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its information. However, timed out
+nodes are included in the response's `node_failures` property. Defaults to `30s`.
 
 `wait_for_completion`::
 (Optional, Boolean) If `true`, the request blocks until all found tasks are complete.

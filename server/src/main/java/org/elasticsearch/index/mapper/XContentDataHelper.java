@@ -13,7 +13,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -28,7 +30,7 @@ import java.util.Arrays;
 /**
  * Helper class for processing field data of any type, as provided by the {@link XContentParser}.
  */
-final class XContentDataHelper {
+public final class XContentDataHelper {
     /**
      * Build a {@link StoredField} for the value on which the parser is
      * currently positioned.
@@ -44,11 +46,26 @@ final class XContentDataHelper {
     }
 
     /**
+     * Build a {@link StoredField} for the value provided in a {@link XContentBuilder}.
+     */
+    static StoredField storedField(String name, XContentBuilder builder) throws IOException {
+        return new StoredField(name, TypeUtils.encode(builder));
+    }
+
+    /**
      * Build a {@link BytesRef} wrapping a byte array containing an encoded form
      * the value on which the parser is currently positioned.
      */
     static BytesRef encodeToken(XContentParser parser) throws IOException {
         return new BytesRef((byte[]) processToken(parser, (typeUtils) -> typeUtils.encode(parser)));
+    }
+
+    /**
+     * Build a {@link BytesRef} wrapping a byte array containing an encoded form
+     * of the passed XContentBuilder contents.
+     */
+    public static BytesRef encodeXContentBuilder(XContentBuilder builder) throws IOException {
+        return new BytesRef(TypeUtils.encode(builder));
     }
 
     /**
@@ -70,8 +87,73 @@ final class XContentDataHelper {
             case LONG_ENCODING -> TypeUtils.LONG.decodeAndWrite(b, r);
             case DOUBLE_ENCODING -> TypeUtils.DOUBLE.decodeAndWrite(b, r);
             case FLOAT_ENCODING -> TypeUtils.FLOAT.decodeAndWrite(b, r);
+            case NULL_ENCODING -> TypeUtils.NULL.decodeAndWrite(b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
         }
+    }
+
+    /**
+     * Returns the {@link XContentType} to use for creating an XContentBuilder to decode the passed value.
+     */
+    public static XContentType getXContentType(BytesRef r) {
+        return switch ((char) r.bytes[r.offset]) {
+            case JSON_OBJECT_ENCODING -> XContentType.JSON;
+            case YAML_OBJECT_ENCODING -> XContentType.YAML;
+            case SMILE_OBJECT_ENCODING -> XContentType.SMILE;
+            default -> XContentType.CBOR;  // CBOR can parse all other encoded types.
+        };
+    }
+
+    /**
+     * Stores the current parser structure (subtree) to an {@link XContentBuilder} and returns it, along with a
+     * {@link DocumentParserContext} wrapping it that can be used to reparse the subtree.
+     * The parser of the original context is also advanced to the end of the current structure (subtree) as a side effect.
+     */
+    static Tuple<DocumentParserContext, XContentBuilder> cloneSubContext(DocumentParserContext context) throws IOException {
+        var tuple = cloneSubContextParserConfiguration(context);
+        return Tuple.tuple(cloneDocumentParserContext(context, tuple.v1(), tuple.v2()), tuple.v2());
+    }
+
+    /**
+     * Initializes a {@link XContentParser} with the current parser structure (subtree) and returns it, along with a
+     * {@link DocumentParserContext} wrapping the subtree that can be used to reparse it.
+     * The parser of the original context is also advanced to the end of the current structure (subtree) as a side effect.
+     */
+    static Tuple<DocumentParserContext, XContentParser> cloneSubContextWithParser(DocumentParserContext context) throws IOException {
+        Tuple<XContentParserConfiguration, XContentBuilder> tuple = cloneSubContextParserConfiguration(context);
+        XContentParser parser = XContentHelper.createParserNotCompressed(
+            tuple.v1(),
+            BytesReference.bytes(tuple.v2()),
+            context.parser().contentType()
+        );
+        assert parser.currentToken() == null;
+        parser.nextToken();
+        return Tuple.tuple(cloneDocumentParserContext(context, tuple.v1(), tuple.v2()), parser);
+    }
+
+    private static Tuple<XContentParserConfiguration, XContentBuilder> cloneSubContextParserConfiguration(DocumentParserContext context)
+        throws IOException {
+        XContentParser parser = context.parser();
+        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+        builder.copyCurrentStructure(parser);
+
+        XContentParserConfiguration configuration = XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
+            .withDeprecationHandler(parser.getDeprecationHandler())
+            .withRestApiVersion(parser.getRestApiVersion());
+        return Tuple.tuple(configuration, builder);
+    }
+
+    private static DocumentParserContext cloneDocumentParserContext(
+        DocumentParserContext context,
+        XContentParserConfiguration configuration,
+        XContentBuilder builder
+    ) throws IOException {
+        DocumentParserContext subcontext = context.switchParser(
+            XContentHelper.createParserNotCompressed(configuration, BytesReference.bytes(builder), context.parser().contentType())
+        );
+        subcontext.setClonedSource();  // Avoids double-storing parts of the source for the same parser subtree.
+        subcontext.parser().nextToken();
+        return subcontext;
     }
 
     private static Object processToken(XContentParser parser, CheckedFunction<TypeUtils, Object, IOException> visitor) throws IOException {
@@ -86,6 +168,7 @@ final class XContentDataHelper {
                 case BIG_DECIMAL -> visitor.apply(TypeUtils.BIG_DECIMAL);
             };
             case VALUE_BOOLEAN -> visitor.apply(TypeUtils.BOOLEAN);
+            case VALUE_NULL -> visitor.apply(TypeUtils.NULL);
             case VALUE_EMBEDDED_OBJECT -> visitor.apply(TypeUtils.EMBEDDED_OBJECT);
             case START_OBJECT, START_ARRAY -> visitor.apply(TypeUtils.START);
             default -> throw new IllegalArgumentException("synthetic _source doesn't support malformed objects");
@@ -102,6 +185,7 @@ final class XContentDataHelper {
     private static final char FALSE_ENCODING = 'f';
     private static final char TRUE_ENCODING = 't';
     private static final char BINARY_ENCODING = 'b';
+    private static final char NULL_ENCODING = 'n';
     private static final char CBOR_OBJECT_ENCODING = 'c';
     private static final char JSON_OBJECT_ENCODING = 'j';
     private static final char YAML_OBJECT_ENCODING = 'y';
@@ -269,6 +353,24 @@ final class XContentDataHelper {
                 }
                 assert r.bytes[r.offset] == 't' || r.bytes[r.offset] == 'f' : r.bytes[r.offset];
                 b.value(r.bytes[r.offset] == 't');
+            }
+        },
+        NULL(NULL_ENCODING) {
+            @Override
+            StoredField buildStoredField(String name, XContentParser parser) throws IOException {
+                return new StoredField(name, encode(parser));
+            }
+
+            @Override
+            byte[] encode(XContentParser parser) throws IOException {
+                byte[] bytes = new byte[] { getEncoding() };
+                assertValidEncoding(bytes);
+                return bytes;
+            }
+
+            @Override
+            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+                b.nullValue();
             }
         },
         EMBEDDED_OBJECT(BINARY_ENCODING) {

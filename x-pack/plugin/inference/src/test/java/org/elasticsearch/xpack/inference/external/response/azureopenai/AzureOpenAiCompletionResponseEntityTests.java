@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -50,7 +49,7 @@ public class AzureOpenAiCompletionResponseEntityTests extends ESTestCase {
                          "index": 0,
                          "logprobs": null,
                          "message": {
-                             "content": "response",
+                             "content": "result",
                              "role": "assistant"
                          }
                      }
@@ -92,10 +91,8 @@ public class AzureOpenAiCompletionResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(chatCompletionResults.getResults().size(), equalTo(1));
-
-        ChatCompletionResults.Result result = chatCompletionResults.getResults().get(0);
-        assertThat(result.asMap().get(result.getResultsField()), is("response"));
+        assertThat(chatCompletionResults.getResults().size(), is(1));
+        assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));
     }
 
     public void testFromResponse_FailsWhenChoicesFieldIsNotPresent() {

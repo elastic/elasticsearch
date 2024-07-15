@@ -141,6 +141,9 @@ public class PyTorchResultProcessor {
     }
 
     private void notifyAndClearPendingResults(ErrorResult errorResult) {
+        if (pendingResults.size() > 0) {
+            logger.warn(format("[%s] clearing [%d] requests pending results", modelId, pendingResults.size()));
+        }
         pendingResults.forEach(
             (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, errorResult))
         );
@@ -157,11 +160,11 @@ public class PyTorchResultProcessor {
         }
 
         logger.debug(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
-        updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for inference [%s]", modelId, result.requestId()));
         } else {
+            updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
             pendingResult.listener.onResponse(result);
         }
     }

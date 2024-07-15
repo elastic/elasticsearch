@@ -61,12 +61,15 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         }
     }
 
-    public UpdateSettingsRequest() {}
+    public UpdateSettingsRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Constructs a new request to update settings for one or more indices
      */
     public UpdateSettingsRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.indices = indices;
     }
 
@@ -74,6 +77,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
      * Constructs a new request to update settings for one or more indices
      */
     public UpdateSettingsRequest(Settings settings, String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.indices = indices;
         this.settings = settings;
     }

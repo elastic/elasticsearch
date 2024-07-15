@@ -2,4 +2,4 @@
 
 *Description*
 
-Extracts the y-coordinate from a point geometry.
+Extracts the `y` coordinate from the supplied point. If the points is of type `geo_point` this is equivalent to extracting the `latitude` value.

@@ -11,7 +11,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -59,9 +58,9 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            try (DoubleVector.Builder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount())) {
+            try (var builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.appendDouble(values.get(selected.getInt(i)));
+                    builder.appendDouble(i, values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
@@ -107,7 +106,7 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
                 } else {
                     valuesBuilder.appendDouble(0); // TODO can we just use null?
                 }
-                hasValueBuilder.appendBoolean(hasValue(group));
+                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();

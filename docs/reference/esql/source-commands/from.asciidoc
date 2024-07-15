@@ -2,11 +2,14 @@
 [[esql-from]]
 === `FROM`
 
+The `FROM` source command returns a table with data from a data stream, index,
+or alias.
+
 **Syntax**
 
 [source,esql]
 ----
-FROM index_pattern [METADATA fields] [OPTIONS options]
+FROM index_pattern [METADATA fields]
 ----
 
 *Parameters*
@@ -16,10 +19,6 @@ A list of indices, data streams or aliases. Supports wildcards and date math.
 
 `fields`::
 A comma-separated list of <<esql-metadata-fields,metadata fields>> to retrieve.
-
-`options`::
-A comma-separated list of <<esql-index-options,index options>> to configure
-data access.
 
 *Description*
 
@@ -87,10 +86,10 @@ Use the optional `METADATA` directive to enable <<esql-metadata-fields,metadata 
 FROM employees METADATA _id
 ----
 
-Use the optional `OPTIONS` directive to specify <<esql-index-options,index access options>>.
-This directive must follow `METADATA`, if both are specified:
+Use enclosing double quotes (`"`) or three enclosing double quotes (`"""`) to escape index names
+that contain special characters:
 
 [source,esql]
 ----
-FROM employees* METADATA _index OPTIONS "ignore_unavailable"="true"
+FROM "this=that", """this[that"""
 ----

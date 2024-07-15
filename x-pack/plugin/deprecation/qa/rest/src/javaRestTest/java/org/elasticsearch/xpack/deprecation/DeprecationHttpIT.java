@@ -44,6 +44,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
+import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
+import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
+import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -93,46 +96,24 @@ public class DeprecationHttpIT extends ESRestTestCase {
             XContentBuilder builder = JsonXContent.contentBuilder()
                 .startObject()
                 .startObject("persistent")
-                .field(
-                    TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey(),
-                    TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY) == false
-                )
-                .field(
-                    TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getKey(),
-                    TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY) == false
-                )
+                .field(TEST_DEPRECATED_SETTING_TRUE1.getKey(), TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY) == false)
+                .field(TEST_DEPRECATED_SETTING_TRUE2.getKey(), TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY) == false)
                 // There should be no warning for this field
-                .field(
-                    TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getKey(),
-                    TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY) == false
-                )
+                .field(TEST_NOT_DEPRECATED_SETTING.getKey(), TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY) == false)
                 .endObject()
                 .endObject();
 
             final Request request = new Request("PUT", "_cluster/settings");
-            ///
             request.setJsonEntity(Strings.toString(builder));
             final Response response = performScopedRequest(request);
 
             final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
             assertThat(deprecatedWarnings, everyItem(matchesRegex(HeaderWarning.WARNING_HEADER_PATTERN)));
-
-            final List<String> actualWarningValues = deprecatedWarnings.stream()
-                .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
-                .collect(Collectors.toList());
             assertThat(
-                actualWarningValues,
+                extractWarningValuesFromWarningHeaders(deprecatedWarnings),
                 containsInAnyOrder(
-                    equalTo(
-                        "["
-                            + TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey()
-                            + "] setting was deprecated in Elasticsearch and will be removed in a future release."
-                    ),
-                    equalTo(
-                        "["
-                            + TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getKey()
-                            + "] setting was deprecated in Elasticsearch and will be removed in a future release."
-                    )
+                    matchDeprecationWarning(TEST_DEPRECATED_SETTING_TRUE1),
+                    matchDeprecationWarning(TEST_DEPRECATED_SETTING_TRUE2)
                 )
             );
 
@@ -142,24 +123,31 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 assertThat(documents, hasSize(2));
             }, 30, TimeUnit.SECONDS);
         } finally {
-            cleanupSettings();
+            Response response = cleanupSettings();
+            List<String> warningHeaders = getWarningHeaders(response.getHeaders());
+            logger.warn("Warning headers on cleanup: {}", warningHeaders);
         }
     }
 
-    private void cleanupSettings() throws IOException {
+    private Matcher<String> matchDeprecationWarning(Setting<?> setting) {
+        var format = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release.";
+        return equalTo(Strings.format(format, setting.getKey()));
+    }
+
+    private Response cleanupSettings() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder()
             .startObject()
             .startObject("persistent")
-            .field(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey(), (Boolean) null)
-            .field(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getKey(), (Boolean) null)
+            .field(TEST_DEPRECATED_SETTING_TRUE1.getKey(), (Boolean) null)
+            .field(TEST_DEPRECATED_SETTING_TRUE2.getKey(), (Boolean) null)
             // There should be no warning for this field
-            .field(TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getKey(), (Boolean) null)
+            .field(TEST_NOT_DEPRECATED_SETTING.getKey(), (Boolean) null)
             .endObject()
             .endObject();
 
         final Request request = new Request("PUT", "_cluster/settings");
         request.setJsonEntity(Strings.toString(builder));
-        performScopedRequest(request);
+        return performScopedRequest(request, xOpaqueId() + "-cleanup");
     }
 
     /**
@@ -224,14 +212,14 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
         // deprecated settings should also trigger a deprecation warning
         final List<Setting<Boolean>> settings = new ArrayList<>(3);
-        settings.add(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1);
+        settings.add(TEST_DEPRECATED_SETTING_TRUE1);
 
         if (randomBoolean()) {
-            settings.add(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2);
+            settings.add(TEST_DEPRECATED_SETTING_TRUE2);
         }
 
         if (useNonDeprecatedSetting) {
-            settings.add(TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING);
+            settings.add(TEST_NOT_DEPRECATED_SETTING);
         }
 
         Collections.shuffle(settings, random());
@@ -250,10 +238,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         }
 
         assertThat(deprecatedWarnings, everyItem(matchesRegex(HeaderWarning.WARNING_HEADER_PATTERN)));
-        final List<String> actualWarningValues = deprecatedWarnings.stream()
-            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
-            .collect(Collectors.toList());
-        assertThat(actualWarningValues, containsInAnyOrder(headerMatchers));
+        assertThat(extractWarningValuesFromWarningHeaders(deprecatedWarnings), containsInAnyOrder(headerMatchers));
 
         // expect to index same number of new deprecations as the number of header warnings in the response
         assertBusy(() -> {
@@ -328,12 +313,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
     // triggers two deprecations - endpoint and setting
     private Request deprecatedRequest(String method) throws IOException {
         final Request getRequest = new Request(method, "/_test_cluster/deprecated_settings");
-        getRequest.setEntity(
-            buildSettingsRequest(
-                Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1),
-                "deprecated_settings"
-            )
-        );
+        getRequest.setEntity(buildSettingsRequest(Collections.singletonList(TEST_DEPRECATED_SETTING_TRUE1), "deprecated_settings"));
         return getRequest;
     }
 
@@ -444,12 +424,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
     public void testDeprecationWarnMessagesCanBeIndexed() throws Exception {
 
         final Request request = new Request("GET", "/_test_cluster/deprecated_settings");
-        request.setEntity(
-            buildSettingsRequest(
-                Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1),
-                "deprecation_warning"
-            )
-        );
+        request.setEntity(buildSettingsRequest(Collections.singletonList(TEST_DEPRECATED_SETTING_TRUE1), "deprecation_warning"));
         performScopedRequest(request);
 
         assertBusy(() -> {
@@ -514,20 +489,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
             .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + RestApiVersion.minimumSupported().major)
             .build();
         compatibleRequest.setOptions(compatibleOptions);
-        compatibleRequest.setEntity(
-            buildSettingsRequest(
-                Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1),
-                "deprecated_settings"
-            )
-        );
+        compatibleRequest.setEntity(buildSettingsRequest(Collections.singletonList(TEST_DEPRECATED_SETTING_TRUE1), "deprecated_settings"));
         Response deprecatedApiResponse = performScopedRequest(compatibleRequest);
 
         final List<String> deprecatedWarnings = getWarningHeaders(deprecatedApiResponse.getHeaders());
-        final List<String> actualWarningValues = deprecatedWarnings.stream()
-            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
-            .collect(Collectors.toList());
         assertThat(
-            actualWarningValues,
+            extractWarningValuesFromWarningHeaders(deprecatedWarnings),
             containsInAnyOrder(TestDeprecationHeaderRestAction.DEPRECATED_ENDPOINT, TestDeprecationHeaderRestAction.COMPATIBLE_API_USAGE)
         );
 
@@ -630,6 +597,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     private List<String> getWarningHeaders(Header[] headers) {
         return Arrays.stream(headers).filter(h -> h.getName().equals("Warning")).map(Header::getValue).toList();
+    }
+
+    private List<String> extractWarningValuesFromWarningHeaders(List<String> deprecatedWarnings) {
+        return deprecatedWarnings.stream()
+            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
+            .collect(Collectors.toList());
     }
 
     private HttpEntity buildSettingsRequest(List<Setting<Boolean>> settings, String settingName) throws IOException {

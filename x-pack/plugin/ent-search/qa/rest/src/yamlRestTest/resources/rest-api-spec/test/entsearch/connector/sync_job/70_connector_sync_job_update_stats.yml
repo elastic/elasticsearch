@@ -185,6 +185,77 @@ setup:
   - match: { last_seen: 2023-12-04T08:45:50.567149Z }
 
 ---
+"Update the ingestion stats for a connector sync job - with optional metadata":
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+  - set: { id: id }
+
+  - do:
+      connector.sync_job_update_stats:
+        connector_sync_job_id: $id
+        body:
+          deleted_document_count: 10
+          indexed_document_count: 20
+          indexed_document_volume: 1000
+          metadata: { someKey1: test, someKey2: test2 }
+
+  - match: { result: updated }
+
+  - do:
+      connector.sync_job_get:
+        connector_sync_job_id: $id
+
+  - match: { deleted_document_count: 10 }
+  - match: { indexed_document_count: 20 }
+  - match: { indexed_document_volume: 1000 }
+  - match: {  metadata: { someKey1: test, someKey2: test2 } }
+
+
+---
+"Update the ingestion stats for a connector sync job - metadata wrong type string":
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+  - set: { id: id }
+
+  - do:
+      catch: bad_request
+      connector.sync_job_update_stats:
+        connector_sync_job_id: $id
+        body:
+          deleted_document_count: 10
+          indexed_document_count: 20
+          indexed_document_volume: 1000
+          metadata: "abc"
+
+---
+"Update the ingestion stats for a connector sync job - metadata wrong type number":
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+  - set: { id: id }
+
+  - do:
+      catch: bad_request
+      connector.sync_job_update_stats:
+        connector_sync_job_id: $id
+        body:
+          deleted_document_count: 10
+          indexed_document_count: 20
+          indexed_document_volume: 1000
+          metadata: 123
+
+---
 "Update the ingestion stats for a Connector Sync Job - Connector Sync Job does not exist":
   - do:
       connector.sync_job_update_stats:

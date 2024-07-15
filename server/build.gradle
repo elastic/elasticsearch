@@ -37,11 +37,9 @@ dependencies {
   api project(":libs:elasticsearch-plugin-analysis-api")
   api project(':libs:elasticsearch-grok')
   api project(":libs:elasticsearch-tdigest")
-  implementation project(":libs:elasticsearch-vec")
+  implementation project(":libs:elasticsearch-simdvec")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
-  // no compile dependency by server, but server defines security policy for this codebase so it i>
-  runtimeOnly project(":libs:elasticsearch-preallocate")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -70,7 +68,6 @@ dependencies {
 
   // access to native functions
   implementation project(':libs:elasticsearch-native')
-  api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -82,7 +79,8 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
-
+  internalClusterTestImplementation(project(':modules:reindex'))
+  internalClusterTestImplementation(project(':modules:mapper-extras'))
 }
 
 spotless {
@@ -97,13 +95,6 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.dic'
     exclude '**/*.binary'
     exclude '**/*.st'
-}
-
-tasks.named('forbiddenApisMain').configure {
-  addSignatureFiles 'hppc-signatures'
-}
-tasks.named('forbiddenApisTest').configure {
-  addSignatureFiles 'hppc-signatures'
 }
 
 tasks.named('internalClusterTestTestingConventions').configure {
@@ -154,6 +145,18 @@ if (BuildParams.isSnapshotBuild() == false) {
 
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
+  excludes << '**/IndexSettingsOverrideTests.class'
+}
+
+TaskProvider<Test> indexSettingsOverrideTest = tasks.register("indexSettingsOverrideTest", Test) {
+  include '**/IndexSettingsOverrideTests.class'
+  systemProperty 'es.stateless.allow.index.refresh_interval.override', 'true'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
+}
+
+tasks.named("check").configure {
+  dependsOn(indexSettingsOverrideTest)
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -254,12 +257,12 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("dependencyLicenses").configure {
     mapping from: /lucene-.*/, to: 'lucene'
     mapping from: /log4j-.*/, to: 'log4j'
-    dependencies = project.configurations.runtimeClasspath.fileCollection {
-        it.group.startsWith('org.elasticsearch') == false ||
-                // keep the following org.elasticsearch jars in
-                (it.name == 'jna' ||
-                        it.name == 'securesm')
-    }
+
+    configureDependencies(
+      project.configurations.runtimeClasspath, project.configurations.resolveableCompileOnly, identifier -> {
+      return identifier instanceof ModuleComponentIdentifier
+        (identifier.moduleIdentifier.name == 'jna' || identifier.moduleIdentifier.name == 'securesm')
+    })
 }
 
 tasks.named("licenseHeaders").configure {

@@ -18,12 +18,8 @@ Using {esql} to query across multiple clusters.
 <<esql-task-management>>::
 Using the <<tasks,task management API>> to list and cancel {esql} queries.
 
-<<esql-version>>::
-Information about {esql} language versions.
-
 include::esql-rest.asciidoc[]
 include::esql-kibana.asciidoc[]
 include::esql-security-solution.asciidoc[]
 include::esql-across-clusters.asciidoc[]
 include::task-management.asciidoc[]
-include::esql-version.asciidoc[]

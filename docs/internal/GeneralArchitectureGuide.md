@@ -68,6 +68,52 @@ state must ever be reloaded from persisted state.
 
 ## Deprecations
 
+## Backwards Compatibility
+
+major releases are mostly about breaking compatibility and dropping deprecated functionality.
+
+Elasticsearch versions are composed of three pieces of information: the major version, the minor version, and the patch version,
+in that order (major.minor.patch). Patch releases are typically bug fixes; minor releases contain improvements / new features;
+and major releases essentially break compatibility and enable removal of deprecated functionality. As an example, each of 8.0.0,
+8.3.0 and 8.3.1 specifies an exact release version. They all have the same major version (8) and the last two have the same minor
+version (8.3). Multiversion compatibility within a cluster, or backwards compatibility with older version nodes, is guaranteed
+across specific versions.
+
+### Transport Layer Backwards Compatibility
+
+Elasticsearch nodes can communicate over the network with all node versions within the same major release. All versions within
+one major version X are also compatible with the last minor version releases of the previous major version, i.e. (X-1).last.
+More concretely, all 8.x.x version nodes can communicate with all 7.17.x version nodes.
+
+### Index Format Backwards Compatibility
+
+Index data format backwards compatibility is guaranteed with all versions of the previous major release. All 8.x.x version nodes,
+for example, can read index data written by any 7.x.x version node. 9.x.x versions, however, will not be able to read 7.x.x format
+data files.
+
+Elasticsearch does not have an upgrade process to convert from older to newer index data formats. The user is expected to run
+`reindex` on any remaining untouched data from a previous version upgrade before upgrading to the next version. There is a good
+chance that older version index data will age out and be deleted before the user does the next upgrade, but `reindex` can be used
+if that is not the case.
+
+### Snapshot Backwards Compatibility
+
+Snapshots taken by a cluster of version X cannot be read by a cluster running older version nodes. However, snapshots taken by an
+older version cluster can continue to be read from and written to by newer version clusters: this compatibility goes back many
+major versions. If a newer version cluster writes to a snapshot repository containing snapshots from an older version, then it
+will do so in a way that leaves the repository format (metadata and file layout) readable by those older versions.
+
+Restoring indexes that have different and no longer supported data formats can be tricky: see the
+[public snapshot compatibility docs][] for details.
+
+[public snapshot compatibility docs]: https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshot-restore.html#snapshot-index-compatibility
+
+### Upgrade
+
+See the [public upgrade docs][] for the upgrade process.
+
+[public upgrade docs]: https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html
+
 ## Plugins
 
 (what warrants a plugin?)

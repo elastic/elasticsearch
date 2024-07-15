@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
@@ -37,11 +38,13 @@ public class RestPutSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String snapLifecycleName = request.param("name");
         try (XContentParser parser = request.contentParser()) {
-            PutSnapshotLifecycleAction.Request req = PutSnapshotLifecycleAction.Request.parseRequest(snapLifecycleName, parser);
-            req.ackTimeout(request.paramAsTime("timeout", req.ackTimeout()));
-            req.masterNodeTimeout(getMasterNodeTimeout(request));
+            final var req = PutSnapshotLifecycleAction.Request.parseRequest(
+                getMasterNodeTimeout(request),
+                getAckTimeout(request),
+                request.param("name"),
+                parser
+            );
             return channel -> client.execute(PutSnapshotLifecycleAction.INSTANCE, req, new RestToXContentListener<>(channel));
         }
     }

@@ -23,6 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -53,7 +54,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
 
         PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, context, content, request.getXContentType(), source);
         putRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        putRequest.ackTimeout(request.paramAsTime("timeout", putRequest.ackTimeout()));
+        putRequest.ackTimeout(getAckTimeout(request));
         return channel -> client.admin().cluster().putStoredScript(putRequest, new RestToXContentListener<>(channel));
     }
 }

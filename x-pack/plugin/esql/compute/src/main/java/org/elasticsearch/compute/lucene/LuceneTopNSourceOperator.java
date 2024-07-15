@@ -13,6 +13,7 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopFieldCollector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -38,7 +39,6 @@ import java.util.stream.Collectors;
  */
 public final class LuceneTopNSourceOperator extends LuceneOperator {
     public static final class Factory extends LuceneOperator.Factory {
-        ;
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
 
@@ -51,7 +51,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             int limit,
             List<SortBuilder<?>> sorts
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit);
+            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, ScoreMode.TOP_DOCS);
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
         }

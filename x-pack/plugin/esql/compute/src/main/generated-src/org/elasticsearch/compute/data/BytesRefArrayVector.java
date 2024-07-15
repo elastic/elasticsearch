@@ -11,7 +11,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -89,6 +91,11 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
             }
             return builder.build();
         }
+    }
+
+    @Override
+    public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BytesRefLookup(asBlock(), positions, targetBlockSize);
     }
 
     public static long ramBytesEstimated(BytesRefArray values) {

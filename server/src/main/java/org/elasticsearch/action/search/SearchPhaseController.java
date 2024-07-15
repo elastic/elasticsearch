@@ -24,9 +24,11 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -66,7 +68,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 public final class SearchPhaseController {
-    private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final BiFunction<
         Supplier<Boolean>,
@@ -195,7 +196,7 @@ public final class SearchPhaseController {
             return SortedTopDocs.EMPTY;
         }
         final TopDocs mergedTopDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from);
-        final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? EMPTY_DOCS : mergedTopDocs.scoreDocs;
+        final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? Lucene.EMPTY_SCORE_DOCS : mergedTopDocs.scoreDocs;
         ScoreDoc[] scoreDocs = mergedScoreDocs;
         int numSuggestDocs = 0;
         if (reducedCompletionSuggestions.isEmpty() == false) {
@@ -301,11 +302,13 @@ public final class SearchPhaseController {
     }
 
     private static SortField.Type getType(SortField sortField) {
-        if (sortField instanceof SortedNumericSortField) {
-            return ((SortedNumericSortField) sortField).getNumericType();
-        }
-        if (sortField instanceof SortedSetSortField) {
+        if (sortField instanceof SortedNumericSortField sf) {
+            return sf.getNumericType();
+        } else if (sortField instanceof SortedSetSortField) {
             return SortField.Type.STRING;
+        } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource cmp) {
+            // This can occur if the sort field wasn't rewritten by Lucene#rewriteMergeSortField because all search shards are local.
+            return cmp.reducedType();
         } else {
             return sortField.getType();
         }
@@ -456,9 +459,10 @@ public final class SearchPhaseController {
                     : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
-                if (reducedQueryPhase.rankCoordinatorContext != null) {
+                if (reducedQueryPhase.queryPhaseRankCoordinatorContext != null) {
                     assert shardDoc instanceof RankDoc;
                     searchHit.setRank(((RankDoc) shardDoc).rank);
+                    searchHit.score(shardDoc.score);
                 } else if (sortedTopDocs.isSortedByField) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;
                     searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
@@ -746,7 +750,7 @@ public final class SearchPhaseController {
         // sort value formats used to sort / format the result
         DocValueFormat[] sortValueFormats,
         // the rank context if ranking is used
-        QueryPhaseRankCoordinatorContext rankCoordinatorContext,
+        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
         // the number of reduces phases
         int numReducePhases,
         // the size of the top hits to return
@@ -906,6 +910,6 @@ public final class SearchPhaseController {
         Object[] collapseValues,
         int numberOfCompletionsSuggestions
     ) {
-        public static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null, 0);
+        public static final SortedTopDocs EMPTY = new SortedTopDocs(Lucene.EMPTY_SCORE_DOCS, false, null, null, null, 0);
     }
 }

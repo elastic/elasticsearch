@@ -42,11 +42,11 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     }
 
     public PutStoredScriptRequest() {
-        super();
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
     }
 
     public PutStoredScriptRequest(String id, String context, BytesReference content, XContentType xContentType, StoredScriptSource source) {
-        super();
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.id = id;
         this.context = context;
         this.content = content;

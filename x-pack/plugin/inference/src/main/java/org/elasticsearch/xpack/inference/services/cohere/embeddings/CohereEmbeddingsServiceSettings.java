@@ -134,6 +134,11 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         return commonSettings.dimensions();
     }
 
+    @Override
+    public String modelId() {
+        return commonSettings.modelId();
+    }
+
     public CohereEmbeddingType getEmbeddingType() {
         return embeddingType;
     }
@@ -169,7 +174,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED;
+        return TransportVersions.V_8_13_0;
     }
 
     @Override

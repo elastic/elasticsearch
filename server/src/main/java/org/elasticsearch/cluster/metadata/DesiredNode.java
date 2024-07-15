@@ -204,7 +204,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         final var memory = ByteSizeValue.readFrom(in);
         final var storage = ByteSizeValue.readFrom(in);
         final String version;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DESIRED_NODE_VERSION_OPTIONAL_STRING)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             version = in.readOptionalString();
         } else {
             version = Version.readVersion(in).toString();
@@ -237,7 +237,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         }
         memory.writeTo(out);
         storage.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DESIRED_NODE_VERSION_OPTIONAL_STRING)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalString(version);
         } else {
             Version parsedVersion = parseLegacyVersion(version);

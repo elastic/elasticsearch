@@ -29,7 +29,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -585,85 +584,70 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         }
 
         final AtomicInteger upto = new AtomicInteger();
-        final CountDownLatch startingGun = new CountDownLatch(1);
-        Thread[] threads = new Thread[TestUtil.nextInt(random, 1, TEST_NIGHTLY ? 20 : 5)];
         final long startTime = System.nanoTime();
-        for (int i = 0; i < threads.length; i++) {
-            final int threadID = i;
-            threads[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        // final Random threadRandom = RandomizedContext.current().getRandom();
-                        final Random threadRandom = random();
-                        startingGun.await();
-                        while (true) {
+        startInParallel(TestUtil.nextInt(random, 1, TEST_NIGHTLY ? 20 : 5), threadID -> {
+            try {
+                // final Random threadRandom = RandomizedContext.current().getRandom();
+                final Random threadRandom = random();
+                while (true) {
 
-                            // TODO: sometimes use bulk:
+                    // TODO: sometimes use bulk:
 
-                            int index = upto.getAndIncrement();
-                            if (index >= idVersions.length) {
-                                break;
-                            }
-                            if (index % 100 == 0) {
-                                logger.trace("{}: index={}", Thread.currentThread().getName(), index);
-                            }
-                            IDAndVersion idVersion = idVersions[index];
+                    int index = upto.getAndIncrement();
+                    if (index >= idVersions.length) {
+                        break;
+                    }
+                    if (index % 100 == 0) {
+                        logger.trace("{}: index={}", Thread.currentThread().getName(), index);
+                    }
+                    IDAndVersion idVersion = idVersions[index];
 
-                            String id = idVersion.id;
-                            idVersion.threadID = threadID;
-                            idVersion.indexStartTime = System.nanoTime() - startTime;
-                            long version = idVersion.version;
-                            if (idVersion.delete) {
-                                try {
-                                    idVersion.response = client().prepareDelete("test", id)
-                                        .setVersion(version)
-                                        .setVersionType(VersionType.EXTERNAL)
-                                        .get();
-                                } catch (VersionConflictEngineException vcee) {
-                                    // OK: our version is too old
-                                    assertThat(version, lessThanOrEqualTo(truth.get(id).version));
-                                    idVersion.versionConflict = true;
-                                }
-                            } else {
-                                try {
-                                    idVersion.response = prepareIndex("test").setId(id)
-                                        .setSource("foo", "bar")
-                                        .setVersion(version)
-                                        .setVersionType(VersionType.EXTERNAL)
-                                        .get();
-
-                                } catch (VersionConflictEngineException vcee) {
-                                    // OK: our version is too old
-                                    assertThat(version, lessThanOrEqualTo(truth.get(id).version));
-                                    idVersion.versionConflict = true;
-                                }
-                            }
-                            idVersion.indexFinishTime = System.nanoTime() - startTime;
-
-                            if (threadRandom.nextInt(100) == 7) {
-                                logger.trace("--> {}: TEST: now refresh at {}", threadID, System.nanoTime() - startTime);
-                                refresh();
-                                logger.trace("--> {}: TEST: refresh done at {}", threadID, System.nanoTime() - startTime);
-                            }
-                            if (threadRandom.nextInt(100) == 7) {
-                                logger.trace("--> {}: TEST: now flush at {}", threadID, System.nanoTime() - startTime);
-                                flush();
-                                logger.trace("--> {}: TEST: flush done at {}", threadID, System.nanoTime() - startTime);
-                            }
+                    String id = idVersion.id;
+                    idVersion.threadID = threadID;
+                    idVersion.indexStartTime = System.nanoTime() - startTime;
+                    long v = idVersion.version;
+                    if (idVersion.delete) {
+                        try {
+                            idVersion.response = client().prepareDelete("test", id)
+                                .setVersion(v)
+                                .setVersionType(VersionType.EXTERNAL)
+                                .get();
+                        } catch (VersionConflictEngineException vcee) {
+                            // OK: our version is too old
+                            assertThat(v, lessThanOrEqualTo(truth.get(id).version));
+                            idVersion.versionConflict = true;
                         }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+                    } else {
+                        try {
+                            idVersion.response = prepareIndex("test").setId(id)
+                                .setSource("foo", "bar")
+                                .setVersion(v)
+                                .setVersionType(VersionType.EXTERNAL)
+                                .get();
+
+                        } catch (VersionConflictEngineException vcee) {
+                            // OK: our version is too old
+                            assertThat(v, lessThanOrEqualTo(truth.get(id).version));
+                            idVersion.versionConflict = true;
+                        }
+                    }
+                    idVersion.indexFinishTime = System.nanoTime() - startTime;
+
+                    if (threadRandom.nextInt(100) == 7) {
+                        logger.trace("--> {}: TEST: now refresh at {}", threadID, System.nanoTime() - startTime);
+                        refresh();
+                        logger.trace("--> {}: TEST: refresh done at {}", threadID, System.nanoTime() - startTime);
+                    }
+                    if (threadRandom.nextInt(100) == 7) {
+                        logger.trace("--> {}: TEST: now flush at {}", threadID, System.nanoTime() - startTime);
+                        flush();
+                        logger.trace("--> {}: TEST: flush done at {}", threadID, System.nanoTime() - startTime);
                     }
                 }
-            };
-            threads[i].start();
-        }
-
-        startingGun.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         // Verify against truth:
         boolean failed = false;

@@ -113,8 +113,34 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         assertOkOrCreated(response);
     }
 
+    protected Response deleteModel(String modelId, String queryParams) throws IOException {
+        var request = new Request("DELETE", "_inference/" + modelId + "?" + queryParams);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return response;
+    }
+
     protected void deleteModel(String modelId, TaskType taskType) throws IOException {
         var request = new Request("DELETE", Strings.format("_inference/%s/%s", taskType, modelId));
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+    }
+
+    protected void putSemanticText(String endpointId, String indexName) throws IOException {
+        var request = new Request("PUT", Strings.format("%s", indexName));
+        String body = Strings.format("""
+            {
+                "mappings": {
+                "properties": {
+                    "inference_field": {
+                        "type": "semantic_text",
+                            "inference_id": "%s"
+                    }
+                }
+                }
+            }
+            """, endpointId);
+        request.setJsonEntity(body);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
     }
@@ -122,6 +148,29 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
         String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         return putRequest(endpoint, modelConfig);
+    }
+
+    protected Map<String, Object> putPipeline(String pipelineId, String modelId) throws IOException {
+        String endpoint = Strings.format("_ingest/pipeline/%s", pipelineId);
+        String body = """
+            {
+              "description": "Test pipeline",
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s"
+                  }
+                }
+              ]
+            }
+            """.formatted(modelId);
+        return putRequest(endpoint, body);
+    }
+
+    protected void deletePipeline(String pipelineId) throws IOException {
+        var request = new Request("DELETE", Strings.format("_ingest/pipeline/%s", pipelineId));
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
     }
 
     /**

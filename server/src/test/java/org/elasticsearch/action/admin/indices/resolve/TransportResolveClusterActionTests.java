@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,8 +66,8 @@ public class TransportResolveClusterActionTests extends ESTestCase {
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     throw new UnsupportedOperationException(
-                        "ResolveClusterAction requires at least Transport Version "
-                            + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED.toReleaseVersion()
+                        "ResolveClusterAction requires at least version "
+                            + TransportVersions.V_8_13_0.toReleaseVersion()
                             + " but was "
                             + out.getTransportVersion().toReleaseVersion()
                     );
@@ -88,18 +87,14 @@ public class TransportResolveClusterActionTests extends ESTestCase {
                 null
             );
 
-            IllegalArgumentException ex = expectThrows(
+            final var ex = asInstanceOf(
                 IllegalArgumentException.class,
-                () -> PlainActionFuture.<ResolveClusterActionResponse, RuntimeException>get(
-                    future -> action.doExecute(null, request, future),
-                    10,
-                    TimeUnit.SECONDS
-                )
+                safeAwaitFailure(ResolveClusterActionResponse.class, listener -> action.doExecute(null, request, listener))
             );
 
             assertThat(ex.getMessage(), containsString("not compatible with version"));
             assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-            assertThat(ex.getCause().getMessage(), containsString("ResolveClusterAction requires at least Transport Version"));
+            assertThat(ex.getCause().getMessage(), containsString("ResolveClusterAction requires at least version"));
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

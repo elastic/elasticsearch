@@ -35,6 +35,7 @@ public class PromoteDataStreamAction extends ActionType<AcknowledgedResponse> {
         private final String name;
 
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = Objects.requireNonNull(name);
         }
 

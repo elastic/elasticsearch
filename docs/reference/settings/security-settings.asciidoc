@@ -23,7 +23,9 @@ For more information about creating and updating the {es} keystore, see
 ==== General security settings
 `xpack.security.enabled`::
 (<<static-cluster-setting,Static>>)
-Defaults to `true`, which enables {es} {security-features} on the node. +
+Defaults to `true`, which enables {es} {security-features} on the node. 
+This setting must be enabled to use Elasticsearch's authentication, 
+authorization and audit features. +
 +
 --
 If set to `false`, {security-features} are disabled, which is not recommended.

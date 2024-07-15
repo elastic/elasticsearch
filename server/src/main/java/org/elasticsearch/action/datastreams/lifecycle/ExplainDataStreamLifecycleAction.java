@@ -54,6 +54,7 @@ public class ExplainDataStreamLifecycleAction {
         }
 
         public Request(String[] names, boolean includeDefaults) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.names = names;
             this.includeDefaults = includeDefaults;
         }

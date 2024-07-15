@@ -36,7 +36,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
         private final boolean deferValidation;
 
         public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
-            super(timeout);
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.config = config;
             this.deferValidation = deferValidation;
         }

@@ -13,6 +13,8 @@ $endif$
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -53,6 +55,9 @@ $endif$
 
     @Override
     $Type$Vector filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
 $if(int)$
     /**
@@ -116,6 +121,8 @@ $elseif(boolean)$
             result = 31 * result + Boolean.hashCode(vector.getBoolean(pos));
 $elseif(int)$
             result = 31 * result + vector.getInt(pos);
+$elseif(float)$
+            result = 31 * result + Float.floatToIntBits(vector.getFloat(pos));
 $elseif(long)$
             long element = vector.getLong(pos);
             result = 31 * result + (int) (element ^ (element >>> 32));
@@ -180,7 +187,7 @@ $endif$
     private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.append$Type$(in.read$Type$());
+                builder.append$Type$($if(BytesRef)$$else$i, $endif$in.read$Type$());
             }
             return builder.build();
         }
@@ -238,6 +245,9 @@ $else$
          */
         @Override
         FixedBuilder append$Type$($type$ value);
+
+        FixedBuilder append$Type$(int index, $type$ value);
+
     }
 $endif$
 }

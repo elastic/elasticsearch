@@ -84,6 +84,7 @@ public class MetadataRolloverService {
         AutoShardingType.COOLDOWN_PREVENTED_DECREASE,
         "es.auto_sharding.cooldown_prevented_decrease.total"
     );
+    private static final String NON_EXISTENT_SOURCE = "_none_";
 
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
@@ -196,12 +197,11 @@ public class MetadataRolloverService {
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
-            case DATA_STREAM -> {
-                if (isFailureStoreRollover) {
-                    yield resolveDataStreamFailureStoreRolloverNames(currentState.metadata(), (DataStream) indexAbstraction);
-                }
-                yield resolveDataStreamRolloverNames(currentState.getMetadata(), (DataStream) indexAbstraction);
-            }
+            case DATA_STREAM -> resolveDataStreamRolloverNames(
+                currentState.metadata(),
+                (DataStream) indexAbstraction,
+                isFailureStoreRollover
+            );
             default ->
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
@@ -220,20 +220,15 @@ public class MetadataRolloverService {
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
-    private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, DataStream dataStream) {
-        final IndexMetadata originalWriteIndex = metadata.index(dataStream.getWriteIndex());
-        return new NameResolution(originalWriteIndex.getIndex().getName(), null, dataStream.nextWriteIndexAndGeneration(metadata).v1());
-    }
+    private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, DataStream dataStream, boolean isFailureStoreRollover) {
+        final DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
+        assert dataStreamIndices.getIndices().isEmpty() == false || isFailureStoreRollover
+            : "Unable to roll over dataStreamIndices with no indices";
 
-    private static NameResolution resolveDataStreamFailureStoreRolloverNames(Metadata metadata, DataStream dataStream) {
-        assert dataStream.getFailureStoreWriteIndex() != null : "Unable to roll over failure store with no failure store indices";
-
-        final IndexMetadata originalWriteIndex = metadata.index(dataStream.getFailureStoreWriteIndex());
-        return new NameResolution(
-            originalWriteIndex.getIndex().getName(),
-            null,
-            dataStream.nextFailureStoreWriteIndexAndGeneration(metadata).v1()
-        );
+        final String originalWriteIndex = dataStreamIndices.getIndices().isEmpty() && dataStreamIndices.isRolloverOnWrite()
+            ? NON_EXISTENT_SOURCE
+            : metadata.index(dataStreamIndices.getWriteIndex()).getIndex().getName();
+        return new NameResolution(originalWriteIndex, null, dataStream.nextWriteIndexAndGeneration(metadata, dataStreamIndices).v1());
     }
 
     private RolloverResult rolloverAlias(
@@ -327,15 +322,15 @@ public class MetadataRolloverService {
             templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
-        final Index originalWriteIndex = isFailureStoreRollover ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
-        final Tuple<String, Long> nextIndexAndGeneration = isFailureStoreRollover
-            ? dataStream.nextFailureStoreWriteIndexAndGeneration(currentState.metadata())
-            : dataStream.nextWriteIndexAndGeneration(currentState.metadata());
+        final DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
+        final boolean isLazyCreation = dataStreamIndices.getIndices().isEmpty() && dataStreamIndices.isRolloverOnWrite();
+        final Index originalWriteIndex = isLazyCreation ? null : dataStreamIndices.getWriteIndex();
+        final Tuple<String, Long> nextIndexAndGeneration = dataStream.nextWriteIndexAndGeneration(metadata, dataStreamIndices);
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
         MetadataCreateIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
         if (onlyValidate) {
-            return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), currentState);
+            return new RolloverResult(newWriteIndexName, isLazyCreation ? NON_EXISTENT_SOURCE : originalWriteIndex.getName(), currentState);
         }
 
         ClusterState newState;
@@ -429,18 +424,20 @@ public class MetadataRolloverService {
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
 
-        Metadata.Builder metadataBuilder = Metadata.builder(newState.metadata())
-            .put(
+        Metadata.Builder metadataBuilder = Metadata.builder(newState.metadata());
+        if (isLazyCreation == false) {
+            metadataBuilder.put(
                 IndexMetadata.builder(newState.metadata().index(originalWriteIndex)).stats(sourceIndexStats).putRolloverInfo(rolloverInfo)
             );
+        }
 
         metadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStreamName, metadataBuilder);
         metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);
 
         newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
-        newState = MetadataDataStreamsService.setRolloverOnWrite(newState, dataStreamName, false);
+        newState = MetadataDataStreamsService.setRolloverOnWrite(newState, dataStreamName, false, isFailureStoreRollover);
 
-        return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
+        return new RolloverResult(newWriteIndexName, isLazyCreation ? NON_EXISTENT_SOURCE : originalWriteIndex.getName(), newState);
     }
 
     /**
@@ -668,12 +665,6 @@ public class MetadataRolloverService {
                 || (request.mappings().equals("{}") == false)) {
                 throw new IllegalArgumentException(
                     "aliases, mappings, and index settings may not be specified when rolling over a data stream"
-                );
-            }
-            var dataStream = (DataStream) indexAbstraction;
-            if (isFailureStoreRollover && dataStream.isFailureStoreEnabled() == false) {
-                throw new IllegalArgumentException(
-                    "unable to roll over failure store because [" + indexAbstraction.getName() + "] does not have the failure store enabled"
                 );
             }
         }

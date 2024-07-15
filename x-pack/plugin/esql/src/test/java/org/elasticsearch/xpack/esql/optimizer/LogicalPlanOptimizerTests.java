@@ -5477,6 +5477,58 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
     }
 
+    public void testMetricsWithoutRate() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        List<String> queries = List.of("""
+            METRICS k8s count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """, """
+            METRICS k8s | STATS count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """, """
+            FROM k8s | STATS count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """);
+        List<LogicalPlan> plans = new ArrayList<>();
+        for (String query : queries) {
+            var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+            plans.add(plan);
+        }
+        for (LogicalPlan plan : plans) {
+            Limit limit = as(plan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            assertThat(aggregate.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+            assertThat(aggregate.aggregates(), hasSize(2));
+            assertThat(aggregate.groupings(), hasSize(1));
+            Eval eval = as(aggregate.child(), Eval.class);
+            assertThat(eval.fields(), hasSize(2));
+            assertThat(Alias.unwrap(eval.fields().get(0)), instanceOf(Bucket.class));
+            assertThat(Alias.unwrap(eval.fields().get(1)), instanceOf(ToLong.class));
+            EsRelation relation = as(eval.child(), EsRelation.class);
+            assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        }
+        // TODO: Unmute this part
+        // https://github.com/elastic/elasticsearch/issues/110827
+        // for (int i = 1; i < plans.size(); i++) {
+        // assertThat(plans.get(i), equalTo(plans.get(0)));
+        // }
+    }
+
+    public void testRateInStats() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = """
+            METRICS k8s | STATS max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """;
+        VerificationException error = expectThrows(
+            VerificationException.class,
+            () -> logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)))
+        );
+        assertThat(error.getMessage(), equalTo("""
+            Found 1 problem
+            line 1:25: the rate aggregate[rate(network.total_bytes_in)] can only be used within the metrics command"""));
+    }
+
     public void testMvSortInvalidOrder() {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test

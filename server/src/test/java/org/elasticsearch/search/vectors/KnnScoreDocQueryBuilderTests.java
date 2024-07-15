@@ -28,14 +28,11 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
@@ -48,11 +45,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScoreDocQueryBuilder> {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(TestGeoShapeFieldMapperPlugin.class);
-    }
 
     @Override
     protected KnnScoreDocQueryBuilder doCreateTestQueryBuilder() {

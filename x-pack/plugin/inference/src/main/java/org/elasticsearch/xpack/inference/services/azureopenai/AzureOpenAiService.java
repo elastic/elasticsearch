@@ -24,10 +24,6 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
@@ -44,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
@@ -243,19 +238,6 @@ public class AzureOpenAiService extends SenderService {
         for (var request : batchedRequests) {
             var action = azureOpenAiModel.accept(actionCreator, taskSettings);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
-        }
-    }
-
-    private static List<ChunkedInferenceServiceResults> translateToChunkedResults(
-        List<String> inputs,
-        InferenceServiceResults inferenceResults
-    ) {
-        if (inferenceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) {
-            return InferenceChunkedTextEmbeddingFloatResults.listOf(inputs, textEmbeddingResults);
-        } else if (inferenceResults instanceof ErrorInferenceResults error) {
-            return List.of(new ErrorChunkedInferenceResults(error.getException()));
-        } else {
-            throw createInvalidChunkedResultException(InferenceTextEmbeddingFloatResults.NAME, inferenceResults.getWriteableName());
         }
     }
 

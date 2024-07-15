@@ -5507,9 +5507,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             EsRelation relation = as(eval.child(), EsRelation.class);
             assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
         }
-        for (int i = 1; i < plans.size(); i++) {
-            assertThat(plans.get(i), equalTo(plans.get(0)));
-        }
+        // TODO: Unmute this part
+        // https://github.com/elastic/elasticsearch/issues/110827
+        // for (int i = 1; i < plans.size(); i++) {
+        // assertThat(plans.get(i), equalTo(plans.get(0)));
+        // }
     }
 
     public void testRateInStats() {

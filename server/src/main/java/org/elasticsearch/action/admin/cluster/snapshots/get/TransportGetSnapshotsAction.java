@@ -284,13 +284,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             ensureRequiredNamesPresent(repositoryName, repositoryData);
 
             if (verbose) {
-                loadSnapshotInfos(getSnapshotIdIterator(repository, repositoryData), listener);
+                loadSnapshotInfos(getAsyncSnapshotInfoIterator(repository, repositoryData), listener);
             } else {
                 assert fromSortValuePredicates.isMatchAll() : "filtering is not supported in non-verbose mode";
                 assert slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES : "filtering is not supported in non-verbose mode";
 
                 addSimpleSnapshotInfos(
-                    getSnapshotIdIterator(repository, repositoryData),
+                    getAsyncSnapshotInfoIterator(repository, repositoryData),
                     repositoryName,
                     repositoryData,
                     snapshotsInProgress.forRepo(repositoryName).stream().map(entry -> SnapshotInfo.inProgress(entry).basic()).toList()
@@ -388,9 +388,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         /**
-         * @return an iterator over the snapshot IDs in the given repository which match {@link #snapshotNamePredicate}.
+         * @return an iterator of {@link AsyncSnapshotInfo} instances in the given repository which match {@link #snapshotNamePredicate}.
          */
-        private Iterator<AsyncSnapshotInfo> getSnapshotIdIterator(Repository repository, @Nullable RepositoryData repositoryData) {
+        private Iterator<AsyncSnapshotInfo> getAsyncSnapshotInfoIterator(Repository repository, @Nullable RepositoryData repositoryData) {
             // now iterate through the snapshots again, returning SnapshotInfo suppliers for ones with matching IDs
             final Set<SnapshotId> matchingInProgressSnapshots = new HashSet<>();
             return Iterators.concat(

@@ -192,14 +192,14 @@ s:double
 
 exp#[skip:-8.15.99,reason:new scalar function added in 8.16]
 // tag::exp[]
-ROW d = 5.5
+ROW d = 5.0
 | EVAL s = EXP(d)
 // end::exp[]
 ;
 
 // tag::exp-result[]
 d: double | s:double
-5.5   | 244.69193226422038
+5.0   | 148.413159102576603
 // end::exp-result[]
 ;
 

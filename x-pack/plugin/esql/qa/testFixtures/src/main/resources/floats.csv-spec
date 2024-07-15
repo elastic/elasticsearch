@@ -1,4 +1,11 @@
 // Floating point types-specific tests
+parseLargeMagnitudeValues
+required_capability: fix_parsing_large_negative_numbers
+row a = 92233720368547758090, b = -9223372036854775809;
+
+a:double              | b:double
+9.223372036854776E+19 | -9.223372036854776E+18
+;
 
 inDouble
 from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002) | sort emp_no;

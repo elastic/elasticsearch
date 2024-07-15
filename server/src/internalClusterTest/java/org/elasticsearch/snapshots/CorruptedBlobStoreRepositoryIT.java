@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexVersion;
@@ -381,7 +382,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Files.write(repo.resolve("index-" + repositoryData.getGenId()), randomByteArrayOfLength(randomIntBetween(1, 100)));
 
         logger.info("--> verify loading repository data throws RepositoryException");
-        expectThrows(RepositoryException.class, () -> getRepositoryData(repository));
+        asInstanceOf(
+            RepositoryException.class,
+            safeAwaitFailure(RepositoryData.class, l -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l))
+        );
 
         final String otherRepoName = "other-repo";
         assertAcked(
@@ -393,7 +397,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final Repository otherRepo = getRepositoryOnMaster(otherRepoName);
 
         logger.info("--> verify loading repository data from newly mounted repository throws RepositoryException");
-        expectThrows(RepositoryException.class, () -> getRepositoryData(otherRepo));
+        asInstanceOf(
+            RepositoryException.class,
+            safeAwaitFailure(RepositoryData.class, l -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l))
+        );
     }
 
     public void testHandleSnapshotErrorWithBwCFormat() throws Exception {

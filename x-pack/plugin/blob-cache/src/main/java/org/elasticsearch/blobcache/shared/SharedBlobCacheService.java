@@ -994,7 +994,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     ActionListener.wrap(unused -> {
                         writeCount.increment();
                         gap.onCompletion();
-                    }, gap::onFailure)
+                    }, e -> failGapAndListener(gap, listener, e))
                 );
             });
         }

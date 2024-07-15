@@ -27,14 +27,17 @@ import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -44,6 +47,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -56,6 +60,8 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
 import org.elasticsearch.plugins.Plugin;
@@ -63,6 +69,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.hamcrest.Matchers;
@@ -94,6 +101,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -718,6 +726,54 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
 
         indexDocs.set(false);
         indexerThread.join(requestTimeout.millis());
+    }
+
+    public void testRecoverMultipleIndexingShardsWithCoordinatingRetries() throws Exception {
+        startMasterOnlyNode();
+        String firstIndexingShard = startIndexNode();
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        ensureGreen(indexName);
+
+        MockTransportService.getInstance(firstIndexingShard)
+            .addRequestHandlingBehavior(
+                TransportShardBulkAction.ACTION_NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TestTransportChannel(ActionListener.noop()), task)
+            );
+
+        String coordinatingNode = startIndexNode();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", coordinatingNode), indexName);
+
+        ActionFuture<BulkResponse> bulkRequest = client(coordinatingNode).prepareBulk(indexName)
+            .add(new IndexRequest(indexName).source(Map.of("custom", "value")))
+            .execute();
+
+        assertBusy(() -> {
+            IndicesStatsResponse statsResponse = client(firstIndexingShard).admin().indices().prepareStats(indexName).get();
+            SeqNoStats seqNoStats = statsResponse.getIndex(indexName).getShards()[0].getSeqNoStats();
+            assertThat(seqNoStats.getMaxSeqNo(), equalTo(0L));
+        });
+        flush(indexName);
+
+        internalCluster().stopNode(firstIndexingShard);
+
+        String secondIndexingShard = startIndexNode();
+        ensureGreen(indexName);
+
+        BulkResponse response = bulkRequest.actionGet();
+        assertFalse(response.hasFailures());
+
+        internalCluster().stopNode(secondIndexingShard);
+
+        startIndexNodes(1);
+        ensureGreen(indexName);
+
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        startSearchNode();
+        ensureGreen(indexName);
+
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.termQuery("custom", "value")), 1);
     }
 
     private static void assertBusyCommitsMatchExpectedResults(String indexName, ExpectedCommits expected) throws Exception {

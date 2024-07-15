@@ -28,6 +28,9 @@ A <<knn-retriever, retriever>> that replaces the functionality of a <<search-api
 `rrf`::
 A <<rrf-retriever, retriever>> that produces top documents from <<rrf, reciprocal rank fusion (RRF)>>.
 
+`text_similarity_reranker`::
+A <<text-similarity-reranker, retriever>> that enhances search results by re-ranking documents based on text similarity to a specified inference text, using a machine learning model.
+
 [[standard-retriever]]
 ==== Standard Retriever
 
@@ -200,6 +203,52 @@ GET /index/_search
 }
 ----
 // NOTCONSOLE
+
+[[text-similarity-reranker]]
+==== Text Similarity Re-ranker
+
+The `text_similarity_reranker` is a type of retriever that enhances search results by re-ranking documents based on text similarity to a specified inference text, using a machine learning model.
+
+===== Prerequisites
+
+To use `text_similarity_reranker` you must first set up a `rerank` task using the <<put-inference-api, Create {infer} API>>.
+The `rerank` task should be set up with a machine learning model that can compute text similarity.
+Currently you can integrate directly with the Cohere Rerank endpoint using the <<infer-service-cohere,`cohere-rerank`>> task, or upload a model to {es} <<inference-example-eland,using Eland>>.
+
+===== Parameters
+
+`field`::
+(Required, `string`)
++
+The document field to be used for text similarity comparisons. This field should contain the text that will be evaluated against the `inferenceText`.
+
+`inferenceId`::
+(Required, `string`)
++
+Unique identifier of the inference endpoint created using the {infer} API.
+
+`inferenceText`::
+(Required, `string`)
++
+The text snippet used as the basis for similarity comparison.
+
+`rankWindowSize`::
+(Required, `int`)
++
+The number of top documents to consider in the re-ranking process.
+
+`minScore`::
+(Optional, `float`)
++
+Sets a minimum threshold score for including documents in the re-ranked results. Documents with similarity scores below this threshold will be excluded. Note that score calculations vary depending on the model used.
+
+===== Restrictions
+
+//TODO
+
+===== Example
+
+//TODO
 
 ==== Using `from` and `size` with a retriever tree
 

@@ -141,13 +141,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
             new ImplicitCasting()
         );
-        var finish = new Batch<>(
-            "Finish Analysis",
-            Limiter.ONCE,
-            new AddImplicitLimit(),
-            new UnresolveUnionTypes(),
-            new DropSyntheticUnionTypeAttributes()
-        );
+        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new UnionTypesCleanup());
         rules = List.of(init, resolution, finish);
     }
 
@@ -1096,7 +1090,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Now that we have resolved those, we need to re-resolve the aggregates.
             if (plan instanceof Aggregate agg) {
                 // If the union-types resolution occurred in a child of the aggregate, we need to check the groupings
-                plan = agg.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
+                plan = agg.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
 
                 // Aggregates where the grouping key comes from a union-type field need to be resolved against the grouping key
                 Map<Attribute, Expression> resolved = new HashMap<>();
@@ -1206,23 +1200,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * If there was no AbstractConvertFunction that resolved multi-type fields in the ResolveUnionTypes rules,
-     * then there could still be some FieldAttributes that contain unresolved MultiTypeEsFields.
-     * These need to be converted back to actual UnresolvedAttribute in order for validation to generate appropriate failures.
+     * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
+     * If there was no {@code AbstractConvertFunction} that resolved multi-type fields in the {@link ResolveUnionTypes} rule,
+     * then there could still be some {@code FieldAttribute}s that contain unresolved {@link MultiTypeEsField}s.
+     * These need to be converted back to actual {@code UnresolvedAttribute} in order for validation to generate appropriate failures.
+     * <p>
+     * Finally, if {@code client_ip} is present in 2 indices, once with type {@code ip} and once with type {@code keyword},
+     * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
+     * This should not spill into the query output, so we drop such attributes at the end.
      */
-    private static class UnresolveUnionTypes extends AnalyzerRules.AnalyzerRule<LogicalPlan> {
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
+    private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
+        public LogicalPlan apply(LogicalPlan plan) {
+            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(LogicalPlan.class, p -> {
+                if (p instanceof EsRelation esRelation) {
+                    // Leave esRelation as InvalidMappedField so that UNSUPPORTED fields can still pass through
+                    return esRelation;
+                }
+                return p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
+            });
 
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof EsRelation esRelation) {
-                // Leave esRelation as InvalidMappedField so that UNSUPPORTED fields can still pass through
-                return esRelation;
-            }
-            return plan.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
+            // To drop synthetic attributes at the end, we need to compute the plan's output.
+            // This is only legal to do if the plan is resolved.
+            return planWithCheckedUnionTypes.resolved()
+                ? planWithoutSyntheticAttributes(planWithCheckedUnionTypes)
+                : planWithCheckedUnionTypes;
         }
 
         static Attribute checkUnresolved(FieldAttribute fa) {
@@ -1232,20 +1233,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             return fa;
         }
-    }
 
-    /**
-     * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
-     * If {@code client_ip} is present in 2 indices, once with type {@code ip} and once with type {@code keyword},
-     * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
-     * This should not spill into the query output, so we drop such attributes at the end.
-     */
-    private static class DropSyntheticUnionTypeAttributes extends Rule<LogicalPlan, LogicalPlan> {
-        public LogicalPlan apply(LogicalPlan plan) {
-            if (plan.resolved() == false) {
-                return plan;
-            }
-
+        private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
 
@@ -1257,10 +1246,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            if (newOutput.size() != output.size()) {
-                return new Project(Source.EMPTY, plan, newOutput);
-            }
-            return plan;
+            return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
         }
     }
 }

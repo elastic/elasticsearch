@@ -1179,7 +1179,7 @@ public class IngestServiceTests extends ESTestCase {
         AtomicInteger parsedValueWasUsed = new AtomicInteger(0);
         DocumentParsingProvider documentParsingProvider = new DocumentParsingProvider() {
             @Override
-            public DocumentSizeObserver newDocumentSizeObserver() {
+            public <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
                 return new DocumentSizeObserver() {
                     @Override
                     public XContentParser wrapParser(XContentParser xContentParser) {
@@ -1192,6 +1192,7 @@ public class IngestServiceTests extends ESTestCase {
                         parsedValueWasUsed.incrementAndGet();
                         return 0;
                     }
+
                 };
             }
         };

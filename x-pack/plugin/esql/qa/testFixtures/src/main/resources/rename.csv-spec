@@ -213,3 +213,44 @@ x:keyword
 Facello
 Simmel
 ;
+
+renameMultipleTimes
+FROM employees
+| SORT emp_no ASC
+| KEEP emp_no
+| RENAME emp_no AS x, emp_no AS y, emp_no AS z
+| LIMIT 2
+;
+
+z:keyword
+Facello
+Simmel
+;
+
+
+shadowingInternalAndRenameMultipleTimes
+FROM employees
+| SORT emp_no ASC
+| KEEP emp_no, last_name
+| RENAME emp_no AS x, last_name AS x, emp_no AS z
+| LIMIT 2
+;
+
+z:keyword | x:integer
+Facello   |     10001
+Simmel    |     10002
+;
+
+
+shadowingInternalAndRenameMultipleTimes2
+FROM employees
+| SORT emp_no ASC
+| KEEP emp_no, last_name
+| RENAME emp_no AS x, last_name AS x, last_name AS z
+| LIMIT 2
+;
+
+x:integer | z:keyword
+    10001 | Facello
+    10002 | Simmel
+;

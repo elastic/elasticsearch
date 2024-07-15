@@ -154,7 +154,7 @@ public abstract class TestCluster {
                 if ("_all".equals(indices[0])) {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
                     ArrayList<String> concreteIndices = new ArrayList<>();
-                    for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
+                    for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata().getProject()) {
                         concreteIndices.add(indexMetadata.getIndex().getName());
                     }
                     if (concreteIndices.isEmpty() == false) {

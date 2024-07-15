@@ -176,7 +176,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     private void assertClusterStateEqual(ClusterState expected, ClusterState actual) {
         assertThat(actual.version(), equalTo(expected.version()));
         assertTrue(Metadata.isGlobalStateEquals(actual.metadata(), expected.metadata()));
-        for (IndexMetadata indexMetadata : expected.metadata()) {
+        for (IndexMetadata indexMetadata : expected.metadata().getProject()) {
             assertThat(actual.metadata().index(indexMetadata.getIndex()), equalTo(indexMetadata));
         }
     }

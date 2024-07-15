@@ -199,7 +199,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         // check that in memory data structures have been removed once the new cluster state is applied,
         // but the persistent data is still there
         RecordingIndicesService indicesService = (RecordingIndicesService) indicesCSSvc.indicesService;
-        for (IndexMetadata indexMetadata : stateWithIndex.metadata()) {
+        for (IndexMetadata indexMetadata : stateWithIndex.metadata().getProject()) {
             Index index = indexMetadata.getIndex();
             assertNull(indicesService.indexService(index));
             assertFalse(indicesService.isDeleted(index));

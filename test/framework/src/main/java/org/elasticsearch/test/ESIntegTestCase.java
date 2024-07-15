@@ -1316,7 +1316,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 );
             }
 
-            for (IndexMetadata indexMetadata : metadata) {
+            for (IndexMetadata indexMetadata : metadata.getProject()) {
                 XContentBuilder builder = SmileXContent.contentBuilder();
                 builder.startObject();
                 indexMetadata.toXContent(builder, serializationFormatParams);

@@ -105,13 +105,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     @Override
     public void beforeAllocation(RoutingAllocation allocation) {
-        boolean hasPartialIndices = false;
-        for (IndexMetadata indexMetadata : allocation.metadata()) {
-            if (indexMetadata.isPartialSearchableSnapshot()) {
-                hasPartialIndices = true;
-                break;
-            }
-        }
+        boolean hasPartialIndices = allocation.metadata().getProject().stream().anyMatch(IndexMetadata::isPartialSearchableSnapshot);
 
         if (hasPartialIndices) {
             frozenCacheInfoService.updateNodes(

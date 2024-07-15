@@ -96,6 +96,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
 
     static boolean needsUpgrade(ClusterState state) {
         return state.metadata()
+            .getProject()
             .stream()
             .filter(
                 imd -> imd.getCompatibilityVersion().onOrAfter(IndexVersions.V_7_12_0)
@@ -112,6 +113,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         }
         Metadata.Builder builder = Metadata.builder(currentState.metadata());
         currentState.metadata()
+            .getProject()
             .stream()
             .filter(
                 imd -> imd.getCompatibilityVersion().onOrAfter(IndexVersions.V_7_12_0)

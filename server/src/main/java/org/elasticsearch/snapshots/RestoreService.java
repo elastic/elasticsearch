@@ -1813,7 +1813,7 @@ public final class RestoreService implements ClusterStateApplier {
                 );
             }
 
-            for (IndexMetadata other : metadata) {
+            for (IndexMetadata other : metadata.getProject()) {
                 if (other.getIndex().equals(index)) {
                     continue; // do not check the searchable snapshot index against itself
                 }

@@ -588,7 +588,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // check that all leader indices have been correctly auto followed
         List<String> matchingPrefixes = Arrays.stream(prefixes).map(prefix -> prefix + "*").collect(Collectors.toList());
-        for (IndexMetadata leaderIndexMetadata : leaderClient().admin().cluster().prepareState().get().getState().metadata()) {
+        for (IndexMetadata leaderIndexMetadata : leaderClient().admin().cluster().prepareState().get().getState().metadata().getProject()) {
             final String leaderIndex = leaderIndexMetadata.getIndex().getName();
             if (Regex.simpleMatch(matchingPrefixes, leaderIndex)) {
                 String followingIndex = "copy-" + leaderIndex;

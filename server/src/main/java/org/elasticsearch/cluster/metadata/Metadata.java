@@ -97,7 +97,7 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
  * The details of how this is persisted are covered in {@link org.elasticsearch.gateway.PersistedClusterStateService}.
  * </p>
  */
-public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ChunkedToXContent {
+public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
 
@@ -654,6 +654,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     public CoordinationMetadata coordinationMetadata() {
         return this.coordinationMetadata;
+    }
+
+    public ProjectMetadata getProject() {
+        return projectMetadata;
     }
 
     public IndexVersion oldestIndexVersion() {
@@ -1359,19 +1363,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return projectMetadata.totalOpenIndexShards;
     }
 
-    @Override
-    public Iterator<IndexMetadata> iterator() {
-        return projectMetadata.indices.values().iterator();
-    }
-
-    public Stream<IndexMetadata> stream() {
-        return projectMetadata.indices.values().stream();
-    }
-
-    public int size() {
-        return projectMetadata.indices.size();
-    }
-
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
         if (metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata) == false) {
             return false;
@@ -1700,7 +1691,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
         out.writeVInt(projectMetadata.indices.size());
         final boolean writeMappingsHash = out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);
-        for (IndexMetadata indexMetadata : this) {
+        for (IndexMetadata indexMetadata : projectMetadata) {
             indexMetadata.writeTo(out, writeMappingsHash);
         }
         out.writeCollection(projectMetadata.templates.values());

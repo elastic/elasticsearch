@@ -85,7 +85,7 @@ public class ClusterStateUpdaters {
             blocks.addGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
         }
 
-        for (final IndexMetadata indexMetadata : state.metadata()) {
+        for (final IndexMetadata indexMetadata : state.metadata().getProject()) {
             blocks.addBlocks(indexMetadata);
         }
 
@@ -124,7 +124,7 @@ public class ClusterStateUpdaters {
         // automatically generate a UID for the metadata if we need to
         metadataBuilder.generateClusterUuidIfNeeded();
 
-        for (final IndexMetadata indexMetadata : recoveredState.metadata()) {
+        for (final IndexMetadata indexMetadata : recoveredState.metadata().getProject()) {
             metadataBuilder.put(indexMetadata, false);
         }
 
@@ -136,7 +136,7 @@ public class ClusterStateUpdaters {
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
             blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK);
             blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
-            for (IndexMetadata indexMetadata : state.metadata()) {
+            for (IndexMetadata indexMetadata : state.metadata().getProject()) {
                 blocks.removeIndexBlocks(indexMetadata.getIndex().getName());
             }
             final Metadata metadata = Metadata.builder()

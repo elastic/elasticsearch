@@ -41,7 +41,8 @@ public class FrozenStorageDeciderService implements AutoscalingDeciderService {
     @Override
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
         Metadata metadata = context.state().metadata();
-        long dataSetSize = metadata.stream()
+        long dataSetSize = metadata.getProject()
+            .stream()
             .filter(imd -> FrozenUtils.isFrozenIndex(imd.getSettings()))
             .mapToLong(imd -> estimateSize(imd, context.info()))
             .sum();

@@ -140,7 +140,7 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
         Map<Integer, List<String>> nrReplicasChanged = new HashMap<>();
         // RoutingAllocation is fairly expensive to compute, only lazy create it via the supplier if we actually need it
         RoutingAllocation allocation = null;
-        for (final IndexMetadata indexMetadata : metadata) {
+        for (final IndexMetadata indexMetadata : metadata.getProject()) {
             if (indexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
                 AutoExpandReplicas autoExpandReplicas = indexMetadata.getAutoExpandReplicas();
                 // Make sure auto-expand is applied only when configured, and entirely disabled in stateless

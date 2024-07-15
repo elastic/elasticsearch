@@ -224,7 +224,12 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
 
     private static ClusterStateListener blockedIndexCountListener() {
         return event -> assertThat(
-            event.state().metadata().stream().filter(indexMetadata -> INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings())).count(),
+            event.state()
+                .metadata()
+                .getProject()
+                .stream()
+                .filter(indexMetadata -> INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings()))
+                .count(),
             oneOf(0L, 3L)
         );
     }

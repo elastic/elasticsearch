@@ -493,7 +493,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             .append(coordinationMetadata().getLastAcceptedConfiguration())
             .append("\n");
         sb.append(TAB).append(TAB).append("voting tombstones: ").append(coordinationMetadata().getVotingConfigExclusions()).append("\n");
-        for (IndexMetadata indexMetadata : metadata) {
+        for (IndexMetadata indexMetadata : metadata.getProject()) {
             sb.append(TAB).append(indexMetadata.getIndex());
             sb.append(": v[")
                 .append(indexMetadata.getVersion())

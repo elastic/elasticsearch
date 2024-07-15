@@ -140,8 +140,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
 
                 for (NamedExpression projection : projections) {
-                    // Do not use the attribute name, this can deviate from the field name for union types.
-                    if (projection instanceof FieldAttribute f && stats.exists(f.field().getName()) == false) {
+                    if (projection instanceof FieldAttribute f && stats.exists(f.qualifiedName()) == false) {
                         DataType dt = f.dataType();
                         Alias nullAlias = nullLiteral.get(f.dataType());
                         // save the first field as null (per datatype)
@@ -171,8 +170,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 || plan instanceof TopN) {
                     plan = plan.transformExpressionsOnlyUp(
                         FieldAttribute.class,
-                        // Do not use the attribute name, this can deviate from the field name for union types.
-                        f -> stats.exists(f.field().getName()) ? f : Literal.of(f, null)
+                        f -> stats.exists(f.qualifiedName()) ? f : Literal.of(f, null)
                     );
                 }
 

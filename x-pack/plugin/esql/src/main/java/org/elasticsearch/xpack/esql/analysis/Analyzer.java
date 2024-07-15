@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -61,7 +60,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSurrogates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -141,13 +139,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
             new ImplicitCasting()
         );
-        var finish = new Batch<>(
-            "Finish Analysis",
-            Limiter.ONCE,
-            new AddImplicitLimit(),
-            new UnresolveUnionTypes(),
-            new DropSyntheticUnionTypeAttributes()
-        );
+        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new UnresolveUnionTypes());
         rules = List.of(init, resolution, finish);
     }
 
@@ -1112,21 +1104,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan = plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolved));
             }
 
+            // Otherwise drop the converted attributes after the alias function, as they are only needed for this function, and
+            // the original version of the attribute should still be seen as unconverted.
+            plan = dropConvertedAttributes(plan, unionFieldAttributes);
+
             // And add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
             // and thereby get used in FieldExtractExec
             plan = plan.transformDown(EsRelation.class, esr -> {
+                // Copy output so we do not accidentally mutate the previous plan
+                List<Attribute> output = new ArrayList<>(esr.output());
                 List<Attribute> missing = new ArrayList<>();
                 for (FieldAttribute fa : unionFieldAttributes) {
-                    // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
-                    if (esr.outputSet().contains(fa) == false) {
+                    if (output.stream().noneMatch(a -> a.id().equals(fa.id()))) {
                         missing.add(fa);
                     }
                 }
-
                 if (missing.isEmpty() == false) {
-                    List<Attribute> newOutput = new ArrayList<>(esr.output());
-                    newOutput.addAll(missing);
-                    return new EsRelation(esr.source(), esr.index(), newOutput, esr.indexMode(), esr.frozen());
+                    output.addAll(missing);
+                    return new EsRelation(esr.source(), esr.index(), output, esr.indexMode(), esr.frozen());
                 }
                 return esr;
             });
@@ -1181,13 +1176,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             MultiTypeEsField resolvedField,
             List<FieldAttribute> unionFieldAttributes
         ) {
-            // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
-            String unionTypedFieldName = SubstituteSurrogates.rawTemporaryName(
-                fa.name(),
-                "converted_to",
-                resolvedField.getDataType().typeName()
-            );
-            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), unionTypedFieldName, resolvedField);
+            var unionFieldAttribute = new FieldAttribute(fa.source(), fa.name(), resolvedField);  // Generates new ID for the field
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
@@ -1245,32 +1234,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new UnresolvedAttribute(fa.source(), fa.name(), fa.qualifier(), fa.id(), unresolvedMessage, null);
             }
             return fa;
-        }
-    }
-
-    /**
-     * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
-     * If {@code client_ip} is present in 2 indices, once with type {@code ip} and once with type {@code keyword},
-     * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
-     * This should not spill into the query output, so we drop such attributes at the end.
-     */
-    private static class DropSyntheticUnionTypeAttributes extends Rule<LogicalPlan, LogicalPlan> {
-        public LogicalPlan apply(LogicalPlan plan) {
-            List<Attribute> output = plan.output();
-            List<Attribute> newOutput = new ArrayList<>(output.size());
-
-            for (Attribute attr : output) {
-                // TODO: this should really use .isSynthetic
-                // https://github.com/elastic/elasticsearch/issues/105821
-                if (attr.name().contains("$$") == false) {
-                    newOutput.add(attr);
-                }
-            }
-
-            if (newOutput.size() != output.size()) {
-                return new Project(Source.EMPTY, plan, newOutput);
-            }
-            return plan;
         }
     }
 }

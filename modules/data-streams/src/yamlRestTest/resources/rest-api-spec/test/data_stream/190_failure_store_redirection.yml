@@ -223,10 +223,13 @@ teardown:
 
 ---
 "Ensure failure is redirected to correct failure store after a reroute processor":
+  - skip:
+      known_issues:
+        - cluster_feature: "gte_v8.15.0"
+          fixed_by: "gte_v8.16.0"
+      reason: "Failure store documents contained the original index name rather than the rerouted one before v8.16.0"
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [allowed_warnings, contains]
+      test_runner_features: [allowed_warnings]
 
   - do:
       ingest.put_pipeline:

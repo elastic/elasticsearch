@@ -25,8 +25,8 @@ public class Preallocate {
 
     private static final Logger logger = LogManager.getLogger(Preallocate.class);
 
-    private static final boolean IS_LINUX;
-    private static final boolean IS_MACOS;
+    static final boolean IS_LINUX;
+    static final boolean IS_MACOS;
     static {
         String osName = System.getProperty("os.name");
         IS_LINUX = osName.startsWith("Linux");

@@ -23,6 +23,7 @@ public class PreallocateTests extends ESTestCase {
         Preallocate.preallocate(cacheFile, size);
         OptionalLong foundSize = FileSystemNatives.allocatedSizeInBytes(cacheFile);
         assertTrue(foundSize.isPresent());
-        assertThat(foundSize.getAsLong(), equalTo(0));
+        long expectedAllocatedSize = Preallocate.IS_LINUX || Preallocate.IS_MACOS ? size : 0L;
+        assertThat(foundSize.getAsLong(), equalTo(expectedAllocatedSize));
     }
 }

@@ -19,20 +19,19 @@ import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunction
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -41,8 +40,8 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -71,16 +70,16 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     private CountDistinct(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            in.readOptionalWriteable(i -> ((PlanStreamInput) i).readExpression())
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(field());
-        ((PlanStreamOutput) out).writeOptionalExpression(precision);
+        out.writeNamedWriteable(field());
+        out.writeOptionalNamedWriteable(precision);
     }
 
     @Override
@@ -117,15 +116,15 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         boolean resolved = resolution.resolved();
         resolution = isType(
             field(),
-            dt -> resolved && dt != DataType.UNSIGNED_LONG,
+            dt -> resolved && dt != DataType.UNSIGNED_LONG && dt != DataType.SOURCE,
             sourceText(),
             DEFAULT,
-            "any exact type except unsigned_long or counter types"
+            "any exact type except unsigned_long, _source, or counter types"
         );
         if (resolution.unresolved() || precision == null) {
             return resolution;
         }
-        return isInteger(precision, sourceText(), SECOND).and(isFoldable(precision, sourceText(), SECOND));
+        return isWholeNumber(precision, sourceText(), SECOND).and(isFoldable(precision, sourceText(), SECOND));
     }
 
     @Override
@@ -159,5 +158,9 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         return field.foldable()
             ? new ToLong(s, new Coalesce(s, new MvCount(s, new MvDedupe(s, field)), List.of(new Literal(s, 0, DataType.INTEGER))))
             : null;
+    }
+
+    Expression precision() {
+        return precision;
     }
 }

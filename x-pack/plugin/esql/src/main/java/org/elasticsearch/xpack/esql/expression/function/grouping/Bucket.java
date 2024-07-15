@@ -16,24 +16,23 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
-import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
@@ -204,21 +203,20 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     private Bucket(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readOptionalNamed(Expression.class),
-            ((PlanStreamInput) in).readOptionalNamed(Expression.class)
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(field);
-        ((PlanStreamOutput) out).writeExpression(buckets);
-        ((PlanStreamOutput) out).writeOptionalExpression(from);
-        ((PlanStreamOutput) out).writeOptionalExpression(to);
-
+        out.writeNamedWriteable(field);
+        out.writeNamedWriteable(buckets);
+        out.writeOptionalNamedWriteable(from);
+        out.writeOptionalNamedWriteable(to);
     }
 
     @Override
@@ -235,7 +233,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         if (field.dataType() == DataType.DATETIME) {
             Rounding.Prepared preparedRounding;
-            if (buckets.dataType().isInteger()) {
+            if (buckets.dataType().isWholeNumber()) {
                 int b = ((Number) buckets.fold()).intValue();
                 long f = foldToLong(from);
                 long t = foldToLong(to);
@@ -254,7 +252,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 double t = ((Number) to.fold()).doubleValue();
                 roundTo = pickRounding(b, f, t);
             } else {
-                assert buckets.dataType().isRational() : "Unexpected rounding data type [" + buckets.dataType() + "]";
+                assert buckets.dataType().isRationalNumber() : "Unexpected rounding data type [" + buckets.dataType() + "]";
                 roundTo = ((Number) buckets.fold()).doubleValue();
             }
             Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
@@ -325,21 +323,21 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         if (fieldType == DataType.DATETIME) {
             TypeResolution resolution = isType(
                 buckets,
-                dt -> dt.isInteger() || EsqlDataTypes.isTemporalAmount(dt),
+                dt -> dt.isWholeNumber() || EsqlDataTypes.isTemporalAmount(dt),
                 sourceText(),
                 SECOND,
                 "integral",
                 "date_period",
                 "time_duration"
             );
-            return bucketsType.isInteger()
+            return bucketsType.isWholeNumber()
                 ? resolution.and(checkArgsCount(4))
                     .and(() -> isStringOrDate(from, sourceText(), THIRD))
                     .and(() -> isStringOrDate(to, sourceText(), FOURTH))
                 : resolution.and(checkArgsCount(2)); // temporal amount
         }
         if (fieldType.isNumeric()) {
-            return bucketsType.isInteger()
+            return bucketsType.isWholeNumber()
                 ? checkArgsCount(4).and(() -> isNumeric(from, sourceText(), THIRD)).and(() -> isNumeric(to, sourceText(), FOURTH))
                 : isNumeric(buckets, sourceText(), SECOND).and(checkArgsCount(2));
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -135,7 +136,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+        public void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
 
         }
 
@@ -941,19 +946,20 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static Releasable getOperationPermit(final IndexShard shard) {
-        return PlainActionFuture.get(future -> {
-            if (shard.routingEntry().primary()) {
-                shard.acquirePrimaryOperationPermit(future, null);
-            } else {
-                shard.acquireReplicaOperationPermit(
-                    shard.getOperationPrimaryTerm(),
-                    SequenceNumbers.NO_OPS_PERFORMED,
-                    SequenceNumbers.NO_OPS_PERFORMED,
-                    future,
-                    null
-                );
-            }
-        }, 0, TimeUnit.NANOSECONDS);
+        final var listener = new SubscribableListener<Releasable>();
+        if (shard.routingEntry().primary()) {
+            shard.acquirePrimaryOperationPermit(listener, null);
+        } else {
+            shard.acquireReplicaOperationPermit(
+                shard.getOperationPrimaryTerm(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                SequenceNumbers.NO_OPS_PERFORMED,
+                listener,
+                null
+            );
+        }
+        assertTrue(listener.isDone());
+        return safeAwait(listener);
     }
 
     public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
@@ -1187,6 +1193,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static long recoverLocallyUpToGlobalCheckpoint(IndexShard indexShard) {
-        return PlainActionFuture.get(indexShard::recoverLocallyUpToGlobalCheckpoint, 10, TimeUnit.SECONDS);
+        return safeAwait(indexShard::recoverLocallyUpToGlobalCheckpoint);
     }
 }

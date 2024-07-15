@@ -20,8 +20,15 @@ Use the following APIs to manage query rulesets:
 * <<get-query-ruleset>>
 * <<list-query-rulesets>>
 * <<delete-query-ruleset>>
+* <<put-query-rule>>
+* <<get-query-rule>>
+* <<delete-query-rule>>
 
 include::put-query-ruleset.asciidoc[]
 include::get-query-ruleset.asciidoc[]
 include::list-query-rulesets.asciidoc[]
 include::delete-query-ruleset.asciidoc[]
+include::put-query-rule.asciidoc[]
+include::get-query-rule.asciidoc[]
+include::delete-query-rule.asciidoc[]
+

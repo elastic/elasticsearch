@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class PercentileSerializationTests extends AbstractExpressionSerializationTests<Percentile> {
     @Override
@@ -35,11 +33,6 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
             percentile = randomValueOtherThan(percentile, AbstractExpressionSerializationTests::randomChild);
         }
         return new Percentile(source, field, percentile);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return AggregateFunction.getNamedWriteables();
     }
 
     @Override

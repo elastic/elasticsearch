@@ -354,6 +354,9 @@ public final class StringUtils {
             }
             return bi;
         }
+        if (bi.compareTo(BigInteger.valueOf(Long.MIN_VALUE)) < 0) {
+            throw new InvalidArgumentException("Magnitude of negative number [{}] is too large", string);
+        }
         // try to downsize to int if possible (since that's the most common type)
         if (bi.intValue() == bi.longValue()) { // ternary operator would always promote to Long
             return bi.intValueExact();

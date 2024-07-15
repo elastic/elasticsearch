@@ -298,6 +298,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return field;
     }
 
+    public List<QueryBuilder> getFilterQueries() {
+        return filterQueries;
+    }
+
     public KnnSearchBuilder addFilterQuery(QueryBuilder filterQuery) {
         Objects.requireNonNull(filterQuery);
         this.filterQueries.add(filterQuery);
@@ -398,7 +402,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, numCands, similarity).boost(boost)
+        return new KnnVectorQueryBuilder(field, queryVector, null, numCands, similarity).boost(boost)
             .queryName(queryName)
             .addFilterQueries(filterQueries);
     }

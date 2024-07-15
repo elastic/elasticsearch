@@ -49,6 +49,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -120,6 +121,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportSearchAction.class);
     public static final String FROZEN_INDICES_DEPRECATION_MESSAGE = "Searching frozen indices [{}] is deprecated."
         + " Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release.";
+
+    private static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
@@ -292,24 +295,43 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingAndMetrics = listener.delegateFailureAndWrap((l, searchResponse) -> {
-            searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
-            if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-                // Deduplicate failures by exception message and index
-                ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
-                for (ShardOperationFailedException f : groupedFailures) {
-                    boolean causeHas500Status = false;
-                    if (f.getCause() != null) {
-                        causeHas500Status = ExceptionsHelper.status(f.getCause()).getStatus() >= 500;
+        ActionListener<SearchResponse> loggingAndMetrics = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                try {
+                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                    SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
+                        SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
+                    if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                        // Deduplicate failures by exception message and index
+                        ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                        for (ShardOperationFailedException f : groupedFailures) {
+                            boolean causeHas500Status = false;
+                            if (f.getCause() != null) {
+                                causeHas500Status = ExceptionsHelper.status(f.getCause()).getStatus() >= 500;
+                            }
+                            if ((f.status().getStatus() >= 500 || causeHas500Status)
+                                && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false) {
+                                logger.warn("TransportSearchAction shard failure (partial results response)", f);
+                                responseCountTotalStatus = SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE;
+                            }
+                        }
                     }
-                    if ((f.status().getStatus() >= 500 || causeHas500Status)
-                        && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false) {
-                        logger.warn("TransportSearchAction shard failure (partial results response)", f);
-                    }
+                    listener.onResponse(searchResponse);
+                    // increment after the delegated onResponse to ensure we don't
+                    // record both a success and a failure if there is an exception
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                } catch (Exception e) {
+                    onFailure(e);
                 }
             }
-            l.onResponse(searchResponse);
-        });
+
+            @Override
+            public void onFailure(Exception e) {
+                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+                listener.onFailure(e);
+            }
+        };
         executeRequest((SearchTask) task, searchRequest, loggingAndMetrics, AsyncSearchActionProvider::new);
     }
 
@@ -689,6 +711,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
+     * Collect remote search shards that we need to search for potential matches.
      * Used for ccs_minimize_roundtrips=false
      */
     static void collectSearchShards(
@@ -966,6 +989,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         };
     }
 
+    /**
+     * Produce a list of {@link SearchShardIterator}s from the set of responses from remote clusters.
+     * Used for ccs_minimize_roundtrips=false.
+     */
     static List<SearchShardIterator> getRemoteShardsIterator(
         Map<String, SearchShardsResponse> searchShardsResponses,
         Map<String, OriginalIndices> remoteIndicesByCluster,
@@ -1063,6 +1090,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             .allMatch(searchContextIdForNode -> searchContextIdForNode.getClusterAlias() == null);
     }
 
+    /**
+     * If any of the indices we are searching are frozen, issue deprecation warning.
+     */
     void frozenIndexCheck(ResolvedIndices resolvedIndices) {
         List<String> frozenIndices = new ArrayList<>();
         Map<Index, IndexMetadata> indexMetadataMap = resolvedIndices.getConcreteLocalIndicesMetadata();
@@ -1082,6 +1112,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
+    /**
+     * Execute search locally and for all given remote shards.
+     * Used when minimize_roundtrips=false or for local search.
+     */
     private void executeSearch(
         SearchTask task,
         SearchTimeProvider timeProvider,
@@ -1478,6 +1512,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
+    /**
+     * {@link ActionListener} suitable for collecting cross-cluster responses.
+     * @param <Response> Response type we're getting as intermediate per-cluster results.
+     * @param <FinalResponse> Response type that the final listener expects.
+     */
     abstract static class CCSActionListener<Response, FinalResponse> implements ActionListener<Response> {
         protected final String clusterAlias;
         protected final boolean skipUnavailable;
@@ -1511,6 +1550,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             maybeFinish();
         }
 
+        /**
+         * Specific listener type will implement this method to process its specific partial response.
+         */
         abstract void innerOnResponse(Response response);
 
         @Override
@@ -1648,6 +1690,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return iterators;
     }
 
+    /**
+     * Create a list of {@link SearchShardIterator}s for the local indices we are searching.
+     * This resolves aliases and index expressions.
+     */
     List<SearchShardIterator> getLocalShardsIterator(
         ClusterState clusterState,
         SearchRequest searchRequest,

@@ -88,8 +88,16 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return testcases;
     }
 
-    public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
-        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), mode);
+    public MultiClusterSpecIT(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
+        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), instructions, mode);
     }
 
     @Override
@@ -97,7 +105,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         super.shouldSkipTest(testName);
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
-        assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
+        assumeTrue(
+            "Test " + testName + " is skipped on " + Clusters.oldVersion(),
+            isEnabled(testName, instructions, Clusters.oldVersion())
+        );
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -241,5 +252,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;
+    }
+
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
     }
 }

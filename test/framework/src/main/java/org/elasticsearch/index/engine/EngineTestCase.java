@@ -64,7 +64,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -125,9 +124,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -1179,33 +1178,24 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
-        Thread[] thread = new Thread[randomIntBetween(3, 5)];
-        CountDownLatch startGun = new CountDownLatch(thread.length);
+        final int threadCount = randomIntBetween(3, 5);
         AtomicInteger offset = new AtomicInteger(-1);
-        for (int i = 0; i < thread.length; i++) {
-            thread[i] = new Thread(() -> {
-                startGun.countDown();
-                safeAwait(startGun);
-                int docOffset;
-                while ((docOffset = offset.incrementAndGet()) < ops.size()) {
-                    try {
-                        applyOperation(engine, ops.get(docOffset));
-                        if ((docOffset + 1) % 4 == 0) {
-                            engine.refresh("test");
-                        }
-                        if (rarely()) {
-                            engine.flush();
-                        }
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
+        startInParallel(threadCount, i -> {
+            int docOffset;
+            while ((docOffset = offset.incrementAndGet()) < ops.size()) {
+                try {
+                    applyOperation(engine, ops.get(docOffset));
+                    if ((docOffset + 1) % 4 == 0) {
+                        engine.refresh("test");
                     }
+                    if (rarely()) {
+                        engine.flush();
+                    }
+                } catch (IOException e) {
+                    throw new AssertionError(e);
                 }
-            });
-            thread[i].start();
-        }
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
-        }
+            }
+        });
     }
 
     public static void applyOperations(Engine engine, List<Engine.Operation> operations) throws IOException {
@@ -1638,22 +1628,22 @@ public abstract class EngineTestCase extends ESTestCase {
         throws IOException {
         // This is an adapter between the older synchronous (blocking) code and the newer (async) API. Callers expect exceptions to be
         // thrown directly, so we must undo the layers of wrapping added by future#get and friends.
+        final var future = new PlainActionFuture<Void>();
+        engine.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, future);
         try {
-            PlainActionFuture.<Void, RuntimeException>get(
-                future -> engine.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, future),
-                30,
-                TimeUnit.SECONDS
-            );
-        } catch (UncategorizedExecutionException e) {
-            if (e.getCause() instanceof ExecutionException executionException
-                && executionException.getCause() instanceof IOException ioException) {
+            future.get(30, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof IOException ioException) {
                 throw ioException;
-            } else {
-                fail(e);
             }
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
+            if (e.getCause() instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            fail(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e);
+        } catch (TimeoutException e) {
             fail(e);
         }
     }

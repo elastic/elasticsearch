@@ -14,11 +14,10 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.analyzer.AnalyzerRules;
-import org.elasticsearch.xpack.esql.core.analyzer.AnalyzerRules.BaseAnalyzerRule;
-import org.elasticsearch.xpack.esql.core.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.BaseAnalyzerRule;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
-import org.elasticsearch.xpack.esql.core.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -33,16 +32,11 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.RuleExecutor;
@@ -58,6 +52,8 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
@@ -68,14 +64,15 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -171,16 +168,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return rules;
     }
 
-    private static class ResolveTable extends ParameterizedAnalyzerRule<EsqlUnresolvedRelation, AnalyzerContext> {
+    private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
 
         @Override
-        protected LogicalPlan rule(EsqlUnresolvedRelation plan, AnalyzerContext context) {
+        protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
             if (context.indexResolution().isValid() == false) {
                 return plan.unresolvedMessage().equals(context.indexResolution().toString())
                     ? plan
-                    : new EsqlUnresolvedRelation(
+                    : new UnresolvedRelation(
                         plan.source(),
                         plan.table(),
+                        plan.frozen(),
                         plan.metadataFields(),
                         plan.indexMode(),
                         context.indexResolution().toString()
@@ -189,9 +187,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             TableIdentifier table = plan.table();
             if (context.indexResolution().matches(table.index()) == false) {
                 // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
-                new EsqlUnresolvedRelation(
+                new UnresolvedRelation(
                     plan.source(),
                     plan.table(),
+                    plan.frozen(),
                     plan.metadataFields(),
                     plan.indexMode(),
                     "invalid [" + table + "] resolution to [" + context.indexResolution() + "]"
@@ -451,7 +450,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 groupings = newGroupings;
                 if (changed.get()) {
-                    a = new EsqlAggregate(a.source(), a.child(), newGroupings, a.aggregates());
+                    a = new Aggregate(a.source(), a.child(), a.aggregateType(), newGroupings, a.aggregates());
                     changed.set(false);
                 }
             }
@@ -480,7 +479,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newAggregates.add(agg);
                 }
 
-                a = changed.get() ? new EsqlAggregate(a.source(), a.child(), groupings, newAggregates) : a;
+                a = changed.get() ? new Aggregate(a.source(), a.child(), a.aggregateType(), groupings, newAggregates) : a;
             }
 
             return a;
@@ -519,13 +518,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             // check the on field against both the child output and the inner relation
-            List<NamedExpression> matchFields = new ArrayList<>(l.matchFields().size());
+            List<Attribute> matchFields = new ArrayList<>(l.matchFields().size());
             List<Attribute> localOutput = l.localRelation().output();
             boolean modified = false;
 
-            for (NamedExpression ne : l.matchFields()) {
-                NamedExpression matchFieldChildReference = ne;
-                if (ne instanceof UnresolvedAttribute ua && ua.customMessage() == false) {
+            for (Attribute matchField : l.matchFields()) {
+                Attribute matchFieldChildReference = matchField;
+                if (matchField instanceof UnresolvedAttribute ua && ua.customMessage() == false) {
                     modified = true;
                     Attribute joinedAttribute = maybeResolveAttribute(ua, localOutput);
                     // can't find the field inside the local relation
@@ -867,7 +866,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             // Allow resolving snapshot-only functions, but do not include them in the documentation
-            final FunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
+            final EsqlFunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
             return plan.transformExpressionsOnly(
                 UnresolvedFunction.class,
                 uf -> resolveFunction(uf, context.configuration(), snapshotRegistry)
@@ -877,7 +876,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         public static org.elasticsearch.xpack.esql.core.expression.function.Function resolveFunction(
             UnresolvedFunction uf,
             Configuration configuration,
-            FunctionRegistry functionRegistry
+            EsqlFunctionRegistry functionRegistry
         ) {
             org.elasticsearch.xpack.esql.core.expression.function.Function f = null;
             if (uf.analyzed()) {
@@ -926,21 +925,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformExpressionsUp(
-                ScalarFunction.class,
-                e -> ImplicitCasting.cast(e, (EsqlFunctionRegistry) context.functionRegistry())
-            );
+            return plan.transformExpressionsUp(ScalarFunction.class, e -> ImplicitCasting.cast(e, context.functionRegistry()));
         }
 
         private static Expression cast(ScalarFunction f, EsqlFunctionRegistry registry) {
+            if (f instanceof In in) {
+                return processIn(in);
+            }
             if (f instanceof EsqlScalarFunction esf) {
                 return processScalarFunction(esf, registry);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
-            }
-            if (f instanceof In in) {
-                return processIn(in);
             }
             return f;
         }
@@ -1091,6 +1087,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
+            // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
+            // Now that we have resolved those, we need to re-resolve the aggregates.
+            if (plan instanceof Aggregate agg) {
+                // If the union-types resolution occurred in a child of the aggregate, we need to check the groupings
+                plan = agg.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
+
+                // Aggregates where the grouping key comes from a union-type field need to be resolved against the grouping key
+                Map<Attribute, Expression> resolved = new HashMap<>();
+                for (Expression e : agg.groupings()) {
+                    Attribute attr = Expressions.attribute(e);
+                    if (attr != null && attr.resolved()) {
+                        resolved.put(attr, e);
+                    }
+                }
+                plan = plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolved));
+            }
+
             // Otherwise drop the converted attributes after the alias function, as they are only needed for this function, and
             // the original version of the attribute should still be seen as unconverted.
             plan = dropConvertedAttributes(plan, unionFieldAttributes);
@@ -1112,6 +1125,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return esr;
             });
             return plan;
+        }
+
+        private Expression resolveAttribute(UnresolvedAttribute ua, Map<Attribute, Expression> resolved) {
+            var named = resolveAgainstList(ua, resolved.keySet());
+            return switch (named.size()) {
+                case 0 -> ua;
+                case 1 -> named.get(0).equals(ua) ? ua : resolved.get(named.get(0));
+                default -> ua.withUnresolvedMessage("Resolved [" + ua + "] unexpectedly to multiple attributes " + named);
+            };
         }
 
         private LogicalPlan dropConvertedAttributes(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {
@@ -1205,9 +1227,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
         }
 
-        private static Attribute checkUnresolved(FieldAttribute fa) {
-            var field = fa.field();
-            if (field instanceof InvalidMappedField imf) {
+        static Attribute checkUnresolved(FieldAttribute fa) {
+            if (fa.field() instanceof InvalidMappedField imf) {
                 String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
                 return new UnresolvedAttribute(fa.source(), fa.name(), fa.qualifier(), fa.id(), unresolvedMessage, null);
             }

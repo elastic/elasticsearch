@@ -9,6 +9,7 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -29,6 +30,8 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 public class Elasticsearch814Codec extends FilterCodec {
 
     private final StoredFieldsFormat storedFieldsFormat;
+
+    private final FieldInfosFormat fieldInfosFormat;
 
     private final PostingsFormat defaultPostingsFormat;
     private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
@@ -69,6 +72,7 @@ public class Elasticsearch814Codec extends FilterCodec {
         this.defaultPostingsFormat = new Lucene99PostingsFormat();
         this.defaultDVFormat = new Lucene90DocValuesFormat();
         this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
+        this.fieldInfosFormat = new DeduplicatingFieldInfosFormat(delegate.fieldInfosFormat());
     }
 
     @Override
@@ -126,5 +130,10 @@ public class Elasticsearch814Codec extends FilterCodec {
      */
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         return defaultKnnVectorsFormat;
+    }
+
+    @Override
+    public FieldInfosFormat fieldInfosFormat() {
+        return fieldInfosFormat;
     }
 }

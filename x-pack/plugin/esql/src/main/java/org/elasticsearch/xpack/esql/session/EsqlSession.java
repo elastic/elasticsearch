@@ -28,16 +28,15 @@ import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.index.MappingException;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -58,12 +58,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.xpack.esql.core.util.ActionListeners.map;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class EsqlSession {
@@ -77,7 +77,7 @@ public class EsqlSession {
 
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
-    private final FunctionRegistry functionRegistry;
+    private final EsqlFunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
 
     private final Mapper mapper;
@@ -89,7 +89,7 @@ public class EsqlSession {
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
-        FunctionRegistry functionRegistry,
+        EsqlFunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
         Verifier verifier
@@ -110,24 +110,29 @@ public class EsqlSession {
         return sessionId;
     }
 
-    public void execute(EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
+    /**
+     * Execute an ESQL request.
+     */
+    public void execute(
+        EsqlQueryRequest request,
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        ActionListener<Result> listener
+    ) {
         LOGGER.debug("ESQL query:\n{}", request.query());
-        optimizedPhysicalPlan(
+        analyzedPlan(
             parse(request.query(), request.params()),
-            listener.map(plan -> EstimatesRowSize.estimateRowSize(0, plan.transformUp(FragmentExec.class, f -> {
-                QueryBuilder filter = request.filter();
-                if (filter != null) {
-                    var fragmentFilter = f.esFilter();
-                    // TODO: have an ESFilter and push down to EsQueryExec / EsSource
-                    // This is an ugly hack to push the filter parameter to Lucene
-                    // TODO: filter integration testing
-                    filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
-                    LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                    f = f.withFilter(filter);
-                }
-                return f;
-            })))
+            listener.delegateFailureAndWrap((next, analyzedPlan) -> executeAnalyzedPlan(request, runPhase, analyzedPlan, next))
         );
+    }
+
+    public void executeAnalyzedPlan(
+        EsqlQueryRequest request,
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        LogicalPlan analyzedPlan,
+        ActionListener<Result> listener
+    ) {
+        // TODO phased execution lands here.
+        runPhase.accept(logicalPlanToPhysicalPlan(analyzedPlan, request), listener);
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
@@ -145,6 +150,7 @@ public class EsqlSession {
         preAnalyze(parsed, (indices, policies) -> {
             Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
             var plan = analyzer.analyze(parsed);
+            plan.setAnalyzed();
             LOGGER.debug("Analyzed plan:\n{}", plan);
             return plan;
         }, listener);
@@ -235,14 +241,12 @@ public class EsqlSession {
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
-                AttributeSet dissectRefs = p.references();
-                // don't add to the list of fields the extracted ones (they are not real fields in mappings)
-                dissectRefs.removeAll(re.extractedFields());
-                references.addAll(dissectRefs);
-                // also remove other down-the-tree references to the extracted fields
+                // remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
                     references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
                 }
+                // but keep the inputs needed by Grok/Dissect
+                references.addAll(re.input().references());
             } else if (p instanceof Enrich) {
                 AttributeSet enrichRefs = p.references();
                 // Enrich adds an EmptyAttribute if no match field is specified
@@ -307,28 +311,41 @@ public class EsqlSession {
         return names.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet());
     }
 
-    public void optimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
-        analyzedPlan(logicalPlan, map(listener, p -> {
-            var plan = logicalPlanOptimizer.optimize(p);
-            LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
-            return plan;
-        }));
+    private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan logicalPlan, EsqlQueryRequest request) {
+        PhysicalPlan physicalPlan = optimizedPhysicalPlan(logicalPlan);
+        physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
+            QueryBuilder filter = request.filter();
+            if (filter != null) {
+                var fragmentFilter = f.esFilter();
+                // TODO: have an ESFilter and push down to EsQueryExec / EsSource
+                // This is an ugly hack to push the filter parameter to Lucene
+                // TODO: filter integration testing
+                filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
+                LOGGER.debug("Fold filter {} to EsQueryExec", filter);
+                f = f.withFilter(filter);
+            }
+            return f;
+        });
+        return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 
-    public void physicalPlan(LogicalPlan optimized, ActionListener<PhysicalPlan> listener) {
-        optimizedPlan(optimized, map(listener, p -> {
-            var plan = mapper.map(p);
-            LOGGER.debug("Physical plan:\n{}", plan);
-            return plan;
-        }));
+    public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
+        assert logicalPlan.analyzed();
+        var plan = logicalPlanOptimizer.optimize(logicalPlan);
+        LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
+        return plan;
     }
 
-    public void optimizedPhysicalPlan(LogicalPlan logicalPlan, ActionListener<PhysicalPlan> listener) {
-        physicalPlan(logicalPlan, map(listener, p -> {
-            var plan = physicalPlanOptimizer.optimize(p);
-            LOGGER.debug("Optimized physical plan:\n{}", plan);
-            return plan;
-        }));
+    public PhysicalPlan physicalPlan(LogicalPlan logicalPlan) {
+        var plan = mapper.map(optimizedPlan(logicalPlan));
+        LOGGER.debug("Physical plan:\n{}", plan);
+        return plan;
+    }
+
+    public PhysicalPlan optimizedPhysicalPlan(LogicalPlan logicalPlan) {
+        var plan = physicalPlanOptimizer.optimize(physicalPlan(logicalPlan));
+        LOGGER.debug("Optimized physical plan:\n{}", plan);
+        return plan;
     }
 
     public static InvalidMappedField specificValidity(String fieldName, Map<String, FieldCapabilities> types) {

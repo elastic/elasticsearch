@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the value of e raised to the power of tbe given number.
+Returns the value of e raised to the power of the given number.

@@ -270,7 +270,7 @@ date_parse    |Returns a date by parsing the second argument using the format sp
 date_trunc    |Rounds down a date to the closest interval.
 e             |Returns {wikipedia}/E_(mathematical_constant)[Euler's number].
 ends_with     |Returns a boolean that indicates whether a keyword string ends with another string.
-exp           |Returns the value of e raised to the power of tbe given number.
+exp           |Returns the value of e raised to the power of the given number.
 floor         |Round a number down to the nearest integer.
 from_base64   |Decode a base64 string.
 greatest      |Returns the maximum value from multiple columns. This is similar to <<esql-mv_max>> except it is intended to run on multiple columns at once.

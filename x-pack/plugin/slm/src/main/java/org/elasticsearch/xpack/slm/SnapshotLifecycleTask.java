@@ -343,7 +343,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     /**
      * A cluster state update task to write the result of a snapshot job to the cluster metadata for the associated policy.
      */
-    private static class WriteJobStatus extends ClusterStateUpdateTask {
+    static class WriteJobStatus extends ClusterStateUpdateTask {
 
         private final String policyName;
         private final SnapshotId snapshotId;
@@ -422,7 +422,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 newPolicyMetadata.setInvocationsSinceLastSuccess(0L);
             }
 
-            Set<SnapshotId> preRegisteredSnapshots = policyMetadata.getPreRegisteredSnapshots();
+            Set<SnapshotId> preRegisteredSnapshots = new HashSet<>(policyMetadata.getPreRegisteredSnapshots());
             assert preRegisteredSnapshots.contains(snapshotId)
                 : "PreRegisteredSnapshots must contain a running snapshotId until a success/failure is emitted to acquiesce it.";
             preRegisteredSnapshots.remove(snapshotId);

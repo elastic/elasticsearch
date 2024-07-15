@@ -336,82 +336,28 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         }
     }
 
-    public void testPreRegisteredSnapshotNoPreviousFailures() throws Exception {
-        final AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        var listener = new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void unused) {
-                assertFalse(listenerCalled.getAndSet(true));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-            }
-        };
-
+    public void testRemovePreRegisterAfterSnapshot() throws Exception {
         final String policyId = randomAlphaOfLength(10);
         final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(10), randomUUID());
 
-        SnapshotLifecycleTask.PreRegisterSLMRun preRegisterSLMRun =
-            new SnapshotLifecycleTask.PreRegisterSLMRun(policyId, snapshotId, listener);
+        SnapshotLifecycleTask.WriteJobStatus writeJobStatus = randomBoolean()
+            ? SnapshotLifecycleTask.WriteJobStatus.success(policyId, snapshotId, randomLong(), randomLong())
+            : SnapshotLifecycleTask.WriteJobStatus.failure(policyId, snapshotId, randomLong(), new RuntimeException());
 
-        // currently running snapshots
         final SnapshotId currentSnap1 = new SnapshotId(randomAlphaOfLength(10), randomUUID());
-        final SnapshotId currentSnap2 = new SnapshotId(randomAlphaOfLength(10), randomUUID());
-        final String repo1 = randomAlphaOfLength(10);
-        final String repo2 = randomAlphaOfLength(10);
-        final var snapshotsInProgress = SnapshotsInProgress.EMPTY
-            .withUpdatedEntriesForRepo(repo1, List.of(makeSnapshotInProgress(repo1, policyId, currentSnap1)))
-            .withUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, policyId, currentSnap2)));
 
-        Set<SnapshotId> alreadyPreRegistered = Set.of(currentSnap1, currentSnap2);
-
-        SnapshotLifecycleMetadata slmMetadata;
-        {
-            SnapshotLifecyclePolicyMetadata slmPolicyMeta = SnapshotLifecyclePolicyMetadata.builder()
-                .setModifiedDate(randomLong())
-                .setPolicy(new SnapshotLifecyclePolicy(policyId, "snap", "", "repo-name", null, null))
-                .setPreRegisteredSnapshots(alreadyPreRegistered)
-                .build();
-            SnapshotLifecycleStats stats = new SnapshotLifecycleStats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                new HashMap<>()
-            );
-            slmMetadata = new SnapshotLifecycleMetadata(
-                Map.of(policyId, slmPolicyMeta),
-                OperationMode.RUNNING,
-                stats
-            );
-        }
+        SnapshotLifecycleMetadata slmMetadata = makeSnapshotLifecycleMetadata(policyId, Set.of(currentSnap1, snapshotId));
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
             .metadata(Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, slmMetadata))
             .build();
 
-        ClusterState newClusterState = preRegisterSLMRun.execute(clusterState);
+        ClusterState newClusterState = writeJobStatus.execute(clusterState);
         SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-
-        // stats are 0 for policy
-        SnapshotLifecycleStats newStats = newSlmMetadata.getStats();
-        SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newStats.getMetrics().get(policyId);
-        assertTrue(snapshotPolicyStats == null || snapshotPolicyStats.getSnapshotFailedCount() == 0);
-        assertTrue(snapshotPolicyStats == null || snapshotPolicyStats.getSnapshotTakenCount() == 0);
-
-        // previous success/failure are all 0/empty for policy
         SnapshotLifecyclePolicyMetadata newSlmPolicyMetadata = newSlmMetadata.getSnapshotConfigurations().get(policyId);
-        assertNull(newSlmPolicyMetadata.getLastFailure());
-        assertNull(newSlmPolicyMetadata.getLastSuccess());
-        assertEquals(0, newSlmPolicyMetadata.getInvocationsSinceLastSuccess());
 
-        // failed snapshot no longer in preRegisteredSnapshot set
-        assertEquals(Set.of(snapshotId, currentSnap1, currentSnap2), newSlmPolicyMetadata.getPreRegisteredSnapshots());
-
-        preRegisterSLMRun.clusterStateProcessed(clusterState, newClusterState);
-        assertBusy(() -> assertTrue(listenerCalled.get()));
+        // completed snapshotId is removed from preRegisteredSnapshots
+        assertEquals(Set.of(currentSnap1), newSlmPolicyMetadata.getPreRegisteredSnapshots());
     }
 
     public void testPreRegisteredSnapshotWithPreviousFailure() throws Exception {
@@ -445,27 +391,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             .withUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, policyId, currentSnap2)));
 
         Set<SnapshotId> alreadyPreRegistered = Set.of(currentSnap1, currentSnap2, previousFailedSnapshot);
-
-        SnapshotLifecycleMetadata slmMetadata;
-        {
-            SnapshotLifecyclePolicyMetadata slmPolicyMeta = SnapshotLifecyclePolicyMetadata.builder()
-                .setModifiedDate(randomLong())
-                .setPolicy(new SnapshotLifecyclePolicy(policyId, "snap", "", "repo-name", null, null))
-                .setPreRegisteredSnapshots(alreadyPreRegistered)
-                .build();
-            SnapshotLifecycleStats stats = new SnapshotLifecycleStats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                new HashMap<>()
-            );
-            slmMetadata = new SnapshotLifecycleMetadata(
-                Map.of(policyId, slmPolicyMeta),
-                OperationMode.RUNNING,
-                stats
-            );
-        }
+        SnapshotLifecycleMetadata slmMetadata = makeSnapshotLifecycleMetadata(policyId, alreadyPreRegistered);
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
@@ -525,6 +451,26 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         assertEquals(Set.of(snapshot1, snapshot2), SnapshotLifecycleTask.currentlyRunningSnapshots("some-policy", clusterState));
         assertEquals(Set.of(snapshot3, snapshot4), SnapshotLifecycleTask.currentlyRunningSnapshots("other-policy", clusterState));
+    }
+
+    private static SnapshotLifecycleMetadata makeSnapshotLifecycleMetadata(String policyId, Set<SnapshotId> preRegistered) {
+        SnapshotLifecyclePolicyMetadata slmPolicyMeta = SnapshotLifecyclePolicyMetadata.builder()
+            .setModifiedDate(randomLong())
+            .setPolicy(new SnapshotLifecyclePolicy(policyId, "snap", "", "repo-name", null, null))
+            .setPreRegisteredSnapshots(preRegistered)
+            .build();
+        SnapshotLifecycleStats stats = new SnapshotLifecycleStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            new HashMap<>()
+        );
+        return new SnapshotLifecycleMetadata(
+            Map.of(policyId, slmPolicyMeta),
+            OperationMode.RUNNING,
+            stats
+        );
     }
 
     private static SnapshotsInProgress.Entry makeSnapshotInProgress(String repo, String policyId, SnapshotId snapshotId) {

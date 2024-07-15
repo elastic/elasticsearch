@@ -20,8 +20,6 @@ dependencies {
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('vector-tile'))
   testImplementation project(path: ':modules:aggregations')
-  testImplementation project(path: xpackModule('esql'))
-  testImplementation project(path: xpackModule('esql-core'))
 }
 
 testClusters.configureEach {

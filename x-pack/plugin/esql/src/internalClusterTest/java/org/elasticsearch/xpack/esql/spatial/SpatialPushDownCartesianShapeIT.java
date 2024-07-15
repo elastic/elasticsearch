@@ -5,21 +5,21 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.spatial.esql;
+package org.elasticsearch.xpack.esql.spatial;
 
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 
-public class SpatialPushDownCartesianPointIT extends SpatialPushDownTestCase {
+public class SpatialPushDownCartesianShapeIT extends SpatialPushDownTestCase {
 
     @Override
     protected String fieldType() {
-        return "point";
+        return "shape";
     }
 
     @Override
     protected Geometry getIndexGeometry() {
-        return ShapeTestUtils.randomPoint();
+        return ShapeTestUtils.randomGeometryWithoutCircle(false);
     }
 
     @Override

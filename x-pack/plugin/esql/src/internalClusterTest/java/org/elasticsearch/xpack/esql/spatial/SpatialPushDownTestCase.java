@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.spatial.esql;
+package org.elasticsearch.xpack.esql.spatial;
 
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -15,7 +15,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,13 +36,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        try {
-            @SuppressWarnings("unchecked")
-            var c = (Class<? extends Plugin>) Class.forName("org.elasticsearch.xpack.esql.plugin.EsqlPlugin");
-            return List.of(c, LocalStateSpatialPlugin.class);
-        } catch (ClassNotFoundException e) {
-            throw new AssertionError(e); // the ES|QL plugin must be present
-        }
+        return List.of(EsqlPlugin.class, SpatialPlugin.class);
     }
 
     /**

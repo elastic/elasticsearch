@@ -55,6 +55,11 @@ public class EsqlCapabilities {
         AGG_MAX_MIN_BOOLEAN_SUPPORT,
 
         /**
+         * Support for booleans in {@code TOP} aggregation.
+         */
+        AGG_TOP_BOOLEAN_SUPPORT,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -128,6 +133,11 @@ public class EsqlCapabilities {
          * Fix for union-types when aggregating over an inline conversion with conversion function. Done in #110652.
          */
         UNION_TYPES_INLINE_FIX,
+
+        /**
+         * Fix for union-types when sorting a type-casted field. We changed how we remove synthetic union-types fields.
+         */
+        UNION_TYPES_REMOVE_FIELDS,
 
         /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.

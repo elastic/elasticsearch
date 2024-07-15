@@ -286,3 +286,16 @@ abbrev:keyword | scalerank:keyword
            ABV |              five
            ACA |              four
 ;
+
+beforeStats
+required_capability: inlinestats
+
+FROM airports
+| EVAL lat = ST_Y(location)
+| INLINESTATS avg_lat=AVG(lat)
+| STATS northern=COUNT(lat > avg_lat OR NULL), southern=COUNT(lat < avg_lat OR NULL)
+;
+
+northern:long | southern:long
+          520 | 371
+;

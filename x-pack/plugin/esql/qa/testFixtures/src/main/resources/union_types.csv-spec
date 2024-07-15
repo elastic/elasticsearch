@@ -895,3 +895,25 @@ event_duration:long | _index:keyword      | ts:date                   | ts_str:k
 8268153             | sample_data_str     | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
 8268153             | sample_data_ts_long | 2023-10-23T13:52:55.015Z  | 1698069175015             | 1698069175015  |  172.21.3.15   |  172.21.3.15
 ;
+
+
+inlineStatsUnionGroup
+required_capability: union_types
+required_capability: inlinestats
+
+FROM sample_data, sample_data_ts_long
+| EVAL @timestamp = SUBSTRING(TO_STRING(@timestamp), 0, 7)
+| INLINESTATS count = COUNT(*) BY @timestamp
+| SORT client_ip ASC, @timestamp ASC
+| LIMIT 4
+;
+
+client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword | count:long
+  172.21.0.5 |             1232382 | Disconnected          |            1698068 | 1
+  172.21.0.5 |             1232382 | Disconnected          |            2023-10 | 7
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            1698064 | 1
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
+;
+
+# Once INLINESTATS supports expressions in groups convert the group in the inlinestats
+# Once union types support unions in agg functions INLINESTATS should do

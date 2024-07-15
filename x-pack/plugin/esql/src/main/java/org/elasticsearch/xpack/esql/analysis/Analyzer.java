@@ -1091,7 +1091,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
             // Now that we have resolved those, we need to re-resolve the aggregates.
             if (plan instanceof Aggregate agg) {
-                // NOCOMMIT something for inlinestats
+                // TODO once we support conversions in agg groups and functions we need to do the same in inlinestats
                 // If the union-types resolution occurred in a child of the aggregate, we need to check the groupings
                 plan = agg.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
 

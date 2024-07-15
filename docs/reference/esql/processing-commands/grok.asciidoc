@@ -20,6 +20,9 @@ multiple values, `GROK` will process each value.
 
 `pattern`::
 A grok pattern.
+In case a field name coincides with an existing column, the existing column is discarded.
+If a field name is used more than once, a multi-valued column will be created with one value
+per each occurrence of the field name.
 
 *Description*
 

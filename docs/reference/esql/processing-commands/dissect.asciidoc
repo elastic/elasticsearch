@@ -20,6 +20,8 @@ multiple values, `DISSECT` will process each value.
 
 `pattern`::
 A <<esql-dissect-patterns,dissect pattern>>.
+In case a field name coincides with an existing column, the existing column is discarded.
+If a field name is used more than once, only the rightmost duplicate creates a column.
 
 `<separator>`::
 A string used as the separator between appended values, when using the <<esql-append-modifier,append modifier>>.

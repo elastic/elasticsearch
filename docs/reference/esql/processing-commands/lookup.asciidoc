@@ -18,6 +18,8 @@ LOOKUP table ON match_field1[, match_field2, ...]
 
 `table`::
 The name of the `table` provided in the request to match.
+If it has column names that conflict with existing columns, the table's columns replace the
+existing ones.
 
 `match_field`::
 The fields in the input to match against the table.

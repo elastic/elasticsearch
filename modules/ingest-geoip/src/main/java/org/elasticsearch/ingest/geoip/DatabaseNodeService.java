@@ -240,7 +240,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         IOUtils.close(databases.values());
     }
 
-    void checkDatabases(ClusterState state) { // cluster state listener
+    void checkDatabases(ClusterState state) {
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }

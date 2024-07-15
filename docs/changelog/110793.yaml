@@ -1,0 +1,7 @@
+pr: 110793
+summary: Fix for union-types when sorting a type-casted field
+area: ES|QL
+type: bug
+issues:
+ - 110490
+ - 109916

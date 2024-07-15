@@ -305,10 +305,10 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     unrecordedFailures++;
                     newPolicyMetadata.setLastFailure(
                         new SnapshotInvocationRecord(
-                            snapshotId.getName(),
+                            snapshot.getName(),
                             null,
                             Instant.now().toEpochMilli(),
-                            "found pre-registered snapshot which is no longer running, assuming failure"
+                            String.format("found pre-registered snapshot [%s] which is no longer running, assuming failed.", snapshot.getName())
                         )
                     );
                 }

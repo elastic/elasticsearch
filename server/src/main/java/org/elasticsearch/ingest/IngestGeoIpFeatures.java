@@ -6,14 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.ingest.geoip;
+package org.elasticsearch.ingest;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
-import static org.elasticsearch.ingest.geoip.direct.TransportPutDatabaseConfigurationAction.GEOIP_DOWNLOADER_DATABASE_CONFIGURATION;
+import static org.elasticsearch.ingest.EnterpriseGeoIpTask.GEOIP_DOWNLOADER_DATABASE_CONFIGURATION;
 
 public class IngestGeoIpFeatures implements FeatureSpecification {
     public Set<NodeFeature> getFeatures() {

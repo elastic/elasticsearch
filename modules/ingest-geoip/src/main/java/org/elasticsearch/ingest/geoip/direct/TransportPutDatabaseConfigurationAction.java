@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction.Request;
 import org.elasticsearch.tasks.Task;
@@ -44,7 +43,6 @@ import java.util.Optional;
 public class TransportPutDatabaseConfigurationAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutDatabaseConfigurationAction.class);
-    public static final NodeFeature GEOIP_DOWNLOADER_DATABASE_CONFIGURATION = new NodeFeature("geoip.downloader.database.configuration");
 
     private static final SimpleBatchedExecutor<UpdateDatabaseConfigurationTask, Void> UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
         @Override

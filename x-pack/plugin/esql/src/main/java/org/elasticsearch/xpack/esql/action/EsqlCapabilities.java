@@ -136,8 +136,14 @@ public class EsqlCapabilities {
         FIX_PARSING_LARGE_NEGATIVE_NUMBERS,
 
         /**
-         * Use RangeQuery for BinaryComparison on DateTime fields.
-         * */
+         * Fix the status code returned when trying to run count_distinct on the _source type (which is not supported).
+         * see <a href="https://github.com/elastic/elasticsearch/issues/105240">count_distinct(_source) returns a 500 response</a>
+         */
+        FIX_COUNT_DISTINCT_SOURCE_ERROR,
+
+        /**
+        * Use RangeQuery for BinaryComparison on DateTime fields.
+        * */
         RANGEQUERY_FOR_DATETIME;
 
         private final boolean snapshotOnly;

@@ -175,3 +175,18 @@ FROM employees
 top_asc:boolean    | min:boolean | top_desc:boolean | max:boolean | a:boolean    | b:boolean    | c:boolean      | d:boolean
 [false, false]     | false       | [true, true]     | true        | [true, true] | [true, true] | [false, false] | [false, false]
 ;
+
+topBooleansRow
+required_capability: agg_top
+required_capability: agg_top_boolean_support
+ROW constant = true, mv = [true, false]
+| STATS
+    constant_asc = TOP(constant, 2, "asc"),
+    constant_desc = TOP(constant, 2, "desc"),
+    mv_asc = TOP(mv, 2, "asc"),
+    mv_desc = TOP(mv, 2, "desc")
+;
+
+constant_asc:boolean | constant_desc:boolean | mv_asc:boolean | mv_desc:boolean
+true                 | true                  | [false, true]  | [true, false]
+;

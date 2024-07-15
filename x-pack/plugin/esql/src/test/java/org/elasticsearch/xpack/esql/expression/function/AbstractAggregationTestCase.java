@@ -173,31 +173,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
                 var groupCount = randomIntBetween(1, 1000);
                 for (Page inputPage : pages) {
-                    var groupSliceSize = 1;
-                    // Add data to chunks of groups
-                    for (int currentGroupOffset = 0; currentGroupOffset < groupCount;) {
-                        var seenGroupIds = new SeenGroupIds.Range(0, currentGroupOffset + groupSliceSize);
-                        var addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage);
-
-                        var positionCount = inputPage.getPositionCount();
-                        var dataSliceSize = 1;
-                        // Divide data in chunks
-                        for (int currentDataOffset = 0; currentDataOffset < positionCount;) {
-                            try (var groups = makeGroupsVector(currentGroupOffset, currentGroupOffset + groupSliceSize, dataSliceSize)) {
-                                addInput.add(currentDataOffset, groups);
-                            }
-
-                            currentDataOffset += dataSliceSize;
-                            if (positionCount > currentDataOffset) {
-                                dataSliceSize = randomIntBetween(1, Math.min(100, positionCount - currentDataOffset));
-                            }
-                        }
-
-                        currentGroupOffset += groupSliceSize;
-                        if (groupCount > currentGroupOffset) {
-                            groupSliceSize = randomIntBetween(1, Math.min(100, groupCount - currentGroupOffset));
-                        }
-                    }
+                    processPageGrouping(aggregator, inputPage, groupCount);
                 }
 
                 results = extractResultsFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()), groupCount);
@@ -448,6 +424,40 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             }
 
             return groupsBuilder.build();
+        }
+    }
+
+    /**
+     * Process the page with the aggregator. Adds all the values in all the groups in the range [0, {@code groupCount}).
+     * <p>
+     *   This method splits the data and groups in chunks, to test the aggregator capabilities.
+     * </p>
+     */
+    private void processPageGrouping(GroupingAggregator aggregator, Page inputPage, int groupCount) {
+        var groupSliceSize = 1;
+        // Add data to chunks of groups
+        for (int currentGroupOffset = 0; currentGroupOffset < groupCount;) {
+            var seenGroupIds = new SeenGroupIds.Range(0, currentGroupOffset + groupSliceSize);
+            var addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage);
+
+            var positionCount = inputPage.getPositionCount();
+            var dataSliceSize = 1;
+            // Divide data in chunks
+            for (int currentDataOffset = 0; currentDataOffset < positionCount;) {
+                try (var groups = makeGroupsVector(currentGroupOffset, currentGroupOffset + groupSliceSize, dataSliceSize)) {
+                    addInput.add(currentDataOffset, groups);
+                }
+
+                currentDataOffset += dataSliceSize;
+                if (positionCount > currentDataOffset) {
+                    dataSliceSize = randomIntBetween(1, Math.min(100, positionCount - currentDataOffset));
+                }
+            }
+
+            currentGroupOffset += groupSliceSize;
+            if (groupCount > currentGroupOffset) {
+                groupSliceSize = randomIntBetween(1, Math.min(100, groupCount - currentGroupOffset));
+            }
         }
     }
 }

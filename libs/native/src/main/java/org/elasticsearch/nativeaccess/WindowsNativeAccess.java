@@ -12,7 +12,11 @@ import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library.Handle;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.lang.management.ManagementFactory.getMemoryMXBean;
 
@@ -26,6 +30,8 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     public static final int PAGE_NOACCESS = 0x0001;
     public static final int PAGE_GUARD = 0x0100;
     public static final int MEM_COMMIT = 0x1000;
+
+    private static final int INVALID_FILE_SIZE = -1;
 
     /**
      * Constant for JOBOBJECT_BASIC_LIMIT_INFORMATION in Query/Set InformationJobObject
@@ -117,6 +123,37 @@ class WindowsNativeAccess extends AbstractNativeAccess {
 
         execSandboxState = ExecSandboxState.ALL_THREADS;
         logger.debug("Windows ActiveProcessLimit initialization successful");
+    }
+
+    @Override
+    public OptionalLong allocatedSizeInBytes(Path path) {
+        assert Files.isRegularFile(path) : path;
+        String fileName = "\\\\?\\" + path;
+        AtomicInteger lpFileSizeHigh = new AtomicInteger();
+
+        final int lpFileSizeLow = kernel.GetCompressedFileSizeW(fileName, lpFileSizeHigh::set);
+        if (lpFileSizeLow == INVALID_FILE_SIZE) {
+            logger.warn("Unable to get allocated size of file [{}]. Error code {}", path, kernel.GetLastError());
+            return OptionalLong.empty();
+        }
+
+        // convert lpFileSizeLow to unsigned long and combine with signed/shifted lpFileSizeHigh
+        final long allocatedSize = (((long) lpFileSizeHigh.get()) << Integer.SIZE) | Integer.toUnsignedLong(lpFileSizeLow);
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "executing native method GetCompressedFileSizeW returned [high={}, low={}, allocated={}] for file [{}]",
+                lpFileSizeHigh.get(),
+                lpFileSizeLow,
+                allocatedSize,
+                path
+            );
+        }
+        return OptionalLong.of(allocatedSize);
+    }
+
+    @Override
+    public void tryPreallocate(Path file, long size) {
+        logger.warn("Cannot preallocate file size because operation is not available on Windows");
     }
 
     @Override

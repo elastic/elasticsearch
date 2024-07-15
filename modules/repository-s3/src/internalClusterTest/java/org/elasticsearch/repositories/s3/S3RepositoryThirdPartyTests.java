@@ -15,7 +15,6 @@ import com.amazonaws.services.s3.model.MultipartUpload;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -167,19 +166,12 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
                 class TestHarness {
                     boolean tryCompareAndSet(BytesReference expected, BytesReference updated) {
-                        return PlainActionFuture.<Boolean, RuntimeException>get(
-                            future -> blobContainer.compareAndSetRegister(randomPurpose(), "key", expected, updated, future),
-                            10,
-                            TimeUnit.SECONDS
-                        );
+                        return safeAwait(l -> blobContainer.compareAndSetRegister(randomPurpose(), "key", expected, updated, l));
                     }
 
                     BytesReference readRegister() {
-                        return PlainActionFuture.get(
-                            future -> blobContainer.getRegister(randomPurpose(), "key", future.map(OptionalBytesReference::bytesReference)),
-                            10,
-                            TimeUnit.SECONDS
-                        );
+                        final OptionalBytesReference result = safeAwait(l -> blobContainer.getRegister(randomPurpose(), "key", l));
+                        return result.bytesReference();
                     }
 
                     List<MultipartUpload> listMultipartUploads() {

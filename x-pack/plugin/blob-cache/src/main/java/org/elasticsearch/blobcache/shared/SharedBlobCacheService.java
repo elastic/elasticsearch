@@ -926,7 +926,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         return;
                     }
                     try (var gapsListener = new RefCountingListener(listener.map(unused -> true))) {
-                        assert writer.onGaps(gaps) == null;
+                        assert writer.sharedInputStreamFactory(gaps) == null;
                         for (SparseFileTracker.Gap gap : gaps) {
                             executor.execute(
                                 fillGapRunnable(gap, writer, null, ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire()))
@@ -972,7 +972,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     );
 
                     if (gaps.isEmpty() == false) {
-                        final SourceInputStreamFactory streamFactory = writer.onGaps(gaps);
+                        final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
                         if (streamFactory == null) {
                             for (SparseFileTracker.Gap gap : gaps) {
                                 executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
@@ -982,8 +982,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                                 .map(gap -> fillGapRunnable(gap, writer, streamFactory, refs.acquireListener()))
                                 .toList();
                             executor.execute(() -> {
-                                gapFillingTasks.forEach(Runnable::run);
-                                logger.info("--> done running all gaps");
+                                try (streamFactory) {
+                                    gapFillingTasks.forEach(Runnable::run);
+                                    logger.info("--> done running all gaps");
+                                }
                             });
                         }
                     }
@@ -1286,12 +1288,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     @FunctionalInterface
     public interface RangeMissingHandler {
         /**
-         * Callback method to notify the handler the list of gaps to fill before actually fetching the data
-         * with {@link #fillCacheRange}.
-         * @param gaps The list of gaps to fill, i.e. fetching from source storage and writing into the cache.
-         * @return {@code true} if the gaps can be filled in parallel or {@code false} if they must be filled sequentially
+         * Attempt to get a shared {@link SourceInputStreamFactory} for the given list of Gaps so that all of them
+         * can be filled from the input stream created from the factory. If a factory is returned, the gaps must be
+         * filled sequentially by calling {@link #fillCacheRange} in order with the factory. If {@code null} is returned,
+         * each invocation of {@link #fillCacheRange} creates its own input stream and can therefore be executed in parallel.
+         * @param gaps The list of gaps to be filled by fetching from source storage and writing into the cache.
+         * @return A factory object to be shared by all gaps filling process, or {@code null} if each gap filling should create
+         * its own input stream.
          */
-        default SourceInputStreamFactory onGaps(List<SparseFileTracker.Gap> gaps) {
+        @Nullable
+        default SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
             return null;
         }
 
@@ -1318,8 +1324,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         ) throws IOException;
     }
 
-    @FunctionalInterface
-    public interface SourceInputStreamFactory {
+    public interface SourceInputStreamFactory extends Releasable {
         InputStream create(int relativePos) throws IOException;
     }
 
@@ -1331,8 +1336,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         @Override
-        public SourceInputStreamFactory onGaps(List<SparseFileTracker.Gap> gaps) {
-            return delegate.onGaps(gaps);
+        public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+            return delegate.sharedInputStreamFactory(gaps);
         }
 
         @Override

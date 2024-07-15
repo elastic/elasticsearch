@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -36,6 +37,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
@@ -45,13 +47,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 
 public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(MAXMIND_LICENSE_KEY_SETTING.getKey(), "license_key");
         Settings.Builder builder = Settings.builder();
-        builder.setSecureSettings(secureSettings);
+        builder.setSecureSettings(secureSettings)
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
         return builder.build();
     }
 
@@ -59,6 +62,7 @@ public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
         return CollectionUtils.appendToCopy(super.nodePlugins(), ReindexPlugin.class);
     }
 
+    @SuppressWarnings("unchecked")
     public void testEnterpriseDownloaderTask() throws Exception {
         /*
          * This test starts the enterprise geoip downloader task, and creates a database configuration. Then it creates an ingest
@@ -69,6 +73,25 @@ public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
         if (getEndpoint() != null) {
             EnterpriseGeoIpDownloader.DEFAULT_MAXMIND_ENDPOINT = getEndpoint();
         }
+        final String piplineName = "enterprise_geoip_pipeline";
+        final String indexName = "enterprise_geoip_test_index";
+        final String databaseType = "GeoIP2-City";
+        final String sourceField = "ip";
+        final String targetField = "ip-city";
+
+        startEnterpriseGeoIpDownloaderTask();
+        configureDatabase(databaseType);
+        createGeoIpPipeline(piplineName, databaseType, sourceField, targetField);
+        String documentId = ingestDocument(indexName, piplineName, sourceField);
+        GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
+        Map<String, Object> returnedSource = getResponse.getSource();
+        assertNotNull(returnedSource);
+        Object targetFieldValue = returnedSource.get(targetField);
+        assertNotNull(targetFieldValue);
+        assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("Bredband2 AB"));
+    }
+
+    private void startEnterpriseGeoIpDownloaderTask() {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         persistentTasksService.sendStartRequest(
             ENTERPRISE_GEOIP_DOWNLOADER,
@@ -82,17 +105,19 @@ public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
                 }
             })
         );
+    }
+
+    private void configureDatabase(String databaseType) throws Exception {
         admin().cluster()
             .execute(
                 PutDatabaseConfigurationAction.INSTANCE,
                 new PutDatabaseConfigurationAction.Request(
                     TimeValue.MAX_VALUE,
                     TimeValue.MAX_VALUE,
-                    new DatabaseConfiguration("test", "GeoIP2-City", new DatabaseConfiguration.Maxmind("test_account"))
+                    new DatabaseConfiguration("test", databaseType, new DatabaseConfiguration.Maxmind("test_account"))
                 )
             )
             .actionGet();
-
         ensureGreen(GeoIpDownloader.DATABASES_INDEX);
         assertBusy(() -> {
             SearchResponse searchResponse = client().search(new SearchRequest(GeoIpDownloader.DATABASES_INDEX)).actionGet();
@@ -101,9 +126,10 @@ public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
             } finally {
                 searchResponse.decRef();
             }
-
         });
+    }
 
+    private void createGeoIpPipeline(String pipelineName, String databaseType, String sourceField, String targetField) throws IOException {
         final BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -115,9 +141,9 @@ public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
                     {
                         builder.startObject("geoip");
                         {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-city");
-                            builder.field("database_file", "GeoIP2-City.mmdb");
+                            builder.field("field", sourceField);
+                            builder.field("target_field", targetField);
+                            builder.field("database_file", databaseType + ".mmdb");
                         }
                         builder.endObject();
                     }
@@ -128,18 +154,18 @@ public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
             builder.endObject();
             bytes = BytesReference.bytes(builder);
         }
-        assertAcked(clusterAdmin().putPipeline(new PutPipelineRequest("geoip", bytes, XContentType.JSON)).actionGet());
+        assertAcked(clusterAdmin().putPipeline(new PutPipelineRequest(pipelineName, bytes, XContentType.JSON)).actionGet());
+    }
 
+    private String ingestDocument(String indexName, String pipelineName, String sourceField) {
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("index1").id("1").source("{\"ip\": \"89.160.20.128\"}", XContentType.JSON).setPipeline("geoip"));
+        bulkRequest.add(
+            new IndexRequest(indexName).source("{\"" + sourceField + "\": \"89.160.20.128\"}", XContentType.JSON).setPipeline(pipelineName)
+        );
         BulkResponse response = client().bulk(bulkRequest).actionGet();
-        assertThat(response.getItems().length, equalTo(1));
-        assertThat(response.getItems()[0].status(), equalTo(RestStatus.CREATED));
-
-        GetResponse getResponse = client().get(new GetRequest("index1", response.getItems()[0].getId())).actionGet();
-        Map<String, Object> returnedSource = getResponse.getSource();
-        assertNotNull(returnedSource);
-        assertNotNull(returnedSource.get("ip-city"));
-
+        BulkItemResponse[] bulkItemResponses = response.getItems();
+        assertThat(bulkItemResponses.length, equalTo(1));
+        assertThat(bulkItemResponses[0].status(), equalTo(RestStatus.CREATED));
+        return bulkItemResponses[0].getId();
     }
 }

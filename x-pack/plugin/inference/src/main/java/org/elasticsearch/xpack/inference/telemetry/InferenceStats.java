@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.inference.InferenceRequestStats;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
-public class InferenceStats implements Stats, Transformable<InferenceRequestStats> {
+public class InferenceStats implements Stats {
     protected final String service;
     protected final TaskType taskType;
     protected final String modelId;
@@ -53,7 +53,7 @@ public class InferenceStats implements Stats, Transformable<InferenceRequestStat
     }
 
     @Override
-    public InferenceRequestStats transform() {
+    public InferenceRequestStats toSerializableForm() {
         return new InferenceRequestStats(service, taskType, modelId, getCount());
     }
 }

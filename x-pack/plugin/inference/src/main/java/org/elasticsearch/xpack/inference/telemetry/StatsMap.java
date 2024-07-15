@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.telemetry;
 
+import org.elasticsearch.xpack.core.inference.SerializableStats;
+
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,12 +20,9 @@ import java.util.stream.Collectors;
  * A map to provide tracking incrementing statistics.
  *
  * @param <Input> The input to derive the keys and values for the map
- * @param <SerializedValue> The serializable version of the value stored in the map. This type should be a class for handling things like
- *                         serializing the value to {@link org.elasticsearch.xcontent.XContent} or within an
- *                         {@link org.elasticsearch.common.io.stream.StreamInput}
  * @param <Value> The type of the values stored in the map
  */
-public class StatsMap<Input, SerializedValue, Value extends Stats & Transformable<SerializedValue>> {
+public class StatsMap<Input, Value extends Stats> {
 
     private final ConcurrentMap<String, Value> stats = new ConcurrentHashMap<>();
     private final Function<Input, String> keyCreator;
@@ -52,7 +51,7 @@ public class StatsMap<Input, SerializedValue, Value extends Stats & Transformabl
      * be represented in the resulting serializable map.
      * @return a map that is more easily serializable
      */
-    public Map<String, SerializedValue> toSerializableMap() {
-        return stats.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().transform()));
+    public Map<String, SerializableStats> toSerializableMap() {
+        return stats.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toSerializableForm()));
     }
 }

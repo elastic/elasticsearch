@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.telemetry;
 
+import org.elasticsearch.xpack.core.inference.SerializableStats;
+
 public interface Stats {
 
     /**
@@ -19,4 +21,10 @@ public interface Stats {
      * @return the current value of the counter
      */
     long getCount();
+
+    /**
+     * Convert the object into a serializable form that can be written across nodes and returned in xcontent format.
+     * @return the serializable format of the object
+     */
+    SerializableStats toSerializableForm();
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Map;
 import java.util.Objects;
 
 public class InferenceAPMStats extends InferenceStats {
@@ -20,32 +21,16 @@ public class InferenceAPMStats extends InferenceStats {
     public InferenceAPMStats(Model model, MeterRegistry meterRegistry) {
         super(model);
         this.inferenceAPMRequestCounter = meterRegistry.registerLongCounter(
-            counterName(),
+            "es.inference.requests.count",
             "Inference API request counts for a particular service, task type, model ID",
             "operations"
         );
     }
 
-    String counterName() {
-        StringBuilder builder = new StringBuilder();
-        builder.append("es.inference.requests.");
-        builder.append(service);
-        builder.append(".");
-        builder.append(taskType.toString());
-
-        if (modelId != null) {
-            builder.append(".");
-            builder.append(modelId);
-        }
-
-        builder.append(".count");
-        return builder.toString();
-    }
-
     @Override
-    public synchronized void increment() {
+    public void increment() {
         super.increment();
-        inferenceAPMRequestCounter.increment();
+        inferenceAPMRequestCounter.incrementBy(1, Map.of("service", service, "task_type", taskType.toString(), "model_id", modelId));
     }
 
     public static final class Factory {

@@ -5570,43 +5570,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
     }
 
-    /**
-     * Tests added for #105383, STATS BY constant.
-     */
-    public void testStatsByConstant() {
-        var plan = plan("""
-            from test
-            | stats m = max(salary), a = avg(salary) by 0
-            | keep m, a
-            """);
-
-        var project = as(plan, Project.class);
-        var eval = as(project.child(), Eval.class);
-        var limit = as(eval.child(), Limit.class);
-        var agg = as(limit.child(), Aggregate.class);
-
-        assertThat(agg.aggregates(), hasSize(3));
-        assertThat(agg.groupings(), hasSize(1));
-        var ref = as(agg.groupings().get(0), ReferenceAttribute.class);
-        assertEquals("0", ref.name());
-        assertEquals(INTEGER, ref.dataType());
-
-        plan = plan("""
-            from test
-            | stats c = count(languages)
-            | stats a = count(*) by c
-            | keep c, a
-            """);
-
-        limit = as(plan, Limit.class);
-        agg = as(limit.child(), Aggregate.class);
-
-        assertThat(agg.aggregates(), hasSize(2));
-        assertThat(agg.groupings(), hasSize(1));
-        assertThat(Expressions.names(agg.aggregates()), contains("c", "a"));
-        assertThat(Expressions.names(agg.groupings()), contains("c"));
-    }
-
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }

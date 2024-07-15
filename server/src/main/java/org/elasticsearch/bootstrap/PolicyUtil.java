@@ -294,8 +294,8 @@ public class PolicyUtil {
                             + " in policy file ["
                             + policyFile
                             + "]"
-                            + "\nAvailable codebases: "
-                            + codebaseProperties.keySet()
+                            + "\nAvailable codebases: \n  "
+                            + String.join("\n  ", codebaseProperties.keySet().stream().sorted().toList())
                     );
                 }
                 return policy;

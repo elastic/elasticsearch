@@ -51,6 +51,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -588,6 +589,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getStatus(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
     }
 
+    @SuppressWarnings("unchecked")
     public void testUpdateRequestWithConflictFailure() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         int retries = randomInt(4);
@@ -651,11 +653,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getCause(), equalTo(err));
         assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
 
-        // we have set noParsedBytesToReport on the IndexRequest, like it happens with updates by script.
-        verify(documentParsingProvider, times(0)).newDocumentSizeObserver();
-        verify(documentParsingProvider, times(0)).newFixedSizeDocumentObserver(any(Integer.class));
+        // we have set 0 value on normalisedBytesParsed on the IndexRequest, like it happens with updates by script.
+        ArgumentCaptor<IndexRequest> argument = ArgumentCaptor.forClass(IndexRequest.class);
+        verify(documentParsingProvider, times(retries + 1)).newDocumentSizeObserver(argument.capture());
+        IndexRequest value = argument.getValue();
+        assertThat(value.getNormalisedBytesParsed(), equalTo(0L));
     }
 
+    @SuppressWarnings("unchecked")
     public void testUpdateRequestWithSuccess() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
@@ -715,8 +720,11 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteResponse response = primaryResponse.getResponse();
         assertThat(response.status(), equalTo(created ? RestStatus.CREATED : RestStatus.OK));
         assertThat(response.getSeqNo(), equalTo(13L));
-        verify(documentParsingProvider, times(0)).newDocumentSizeObserver();
-        verify(documentParsingProvider, times(1)).newFixedSizeDocumentObserver(eq(100L));
+
+        ArgumentCaptor<IndexRequest> argument = ArgumentCaptor.forClass(IndexRequest.class);
+        verify(documentParsingProvider, times(1)).newDocumentSizeObserver(argument.capture());
+        IndexRequest value = argument.getValue();
+        assertThat(value.getNormalisedBytesParsed(), equalTo(100L));
     }
 
     public void testUpdateWithDelete() throws Exception {

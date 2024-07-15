@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -51,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -90,11 +90,13 @@ import static org.hamcrest.Matchers.startsWith;
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
 public class AnalyzerTests extends ESTestCase {
 
-    private static final EsqlUnresolvedRelation UNRESOLVED_RELATION = new EsqlUnresolvedRelation(
+    private static final UnresolvedRelation UNRESOLVED_RELATION = new UnresolvedRelation(
         EMPTY,
         new TableIdentifier(EMPTY, null, "idx"),
+        false,
         List.of(),
-        IndexMode.STANDARD
+        IndexMode.STANDARD,
+        null
     );
 
     private static final int MAX_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
@@ -1830,7 +1832,7 @@ public class AnalyzerTests extends ESTestCase {
             Found 8 problems
             line 2:12: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
-            line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long or counter types],\
+            line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
             line 2:39: argument of [max(x)] must be [boolean, datetime or numeric except unsigned_long or counter types],\
              found value [max(x)] type [unsigned_long]

@@ -64,8 +64,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -74,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -169,16 +168,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return rules;
     }
 
-    private static class ResolveTable extends ParameterizedAnalyzerRule<EsqlUnresolvedRelation, AnalyzerContext> {
+    private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
 
         @Override
-        protected LogicalPlan rule(EsqlUnresolvedRelation plan, AnalyzerContext context) {
+        protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
             if (context.indexResolution().isValid() == false) {
                 return plan.unresolvedMessage().equals(context.indexResolution().toString())
                     ? plan
-                    : new EsqlUnresolvedRelation(
+                    : new UnresolvedRelation(
                         plan.source(),
                         plan.table(),
+                        plan.frozen(),
                         plan.metadataFields(),
                         plan.indexMode(),
                         context.indexResolution().toString()
@@ -187,9 +187,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             TableIdentifier table = plan.table();
             if (context.indexResolution().matches(table.index()) == false) {
                 // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
-                new EsqlUnresolvedRelation(
+                new UnresolvedRelation(
                     plan.source(),
                     plan.table(),
+                    plan.frozen(),
                     plan.metadataFields(),
                     plan.indexMode(),
                     "invalid [" + table + "] resolution to [" + context.indexResolution() + "]"
@@ -449,7 +450,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 groupings = newGroupings;
                 if (changed.get()) {
-                    a = new EsqlAggregate(a.source(), a.child(), a.aggregateType(), newGroupings, a.aggregates());
+                    a = new Aggregate(a.source(), a.child(), a.aggregateType(), newGroupings, a.aggregates());
                     changed.set(false);
                 }
             }
@@ -478,7 +479,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newAggregates.add(agg);
                 }
 
-                a = changed.get() ? new EsqlAggregate(a.source(), a.child(), a.aggregateType(), groupings, newAggregates) : a;
+                a = changed.get() ? new Aggregate(a.source(), a.child(), a.aggregateType(), groupings, newAggregates) : a;
             }
 
             return a;
@@ -928,14 +929,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Expression cast(ScalarFunction f, EsqlFunctionRegistry registry) {
+            if (f instanceof In in) {
+                return processIn(in);
+            }
             if (f instanceof EsqlScalarFunction esf) {
                 return processScalarFunction(esf, registry);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
-            }
-            if (f instanceof In in) {
-                return processIn(in);
             }
             return f;
         }
@@ -1088,7 +1089,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
             // Now that we have resolved those, we need to re-resolve the aggregates.
-            if (plan instanceof EsqlAggregate agg) {
+            if (plan instanceof Aggregate agg) {
                 // If the union-types resolution occurred in a child of the aggregate, we need to check the groupings
                 plan = agg.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
 

@@ -217,7 +217,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -1170,13 +1169,6 @@ class NodeConstruction {
             taskManager
         );
         resourcesToClose.add(clusterService);
-
-        Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
-        if (consistentSettings.isEmpty() == false) {
-            clusterService.addLocalNodeMasterListener(
-                new ConsistentSettingsService(settingsModule.getSettings(), clusterService, consistentSettings).newHashPublisher()
-            );
-        }
         return clusterService;
     }
 

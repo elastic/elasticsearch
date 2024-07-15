@@ -95,7 +95,6 @@ public class GeoIpHttpFixture extends ExternalResource {
                     exchange.getResponseBody().close();
                 }
             });
-
             server.start();
         }
     }

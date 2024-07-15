@@ -18,7 +18,10 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.TransportVersions.ESQL_AGGREGATE_DOUBLE_METRIC_FIELD;
 
 /**
  * Attribute for an ES field.
@@ -39,6 +42,11 @@ public class FieldAttribute extends TypedAttribute {
     private final String path;
     private final EsField field;
 
+    private final NameId minSubNameId;
+    private final NameId maxSubNameId;
+    private final NameId sumSubNameId;
+    private final NameId valueCountNameId;
+
     public FieldAttribute(Source source, String name, EsField field) {
         this(source, null, name, field);
     }
@@ -57,7 +65,7 @@ public class FieldAttribute extends TypedAttribute {
         NameId id,
         boolean synthetic
     ) {
-        this(source, parent, name, field.getDataType(), field, qualifier, nullability, id, synthetic);
+        this(source, parent, name, field.getDataType(), field, qualifier, nullability, id, synthetic, null, null, null, null);
     }
 
     public FieldAttribute(
@@ -69,12 +77,20 @@ public class FieldAttribute extends TypedAttribute {
         String qualifier,
         Nullability nullability,
         NameId id,
-        boolean synthetic
+        boolean synthetic,
+        NameId minSubNameId,
+        NameId maxSubNameId,
+        NameId sumSubNameId,
+        NameId valueCountNameId
     ) {
         super(source, name, type, qualifier, nullability, id, synthetic);
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
+        this.minSubNameId = minSubNameId;
+        this.maxSubNameId = maxSubNameId;
+        this.sumSubNameId = sumSubNameId;
+        this.valueCountNameId = valueCountNameId;
     }
 
     @SuppressWarnings("unchecked")
@@ -96,7 +112,19 @@ public class FieldAttribute extends TypedAttribute {
             in.readOptionalString(),
             in.readEnum(Nullability.class),
             NameId.readFrom((StreamInput & PlanStreamInput) in),
-            in.readBoolean()
+            in.readBoolean(),
+            in.getTransportVersion().onOrAfter(ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)
+                ? in.readOptionalWriteable(in1 -> NameId.readFrom((StreamInput & PlanStreamInput) in1))
+                : null,
+            in.getTransportVersion().onOrAfter(ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)
+                ? in.readOptionalWriteable(in1 -> NameId.readFrom((StreamInput & PlanStreamInput) in1))
+                : null,
+            in.getTransportVersion().onOrAfter(ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)
+                ? in.readOptionalWriteable(in1 -> NameId.readFrom((StreamInput & PlanStreamInput) in1))
+                : null,
+            in.getTransportVersion().onOrAfter(ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)
+                ? in.readOptionalWriteable(in1 -> NameId.readFrom((StreamInput & PlanStreamInput) in1))
+                : null
         );
     }
 
@@ -111,6 +139,18 @@ public class FieldAttribute extends TypedAttribute {
         out.writeEnum(nullable());
         id().writeTo(out);
         out.writeBoolean(synthetic());
+        if (out.getTransportVersion().onOrAfter(ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)) {
+            out.writeOptionalWriteable(maxSubNameId);
+        }
+        if (out.getTransportVersion().onOrAfter(ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)) {
+            out.writeOptionalWriteable(maxSubNameId);
+        }
+        if (out.getTransportVersion().onOrAfter(ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)) {
+            out.writeOptionalWriteable(sumSubNameId);
+        }
+        if (out.getTransportVersion().onOrAfter(ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)) {
+            out.writeOptionalWriteable(valueCountNameId);
+        }
     }
 
     @Override
@@ -120,7 +160,32 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, FieldAttribute::new, parent, name(), dataType(), field, qualifier(), nullable(), id(), synthetic());
+        return NodeInfo.create(
+            this,
+            (source, parent, name, dataType, esField, qualifier, nullability, nameId, synthetic) -> new FieldAttribute(
+                source,
+                parent,
+                name,
+                dataType,
+                esField,
+                qualifier,
+                nullability,
+                nameId,
+                synthetic,
+                null,
+                null,
+                null,
+                null
+            ),
+            parent,
+            name(),
+            dataType(),
+            field,
+            qualifier(),
+            nullable(),
+            id(),
+            synthetic()
+        );
     }
 
     public FieldAttribute parent() {
@@ -163,7 +228,21 @@ public class FieldAttribute extends TypedAttribute {
         boolean synthetic
     ) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(source, qualifiedParent, name, field.getDataType(), field, qualifier, nullability, id, synthetic);
+        return new FieldAttribute(
+            source,
+            qualifiedParent,
+            name,
+            field.getDataType(),
+            field,
+            qualifier,
+            nullability,
+            id,
+            synthetic,
+            minSubNameId,
+            maxSubNameId,
+            sumSubNameId,
+            valueCountNameId
+        );
     }
 
     @Override
@@ -185,6 +264,60 @@ public class FieldAttribute extends TypedAttribute {
 
     public EsField field() {
         return field;
+    }
+
+    public static FieldAttribute createAggregatedFieldAttribute(Source source, String name, EsField field) {
+        return new FieldAttribute(
+            source,
+            null,
+            name,
+            DataType.AGGREGATE_DOUBLE_METRIC,
+            field,
+            null,
+            Nullability.TRUE,
+            null,
+            false,
+            new NameId(),
+            new NameId(),
+            new NameId(),
+            new NameId()
+        );
+    }
+
+    public FieldAttribute getAggregatedMinSubField() {
+        return createMetricSubAttribute("min", minSubNameId);
+    }
+
+    public FieldAttribute getAggregatedMaxSubField() {
+        return createMetricSubAttribute("max", maxSubNameId);
+    }
+
+    public FieldAttribute getAggregatedSumSubField() {
+        return createMetricSubAttribute("sum", sumSubNameId);
+    }
+
+    public FieldAttribute getAggregatedValueCountSubField() {
+        return createMetricSubAttribute("value_count", valueCountNameId);
+    }
+
+    public boolean isAggregatedAttribute() {
+        return dataType() == DataType.AGGREGATE_DOUBLE_METRIC;
+    }
+
+    public boolean isAggregateSubAttribute() {
+        return parent != null && parent.isAggregatedAttribute();
+    }
+
+    public String metric() {
+        assert isAggregateSubAttribute();
+        int lastDotIndex = name().lastIndexOf('.');
+        assert lastDotIndex > 0;
+        return name().substring(lastDotIndex + 1);
+    }
+
+    private FieldAttribute createMetricSubAttribute(String metric, NameId nameId) {
+        var esField = new EsField(metric, "value_count".equals(metric) ? DataType.INTEGER : DataType.DOUBLE, Map.of(), true);
+        return new FieldAttribute(source(), this, name() + "." + metric, esField, null, Nullability.TRUE, nameId, false);
     }
 
 }

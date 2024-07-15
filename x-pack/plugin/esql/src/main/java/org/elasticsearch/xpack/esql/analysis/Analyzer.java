@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
-import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -240,11 +239,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         list.add(new UnsupportedAttribute(source, name, uef));
                     } else {
                         if (t.getDataType() == AGGREGATE_DOUBLE_METRIC) {
-                            AggregateDoubleMetricAttribute attribute = new AggregateDoubleMetricAttribute(source, name, t);
-                            list.add(attribute.getMinSubField());
-                            list.add(attribute.getMaxSubField());
-                            list.add(attribute.getSumSubField());
-                            list.add(attribute.getValueCountSubField());
+                            FieldAttribute attribute = FieldAttribute.createAggregatedFieldAttribute(source, name, t);
+                            list.add(attribute.getAggregatedMinSubField());
+                            list.add(attribute.getAggregatedMaxSubField());
+                            list.add(attribute.getAggregatedSumSubField());
+                            list.add(attribute.getAggregatedValueCountSubField());
                             list.add(attribute);
                         } else {
                             FieldAttribute attribute = new FieldAttribute(source, null, name, t);

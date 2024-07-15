@@ -296,7 +296,11 @@ public class PlanNamedTypesTests extends ESTestCase {
             randomStringOrNull(), // qualifier
             randomNullability(),
             nameIdOrNull(),
-            randomBoolean() // synthetic
+            randomBoolean(), // synthetic
+            null,
+            null,
+            null,
+            null
         );
     }
 

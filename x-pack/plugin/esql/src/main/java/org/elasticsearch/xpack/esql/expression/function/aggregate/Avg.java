@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -94,10 +93,10 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
 
         final Expression sum;
         final Expression count;
-        if (field instanceof AggregateDoubleMetricAttribute aggregateDoubleMetricAttribute) {
-            FieldAttribute sumField = aggregateDoubleMetricAttribute.getSumSubField();
+        if (field instanceof FieldAttribute fieldAttribute && fieldAttribute.isAggregatedAttribute()) {
+            FieldAttribute sumField = fieldAttribute.getAggregatedSumSubField();
             sum = new Sum(s, sumField);
-            FieldAttribute countField = aggregateDoubleMetricAttribute.getValueCountSubField();
+            FieldAttribute countField = fieldAttribute.getAggregatedValueCountSubField();
             count = new Sum(s, countField);
         } else {
             sum = new Sum(s, field);

@@ -25,7 +25,21 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
-        return new FieldAttribute(source, parent, name, type, field, qualifier, nullability, new NameId(), synthetic);
+        return new FieldAttribute(
+            source,
+            parent,
+            name,
+            type,
+            field,
+            qualifier,
+            nullability,
+            new NameId(),
+            synthetic,
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     @Override
@@ -52,6 +66,20 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
             case 5 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
             case 6 -> synthetic = false == synthetic;
         }
-        return new FieldAttribute(source, parent, name, type, field, qualifier, nullability, new NameId(), synthetic);
+        return new FieldAttribute(
+            source,
+            parent,
+            name,
+            type,
+            field,
+            qualifier,
+            nullability,
+            new NameId(),
+            synthetic,
+            null,
+            null,
+            null,
+            null
+        );
     }
 }

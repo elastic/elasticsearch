@@ -15,8 +15,8 @@ import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -113,8 +113,8 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     public Expression surrogate() {
         if (field().foldable()) {
             return new MvMin(source(), field());
-        } else if (field() instanceof AggregateDoubleMetricAttribute aggregateDoubleMetricAttribute) {
-            return new Min(source(), aggregateDoubleMetricAttribute.getMinSubField());
+        } else if (field() instanceof FieldAttribute fieldAttribute && fieldAttribute.isAggregatedAttribute()) {
+            return new Min(source(), fieldAttribute.getAggregatedMinSubField());
         } else {
             return null;
         }

@@ -15,8 +15,8 @@ import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.AggregateDoubleMetricAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -113,8 +113,8 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     public Expression surrogate() {
         if (field().foldable()) {
             return new MvMax(source(), field());
-        } else if (field() instanceof AggregateDoubleMetricAttribute aggregateDoubleMetricAttribute) {
-            return new Max(source(), aggregateDoubleMetricAttribute.getMaxSubField());
+        } else if (field() instanceof FieldAttribute fieldAttribute && fieldAttribute.isAggregatedAttribute()) {
+            return new Max(source(), fieldAttribute.getAggregatedMaxSubField());
         } else {
             return null;
         }

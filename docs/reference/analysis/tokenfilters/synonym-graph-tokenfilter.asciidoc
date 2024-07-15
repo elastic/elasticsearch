@@ -104,12 +104,15 @@ Consider a synonym defined like:
 Using `expand: true`, the synonym would be expanded into:
 
 ```
+foo => foo
 foo => bar
 foo => baz
 bar => foo
+bar => bar
 bar => baz
 baz => foo
 baz => bar
+baz => baz
 ```
 
 When `expand` is set to `false`, the synonyms are not expanded and the first synonym is treated as the canonical representation. The synonym would be equivalent to:
@@ -189,12 +192,19 @@ For *explicit synonyms* like `foo, bar => baz` with a stop filter that removes `
 If the stop filter removed `baz` instead:
 
 - If `lenient` is set to `false`, an error will be raised as `baz` would be removed from the right hand side of the synonym rule.
-- If `lenient` is set to `true`, the mapping will have no effect as the target word is removed.
+- If `lenient` is set to `true`, the synonym will have no effect as the target word is removed.
 
 For *equivalent synonyms* like `foo, bar, baz` with a stop filter that removes `bar`:
 
 - If `lenient` is set to `false`, an error will be raised as `bar` would be removed from the synonym rule.
-- If `lenient` is set to `true`, the mappings added would be equivalent to `foo => foo` and `baz => foo`, which do not contain the removed word.
+- If `lenient` is set to `true`, the synonyms added would be equivalent to the following synonym rules, which do not contain the removed word:
+
+```
+foo => foo
+foo => baz
+baz => foo
+baz => baz
+```
 
 [discrete]
 ====== Stop token filter *after* synonym token filter

@@ -9,7 +9,6 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoTests;
@@ -53,7 +52,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
@@ -87,16 +85,14 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         );
     }
 
-    private static DesiredBalanceResponse execute(TransportGetDesiredBalanceAction action, ClusterState clusterState) throws Exception {
-        return PlainActionFuture.get(
-            future -> action.masterOperation(
+    private static DesiredBalanceResponse execute(TransportGetDesiredBalanceAction action, ClusterState clusterState) {
+        return safeAwait(
+            listener -> action.masterOperation(
                 new Task(1, "test", TransportGetDesiredBalanceAction.TYPE.name(), "", TaskId.EMPTY_TASK_ID, Map.of()),
                 new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT),
                 clusterState,
-                future
-            ),
-            10,
-            TimeUnit.SECONDS
+                listener
+            )
         );
     }
 

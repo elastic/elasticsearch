@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -20,7 +19,6 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matchers;
 
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -73,11 +71,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
             );
 
             final CheckedRunnable<Exception> beforeIndexShardRecoveryRunner = () -> assertNull(
-                PlainActionFuture.<Void, Exception>get(
-                    fut -> indexEventListener.beforeIndexShardRecovery(shard, shard.indexSettings(), fut),
-                    10,
-                    TimeUnit.SECONDS
-                )
+                safeAwait((ActionListener<Void> l) -> indexEventListener.beforeIndexShardRecovery(shard, shard.indexSettings(), l))
             );
 
             failAtStep.set(stepCount);
@@ -139,7 +133,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
             );
 
             final CheckedRunnable<Exception> afterIndexShardRecoveryRunner = () -> assertNull(
-                PlainActionFuture.<Void, Exception>get(fut -> indexEventListener.afterIndexShardRecovery(shard, fut), 10, TimeUnit.SECONDS)
+                safeAwait((ActionListener<Void> listener) -> indexEventListener.afterIndexShardRecovery(shard, listener))
             );
 
             failAtStep.set(stepCount);

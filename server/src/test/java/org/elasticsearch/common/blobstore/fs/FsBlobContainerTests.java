@@ -12,6 +12,7 @@ import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -43,7 +44,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -177,7 +177,9 @@ public class FsBlobContainerTests extends ESTestCase {
     }
 
     private static <T> T getAsync(Consumer<ActionListener<T>> consumer) {
-        return PlainActionFuture.get(consumer::accept, 0, TimeUnit.SECONDS);
+        final var listener = SubscribableListener.newForked(consumer::accept);
+        assertTrue(listener.isDone());
+        return safeAwait(listener);
     }
 
     public void testCompareAndExchange() throws Exception {

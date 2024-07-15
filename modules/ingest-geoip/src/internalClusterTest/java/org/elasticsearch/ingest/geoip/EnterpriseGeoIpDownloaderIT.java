@@ -8,6 +8,8 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import fixture.geoip.EnterpriseGeoIpHttpFixture;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
@@ -32,10 +35,12 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -46,7 +51,18 @@ import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecut
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
+public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
+
+    private static final String DATABASE_TYPE = "GeoIP2-City";
+    private static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service", "false")) == false;
+
+    @ClassRule
+    public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(useFixture, DATABASE_TYPE);
+
+    protected String getEndpoint() {
+        return useFixture ? fixture.getAddress() : null;
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         MockSecureSettings secureSettings = new MockSecureSettings();
@@ -58,8 +74,9 @@ public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
         return builder.build();
     }
 
+    @SuppressWarnings("unchecked")
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), ReindexPlugin.class);
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), IngestGeoIpPlugin.class, ReindexPlugin.class);
     }
 
     @SuppressWarnings("unchecked")
@@ -75,13 +92,12 @@ public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
         }
         final String piplineName = "enterprise_geoip_pipeline";
         final String indexName = "enterprise_geoip_test_index";
-        final String databaseType = "GeoIP2-City";
         final String sourceField = "ip";
         final String targetField = "ip-city";
 
         startEnterpriseGeoIpDownloaderTask();
-        configureDatabase(databaseType);
-        createGeoIpPipeline(piplineName, databaseType, sourceField, targetField);
+        configureDatabase(DATABASE_TYPE);
+        createGeoIpPipeline(piplineName, DATABASE_TYPE, sourceField, targetField);
         String documentId = ingestDocument(indexName, piplineName, sourceField);
         GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
         Map<String, Object> returnedSource = getResponse.getSource();

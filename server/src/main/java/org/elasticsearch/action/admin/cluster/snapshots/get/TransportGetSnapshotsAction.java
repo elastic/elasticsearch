@@ -284,13 +284,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             ensureRequiredNamesPresent(repositoryName, repositoryData);
 
             if (verbose) {
-                loadSnapshotInfos(repository, getSnapshotIdIterator(repositoryName, repositoryData), listener);
+                loadSnapshotInfos(getSnapshotIdIterator(repository, repositoryData), listener);
             } else {
                 assert fromSortValuePredicates.isMatchAll() : "filtering is not supported in non-verbose mode";
                 assert slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES : "filtering is not supported in non-verbose mode";
 
                 addSimpleSnapshotInfos(
-                    getSnapshotIdIterator(repositoryName, repositoryData),
+                    getSnapshotIdIterator(repository, repositoryData),
                     repositoryName,
                     repositoryData,
                     snapshotsInProgress.forRepo(repositoryName).stream().map(entry -> SnapshotInfo.inProgress(entry).basic()).toList()
@@ -328,25 +328,53 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         /**
+         * An asynchronous supplier of a {@link SnapshotInfo}.
+         */
+        private interface AsyncSnapshotInfo {
+
+            /**
+             * @return the {@link SnapshotId} of the {@link SnapshotInfo} to be retrieved.
+             */
+            SnapshotId getSnapshotId();
+
+            /**
+             * @param listener completed, possibly asynchronously, with the appropriate {@link SnapshotInfo}.
+             */
+            void getSnapshotInfo(ActionListener<SnapshotInfo> listener);
+        }
+
+        /**
          * @return an iterator over the snapshot IDs in the given repository which match {@link #snapshotNamePredicate}.
          */
-        private Iterator<SnapshotId> getSnapshotIdIterator(String repositoryName, @Nullable RepositoryData repositoryData) {
-
-            // now iterate through the snapshots again, returning matching IDs (or null)
+        private Iterator<AsyncSnapshotInfo> getSnapshotIdIterator(Repository repository, @Nullable RepositoryData repositoryData) {
+            // now iterate through the snapshots again, returning SnapshotInfo suppliers for ones with matching IDs
             final Set<SnapshotId> matchingInProgressSnapshots = new HashSet<>();
             return Iterators.concat(
                 // matching in-progress snapshots first
-                Iterators.filter(
-                    Iterators.map(
-                        snapshotsInProgress.forRepo(repositoryName).iterator(),
-                        snapshotInProgress -> snapshotInProgress.snapshot().getSnapshotId()
-                    ),
-                    snapshotId -> {
+                Iterators.map(
+                    Iterators.filter(snapshotsInProgress.forRepo(repository.getMetadata().name()).iterator(), snapshotInProgress -> {
+                        final var snapshotId = snapshotInProgress.snapshot().getSnapshotId();
                         if (snapshotNamePredicate.test(snapshotId.getName(), true)) {
                             matchingInProgressSnapshots.add(snapshotId);
                             return true;
                         } else {
                             return false;
+                        }
+                    }),
+                    snapshotInProgress -> new AsyncSnapshotInfo() {
+                        @Override
+                        public SnapshotId getSnapshotId() {
+                            return snapshotInProgress.snapshot().getSnapshotId();
+                        }
+
+                        @Override
+                        public void getSnapshotInfo(ActionListener<SnapshotInfo> listener) {
+                            listener.onResponse(SnapshotInfo.inProgress(snapshotInProgress));
+                        }
+
+                        @Override
+                        public String toString() {
+                            return snapshotInProgress.snapshot().toString();
                         }
                     }
                 ),
@@ -354,62 +382,51 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     // only returning in-progress snapshots
                     ? Collections.emptyIterator()
                     // also return matching completed snapshots (except any ones that were also found to be in-progress)
-                    : Iterators.filter(
-                        repositoryData.getSnapshotIds().iterator(),
-                        snapshotId -> matchingInProgressSnapshots.contains(snapshotId) == false
-                            && snapshotNamePredicate.test(snapshotId.getName(), false)
-                            && matchesPredicates(snapshotId, repositoryData)
+                    : Iterators.map(
+                        Iterators.filter(
+                            repositoryData.getSnapshotIds().iterator(),
+                            snapshotId -> matchingInProgressSnapshots.contains(snapshotId) == false
+                                && snapshotNamePredicate.test(snapshotId.getName(), false)
+                                && matchesPredicates(snapshotId, repositoryData)
+                        ),
+                        snapshotId -> new AsyncSnapshotInfo() {
+                            @Override
+                            public SnapshotId getSnapshotId() {
+                                return snapshotId;
+                            }
+
+                            @Override
+                            public void getSnapshotInfo(ActionListener<SnapshotInfo> listener) {
+                                getSnapshotInfoExecutor.getSnapshotInfo(repository, snapshotId, listener);
+                            }
+
+                            @Override
+                            public String toString() {
+                                return repository.getMetadata().name() + ":" + snapshotId;
+                            }
+                        }
                     )
             );
         }
 
-        private void loadSnapshotInfos(Repository repository, Iterator<SnapshotId> snapshotIdIterator, ActionListener<Void> listener) {
+        private void loadSnapshotInfos(Iterator<AsyncSnapshotInfo> asyncSnapshotInfoIterator, ActionListener<Void> listener) {
             if (cancellableTask.notifyIfCancelled(listener)) {
                 return;
             }
-            final var repositoryName = repository.getMetadata().name();
-            final AtomicInteger repositoryTotalCount = new AtomicInteger();
-            final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>();
-            snapshotIdIterator.forEachRemaining(snapshotIdsToIterate::add);
+            final var repositoryTotalCount = new AtomicInteger();
 
-            final List<SnapshotInfo> snapshots = new ArrayList<>(snapshotIdsToIterate.size());
-            // first, look at the snapshots in progress
-            final List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
-                snapshotsInProgress,
-                repositoryName,
-                snapshotIdsToIterate.stream().map(SnapshotId::getName).toList()
-            );
-            for (SnapshotsInProgress.Entry entry : entries) {
-                if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
-                    final SnapshotInfo snapshotInfo = SnapshotInfo.inProgress(entry);
-                    if (matchesPredicates(snapshotInfo)) {
-                        repositoryTotalCount.incrementAndGet();
-                        if (afterPredicate.test(snapshotInfo)) {
-                            snapshots.add(snapshotInfo.maybeWithoutIndices(indices));
-                        }
-                    }
-                }
-            }
-            // then, look in the repository if there's any matching snapshots left
+            final List<SnapshotInfo> snapshots = new ArrayList<>();
+            final List<SnapshotInfo> syncSnapshots = Collections.synchronizedList(snapshots);
+
             SubscribableListener
 
                 .<Void>newForked(l -> {
                     try (var listeners = new RefCountingListener(l)) {
-                        if (snapshotIdsToIterate.isEmpty()) {
-                            return;
-                        }
-
-                        // only need to synchronize accesses related to reading SnapshotInfo from the repo
-                        final List<SnapshotInfo> syncSnapshots = Collections.synchronizedList(snapshots);
-
                         ThrottledIterator.run(
-                            Iterators.failFast(
-                                snapshotIdsToIterate.iterator(),
-                                () -> cancellableTask.isCancelled() || listeners.isFailing()
-                            ),
-                            (ref, snapshotId) -> {
+                            Iterators.failFast(asyncSnapshotInfoIterator, () -> cancellableTask.isCancelled() || listeners.isFailing()),
+                            (ref, asyncSnapshotInfo) -> {
                                 final var refListener = ActionListener.runBefore(listeners.acquire(), ref::close);
-                                getSnapshotInfoExecutor.getSnapshotInfo(repository, snapshotId, new ActionListener<>() {
+                                asyncSnapshotInfo.getSnapshotInfo(new ActionListener<>() {
                                     @Override
                                     public void onResponse(SnapshotInfo snapshotInfo) {
                                         if (matchesPredicates(snapshotInfo)) {
@@ -424,10 +441,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                     @Override
                                     public void onFailure(Exception e) {
                                         if (ignoreUnavailable) {
-                                            logger.warn(
-                                                Strings.format("failed to fetch snapshot info for [%s:%s]", repository, snapshotId),
-                                                e
-                                            );
+                                            logger.warn(Strings.format("failed to fetch snapshot info for [%s]", asyncSnapshotInfo), e);
                                             refListener.onResponse(null);
                                         } else {
                                             refListener.onFailure(e);
@@ -455,7 +469,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         private void addSimpleSnapshotInfos(
-            final Iterator<SnapshotId> snapshotIdIterator,
+            final Iterator<AsyncSnapshotInfo> snapshotIdIterator,
             final String repositoryName,
             @Nullable final RepositoryData repositoryData,
             final List<SnapshotInfo> currentSnapshots
@@ -467,7 +481,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             } // else want non-current snapshots as well, which are found in the repository data
 
             final Set<SnapshotId> toResolve = new HashSet<>();
-            snapshotIdIterator.forEachRemaining(toResolve::add);
+            snapshotIdIterator.forEachRemaining(item -> toResolve.add(item.getSnapshotId()));
 
             List<SnapshotInfo> snapshotInfos = new ArrayList<>(currentSnapshots.size() + toResolve.size());
             int repositoryTotalCount = 0;

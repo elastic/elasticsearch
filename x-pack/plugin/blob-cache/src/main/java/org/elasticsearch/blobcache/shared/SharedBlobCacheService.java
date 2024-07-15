@@ -1091,10 +1091,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 int length,
                 IntConsumer progressUpdater,
                 ActionListener<Void> completion) -> {
-                writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater, ActionListener.runBefore(completion, () -> {
+                writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater, completion.map(unused -> {
                     var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
                     blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
                     blobCacheMetrics.getCacheMissCounter().increment();
+                    return null;
                 }));
             };
             if (rangeToRead.isEmpty()) {

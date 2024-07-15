@@ -229,6 +229,21 @@ FROM sample_data, sample_data_str
 2023-10-23T13:33:34.937Z  |  null            |  1232382              |  Disconnected
 ;
 
+multiIndexSortIpStringEval
+required_capability: union_types
+required_capability: casting_operator
+required_capability: union_types_remove_fields
+
+FROM sample_data, sample_data_str
+| SORT client_ip::ip, @timestamp ASC
+| EVAL client_ip_as_ip = client_ip::ip
+| LIMIT 1
+;
+
+@timestamp:date           |  client_ip:null  |  event_duration:long  |  message:keyword | client_ip_as_ip:ip
+2023-10-23T13:33:34.937Z  |  null            |  1232382              |  Disconnected    | 172.21.0.5
+;
+
 multiIndexIpStringStats
 required_capability: union_types
 required_capability: casting_operator

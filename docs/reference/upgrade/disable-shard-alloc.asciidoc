@@ -17,3 +17,5 @@ PUT _cluster/settings
 }
 --------------------------------------------------
 // TEST[skip:indexes don't assign]
+
+You may also consider <<modules-gateway,gateway settings>>. 

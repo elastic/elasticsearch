@@ -98,6 +98,11 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     }
 
     @Override
+    public String modelId() {
+        return null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         toXContentFragmentOfExposedFields(builder, params);

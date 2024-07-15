@@ -196,6 +196,11 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
         return dimensions;
     }
 
+    @Override
+    public String modelId() {
+        return null;
+    }
+
     public Integer maxInputTokens() {
         return maxInputTokens;
     }

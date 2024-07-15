@@ -76,6 +76,8 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
 
     @SuppressWarnings("unchecked")
     protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // the reindex plugin is (somewhat surprisingly) necessary in order to be able to delete-by-query,
+        // which modules/ingest-geoip does to delete old chunks
         return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), IngestGeoIpPlugin.class, ReindexPlugin.class);
     }
 

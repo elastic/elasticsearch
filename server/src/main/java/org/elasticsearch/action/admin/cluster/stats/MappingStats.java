@@ -54,7 +54,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         Set<String> concreteFieldNames = new HashSet<>();
         Map<String, RuntimeFieldStats> runtimeFieldTypes = new HashMap<>();
         final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(metadata.getMappingsByHash().size());
-        for (IndexMetadata indexMetadata : metadata) {
+        for (IndexMetadata indexMetadata : metadata.getProject()) {
             if (indexMetadata.isSystem()) {
                 // Don't include system indices in statistics about mappings,
                 // we care about the user's indices.

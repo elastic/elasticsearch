@@ -55,7 +55,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
     private static void assertMetadataEquals(final ClusterState state1, final ClusterState state2) {
         assertTrue(Metadata.isGlobalStateEquals(state1.metadata(), state2.metadata()));
         assertThat(state1.metadata().indices().size(), equalTo(state2.metadata().indices().size()));
-        for (final IndexMetadata indexMetadata : state1.metadata()) {
+        for (final IndexMetadata indexMetadata : state1.metadata().getProject()) {
             assertThat(indexMetadata, equalTo(state2.metadata().index(indexMetadata.getIndex())));
         }
     }

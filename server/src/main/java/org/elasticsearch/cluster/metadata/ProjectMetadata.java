@@ -12,11 +12,13 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.stream.Stream;
 
-public class ProjectMetadata {
+public class ProjectMetadata implements Iterable<IndexMetadata> {
 
     final ImmutableOpenMap<String, IndexMetadata> indices;
     final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
@@ -71,4 +73,18 @@ public class ProjectMetadata {
         this.mappingsByHash = mappingsByHash;
         this.oldestIndexVersion = oldestIndexVersion;
     }
+
+    @Override
+    public Iterator<IndexMetadata> iterator() {
+        return indices.values().iterator();
+    }
+
+    public Stream<IndexMetadata> stream() {
+        return indices.values().stream();
+    }
+
+    public int size() {
+        return indices.size();
+    }
+
 }

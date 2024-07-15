@@ -887,7 +887,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         private static Metadata removeNodeLockFilters(Metadata metadata) {
             Metadata.Builder builder = Metadata.builder(metadata);
-            metadata.stream()
+            metadata.getProject()
+                .stream()
                 .filter(AllocationState::isNodeLocked)
                 .map(AllocationState::removeNodeLockFilters)
                 .forEach(imd -> builder.put(imd, false));

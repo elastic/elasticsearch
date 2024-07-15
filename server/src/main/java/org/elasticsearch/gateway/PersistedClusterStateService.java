@@ -1023,7 +1023,7 @@ public class PersistedClusterStateService {
 
             if (previouslyWrittenMetadata == metadata) {
                 // breakout early if nothing changed
-                return new WriterStats(false, false, metadata.getMappingsByHash().size(), 0, 0, metadata.size(), 0, 0, 0);
+                return new WriterStats(false, false, metadata.getMappingsByHash().size(), 0, 0, metadata.getProject().size(), 0, 0, 0);
             }
             final boolean updateGlobalMeta = Metadata.isGlobalStateEquals(previouslyWrittenMetadata, metadata) == false;
             if (updateGlobalMeta) {

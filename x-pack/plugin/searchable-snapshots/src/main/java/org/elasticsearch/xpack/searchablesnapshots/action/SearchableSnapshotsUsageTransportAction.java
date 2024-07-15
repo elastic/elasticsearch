@@ -59,7 +59,7 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
     ) {
         int numFullCopySnapIndices = 0;
         int numSharedCacheSnapIndices = 0;
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSearchableSnapshot()) {
                 if (indexMetadata.isPartialSearchableSnapshot()) {
                     numSharedCacheSnapIndices++;

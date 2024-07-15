@@ -71,7 +71,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
         stateBuilder.routingTable(
-            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
+                .build()
         );
         long lastCreated = System.currentTimeMillis();
         applyCreatedDates(
@@ -176,7 +177,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(
-            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
+                .build()
         );
         ClusterState state = stateBuilder.build();
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
@@ -202,7 +204,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
         stateBuilder.routingTable(
-            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
+                .build()
         );
         long lastCreated = randomNonNegativeLong();
         applyCreatedDates(
@@ -242,7 +245,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(
-            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
+                .build()
         );
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
         long lastCreated = randomNonNegativeLong();

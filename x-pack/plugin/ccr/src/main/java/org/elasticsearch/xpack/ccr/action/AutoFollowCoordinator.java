@@ -808,7 +808,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             List<String> followedIndexUUIDs
         ) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
-            for (IndexMetadata leaderIndexMetadata : remoteClusterState.getMetadata()) {
+            for (IndexMetadata leaderIndexMetadata : remoteClusterState.getMetadata().getProject()) {
                 if (leaderIndexMetadata.getState() != IndexMetadata.State.OPEN) {
                     continue;
                 }

@@ -48,6 +48,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.hamcrest.MockitoHamcrest.argThat;
 
 public class NodeFeaturesFixupListenerTests extends ESTestCase {
@@ -177,6 +178,34 @@ public class NodeFeaturesFixupListenerTests extends ESTestCase {
             argThat(transformedMatch(NodesFeaturesRequest::nodesIds, arrayContainingInAnyOrder("node1"))),
             action.capture()
         );
+    }
+
+    public void testConcurrentChangesDoNotOverlap() {
+        MasterServiceTaskQueue<NodesFeaturesTask> taskQueue = newMockTaskQueue();
+        ClusterAdminClient client = mock(ClusterAdminClient.class);
+        Set<String> features = Set.of("f1", "f2");
+
+        ClusterState testState1 = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(nodes(Version.CURRENT, Version.CURRENT, Version.CURRENT))
+            .nodeFeatures(features(features, Set.of(), Set.of()))
+            .build();
+
+        NodeFeaturesFixupListener listeners = new NodeFeaturesFixupListener(taskQueue, client, null, null);
+        listeners.clusterChanged(new ClusterChangedEvent("test", testState1, ClusterState.EMPTY_STATE));
+        verify(client).execute(
+            eq(TransportNodesFeaturesAction.TYPE),
+            argThat(transformedMatch(NodesFeaturesRequest::nodesIds, arrayContainingInAnyOrder("node1", "node2"))),
+            any()
+        );
+        // don't send back the response yet
+
+        ClusterState testState2 = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(nodes(Version.CURRENT, Version.CURRENT, Version.CURRENT))
+            .nodeFeatures(features(features, features, Set.of()))
+            .build();
+        // should not send any requests
+        listeners.clusterChanged(new ClusterChangedEvent("test", testState2, testState1));
+        verifyNoMoreInteractions(client);
     }
 
     public void testFailedRequestsAreRetried() {

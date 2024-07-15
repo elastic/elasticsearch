@@ -15,7 +15,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * This plugin is used to start the enterprise geoip downloader task (See {@link(org.elasticsearch.ingest.EnterpriseGeoIpTask}). That task
+ * This plugin is used to start the enterprise geoip downloader task (See {@link org.elasticsearch.ingest.EnterpriseGeoIpTask}). That task
  * requires having a platinum license. But the geoip code is in a non-xpack module that doesn't know about licensing. This plugin has a
  * license listener that will start the task if the license is valid, and will stop the task if it becomes invalid. This lets us enforce
  * the license without having to either put license logic into a non-xpack module, or put a lot of shared geoip code (much of which does

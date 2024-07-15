@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -128,7 +129,6 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> assertIndexDoesNotExistsInObjectStore(indexUUID));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1406")
     public void testStaleIndicesAreCleanedAfterThePersistentTaskNodeFails() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         startMasterNode();
@@ -140,19 +140,16 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
 
         var indexName = randomIdentifier();
         createAndPopulateIndex(indexName, indexNode);
+        var indexUUID = resolveIndexUUID(indexName);
 
         internalCluster().stopNode(indexNode);
-
-        var indexUUID = resolveIndexUUID(indexName);
         assertIndexExistsInObjectStore(indexUUID);
 
         client().admin().indices().prepareDelete(indexName).get();
-
         // no index node can take care of cleaning the stale files
         assertIndexExistsInObjectStore(indexUUID);
 
         startIndexNode();
-
         assertBusy(() -> assertIndexDoesNotExistsInObjectStore(indexUUID));
     }
 
@@ -464,12 +461,17 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         return objectStoreService.getIndicesBlobContainer().children(OperationPurpose.INDICES).keySet();
     }
 
-    private static String resolveIndexUUID(String indexName) {
+    private String resolveIndexUUID(String indexName) {
         return resolveIndexUUID(indexName, null);
     }
 
-    private static String resolveIndexUUID(String indexName, String viaNode) {
-        return client(viaNode).admin().cluster().prepareState().get().getState().metadata().index(indexName).getIndexUUID();
+    private String resolveIndexUUID(String indexName, String viaNode) {
+        var state = client(viaNode).admin().cluster().prepareState().get().getState();
+        var indexMetadata = state.metadata().index(indexName);
+        if (indexMetadata == null) {
+            logger.warn("Index [{}] is not found in cluster state: {}", indexName, Strings.toString(state, true, true));
+        }
+        return indexMetadata.getIndexUUID();
     }
 
     private String startMasterNode() {

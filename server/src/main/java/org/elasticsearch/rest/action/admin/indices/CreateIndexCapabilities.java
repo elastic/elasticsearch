@@ -20,10 +20,5 @@ public class CreateIndexCapabilities {
      */
     private static final String LOGS_INDEX_MODE_CAPABILITY = "logs_index_mode";
 
-    /**
-     * Support for validation of synthetic source mode when using 'logs' index mode.
-     */
-    private static final String LOGS_INDEX_MODE_SYNTHETIC_SOURCE_VALIDATION_CAPABILITY = "logs_index_mode_synthetic_source";
-
-    public static Set<String> CAPABILITIES = Set.of(LOGS_INDEX_MODE_CAPABILITY, LOGS_INDEX_MODE_SYNTHETIC_SOURCE_VALIDATION_CAPABILITY);
+    public static Set<String> CAPABILITIES = Set.of(LOGS_INDEX_MODE_CAPABILITY);
 }

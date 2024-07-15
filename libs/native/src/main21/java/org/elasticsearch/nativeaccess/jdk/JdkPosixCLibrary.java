@@ -53,8 +53,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
         "fcntl",
         FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS),
         CAPTURE_ERRNO_OPTION,
-        Linker.Option.firstVariadicArg(2));
-    private static final MethodHandle ftruncate$mh = downcallHandleWithErrno("ftruncate", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG));
+        Linker.Option.firstVariadicArg(2)
+    );
+    private static final MethodHandle ftruncate$mh = downcallHandleWithErrno(
+        "ftruncate",
+        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG)
+    );
     private static final MethodHandle open$mh = downcallHandle(
         "open",
         FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT),

@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.features;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -68,21 +68,21 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
         ClusterState state,
         ActionListener<ResetFeatureStateResponse> listener
     ) throws Exception {
-        if (systemIndices.getFeatures().size() == 0) {
-            listener.onResponse(new ResetFeatureStateResponse(Collections.emptyList()));
-        }
-
-        final int features = systemIndices.getFeatures().size();
-        GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> groupedActionListener = new GroupedActionListener<>(
-            systemIndices.getFeatures().size(),
-            listener.map(responses -> {
-                assert features == responses.size();
-                return new ResetFeatureStateResponse(new ArrayList<>(responses));
-            })
-        );
-
-        for (SystemIndices.Feature feature : systemIndices.getFeatures()) {
-            feature.getCleanUpFunction().apply(clusterService, client, groupedActionListener);
+        final var features = systemIndices.getFeatures();
+        final var responses = new ArrayList<ResetFeatureStateResponse.ResetFeatureStateStatus>(features.size());
+        try (
+            var listeners = new RefCountingListener(
+                listener.map(ignored -> new ResetFeatureStateResponse(Collections.unmodifiableList(responses)))
+            )
+        ) {
+            for (final var feature : features) {
+                feature.getCleanUpFunction().apply(clusterService, client, listeners.acquire(e -> {
+                    assert e != null : feature.getName();
+                    synchronized (responses) {
+                        responses.add(e);
+                    }
+                }));
+            }
         }
     }
 

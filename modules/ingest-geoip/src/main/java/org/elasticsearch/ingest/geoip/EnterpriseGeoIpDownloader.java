@@ -69,7 +69,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloader.class);
 
     // for overriding in tests
-    private static final String DEFAULT_MAXMIND_ENDPOINT = System.getProperty(
+    static String DEFAULT_MAXMIND_ENDPOINT = System.getProperty(
         MAXMIND_SETTINGS_PREFIX + "endpoint.default",
         "https://download.maxmind.com/geoip/databases"
     );

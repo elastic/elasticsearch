@@ -40,8 +40,7 @@ dependencies {
   implementation project(":libs:elasticsearch-simdvec")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
-  // no compile dependency by server, but server defines security policy for this codebase so it i>
-  runtimeOnly project(":libs:elasticsearch-preallocate")
+  implementation project(":libs:elasticsearch-preallocate")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"

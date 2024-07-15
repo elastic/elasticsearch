@@ -15,6 +15,7 @@ import org.elasticsearch.preallocate.Preallocator.NativeFileHandle;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,12 +25,27 @@ public class Preallocate {
 
     private static final Logger logger = LogManager.getLogger(Preallocate.class);
 
-    private static final boolean IS_LINUX;
-    private static final boolean IS_MACOS;
+    static final boolean IS_LINUX;
+    static final boolean IS_MACOS;
     static {
         String osName = System.getProperty("os.name");
         IS_LINUX = osName.startsWith("Linux");
         IS_MACOS = osName.startsWith("Mac OS X");
+
+        // make sure the allocator native methods are initialized
+        Class<?> clazz = null;
+        if (IS_LINUX) {
+            clazz = LinuxPreallocator.class;
+        } else if (IS_MACOS) {
+            clazz = MacOsPreallocator.class;
+        }
+        if (clazz != null) {
+            try {
+                MethodHandles.lookup().ensureInitialized(clazz);
+            } catch (IllegalAccessException unexpected) {
+                throw new AssertionError(unexpected);
+            }
+        }
     }
 
     public static void preallocate(final Path cacheFile, final long fileSize) throws IOException {

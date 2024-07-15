@@ -11,6 +11,11 @@ dependencies {
   implementation project(':libs:elasticsearch-core')
   implementation project(':libs:elasticsearch-logging')
   implementation "net.java.dev.jna:jna:${versions.jna}"
+
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-preallocate'
+  }
 }
 
 tasks.named('forbiddenApisMain').configure {

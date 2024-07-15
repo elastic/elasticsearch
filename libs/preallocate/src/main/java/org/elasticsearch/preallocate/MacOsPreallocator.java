@@ -7,17 +7,26 @@
  */
 package org.elasticsearch.preallocate;
 
+import com.sun.jna.Library;
+import com.sun.jna.Memory;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Platform;
-import com.sun.jna.Structure;
 
+import java.lang.invoke.MethodHandles;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
-import java.util.List;
 
 final class MacOsPreallocator extends AbstractPosixPreallocator {
+
+    static {
+        try {
+            MethodHandles.lookup().ensureInitialized(Natives.class);
+            logger.info("Initialized macos natives: " + Natives.NATIVES_AVAILABLE);
+        } catch (IllegalAccessException unexpected) {
+            throw new AssertionError(unexpected);
+        }
+    }
 
     MacOsPreallocator() {
         super(new PosixConstants(144, 96, 512));
@@ -31,21 +40,25 @@ final class MacOsPreallocator extends AbstractPosixPreallocator {
     @Override
     public int preallocate(final int fd, final long currentSize /* unused */ , final long fileSize) {
         // the Structure.ByReference constructor requires access to declared members
-        final Natives.Fcntl.FStore fst = AccessController.doPrivileged((PrivilegedAction<Natives.Fcntl.FStore>) Natives.Fcntl.FStore::new);
-        fst.fst_flags = Natives.Fcntl.F_ALLOCATECONTIG;
-        fst.fst_posmode = Natives.Fcntl.F_PEOFPOSMODE;
-        fst.fst_offset = new NativeLong(0);
-        fst.fst_length = new NativeLong(fileSize);
+        final Natives.Fcntl.FStore fst = new Natives.Fcntl.FStore();
+        fst.setFlags(Natives.Fcntl.F_ALLOCATECONTIG);
+        fst.setPosmode(Natives.Fcntl.F_PEOFPOSMODE);
+        fst.setOffset(0);
+        fst.setLength(fileSize);
         // first, try allocating contiguously
-        if (Natives.fcntl(fd, Natives.Fcntl.F_PREALLOCATE, fst) != 0) {
+        logger.info("Calling fcntl for preallocate");
+        if (Natives.functions.fcntl(fd, Natives.Fcntl.F_PREALLOCATE, fst.memory) != 0) {
+            logger.warn("Failed to get contiguous preallocate, trying non-contiguous");
             // that failed, so let us try allocating non-contiguously
-            fst.fst_flags = Natives.Fcntl.F_ALLOCATEALL;
-            if (Natives.fcntl(fd, Natives.Fcntl.F_PREALLOCATE, fst) != 0) {
+            fst.setFlags(Natives.Fcntl.F_ALLOCATEALL);
+            if (Natives.functions.fcntl(fd, Natives.Fcntl.F_PREALLOCATE, fst.memory) != 0) {
+                logger.warn("Failed to get non-continugous preallocate");
                 // i'm afraid captain dale had to bail
                 return Native.getLastError();
             }
         }
-        if (Natives.ftruncate(fd, new NativeLong(fileSize)) != 0) {
+        if (Natives.functions.ftruncate(fd, new NativeLong(fileSize)) != 0) {
+            logger.warn("Failed to ftruncate");
             return Native.getLastError();
         }
         return 0;
@@ -53,17 +66,20 @@ final class MacOsPreallocator extends AbstractPosixPreallocator {
 
     private static class Natives {
 
-        static boolean NATIVES_AVAILABLE;
+        static final boolean NATIVES_AVAILABLE;
+        static final NativeFunctions functions;
 
         static {
-            NATIVES_AVAILABLE = AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
+            NativeFunctions nativeFunctions = AccessController.doPrivileged((PrivilegedAction<NativeFunctions>) () -> {
                 try {
-                    Native.register(Natives.class, Platform.C_LIBRARY_NAME);
+                    return Native.load(Platform.C_LIBRARY_NAME, NativeFunctions.class);
                 } catch (final UnsatisfiedLinkError e) {
-                    return false;
+                    logger.warn("Failed to load macos native preallocate functions");
+                    return null;
                 }
-                return true;
             });
+            functions = nativeFunctions;
+            NATIVES_AVAILABLE = nativeFunctions != null;
         }
 
         static class Fcntl {
@@ -79,25 +95,37 @@ final class MacOsPreallocator extends AbstractPosixPreallocator {
             @SuppressWarnings("unused")
             private static final int F_VOLPOSMODE = 4; // allocate from the volume offset
 
-            public static final class FStore extends Structure implements Structure.ByReference {
-                public int fst_flags = 0;
-                public int fst_posmode = 0;
-                public NativeLong fst_offset = new NativeLong(0);
-                public NativeLong fst_length = new NativeLong(0);
-                @SuppressWarnings("unused")
-                public NativeLong fst_bytesalloc = new NativeLong(0);
+            public static final class FStore {
+                final Memory memory = new Memory(32);
 
-                @Override
-                protected List<String> getFieldOrder() {
-                    return Arrays.asList("fst_flags", "fst_posmode", "fst_offset", "fst_length", "fst_bytesalloc");
+                public void setFlags(int flags) {
+                    memory.setInt(0, flags);
+                }
+
+                public void setPosmode(int posmode) {
+                    memory.setInt(4, posmode);
+                }
+
+                public void setOffset(long offset) {
+                    memory.setLong(8, offset);
+                }
+
+                public void setLength(long length) {
+                    memory.setLong(16, length);
+                }
+
+                public void getBytesalloc() {
+                    memory.getLong(24);
                 }
 
             }
         }
 
-        static native int fcntl(int fd, int cmd, Fcntl.FStore fst);
+        private interface NativeFunctions extends Library {
+            int fcntl(int fd, int cmd, Object... args);
 
-        static native int ftruncate(int fd, NativeLong length);
+            int ftruncate(int fd, NativeLong length);
+        }
     }
 
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.preallocate.Preallocate;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PrivilegedOperations;
@@ -111,9 +112,10 @@ public class BootstrapForTesting {
         // init mockito
         SecureMockMaker.init();
 
-        // init the privileged operation
         try {
-            MethodHandles.publicLookup().ensureInitialized(PrivilegedOperations.class);
+            var lookup = MethodHandles.publicLookup();
+            lookup.ensureInitialized(PrivilegedOperations.class);
+            lookup.ensureInitialized(Preallocate.class);
         } catch (IllegalAccessException unexpected) {
             throw new AssertionError(unexpected);
         }

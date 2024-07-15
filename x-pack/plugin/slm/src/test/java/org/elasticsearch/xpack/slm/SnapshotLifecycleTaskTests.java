@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSn
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -29,12 +30,14 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotInfoUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -53,6 +56,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -330,6 +334,216 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         } finally {
             threadPool.shutdownNow();
         }
+    }
+
+    public void testPreRegisteredSnapshotNoPreviousFailures() throws Exception {
+        final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        var listener = new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                assertFalse(listenerCalled.getAndSet(true));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+            }
+        };
+
+        final String policyId = randomAlphaOfLength(10);
+        final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(10), randomUUID());
+
+        SnapshotLifecycleTask.PreRegisterSLMRun preRegisterSLMRun =
+            new SnapshotLifecycleTask.PreRegisterSLMRun(policyId, snapshotId, listener);
+
+        // currently running snapshots
+        final SnapshotId currentSnap1 = new SnapshotId(randomAlphaOfLength(10), randomUUID());
+        final SnapshotId currentSnap2 = new SnapshotId(randomAlphaOfLength(10), randomUUID());
+        final String repo1 = randomAlphaOfLength(10);
+        final String repo2 = randomAlphaOfLength(10);
+        final var snapshotsInProgress = SnapshotsInProgress.EMPTY
+            .withUpdatedEntriesForRepo(repo1, List.of(makeSnapshotInProgress(repo1, policyId, currentSnap1)))
+            .withUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, policyId, currentSnap2)));
+
+        Set<SnapshotId> alreadyPreRegistered = Set.of(currentSnap1, currentSnap2);
+
+        SnapshotLifecycleMetadata slmMetadata;
+        {
+            SnapshotLifecyclePolicyMetadata slmPolicyMeta = SnapshotLifecyclePolicyMetadata.builder()
+                .setModifiedDate(randomLong())
+                .setPolicy(new SnapshotLifecyclePolicy(policyId, "snap", "", "repo-name", null, null))
+                .setPreRegisteredSnapshots(alreadyPreRegistered)
+                .build();
+            SnapshotLifecycleStats stats = new SnapshotLifecycleStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                new HashMap<>()
+            );
+            slmMetadata = new SnapshotLifecycleMetadata(
+                Map.of(policyId, slmPolicyMeta),
+                OperationMode.RUNNING,
+                stats
+            );
+        }
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
+            .metadata(Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, slmMetadata))
+            .build();
+
+        ClusterState newClusterState = preRegisterSLMRun.execute(clusterState);
+        SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+
+        // stats are 0 for policy
+        SnapshotLifecycleStats newStats = newSlmMetadata.getStats();
+        SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newStats.getMetrics().get(policyId);
+        assertTrue(snapshotPolicyStats == null || snapshotPolicyStats.getSnapshotFailedCount() == 0);
+        assertTrue(snapshotPolicyStats == null || snapshotPolicyStats.getSnapshotTakenCount() == 0);
+
+        // previous success/failure are all 0/empty for policy
+        SnapshotLifecyclePolicyMetadata newSlmPolicyMetadata = newSlmMetadata.getSnapshotConfigurations().get(policyId);
+        assertNull(newSlmPolicyMetadata.getLastFailure());
+        assertNull(newSlmPolicyMetadata.getLastSuccess());
+        assertEquals(0, newSlmPolicyMetadata.getInvocationsSinceLastSuccess());
+
+        // failed snapshot no longer in preRegisteredSnapshot set
+        assertEquals(Set.of(snapshotId, currentSnap1, currentSnap2), newSlmPolicyMetadata.getPreRegisteredSnapshots());
+
+        preRegisterSLMRun.clusterStateProcessed(clusterState, newClusterState);
+        assertBusy(() -> assertTrue(listenerCalled.get()));
+    }
+
+    public void testPreRegisteredSnapshotWithPreviousFailure() throws Exception {
+        final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        var listener = new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                assertFalse(listenerCalled.getAndSet(true));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+            }
+        };
+
+        final String policyId = randomAlphaOfLength(10);
+        final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(10), randomUUID());
+
+        SnapshotLifecycleTask.PreRegisterSLMRun preRegisterSLMRun =
+            new SnapshotLifecycleTask.PreRegisterSLMRun(policyId, snapshotId, listener);
+
+        final SnapshotId previousFailedSnapshot = new SnapshotId(randomAlphaOfLength(10), randomUUID());
+
+        // currently running snapshots
+        final SnapshotId currentSnap1 = new SnapshotId(randomAlphaOfLength(10), randomUUID());
+        final SnapshotId currentSnap2 = new SnapshotId(randomAlphaOfLength(10), randomUUID());
+        final String repo1 = randomAlphaOfLength(10);
+        final String repo2 = randomAlphaOfLength(10);
+        final var snapshotsInProgress = SnapshotsInProgress.EMPTY
+            .withUpdatedEntriesForRepo(repo1, List.of(makeSnapshotInProgress(repo1, policyId, currentSnap1)))
+            .withUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, policyId, currentSnap2)));
+
+        Set<SnapshotId> alreadyPreRegistered = Set.of(currentSnap1, currentSnap2, previousFailedSnapshot);
+
+        SnapshotLifecycleMetadata slmMetadata;
+        {
+            SnapshotLifecyclePolicyMetadata slmPolicyMeta = SnapshotLifecyclePolicyMetadata.builder()
+                .setModifiedDate(randomLong())
+                .setPolicy(new SnapshotLifecyclePolicy(policyId, "snap", "", "repo-name", null, null))
+                .setPreRegisteredSnapshots(alreadyPreRegistered)
+                .build();
+            SnapshotLifecycleStats stats = new SnapshotLifecycleStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                new HashMap<>()
+            );
+            slmMetadata = new SnapshotLifecycleMetadata(
+                Map.of(policyId, slmPolicyMeta),
+                OperationMode.RUNNING,
+                stats
+            );
+        }
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
+            .metadata(Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, slmMetadata))
+            .build();
+
+        ClusterState newClusterState = preRegisterSLMRun.execute(clusterState);
+        SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+
+        // stats are 0 for policy
+        SnapshotLifecycleStats newStats = newSlmMetadata.getStats();
+        SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newStats.getMetrics().get(policyId);
+        assertEquals(1, snapshotPolicyStats.getSnapshotFailedCount());
+        assertEquals(0, snapshotPolicyStats.getSnapshotTakenCount());
+
+        // previous failure is now recorded
+        SnapshotLifecyclePolicyMetadata newSlmPolicyMetadata = newSlmMetadata.getSnapshotConfigurations().get(policyId);
+        assertEquals(previousFailedSnapshot.getName(), newSlmPolicyMetadata.getLastFailure().getSnapshotName());
+        assertNull(newSlmPolicyMetadata.getLastSuccess());
+        assertEquals(1, newSlmPolicyMetadata.getInvocationsSinceLastSuccess());
+
+        // failed snapshot no longer in preRegisteredSnapshot set
+        assertEquals(Set.of(snapshotId, currentSnap1, currentSnap2), newSlmPolicyMetadata.getPreRegisteredSnapshots());
+
+        preRegisterSLMRun.clusterStateProcessed(clusterState, newClusterState);
+        assertBusy(() -> assertTrue(listenerCalled.get()));
+    }
+
+    public void testCurrentlyRunningSnapshots() {
+        final SnapshotId snapshot1 = new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        final SnapshotId snapshot2 = new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        final SnapshotId snapshot3 = new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        final SnapshotId snapshot4 = new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10));
+
+        final String repo1 = randomAlphaOfLength(10);
+        final String repo2 = randomAlphaOfLength(10);
+
+        final var snapshotsInProgress = SnapshotsInProgress.EMPTY
+            .withUpdatedEntriesForRepo(
+                repo1,
+                List.of(
+                    makeSnapshotInProgress(repo1, "some-policy", snapshot1),
+                    makeSnapshotInProgress(repo1, "some-policy", snapshot2),
+                    makeSnapshotInProgress(repo1, "other-policy", snapshot3)
+                )
+            )
+            .withUpdatedEntriesForRepo(
+                repo2,
+                List.of(
+                    makeSnapshotInProgress(repo2, "other-policy", snapshot4)
+                )
+            );
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
+            .build();
+
+        assertEquals(Set.of(snapshot1, snapshot2), SnapshotLifecycleTask.currentlyRunningSnapshots("some-policy", clusterState));
+        assertEquals(Set.of(snapshot3, snapshot4), SnapshotLifecycleTask.currentlyRunningSnapshots("other-policy", clusterState));
+    }
+
+    private static SnapshotsInProgress.Entry makeSnapshotInProgress(String repo, String policyId, SnapshotId snapshotId) {
+        final Map<String, Object> metadata = Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyId);
+        return SnapshotsInProgress.Entry.snapshot(
+            new Snapshot(repo, snapshotId),
+            randomBoolean(),
+            randomBoolean(),
+            SnapshotsInProgress.State.SUCCESS,
+            Map.of(),
+            List.of(),
+            List.of(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            Map.of(),
+            null,
+            metadata,
+            IndexVersion.current()
+        );
     }
 
     /**

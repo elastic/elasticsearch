@@ -237,7 +237,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         }, ToXContent.EMPTY_PARAMS);
     }
 
-    private static Set<SnapshotId> currentlyRunningSnapshots(String policyId, ClusterState clusterState) {
+    static Set<SnapshotId> currentlyRunningSnapshots(String policyId, ClusterState clusterState) {
         SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE);
         if (snapshots == null) {
             return Set.of();
@@ -254,7 +254,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         return currentlyRunning;
     }
 
-    private static class PreRegisterSLMRun extends ClusterStateUpdateTask {
+    static class PreRegisterSLMRun extends ClusterStateUpdateTask {
         private final String policyName;
         private final SnapshotId snapshotId;
         private final ActionListener<Void> listener;

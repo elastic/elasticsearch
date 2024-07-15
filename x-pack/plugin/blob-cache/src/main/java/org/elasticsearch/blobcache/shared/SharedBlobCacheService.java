@@ -983,7 +983,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             )
                         );
                         if (streamFactory == null) {
-
                             for (SparseFileTracker.Gap gap : gaps) {
                                 executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
                             }

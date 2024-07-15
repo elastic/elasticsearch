@@ -281,7 +281,6 @@ allprojects {
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
     configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
-    resolveJavaToolChain = true
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }

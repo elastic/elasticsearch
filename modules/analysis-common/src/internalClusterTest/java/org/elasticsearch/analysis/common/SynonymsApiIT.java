@@ -50,6 +50,18 @@ public class SynonymsApiIT extends ESIntegTestCase {
         return List.of(CommonAnalysisPlugin.class, MapperExtrasPlugin.class, ReindexPlugin.class);
     }
 
+    public void testLoadIndexWithInvalidSynonymRule() throws Exception {
+        final String indexName = "test-index";
+        final String fieldName = "field";
+        final String synonymsSetId = "test-synonyms-set";
+        final List<String> stopwords = List.of("baz");
+
+        assertCreateSynonymsSet(createPutSynonymsRequest(synonymsSetId, List.of(new SynonymRule(null, "foo => bar, baz"))));
+        assertCreateIndexWithSynonyms(indexName, fieldName, synonymsSetId, stopwords);
+        ensureGreen(DEFAULT_TIMEOUT, indexName);
+        assertAnalysis(DEFAULT_TIMEOUT, indicesAdmin().prepareAnalyze(indexName, "foo").setAnalyzer(SEARCH_ANALYZER_NAME), List.of("bar"));
+    }
+
     public void testReloadIndexWithInvalidSynonymRule() throws Exception {
         final String indexName = "test-index";
         final String fieldName = "field";
@@ -61,12 +73,13 @@ public class SynonymsApiIT extends ESIntegTestCase {
         ensureGreen(DEFAULT_TIMEOUT, indexName);
         assertAnalysis(DEFAULT_TIMEOUT, indicesAdmin().prepareAnalyze(indexName, "foo").setAnalyzer(SEARCH_ANALYZER_NAME), List.of("bar"));
 
-        assertUpdateSynonymsSet(createPutSynonymsRequest(synonymsSetId, List.of(new SynonymRule(null, "foo => baz"))));
+        assertUpdateSynonymsSet(createPutSynonymsRequest(synonymsSetId, List.of(new SynonymRule(null, "foo => bar, baz"))));
         ensureGreen(DEFAULT_TIMEOUT, indexName);
-        assertAnalysis(DEFAULT_TIMEOUT, indicesAdmin().prepareAnalyze(indexName, "foo").setAnalyzer(SEARCH_ANALYZER_NAME), List.of("foo"));
+        assertAnalysis(DEFAULT_TIMEOUT, indicesAdmin().prepareAnalyze(indexName, "foo").setAnalyzer(SEARCH_ANALYZER_NAME), List.of("bar"));
 
         reloadIndex(DEFAULT_TIMEOUT, indexName);
         ensureGreen(DEFAULT_TIMEOUT, indexName);
+        assertAnalysis(DEFAULT_TIMEOUT, indicesAdmin().prepareAnalyze(indexName, "foo").setAnalyzer(SEARCH_ANALYZER_NAME), List.of("bar"));
     }
 
     private void assertCreateIndexWithSynonyms(String indexName, String fieldName, String synonymsSetId, List<String> stopwords) {

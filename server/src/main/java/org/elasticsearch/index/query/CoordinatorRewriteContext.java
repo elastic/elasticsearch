@@ -123,10 +123,12 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     boolean hasTimestampData(String fieldName) {
         if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.getTimestampRange().isComplete()
-                && dateFieldRangeInfo.getTimestampRange() != IndexLongFieldRange.EMPTY;
+                && dateFieldRangeInfo.getTimestampRange() != IndexLongFieldRange.EMPTY
+                && dateFieldRangeInfo.getTimestampRange() != IndexLongFieldRange.UNKNOWN;
         } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.getEventIngestedRange().isComplete()
-                && dateFieldRangeInfo.getEventIngestedRange() != IndexLongFieldRange.EMPTY;
+                && dateFieldRangeInfo.getEventIngestedRange() != IndexLongFieldRange.EMPTY
+                && dateFieldRangeInfo.getEventIngestedRange() != IndexLongFieldRange.UNKNOWN;
         } else {
             throw new IllegalArgumentException(
                 Strings.format(

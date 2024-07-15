@@ -73,7 +73,7 @@ public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
         if (getEndpoint() != null) {
             EnterpriseGeoIpDownloader.DEFAULT_MAXMIND_ENDPOINT = getEndpoint();
         }
-        final String piplineName = "enterprise_geoip_pipeline";
+        final String pipelineName = "enterprise_geoip_pipeline";
         final String indexName = "enterprise_geoip_test_index";
         final String databaseType = "GeoIP2-City";
         final String sourceField = "ip";
@@ -81,8 +81,8 @@ public class EnterpriseGeoIpDownloaderIT extends AbstractGeoIpIT {
 
         startEnterpriseGeoIpDownloaderTask();
         configureDatabase(databaseType);
-        createGeoIpPipeline(piplineName, databaseType, sourceField, targetField);
-        String documentId = ingestDocument(indexName, piplineName, sourceField);
+        createGeoIpPipeline(pipelineName, databaseType, sourceField, targetField);
+        String documentId = ingestDocument(indexName, pipelineName, sourceField);
         GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
         Map<String, Object> returnedSource = getResponse.getSource();
         assertNotNull(returnedSource);

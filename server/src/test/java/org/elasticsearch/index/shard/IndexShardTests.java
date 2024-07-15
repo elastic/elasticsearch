@@ -2981,7 +2981,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
         shard.recoveryState().getIndex().setFileDetailsComplete();
-        PlainActionFuture.get(shard::openEngineAndRecoverFromTranslog, 30, TimeUnit.SECONDS);
+        safeAwait(shard::openEngineAndRecoverFromTranslog);
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         closeShards(shard);

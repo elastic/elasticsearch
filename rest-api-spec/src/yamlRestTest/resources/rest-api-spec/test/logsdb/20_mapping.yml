@@ -22,6 +22,8 @@ stored _source mode is not supported:
           settings:
             index:
               mode: logs
+              lossy:
+                source-mapping-parameters: true
           mappings:
             _source:
               mode: stored
@@ -59,6 +61,8 @@ disabled _source is not supported:
           settings:
             index:
               mode: logs
+              lossy:
+                source-mapping-parameters: true
           mappings:
             _source:
               enabled: false
@@ -80,6 +84,8 @@ disabled _source is not supported:
           settings:
             index:
               mode: logs
+              lossy:
+                source-mapping-parameters: true
           mappings:
             _source:
               mode: disabled

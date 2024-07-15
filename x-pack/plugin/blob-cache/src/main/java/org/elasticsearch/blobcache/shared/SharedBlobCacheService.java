@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -980,23 +979,33 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private AbstractRunnable fillGapRunnable(SparseFileTracker.Gap gap, RangeMissingHandler writer, ActionListener<Void> listener) {
-            return ActionRunnable.run(listener.delegateResponse((l, e) -> failGapAndListener(gap, l, e)), () -> {
-                var ioRef = io;
-                assert regionOwners.get(ioRef) == CacheFileRegion.this;
-                assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
-                int start = Math.toIntExact(gap.start());
-                writer.fillCacheRange(
-                    ioRef,
-                    start,
-                    start,
-                    Math.toIntExact(gap.end() - start),
-                    progress -> gap.onProgress(start + progress),
-                    ActionListener.wrap(unused -> {
-                        writeCount.increment();
-                        gap.onCompletion();
-                    }, e -> failGapAndListener(gap, listener, e))
-                );
-            });
+            return new AbstractRunnable() {
+
+                @Override
+                protected void doRun() throws Exception {
+                    var ioRef = io;
+                    assert regionOwners.get(ioRef) == CacheFileRegion.this;
+                    assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
+                    int start = Math.toIntExact(gap.start());
+                    writer.fillCacheRange(
+                        ioRef,
+                        start,
+                        start,
+                        Math.toIntExact(gap.end() - start),
+                        progress -> gap.onProgress(start + progress),
+                        listener.<Void>map(unused -> {
+                            writeCount.increment();
+                            gap.onCompletion();
+                            return null;
+                        }).delegateResponse((l, e) -> failGapAndListener(gap, l, e))
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failGapAndListener(gap, listener, e);
+                }
+            };
         }
 
         private static void failGapAndListener(SparseFileTracker.Gap gap, ActionListener<?> listener, Exception e) {

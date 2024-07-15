@@ -119,7 +119,9 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             return templates;
         }));
 
-        Optional<Tuple<Map<String, BytesReference>, Set<String>>> optChanges = service.calculateTemplateChanges(metadata.templates());
+        Optional<Tuple<Map<String, BytesReference>, Set<String>>> optChanges = service.calculateTemplateChanges(
+            metadata.projectMetadata.templates()
+        );
 
         if (shouldAdd || shouldRemove || shouldChange) {
             Tuple<Map<String, BytesReference>, Set<String>> changes = optChanges.orElseThrow(

@@ -209,7 +209,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     private final long version;
 
     private final CoordinationMetadata coordinationMetadata;
-    final ProjectMetadata projectMetadata;
+    public final ProjectMetadata projectMetadata;
 
     private final Settings transientSettings;
     private final Settings persistentSettings;
@@ -657,15 +657,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     public ProjectMetadata getProject() {
-        return projectMetadata;
-    }
-
-    public IndexVersion oldestIndexVersion() {
-        return projectMetadata.oldestIndexVersion;
+        return this.projectMetadata;
     }
 
     public boolean equalsAliases(Metadata other) {
-        for (IndexMetadata otherIndex : other.indices().values()) {
+        for (IndexMetadata otherIndex : other.projectMetadata.indices().values()) {
             IndexMetadata thisIndex = index(otherIndex.getIndex());
             if (thisIndex == null) {
                 return false;
@@ -689,10 +685,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         return true;
-    }
-
-    public boolean indicesLookupInitialized() {
-        return projectMetadata.indicesLookup != null;
     }
 
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
@@ -980,48 +972,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     /**
-     * Returns all the concrete indices.
-     */
-    public String[] getConcreteAllIndices() {
-        return projectMetadata.allIndices;
-    }
-
-    /**
-     * Returns all the concrete indices that are not hidden.
-     */
-    public String[] getConcreteVisibleIndices() {
-        return projectMetadata.visibleIndices;
-    }
-
-    /**
-     * Returns all of the concrete indices that are open.
-     */
-    public String[] getConcreteAllOpenIndices() {
-        return projectMetadata.allOpenIndices;
-    }
-
-    /**
-     * Returns all of the concrete indices that are open and not hidden.
-     */
-    public String[] getConcreteVisibleOpenIndices() {
-        return projectMetadata.visibleOpenIndices;
-    }
-
-    /**
-     * Returns all of the concrete indices that are closed.
-     */
-    public String[] getConcreteAllClosedIndices() {
-        return projectMetadata.allClosedIndices;
-    }
-
-    /**
-     * Returns all of the concrete indices that are closed and not hidden.
-     */
-    public String[] getConcreteVisibleClosedIndices() {
-        return projectMetadata.visibleClosedIndices;
-    }
-
-    /**
      * Returns indexing routing for the given <code>aliasOrIndex</code>. Resolves routing from the alias metadata used
      * in the write index.
      */
@@ -1177,12 +1127,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         throw new IndexNotFoundException(index);
     }
 
-    public Map<String, IndexMetadata> indices() {
-        return projectMetadata.indices;
-    }
-
     public Map<String, IndexMetadata> getIndices() {
-        return indices();
+        return projectMetadata.indices();
     }
 
     /**
@@ -1215,12 +1161,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return projectMetadata.aliasedIndices.keySet();
     }
 
-    public Map<String, IndexTemplateMetadata> templates() {
-        return projectMetadata.templates;
-    }
-
     public Map<String, IndexTemplateMetadata> getTemplates() {
-        return templates();
+        return projectMetadata.templates();
     }
 
     public Map<String, ComponentTemplate> componentTemplates() {
@@ -1345,24 +1287,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return (T) projectMetadata.customs.getOrDefault(type, defaultValue);
     }
 
-    /**
-     * Gets the total number of shards from all indices, including replicas and
-     * closed indices.
-     * @return The total number shards from all indices.
-     */
-    public int getTotalNumberOfShards() {
-        return projectMetadata.totalNumberOfShards;
-    }
-
-    /**
-     * Gets the total number of open shards from all indices. Includes
-     * replicas, but does not include shards that are part of closed indices.
-     * @return The total number of open shards from all indices.
-     */
-    public int getTotalOpenIndexShards() {
-        return projectMetadata.totalOpenIndexShards;
-    }
-
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
         if (metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata) == false) {
             return false;
@@ -1373,7 +1297,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         if (metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings) == false) {
             return false;
         }
-        if (metadata1.projectMetadata.templates.equals(metadata2.templates()) == false) {
+        if (metadata1.projectMetadata.templates.equals(metadata2.projectMetadata.templates()) == false) {
             return false;
         }
         if (metadata1.clusterUUID.equals(metadata2.clusterUUID) == false) {
@@ -1439,7 +1363,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             : Collections.emptyIterator();
 
         final Iterator<? extends ToXContent> indices = context == XContentContext.API
-            ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
+            ? ChunkedToXContentHelper.wrapWithObject("indices", projectMetadata.indices().values().iterator())
             : Collections.emptyIterator();
 
         return Iterators.concat(start, Iterators.single((builder, params) -> {
@@ -1453,7 +1377,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             ChunkedToXContentHelper.wrapWithObject(
                 "templates",
                 Iterators.map(
-                    templates().values().iterator(),
+                    projectMetadata.templates().values().iterator(),
                     template -> (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params)
                 )
             ),

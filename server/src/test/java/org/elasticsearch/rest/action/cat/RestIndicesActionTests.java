@@ -136,7 +136,7 @@ public class RestIndicesActionTests extends ESTestCase {
         assertThat(headers.get(5).value, equalTo("rep"));
 
         final List<List<Table.Cell>> rows = table.getRows();
-        assertThat(rows.size(), equalTo(clusterState.metadata().indices().size()));
+        assertThat(rows.size(), equalTo(clusterState.metadata().projectMetadata.indices().size()));
 
         final var clusterStateHealth = new ClusterStateHealth(clusterState);
 

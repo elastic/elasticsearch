@@ -227,8 +227,8 @@ public class ClusterChangedEvent {
         final Metadata previousMetadata = previousState.metadata();
         final Metadata currentMetadata = state.metadata();
 
-        if (currentMetadata.indices() != previousMetadata.indices()) {
-            for (IndexMetadata index : previousMetadata.indices().values()) {
+        if (currentMetadata.projectMetadata.indices() != previousMetadata.projectMetadata.indices()) {
+            for (IndexMetadata index : previousMetadata.projectMetadata.indices().values()) {
                 IndexMetadata current = currentMetadata.index(index.getIndex());
                 if (current == null) {
                     if (deleted == null) {

@@ -74,6 +74,80 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         this.oldestIndexVersion = oldestIndexVersion;
     }
 
+    public Map<String, IndexMetadata> indices() {
+        return indices;
+    }
+
+    public Map<String, IndexTemplateMetadata> templates() {
+        return templates;
+    }
+
+    /**
+     * Gets the total number of shards from all indices, including replicas and
+     * closed indices.
+     */
+    public int getTotalNumberOfShards() {
+        return totalNumberOfShards;
+    }
+
+    /**
+     * Gets the total number of open shards from all indices. Includes
+     * replicas, but does not include shards that are part of closed indices.
+     */
+    public int getTotalOpenIndexShards() {
+        return totalOpenIndexShards;
+    }
+
+    /**
+     * Returns all the concrete indices.
+     */
+    public String[] getConcreteAllIndices() {
+        return allIndices;
+    }
+
+    /**
+     * Returns all the concrete indices that are not hidden.
+     */
+    public String[] getConcreteVisibleIndices() {
+        return visibleIndices;
+    }
+
+    /**
+     * Returns all of the concrete indices that are open.
+     */
+    public String[] getConcreteAllOpenIndices() {
+        return allOpenIndices;
+    }
+
+    /**
+     * Returns all of the concrete indices that are open and not hidden.
+     */
+    public String[] getConcreteVisibleOpenIndices() {
+        return visibleOpenIndices;
+    }
+
+    /**
+     * Returns all of the concrete indices that are closed.
+     */
+    public String[] getConcreteAllClosedIndices() {
+        return allClosedIndices;
+    }
+
+    /**
+     * Returns all of the concrete indices that are closed and not hidden.
+     */
+    public String[] getConcreteVisibleClosedIndices() {
+        return visibleClosedIndices;
+    }
+
+    public boolean indicesLookupInitialized() {
+        return indicesLookup != null;
+    }
+
+    public IndexVersion oldestIndexVersion() {
+        return oldestIndexVersion;
+    }
+
     @Override
     public Iterator<IndexMetadata> iterator() {
         return indices.values().iterator();
@@ -86,5 +160,4 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
     public int size() {
         return indices.size();
     }
-
 }

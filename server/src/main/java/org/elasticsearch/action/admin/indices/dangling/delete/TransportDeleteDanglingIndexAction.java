@@ -130,7 +130,7 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
         final Metadata metaData = currentState.getMetadata();
 
-        for (Map.Entry<String, IndexMetadata> each : metaData.indices().entrySet()) {
+        for (Map.Entry<String, IndexMetadata> each : metaData.projectMetadata.indices().entrySet()) {
             if (indexToDelete.getUUID().equals(each.getValue().getIndexUUID())) {
                 throw new IllegalArgumentException(
                     "Refusing to delete dangling index "

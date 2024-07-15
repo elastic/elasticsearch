@@ -150,8 +150,7 @@ public final class PhaseCacheManagement {
             return false;
         }
 
-        final List<IndexMetadata> indicesThatCanBeUpdated = currentState.metadata()
-            .indices()
+        final List<IndexMetadata> indicesThatCanBeUpdated = currentState.metadata().projectMetadata.indices()
             .values()
             .stream()
             .filter(meta -> newPolicy.getName().equals(meta.getLifecyclePolicyName()))

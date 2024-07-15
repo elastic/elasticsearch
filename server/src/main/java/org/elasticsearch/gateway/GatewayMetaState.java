@@ -225,7 +225,7 @@ public class GatewayMetaState implements Closeable {
                 new NodeMetadata(
                     persistedClusterStateService.getNodeId(),
                     BuildVersion.current(),
-                    clusterState.metadata().oldestIndexVersion()
+                    clusterState.metadata().projectMetadata.oldestIndexVersion()
                 ),
                 persistedClusterStateService.getDataPaths()
             );
@@ -267,7 +267,7 @@ public class GatewayMetaState implements Closeable {
                 new NodeMetadata(
                     persistedClusterStateService.getNodeId(),
                     BuildVersion.current(),
-                    clusterState.metadata().oldestIndexVersion()
+                    clusterState.metadata().projectMetadata.oldestIndexVersion()
                 ),
                 persistedClusterStateService.getDataPaths()
             );
@@ -575,7 +575,7 @@ public class GatewayMetaState implements Closeable {
                     getWriterSafe().writeIncrementalTermUpdateAndCommit(
                         currentTerm,
                         lastAcceptedState.version(),
-                        metadata.oldestIndexVersion(),
+                        metadata.projectMetadata.oldestIndexVersion(),
                         metadata.clusterUUID(),
                         metadata.clusterUUIDCommitted()
                     );

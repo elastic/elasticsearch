@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.util.Maps;
@@ -114,7 +115,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         when(indicesStatsResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[0]);
 
         final String[] indexNames = indicesMetadata.keySet().toArray(new String[0]);
-        when(metadata.getConcreteAllIndices()).thenReturn(indexNames);
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
+        when(project.getConcreteAllIndices()).thenReturn(indexNames);
 
         final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class)));
         doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();

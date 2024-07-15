@@ -629,7 +629,7 @@ public final class LocalExporter extends Exporter implements ClusterStateListene
             currents.add(MonitoringTemplateRegistry.ALERTS_INDEX_TEMPLATE_NAME);
 
             Set<String> indices = new HashSet<>();
-            for (var index : clusterState.getMetadata().indices().entrySet()) {
+            for (var index : clusterState.getMetadata().projectMetadata.indices().entrySet()) {
                 String indexName = index.getKey();
 
                 if (Regex.simpleMatch(indexPatterns, indexName)) {

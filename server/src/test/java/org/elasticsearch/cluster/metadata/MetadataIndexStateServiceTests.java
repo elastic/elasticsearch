@@ -89,7 +89,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             results,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         ).v1();
-        assertThat(updatedState.metadata().indices().size(), equalTo(nonBlockedIndices.size() + blockedIndices.size()));
+        assertThat(updatedState.metadata().projectMetadata.indices().size(), equalTo(nonBlockedIndices.size() + blockedIndices.size()));
 
         for (Index nonBlockedIndex : nonBlockedIndices) {
             assertIsOpened(nonBlockedIndex.getName(), updatedState);
@@ -422,7 +422,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
     }
 
     private static void assertIsOpened(final String indexName, final ClusterState clusterState) {
-        final IndexMetadata indexMetadata = clusterState.metadata().indices().get(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.indices().get(indexName);
         assertThat(indexMetadata.getState(), is(IndexMetadata.State.OPEN));
         assertThat(indexMetadata.getSettings().hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(false));
         assertThat(clusterState.routingTable().index(indexName), notNullValue());
@@ -431,7 +431,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
     }
 
     private static void assertIsClosed(final String indexName, final ClusterState clusterState) {
-        final IndexMetadata indexMetadata = clusterState.metadata().indices().get(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.indices().get(indexName);
         assertThat(indexMetadata.getState(), is(IndexMetadata.State.CLOSE));
         final Settings indexSettings = indexMetadata.getSettings();
         assertThat(indexSettings.hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(true));

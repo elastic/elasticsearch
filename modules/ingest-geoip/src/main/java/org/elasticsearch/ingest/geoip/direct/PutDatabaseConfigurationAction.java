@@ -39,9 +39,9 @@ public class PutDatabaseConfigurationAction extends ActionType<AcknowledgedRespo
 
         private final DatabaseConfiguration database;
 
-        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, DatabaseConfiguration lifecycle) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, DatabaseConfiguration database) {
             super(masterNodeTimeout, ackTimeout);
-            this.database = lifecycle;
+            this.database = database;
         }
 
         public Request(StreamInput in) throws IOException {

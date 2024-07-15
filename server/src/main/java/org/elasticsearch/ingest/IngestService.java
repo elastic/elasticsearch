@@ -135,7 +135,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Cluster state task executor for ingest pipeline operations
      */
     static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = batchExecutionContext -> {
-        final var allIndexMetadata = batchExecutionContext.initialState().metadata().indices().values();
+        final var allIndexMetadata = batchExecutionContext.initialState().metadata().projectMetadata.indices().values();
         final IngestMetadata initialIngestMetadata = batchExecutionContext.initialState().metadata().custom(IngestMetadata.TYPE);
         var currentIngestMetadata = initialIngestMetadata;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -1364,7 +1364,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         IndexMetadata indexMetadata = null;
         // start to look for default or final pipelines via settings found in the cluster metadata
         if (originalRequest != null) {
-            indexMetadata = metadata.indices()
+            indexMetadata = metadata.getProject()
+                .indices()
                 .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
         }
         // check the alias for the index request (this is how normal index requests are modeled)

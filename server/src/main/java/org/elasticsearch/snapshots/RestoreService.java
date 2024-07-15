@@ -1486,9 +1486,9 @@ public final class RestoreService implements ClusterStateApplier {
                 clusterSettings.validateUpdate(settings);
                 mdBuilder.persistentSettings(settings);
             }
-            if (metadata.templates() != null) {
+            if (metadata.projectMetadata.templates() != null) {
                 // TODO: Should all existing templates be deleted first?
-                for (IndexTemplateMetadata cursor : metadata.templates().values()) {
+                for (IndexTemplateMetadata cursor : metadata.projectMetadata.templates().values()) {
                     mdBuilder.put(cursor);
                 }
             }

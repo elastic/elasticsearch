@@ -373,8 +373,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         assertSame("blocks", serializedClusterState2.blocks(), serializedClusterState3.blocks());
         assertSame(
             "template",
-            serializedClusterState2.metadata().templates().get("test-template"),
-            serializedClusterState3.metadata().templates().get("test-template")
+            serializedClusterState2.metadata().projectMetadata.templates().get("test-template"),
+            serializedClusterState3.metadata().projectMetadata.templates().get("test-template")
         );
     }
 

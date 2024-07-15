@@ -1001,7 +1001,7 @@ public class IndexNameExpressionResolver {
         if (routing != null) {
             Set<String> r = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
             Map<String, Set<String>> routings = new HashMap<>();
-            String[] concreteIndices = metadata.getConcreteAllIndices();
+            String[] concreteIndices = metadata.projectMetadata.getConcreteAllIndices();
             for (String index : concreteIndices) {
                 routings.put(index, r);
             }
@@ -1477,17 +1477,17 @@ public class IndexNameExpressionResolver {
                 return Strings.EMPTY_ARRAY;
             }
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
-                return metadata.getConcreteAllIndices();
+                return metadata.projectMetadata.getConcreteAllIndices();
             } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                return metadata.getConcreteVisibleIndices();
+                return metadata.projectMetadata.getConcreteVisibleIndices();
             } else if (options.expandWildcardsOpen() && options.expandWildcardsHidden()) {
-                return metadata.getConcreteAllOpenIndices();
+                return metadata.projectMetadata.getConcreteAllOpenIndices();
             } else if (options.expandWildcardsOpen()) {
-                return metadata.getConcreteVisibleOpenIndices();
+                return metadata.projectMetadata.getConcreteVisibleOpenIndices();
             } else if (options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
-                return metadata.getConcreteAllClosedIndices();
+                return metadata.projectMetadata.getConcreteAllClosedIndices();
             } else if (options.expandWildcardsClosed()) {
-                return metadata.getConcreteVisibleClosedIndices();
+                return metadata.projectMetadata.getConcreteVisibleClosedIndices();
             } else {
                 return Strings.EMPTY_ARRAY;
             }

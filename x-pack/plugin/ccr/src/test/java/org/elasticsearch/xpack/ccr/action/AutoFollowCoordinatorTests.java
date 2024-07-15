@@ -824,7 +824,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         // Start second shard:
         shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-        indexRoutingTable = IndexRoutingTable.builder(remoteState.metadata().indices().get("index2").getIndex())
+        indexRoutingTable = IndexRoutingTable.builder(remoteState.metadata().projectMetadata.indices().get("index2").getIndex())
             .addShard(shardRouting)
             .build();
         remoteState = ClusterState.builder(remoteState.getClusterName())
@@ -2133,7 +2133,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
 
-        for (var index : remoteState.metadata().indices().entrySet()) {
+        for (var index : remoteState.metadata().projectMetadata.indices().entrySet()) {
             boolean expect = index.getValue().getState() == IndexMetadata.State.OPEN;
             assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(expect));
             assertThat(followedIndices.contains(index.getKey()), is(expect));
@@ -2240,7 +2240,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final List<String> autoFollowedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(pattern);
         assertThat(autoFollowedIndices.size(), equalTo(nbLeaderIndices));
 
-        for (var index : remoteState.metadata().indices().entrySet()) {
+        for (var index : remoteState.metadata().projectMetadata.indices().entrySet()) {
             final Index remoteIndex = index.getValue().getIndex();
             boolean followed = remoteIndex.getName().startsWith("docs-excluded") == false;
             assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(followed));

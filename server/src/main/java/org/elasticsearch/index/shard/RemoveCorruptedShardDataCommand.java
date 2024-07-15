@@ -125,8 +125,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // `indices` check
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
-                indexMetadata = clusterState.metadata()
-                    .indices()
+                indexMetadata = clusterState.metadata().projectMetadata.indices()
                     .values()
                     .stream()
                     .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName))

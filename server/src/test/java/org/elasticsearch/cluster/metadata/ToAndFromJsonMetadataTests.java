@@ -141,20 +141,26 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         }
 
         // templates
-        assertThat(parsedMetadata.templates().get("foo").name(), is("foo"));
-        assertThat(parsedMetadata.templates().get("foo").patterns(), is(Collections.singletonList("bar")));
-        assertThat(parsedMetadata.templates().get("foo").settings().get("index.setting1"), is("value1"));
-        assertThat(parsedMetadata.templates().get("foo").settings().getByPrefix("index.").get("setting2"), is("value2"));
-        assertThat(parsedMetadata.templates().get("foo").aliases().size(), equalTo(3));
-        assertThat(parsedMetadata.templates().get("foo").aliases().get("alias-bar1").alias(), equalTo("alias-bar1"));
-        assertThat(parsedMetadata.templates().get("foo").aliases().get("alias-bar2").alias(), equalTo("alias-bar2"));
+        assertThat(parsedMetadata.projectMetadata.templates().get("foo").name(), is("foo"));
+        assertThat(parsedMetadata.projectMetadata.templates().get("foo").patterns(), is(Collections.singletonList("bar")));
+        assertThat(parsedMetadata.projectMetadata.templates().get("foo").settings().get("index.setting1"), is("value1"));
+        assertThat(parsedMetadata.projectMetadata.templates().get("foo").settings().getByPrefix("index.").get("setting2"), is("value2"));
+        assertThat(parsedMetadata.projectMetadata.templates().get("foo").aliases().size(), equalTo(3));
+        assertThat(parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar1").alias(), equalTo("alias-bar1"));
+        assertThat(parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar2").alias(), equalTo("alias-bar2"));
         assertThat(
-            parsedMetadata.templates().get("foo").aliases().get("alias-bar2").filter().string(),
+            parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar2").filter().string(),
             equalTo("{\"term\":{\"user\":\"kimchy\"}}")
         );
-        assertThat(parsedMetadata.templates().get("foo").aliases().get("alias-bar3").alias(), equalTo("alias-bar3"));
-        assertThat(parsedMetadata.templates().get("foo").aliases().get("alias-bar3").indexRouting(), equalTo("routing-bar"));
-        assertThat(parsedMetadata.templates().get("foo").aliases().get("alias-bar3").searchRouting(), equalTo("routing-bar"));
+        assertThat(parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar3").alias(), equalTo("alias-bar3"));
+        assertThat(
+            parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar3").indexRouting(),
+            equalTo("routing-bar")
+        );
+        assertThat(
+            parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar3").searchRouting(),
+            equalTo("routing-bar")
+        );
 
         // component template
         assertNotNull(parsedMetadata.componentTemplates().get("component_template"));

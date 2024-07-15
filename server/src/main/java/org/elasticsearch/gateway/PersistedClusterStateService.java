@@ -941,7 +941,7 @@ public class PersistedClusterStateService {
                 commit(
                     currentTerm,
                     clusterState.version(),
-                    metadata.oldestIndexVersion(),
+                    metadata.projectMetadata.oldestIndexVersion(),
                     metadata.clusterUUID(),
                     metadata.clusterUUIDCommitted()
                 );
@@ -983,7 +983,7 @@ public class PersistedClusterStateService {
                 commit(
                     currentTerm,
                     clusterState.version(),
-                    metadata.oldestIndexVersion(),
+                    metadata.projectMetadata.oldestIndexVersion(),
                     metadata.clusterUUID(),
                     metadata.clusterUUIDCommitted()
                 );
@@ -1055,8 +1055,10 @@ public class PersistedClusterStateService {
                 }
             }
 
-            final Map<String, Long> indexMetadataVersionByUUID = Maps.newMapWithExpectedSize(previouslyWrittenMetadata.indices().size());
-            previouslyWrittenMetadata.indices().forEach((name, indexMetadata) -> {
+            final Map<String, Long> indexMetadataVersionByUUID = Maps.newMapWithExpectedSize(
+                previouslyWrittenMetadata.projectMetadata.indices().size()
+            );
+            previouslyWrittenMetadata.projectMetadata.indices().forEach((name, indexMetadata) -> {
                 final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
                 assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
             });
@@ -1065,7 +1067,7 @@ public class PersistedClusterStateService {
             int numIndicesUpdated = 0;
             int numIndicesRemoved = 0;
             int numIndicesUnchanged = 0;
-            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
                 final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
                 if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
                     logger.trace(
@@ -1203,7 +1205,7 @@ public class PersistedClusterStateService {
                 addMappingDocuments(entry.getKey(), entry.getValue());
             }
 
-            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
                 addIndexMetadataDocuments(indexMetadata);
             }
 
@@ -1213,7 +1215,17 @@ public class PersistedClusterStateService {
                 metadataIndexWriter.flush();
             }
 
-            return new WriterStats(true, true, 0, metadata.getMappingsByHash().size(), 0, 0, metadata.indices().size(), 0, 0);
+            return new WriterStats(
+                true,
+                true,
+                0,
+                metadata.getMappingsByHash().size(),
+                0,
+                0,
+                metadata.projectMetadata.indices().size(),
+                0,
+                0
+            );
         }
 
         public void writeIncrementalTermUpdateAndCommit(

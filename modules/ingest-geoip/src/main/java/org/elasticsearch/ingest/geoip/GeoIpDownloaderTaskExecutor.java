@@ -216,7 +216,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return;
         }
 
-        boolean hasIndicesChanges = event.previousState().metadata().indices().equals(event.state().metadata().indices()) == false;
+        boolean hasIndicesChanges = event.previousState().metadata().projectMetadata.indices()
+            .equals(event.state().metadata().projectMetadata.indices()) == false;
         boolean hasIngestPipelineChanges = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE);
 
         if (hasIngestPipelineChanges || hasIndicesChanges) {
@@ -247,7 +248,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return false;
         }
 
-        return clusterState.getMetadata().indices().values().stream().anyMatch(indexMetadata -> {
+        return clusterState.getMetadata().getProject().indices().values().stream().anyMatch(indexMetadata -> {
             String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
             String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
             return checkReferencedPipelines.contains(defaultPipeline) || checkReferencedPipelines.contains(finalPipeline);

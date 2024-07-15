@@ -232,7 +232,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     }
 
                     Metadata responseMetadata = response.metadata();
-                    Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
+                    Map<String, IndexMetadata> indicesMap = responseMetadata.projectMetadata.indices();
                     consumer.accept(
                         new SnapshotInfo(
                             snapshot,
@@ -310,7 +310,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         try {
             csDeduplicator.execute(new ThreadedActionListener<>(responseExecutor, listener.map(response -> {
                 final Metadata remoteMetadata = response.getMetadata();
-                final String[] concreteAllIndices = remoteMetadata.getConcreteAllIndices();
+                final String[] concreteAllIndices = remoteMetadata.projectMetadata.getConcreteAllIndices();
                 final Map<String, SnapshotId> copiedSnapshotIds = Maps.newMapWithExpectedSize(concreteAllIndices.length);
                 final Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(concreteAllIndices.length);
                 final Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(concreteAllIndices.length);

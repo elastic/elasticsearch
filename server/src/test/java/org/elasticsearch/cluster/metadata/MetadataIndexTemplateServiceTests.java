@@ -100,7 +100,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         pr.order(randomIntBetween(0, 10));
         state = MetadataIndexTemplateService.innerPutTemplate(state, pr, new IndexTemplateMetadata.Builder("id"));
 
-        assertNotNull(state.metadata().templates().get("id"));
+        assertNotNull(state.metadata().projectMetadata.templates().get("id"));
 
         assertThat(MetadataIndexTemplateService.innerPutTemplate(state, pr, new IndexTemplateMetadata.Builder("id")), equalTo(state));
     }
@@ -248,7 +248,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors, is(empty()));
 
         final Metadata metadata = clusterAdmin().prepareState().get().getState().metadata();
-        IndexTemplateMetadata template = metadata.templates().get(templateName);
+        IndexTemplateMetadata template = metadata.projectMetadata.templates().get(templateName);
         Map<String, AliasMetadata> aliasMap = template.getAliases();
         assertThat(aliasMap.size(), equalTo(1));
         AliasMetadata metaAlias = aliasMap.get(aliasName);
@@ -758,8 +758,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 + "[v1-template] may be ignored in favor of a composable template at index creation time"
         );
 
-        assertNotNull(state.metadata().templates().get("v1-template"));
-        assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("*", "baz"));
+        assertNotNull(state.metadata().projectMetadata.templates().get("v1-template"));
+        assertThat(state.metadata().projectMetadata.templates().get("v1-template").patterns(), containsInAnyOrder("*", "baz"));
     }
 
     /**
@@ -788,7 +788,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             )
         );
 
-        assertNull(state.metadata().templates().get("v1-template"));
+        assertNull(state.metadata().projectMetadata.templates().get("v1-template"));
     }
 
     /**
@@ -830,8 +830,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 + "[v1-template] may be ignored in favor of a composable template at index creation time"
         );
 
-        assertNotNull(state.metadata().templates().get("v1-template"));
-        assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("fo*", "baz"));
+        assertNotNull(state.metadata().projectMetadata.templates().get("v1-template"));
+        assertThat(state.metadata().projectMetadata.templates().get("v1-template").patterns(), containsInAnyOrder("fo*", "baz"));
     }
 
     /**

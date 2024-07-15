@@ -280,7 +280,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ReactiveStorageDeciderService.AllocationState forecast = allocationState.forecast(window, lastCreated + 1);
             int actualWindow = Math.min(window, indices);
             int expectedIndices = actualWindow + indices;
-            assertThat(forecast.state().metadata().indices().size(), Matchers.equalTo(expectedIndices));
+            assertThat(forecast.state().metadata().projectMetadata.indices().size(), Matchers.equalTo(expectedIndices));
             DataStream forecastDataStream = forecast.state().metadata().dataStreams().get("test");
             assertThat(forecastDataStream.getIndices().size(), Matchers.equalTo(expectedIndices));
             assertThat(forecastDataStream.getIndices().subList(0, indices), Matchers.equalTo(dataStream.getIndices()));

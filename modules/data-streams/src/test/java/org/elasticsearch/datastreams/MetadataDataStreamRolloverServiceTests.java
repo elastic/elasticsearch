@@ -126,7 +126,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
+            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.projectMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
 
             IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());
@@ -221,7 +221,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
+            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.projectMetadata.indices().size());
 
             // Assert data stream's index_mode has been changed to time_series.
             assertThat(rolloverMetadata.dataStreams().get(dataStreamName), notNullValue());
@@ -309,7 +309,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
+            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.projectMetadata.indices().size());
 
             // Assert data stream's index_mode remains time_series.
             assertThat(rolloverMetadata.dataStreams().get(dataStreamName), notNullValue());
@@ -379,7 +379,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
+            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.projectMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
 
             IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());

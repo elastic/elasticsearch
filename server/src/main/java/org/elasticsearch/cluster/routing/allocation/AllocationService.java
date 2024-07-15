@@ -483,7 +483,7 @@ public class AllocationService {
         }
 
         ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
-        for (String index : clusterState.metadata().getConcreteAllIndices()) {
+        for (String index : clusterState.metadata().projectMetadata.getConcreteAllIndices()) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
             if (indexRoutingTable == null) {
                 continue;

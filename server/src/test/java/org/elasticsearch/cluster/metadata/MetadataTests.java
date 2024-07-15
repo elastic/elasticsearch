@@ -871,10 +871,10 @@ public class MetadataTests extends ESTestCase {
             IndexVersion.fromId(IndexVersion.current().id() + 1)
         ).build();
 
-        assertEquals(IndexVersions.V_7_0_0, metadata.oldestIndexVersion());
+        assertEquals(IndexVersions.V_7_0_0, metadata.projectMetadata.oldestIndexVersion());
 
         Metadata.Builder b = Metadata.builder();
-        assertEquals(IndexVersion.current(), b.build().oldestIndexVersion());
+        assertEquals(IndexVersion.current(), b.build().projectMetadata.oldestIndexVersion());
 
         Throwable ex = expectThrows(
             IllegalArgumentException.class,
@@ -2121,12 +2121,12 @@ public class MetadataTests extends ESTestCase {
         }
         assertThat(metadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size()));
         assertThat(
-            metadata.indices().values().stream().map(IndexMetadata::mapping).collect(Collectors.toSet()),
+            metadata.projectMetadata.indices().values().stream().map(IndexMetadata::mapping).collect(Collectors.toSet()),
             hasSize(metadata.getMappingsByHash().size())
         );
 
         // Add a new index with a new index with known mapping:
-        MappingMetadata mapping = metadata.indices().get("index-" + randomInt(numIndices - 1)).mapping();
+        MappingMetadata mapping = metadata.projectMetadata.indices().get("index-" + randomInt(numIndices - 1)).mapping();
         MappingMetadata entry = metadata.getMappingsByHash().get(mapping.getSha256());
         {
             Metadata.Builder mb = new Metadata.Builder(metadata);
@@ -2268,9 +2268,9 @@ public class MetadataTests extends ESTestCase {
             chunkCount += 1;
         }
         // 2 chunks wrapping templates and one chunk per template
-        chunkCount += 2 + metadata.templates().size();
+        chunkCount += 2 + metadata.projectMetadata.templates().size();
         // 1 chunk for each index + 2 to wrap the indices field
-        chunkCount += 2 + metadata.indices().size();
+        chunkCount += 2 + metadata.projectMetadata.indices().size();
 
         for (Metadata.Custom custom : metadata.customs().values()) {
             chunkCount += 2;

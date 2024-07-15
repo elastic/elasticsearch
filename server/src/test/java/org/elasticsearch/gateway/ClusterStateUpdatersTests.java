@@ -54,7 +54,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
 
     private static void assertMetadataEquals(final ClusterState state1, final ClusterState state2) {
         assertTrue(Metadata.isGlobalStateEquals(state1.metadata(), state2.metadata()));
-        assertThat(state1.metadata().indices().size(), equalTo(state2.metadata().indices().size()));
+        assertThat(state1.metadata().getProject().indices().size(), equalTo(state2.metadata().getProject().indices().size()));
         for (final IndexMetadata indexMetadata : state1.metadata().getProject()) {
             assertThat(indexMetadata, equalTo(state2.metadata().index(indexMetadata.getIndex())));
         }
@@ -273,7 +273,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 Metadata.builder().coordinationMetadata(coordinationMetadata).clusterUUID(clusterUUID).build()
             )
         );
-        assertThat(hiddenState.metadata().indices().size(), is(0));
+        assertThat(hiddenState.metadata().projectMetadata.indices().size(), is(0));
         assertTrue(hiddenState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
         assertFalse(hiddenState.blocks().hasGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK));
         assertFalse(hiddenState.blocks().hasGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK));

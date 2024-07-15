@@ -51,9 +51,9 @@ public class DanglingIndicesState {
     public Map<Index, IndexMetadata> getDanglingIndices() {
         final Metadata metadata = this.clusterService.state().metadata();
 
-        final Set<String> excludeIndexPathIds = Sets.newHashSetWithExpectedSize(metadata.indices().size());
+        final Set<String> excludeIndexPathIds = Sets.newHashSetWithExpectedSize(metadata.projectMetadata.indices().size());
 
-        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+        for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
             excludeIndexPathIds.add(indexMetadata.getIndex().getUUID());
         }
 

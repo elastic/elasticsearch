@@ -615,7 +615,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         public long maxNodeLockedSize() {
             Metadata metadata = originalState.getMetadata();
-            return metadata.indices().values().stream().mapToLong(imd -> nodeLockedSize(imd, metadata)).max().orElse(0L);
+            return metadata.projectMetadata.indices().values().stream().mapToLong(imd -> nodeLockedSize(imd, metadata)).max().orElse(0L);
         }
 
         private long nodeLockedSize(IndexMetadata indexMetadata, Metadata metadata) {

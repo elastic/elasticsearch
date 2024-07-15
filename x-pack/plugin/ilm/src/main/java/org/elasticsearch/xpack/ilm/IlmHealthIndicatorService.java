@@ -345,7 +345,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             var metadata = clusterService.state().metadata();
             var now = nowSupplier.getAsLong();
 
-            return metadata.indices()
+            return metadata.projectMetadata.indices()
                 .values()
                 .stream()
                 .filter(metadata::isIndexManagedByILM)

@@ -337,7 +337,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.metadata = allocation.metadata();
             this.weight = weight;
             this.threshold = threshold;
-            avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
+            avgShardsPerNode = ((float) metadata.projectMetadata.getTotalNumberOfShards()) / routingNodes.size();
             avgWriteLoadPerNode = getTotalWriteLoad(writeLoadForecaster, metadata) / routingNodes.size();
             avgDiskUsageInBytesPerNode = ((double) getTotalDiskUsageInBytes(allocation.clusterInfo(), metadata) / routingNodes.size());
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
@@ -346,7 +346,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         private static double getTotalWriteLoad(WriteLoadForecaster writeLoadForecaster, Metadata metadata) {
             double writeLoad = 0.0;
-            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
                 writeLoad += getIndexWriteLoad(writeLoadForecaster, indexMetadata);
             }
             return writeLoad;
@@ -359,7 +359,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         private static long getTotalDiskUsageInBytes(ClusterInfo clusterInfo, Metadata metadata) {
             long totalDiskUsageInBytes = 0;
-            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
                 totalDiskUsageInBytes += getIndexDiskUsageInBytes(clusterInfo, indexMetadata);
             }
             return totalDiskUsageInBytes;

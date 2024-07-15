@@ -347,8 +347,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         XPackLicenseState licenseState
     ) {
         String policyName = oldPolicy.getName();
-        final List<IndexMetadata> managedIndices = currentState.metadata()
-            .indices()
+        final List<IndexMetadata> managedIndices = currentState.metadata().projectMetadata.indices()
             .values()
             .stream()
             .filter(meta -> policyName.equals(meta.getLifecyclePolicyName()))
@@ -515,7 +514,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         String nodeAttrIndexRequireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
         String nodeAttrIndexIncludeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
         String nodeAttrIndexExcludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
-        for (var indexMetadata : currentState.metadata().indices().values()) {
+        for (var indexMetadata : currentState.metadata().projectMetadata.indices().values()) {
             String indexName = indexMetadata.getIndex().getName();
             Settings currentSettings = indexMetadata.getSettings();
 
@@ -658,7 +657,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         List<String> migratedLegacyTemplates = new ArrayList<>();
 
-        for (var template : clusterState.metadata().templates().entrySet()) {
+        for (var template : clusterState.metadata().projectMetadata.templates().entrySet()) {
             IndexTemplateMetadata templateMetadata = template.getValue();
             if (templateMetadata.settings().keySet().contains(requireRoutingSetting)
                 || templateMetadata.settings().keySet().contains(includeRoutingSetting)) {

@@ -78,8 +78,7 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
         @Override
         public ClusterState execute(ClusterState currentState) {
             String policyToDelete = request.getPolicyName();
-            List<String> indicesUsingPolicy = currentState.metadata()
-                .indices()
+            List<String> indicesUsingPolicy = currentState.metadata().projectMetadata.indices()
                 .values()
                 .stream()
                 .filter(idxMeta -> policyToDelete.equals(idxMeta.getLifecyclePolicyName()))

@@ -8,79 +8,104 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * This is a snapshot of telemetry from an individual cross-cluster search for _search or _async_search (or
- * other search endpoints that use the TransportSearchAction such as _msearch).
+ * other search endpoints that use the {@link TransportSearchAction} such as _msearch).
  */
 public class CCSUsage {
     private final long took;
-    private final String failureType;  // TODO: enum?
-    private final boolean minimizeRoundTrips;
-    private final boolean async;
-    private final int skippedRemotes;
+    private final Result status;
+    private final Set<String> features;
+    private final int remotesCount;
+
+    private final String client;
+
+    private final Set<String> skippedRemotes;
     private final Map<String, PerClusterUsage> perClusterUsage;
 
     public static class Builder {
         private long took;
-        private String failureType;  // TODO: enum?
-        private boolean minimizeRoundTrips;
-        private boolean async;
-        private int skippedRemotes;
-        private Map<String, PerClusterUsage> perClusterUsage;
+        private final Set<String> features;
+        private Result status = Result.SUCCESS;
+        private int remotesCount;
+        private String client;
+        private final Set<String> skippedRemotes;
+        private final Map<String, PerClusterUsage> perClusterUsage;
+
+        public Builder() {
+            features = new HashSet<>();
+            skippedRemotes = new HashSet<>();
+            perClusterUsage = new HashMap<>();
+        }
 
         public Builder took(long took) {
             this.took = took;
             return this;
         }
 
-        public Builder failureType(String failureType) {
-            this.failureType = failureType;
+        public Builder setFailure(Result failureType) {
+            this.status = failureType;
             return this;
         }
 
-        public Builder minimizeRoundTrips(boolean minimizeRoundTrips) {
-            this.minimizeRoundTrips = minimizeRoundTrips;
+        public Builder setFeature(String feature) {
+            this.features.add(feature);
             return this;
         }
 
-        public Builder async(boolean async) {
-            this.async = async;
+        public Builder setClient(String client) {
+            this.client = client;
             return this;
         }
 
-        public Builder numSkippedRemotes(int skippedRemotes) {
-            this.skippedRemotes = skippedRemotes;
+        public Builder skipRemote(String remote) {
+            this.skippedRemotes.add(remote);
             return this;
         }
 
-        // TODO: this should probably be a per cluster "add", not a setter that takes map - change later
-        public Builder perClusterUsage(Map<String, PerClusterUsage> perClusterUsage) {
-            this.perClusterUsage = perClusterUsage;
+        public Builder perClusterUsage(String remote, TimeValue took) {
+            this.perClusterUsage.put(remote, new PerClusterUsage(took));
             return this;
         }
 
         public CCSUsage build() {
-            return new CCSUsage(minimizeRoundTrips, async, took, skippedRemotes, failureType, perClusterUsage);
+            return new CCSUsage(took, status, remotesCount, skippedRemotes, features, client, perClusterUsage);
+        }
+
+        public Builder setRemotesCount(int remotesCount) {
+            this.remotesCount = remotesCount;
+            return this;
+        }
+
+        public int getRemotesCount() {
+            return remotesCount;
         }
     }
 
     private CCSUsage(
-        boolean minimizeRoundTrips,
-        boolean async,
         long took,
-        int skippedRemotes,
-        String failureType,
+        Result status,
+        int remotesCount,
+        Set<String> skippedRemotes,
+        Set<String> features,
+        String client,
         Map<String, PerClusterUsage> perClusterUsage
     ) {
-        this.minimizeRoundTrips = minimizeRoundTrips;
-        this.async = async;
+        this.status = status;
+        this.remotesCount = remotesCount;
+        this.features = features;
+        this.client = client;
         this.took = took;
         this.skippedRemotes = skippedRemotes;
-        this.failureType = failureType;
         this.perClusterUsage = perClusterUsage;
     }
 
@@ -88,24 +113,28 @@ public class CCSUsage {
         return perClusterUsage;
     }
 
-    public int getSkippedRemotes() {
-        return skippedRemotes;
+    public Result getStatus() {
+        return status;
+    }
+
+    public Set<String> getFeatures() {
+        return features;
+    }
+
+    public long getRemotesCount() {
+        return remotesCount;
+    }
+
+    public String getClient() {
+        return client;
     }
 
     public long getTook() {
         return took;
     }
 
-    public String getFailureType() {
-        return failureType;
-    }
-
-    public boolean isMinimizeRoundTrips() {
-        return minimizeRoundTrips;
-    }
-
-    public boolean isAsync() {
-        return async;
+    public Set<String> getSkippedRemotes() {
+        return skippedRemotes;
     }
 
     public static class PerClusterUsage {

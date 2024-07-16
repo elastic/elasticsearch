@@ -8,9 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.HdrHistogram.DoubleHistogram;
+import org.elasticsearch.common.util.Maps;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
@@ -18,20 +17,77 @@ import java.util.concurrent.atomic.LongAdder;
 /**
  * Service holding accumulated CCS search usage statistics. Individual cross-cluster searches will pass
  * CCSUsage data here to have it collated and aggregated. Snapshots of the current CCS Telemetry Usage
- * can be obtained by getting CCSTelemetrySnapshot objects (TODO: create that class (and determine the best name)).
+ * can be obtained by getting {@link CCSTelemetrySnapshot} objects.
+ * <br>
+ * Theory of operation:
+ * Each search creates a {@link CCSUsage.Builder}, which can be updated during the progress of the search request,
+ * and then it instantiates a {@link CCSUsage} object when the request is finished.
+ * That object is passed to {@link #updateUsage(CCSUsage)} on the request processing end (whether successful or not).
+ * The {@link #updateUsage(CCSUsage)} method will then update the internal counters and metrics.
+ * <br>
+ * When we need to return the current state of the telemetry, we can call {@link #getCCSTelemetrySnapshot()} which produces
+ * a snapshot of the current state of the telemetry as {@link CCSTelemetrySnapshot}. These snapshots are additive so
+ * when collecting the snapshots from multiple nodes, an empty snapshot is created and then all the node's snapshots are added
+ * to it to obtain the summary telemetry.
  */
 public class CCSUsageTelemetry {
 
-    private final LongAdder totalCCSCount;  // TODO: need this? or just sum the successfulSearchTelem and failedSearchTelem ?
-    private final SuccessfulCCSTelemetry successfulSearchTelem;
-    private final FailedCCSTelemetry failedSearchTelem;
+    /**
+     * Result of the request execution.
+     * Either "success" or a failure reason.
+     */
+    public enum Result {
+        SUCCESS("success"),
+        REMOTES_UNAVAILABLE("remotes_unavailable"),
+        CANCELED("canceled"),
+        UNKNOWN("unknown");
+
+        private final String name;
+
+        Result(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+    }
+
+    // Not enum because we won't mind other places adding their own features
+    public static final String MRT_FEATURE = "mrt_on";
+    public static final String ASYNC_FEATURE = "async";
+    public static final String WILDCARD_FEATURE = "wildcards";
+    private static final String CLIENT_UNKNOWN = "unknown";
+
+    // TODO: do we need LongAdder here or long is enough? Since updateUsage is synchronized, worst that can happen is
+    // we may miss a count on read.
+    private final LongAdder totalCount;
+    private final LongAdder successCount;
+    private final Map<Result, LongAdder> failureReasons;
+
+    private final LongMetric took;
+    private final LongMetric tookMrtTrue;
+    private final LongMetric tookMrtFalse;
+    private final LongMetric remotesPerSearch;
+    private final LongAdder skippedRemotes;
+
+    private final Map<String, LongAdder> featureCounts;
+
+    private final Map<String, LongAdder> clientCounts;
     private final Map<String, PerClusterCCSTelemetry> byRemoteCluster;
 
     public CCSUsageTelemetry() {
-        this.totalCCSCount = new LongAdder();
-        this.successfulSearchTelem = new SuccessfulCCSTelemetry();
-        this.failedSearchTelem = new FailedCCSTelemetry();
         this.byRemoteCluster = new ConcurrentHashMap<>();
+        totalCount = new LongAdder();
+        successCount = new LongAdder();
+        failureReasons = new ConcurrentHashMap<>();
+        took = new LongMetric();
+        tookMrtTrue = new LongMetric();
+        tookMrtFalse = new LongMetric();
+        remotesPerSearch = new LongMetric();
+        skippedRemotes = new LongAdder();
+        featureCounts = new ConcurrentHashMap<>();
+        clientCounts = new ConcurrentHashMap<>();
     }
 
     public void updateUsage(CCSUsage ccsUsage) {
@@ -41,37 +97,42 @@ public class CCSUsageTelemetry {
 
     // TODO: what is the best thread-safety model here? Start with locking model in order to get the functionality working.
     private synchronized void doUpdate(CCSUsage ccsUsage) {
-        totalCCSCount.increment();
-        if (ccsUsage.getFailureType() == null) {
-            // handle successful (or partially successful query)
-            successfulSearchTelem.update(ccsUsage);
-            for (Map.Entry<String, CCSUsage.PerClusterUsage> entry : ccsUsage.getPerClusterUsage().entrySet()) {
-                PerClusterCCSTelemetry perClusterCCSTelemetry = byRemoteCluster.get(entry.getKey());
-                if (perClusterCCSTelemetry == null) {
-                    perClusterCCSTelemetry = new PerClusterCCSTelemetry(entry.getKey());
-                    byRemoteCluster.put(entry.getKey(), perClusterCCSTelemetry);
-                }
-                // TODO: add more fields/data to the perClusterCCSTelemetry
-                perClusterCCSTelemetry.update(entry.getValue());
+        totalCount.increment();
+        long searchTook = ccsUsage.getTook();
+        if (isSuccess(ccsUsage)) {
+            successCount.increment();
+            // TODO: do we need to count latencies for failed requests? Right now the code doesn't collect it without SearchResponse
+            took.record(searchTook);
+            if (isMRT(ccsUsage)) {
+                tookMrtTrue.record(searchTook);
+            } else {
+                tookMrtFalse.record(searchTook);
             }
-
+            // TODO: can we do it on failure? Not sure what "took" values contain in that case if at all.
+            ccsUsage.getPerClusterUsage().forEach((r, u) -> byRemoteCluster.computeIfAbsent(r, PerClusterCCSTelemetry::new).update(u));
         } else {
-            // handle failed query
-            failedSearchTelem.update(ccsUsage);
+            failureReasons.computeIfAbsent(ccsUsage.getStatus(), k -> new LongAdder()).increment();
+        }
+
+        remotesPerSearch.record(ccsUsage.getRemotesCount());
+        if (ccsUsage.getSkippedRemotes().isEmpty() == false) {
+            skippedRemotes.increment();
+            ccsUsage.getSkippedRemotes().forEach(remote -> byRemoteCluster.computeIfAbsent(remote, PerClusterCCSTelemetry::new).skipped());
+        }
+        ccsUsage.getFeatures().forEach(f -> featureCounts.computeIfAbsent(f, k -> new LongAdder()).increment());
+        if (ccsUsage.getClient() != null) {
+            clientCounts.computeIfAbsent(ccsUsage.getClient(), k -> new LongAdder()).increment();
+        } else {
+            clientCounts.computeIfAbsent(CLIENT_UNKNOWN, k -> new LongAdder()).increment();
         }
     }
 
-    public long getTotalCCSCount() {
-        return totalCCSCount.sum();
+    private boolean isMRT(CCSUsage ccsUsage) {
+        return ccsUsage.getFeatures().contains(MRT_FEATURE);
     }
 
-    // TODO: the getters below need to create an immutable snapshot of CCS Telemetry and return that - see SearchUsageStats as example
-    public SuccessfulCCSTelemetry getSuccessfulSearchTelemetry() {
-        return successfulSearchTelem;
-    }
-
-    public FailedCCSTelemetry getFailedSearchTelemetry() {
-        return failedSearchTelem;
+    private boolean isSuccess(CCSUsage ccsUsage) {
+        return ccsUsage.getStatus() == Result.SUCCESS;
     }
 
     public Map<String, PerClusterCCSTelemetry> getTelemetryByCluster() {
@@ -79,101 +140,33 @@ public class CCSUsageTelemetry {
     }
 
     /**
-     * Telemetry metrics for successful searches (includes searches with partial failures)
-     */
-    static class SuccessfulCCSTelemetry {
-        private long count; // total number of searches
-        private long countMinimizeRoundtrips;
-        private long countSearchesWithSkippedRemotes;
-        private long countAsync;
-        private DoubleHistogram latency;
-
-        SuccessfulCCSTelemetry() {
-            this.count = 0;
-            this.countMinimizeRoundtrips = 0;
-            this.countSearchesWithSkippedRemotes = 0;
-            this.countAsync = 0;
-            this.latency = new DoubleHistogram(2);
-        }
-
-        void update(CCSUsage ccsUsage) {
-            count++;
-            countMinimizeRoundtrips += ccsUsage.isMinimizeRoundTrips() ? 1 : 0;
-            countSearchesWithSkippedRemotes += ccsUsage.getSkippedRemotes() > 0 ? 1 : 0;
-            countAsync += ccsUsage.isAsync() ? 1 : 0;
-            latency.recordValue(ccsUsage.getTook());
-        }
-
-        // TODO: remove these getters and replace with a toSuccessfulCCSUsageSnapshot method?
-        public long getCount() {
-            return count;
-        }
-
-        public long getCountMinimizeRoundtrips() {
-            return countMinimizeRoundtrips;
-        }
-
-        public long getCountSearchesWithSkippedRemotes() {
-            return countSearchesWithSkippedRemotes;
-        }
-
-        public long getCountAsync() {
-            return countAsync;
-        }
-
-        public double getMeanLatency() {
-            return latency.getMean();
-        }
-    }
-
-    /**
-     * Telemetry metrics for failed searches (no data returned)
-     */
-    static class FailedCCSTelemetry {
-        private long count;
-        private Map<String, Integer> causes;
-
-        FailedCCSTelemetry() {
-            causes = new HashMap<>();
-        }
-
-        void update(CCSUsage ccsUsage) {
-            count++;
-            causes.compute(ccsUsage.getFailureType(), (k, v) -> (v == null) ? 1 : v + 1);
-        }
-
-        public long getCount() {
-            return count;
-        }
-    }
-
-    /**
      * Telemetry of each remote involved in cross cluster searches
      */
-    static class PerClusterCCSTelemetry {
-        private String clusterAlias;
+    public static class PerClusterCCSTelemetry {
+        private final String clusterAlias;
+        // TODO: are we OK to use long and not LongAdder here?
         private long count;
-        private DoubleHistogram latency;
+        private long skippedCount;
+        private final LongMetric took;
 
         PerClusterCCSTelemetry(String clusterAlias) {
             this.clusterAlias = clusterAlias;
             this.count = 0;
-            // TODO: what should we use for num significant value digits?
-            latency = new DoubleHistogram(2);
+            took = new LongMetric();
+            this.skippedCount = 0;
         }
 
         void update(CCSUsage.PerClusterUsage remoteUsage) {
             count++;
-            latency.recordValue(remoteUsage.getTook()); // TODO: do we need to add count as well using recordValueWithCount?
+            took.record(remoteUsage.getTook());
+        }
+
+        void skipped() {
+            skippedCount++;
         }
 
         public long getCount() {
             return count;
-        }
-
-        // TODO: add additional getters around latency (max, p90)
-        public double getMeanLatency() {
-            return latency.getMean();
         }
 
         @Override
@@ -184,9 +177,43 @@ public class CCSUsageTelemetry {
                 + '\''
                 + ", count="
                 + count
-                + ", latency(mean)="
-                + latency.getMean()
+                + ", latency="
+                + took.toString()
                 + '}';
         }
+
+        public long getSkippedCount() {
+            return skippedCount;
+        }
+
+        public CCSTelemetrySnapshot.PerClusterCCSTelemetry getSnapshot() {
+            return new CCSTelemetrySnapshot.PerClusterCCSTelemetry(count, skippedCount, took.getValue());
+        }
+
+    }
+
+    // TODO: I wonder if it wouldn't be more correct if this lived on the Snapshot side,
+    // but SearchUsage does it this way so following the pattern here.
+    public CCSTelemetrySnapshot getCCSTelemetrySnapshot() {
+        Map<String, Long> reasonsMap = Maps.newMapWithExpectedSize(failureReasons.size());
+        failureReasons.forEach((k, v) -> reasonsMap.put(k.getName(), v.longValue()));
+
+        // TODO: should we use immutable maps here?
+        // Since we return copies anyway it's no big deal if anybody modifies them, but it may be cleaner to return immutable.
+        LongMetric.LongMetricValue remotes = remotesPerSearch.getValue();
+        return new CCSTelemetrySnapshot(
+            totalCount.longValue(),
+            successCount.longValue(),
+            reasonsMap,
+            took.getValue(),
+            tookMrtTrue.getValue(),
+            tookMrtFalse.getValue(),
+            remotes.max(),
+            remotes.avg(),
+            skippedRemotes.longValue(),
+            Maps.transformValues(featureCounts, LongAdder::longValue),
+            Maps.transformValues(clientCounts, LongAdder::longValue),
+            Maps.transformValues(byRemoteCluster, PerClusterCCSTelemetry::getSnapshot)
+        );
     }
 }

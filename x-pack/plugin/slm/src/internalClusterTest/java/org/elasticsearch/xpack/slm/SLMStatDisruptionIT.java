@@ -118,13 +118,12 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         // then the default of 30s, causing ensureGreen and friends to time out
         .build();
 
-
     public static class TestDelayedRepoPlugin extends Plugin implements RepositoryPlugin {
 
         // Use static vars since instantiated by plugin system
         private static final AtomicBoolean doDelay = new AtomicBoolean(true);
         private static final CountDownLatch delayedRepoLatch = new CountDownLatch(1);
-        
+
         static void removeDelay() {
             delayedRepoLatch.countDown();
         }
@@ -139,29 +138,22 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             RepositoriesMetrics repositoriesMetrics
         ) {
             return Map.of(
-                "delayed",
-                metadata -> new TestDelayedRepo(
-                    metadata,
-                    env,
-                    namedXContentRegistry,
-                    clusterService,
-                    bigArrays,
-                    recoverySettings,
-                    () -> {
-                        if (doDelay.getAndSet(false)) {
-                            try {
-                               assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
-                            } catch (InterruptedException e) {
-                                throw new RuntimeException(e);
-                            }
+                TestDelayedRepo.TYPE,
+                metadata -> new TestDelayedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, () -> {
+                    if (doDelay.getAndSet(false)) {
+                        try {
+                            assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
                         }
                     }
-                )
+                })
             );
         }
     }
 
     static class TestDelayedRepo extends FsRepository {
+        private static final String TYPE = "delayed";
         private final Runnable delayFn;
 
         protected TestDelayedRepo(
@@ -185,7 +177,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     *
+     * Test if there is a currently running snapshot it is not inferred to be a failure
      */
     public void testCurrentlyRunningSnapshotNotRecordedAsFailure() throws Exception {
         final String idxName = "test-idx";
@@ -198,7 +190,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(2);
 
         createRandomIndex(idxName, dataNode);
-        createRepository(repoName, "delayed");
+        createRepository(repoName, TestDelayedRepo.TYPE);
         createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName);
 
         ensureGreen();
@@ -593,7 +585,10 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     private void assertPreRegistered(Set<String> expected, String policyName) {
         var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
         var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
-        Set<String> preRegisteredNames = snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots().stream().map(SnapshotId::getName).collect(Collectors.toSet());
+        Set<String> preRegisteredNames = snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots()
+            .stream()
+            .map(SnapshotId::getName)
+            .collect(Collectors.toSet());
         assertEquals(expected, preRegisteredNames);
     }
 

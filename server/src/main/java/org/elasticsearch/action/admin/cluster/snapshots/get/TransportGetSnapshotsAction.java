@@ -280,10 +280,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
 
             cancellableTask.ensureNotCancelled();
+            final var repository = repositoriesService.repository(repositoryName);
             ensureRequiredNamesPresent(repositoryName, repositoryData);
 
             if (verbose) {
-                loadSnapshotInfos(repositoryName, getSnapshotIdIterator(repositoryName, repositoryData), listener);
+                loadSnapshotInfos(repository, getSnapshotIdIterator(repositoryName, repositoryData), listener);
             } else {
                 assert fromSortValuePredicates.isMatchAll() : "filtering is not supported in non-verbose mode";
                 assert slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES : "filtering is not supported in non-verbose mode";
@@ -362,10 +363,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             );
         }
 
-        private void loadSnapshotInfos(String repositoryName, Iterator<SnapshotId> snapshotIdIterator, ActionListener<Void> listener) {
+        private void loadSnapshotInfos(Repository repository, Iterator<SnapshotId> snapshotIdIterator, ActionListener<Void> listener) {
             if (cancellableTask.notifyIfCancelled(listener)) {
                 return;
             }
+            final var repositoryName = repository.getMetadata().name();
             final AtomicInteger repositoryTotalCount = new AtomicInteger();
             final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>();
             snapshotIdIterator.forEachRemaining(snapshotIdsToIterate::add);
@@ -394,14 +396,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 .<Void>newForked(l -> {
                     try (var listeners = new RefCountingListener(l)) {
                         if (snapshotIdsToIterate.isEmpty()) {
-                            return;
-                        }
-
-                        final Repository repository;
-                        try {
-                            repository = repositoriesService.repository(repositoryName);
-                        } catch (RepositoryMissingException e) {
-                            listeners.acquire().onFailure(e);
                             return;
                         }
 

@@ -9,11 +9,11 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -107,18 +108,22 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         this.requireAtLeastOneMatch = requireAtLeastOneMatch;
         this.coordinatorRewriteContextProvider = coordinatorRewriteContextProvider;
         this.executor = executor;
-        this.shardItIndexMap = new HashMap<>();
         results = new CanMatchSearchPhaseResults(shardsIts.size());
 
         // we compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
-        List<SearchShardIterator> naturalOrder = new ArrayList<>();
-        shardsIts.iterator().forEachRemaining(naturalOrder::add);
-        CollectionUtil.timSort(naturalOrder);
-        for (int i = 0; i < naturalOrder.size(); i++) {
-            shardItIndexMap.put(naturalOrder.get(i), i);
+        final SearchShardIterator[] naturalOrder = new SearchShardIterator[shardsIts.size()];
+        int i = 0;
+        for (SearchShardIterator shardsIt : shardsIts) {
+            naturalOrder[i++] = shardsIt;
         }
+        Arrays.sort(naturalOrder);
+        final Map<SearchShardIterator, Integer> shardItIndexMap = Maps.newHashMapWithExpectedSize(naturalOrder.length);
+        for (int j = 0; j < naturalOrder.length; j++) {
+            shardItIndexMap.put(naturalOrder[j], j);
+        }
+        this.shardItIndexMap = shardItIndexMap;
     }
 
     private static boolean assertSearchCoordinationThread() {

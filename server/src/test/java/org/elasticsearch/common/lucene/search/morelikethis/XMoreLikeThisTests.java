@@ -132,7 +132,7 @@ public class XMoreLikeThisTests extends ESTestCase {
 
         // mlt should use the custom frequencies provided by the analyzer so "lucene|10" should be
         // boosted more than "lucene|1"
-        assertTrue(String.format(Locale.ROOT, "%s should be grater than %s", boost10, boost1), boost10 > boost1);
+        assertTrue(String.format(Locale.ROOT, "%s should be greater than %s", boost10, boost1), boost10 > boost1);
         analyzer.close();
         reader.close();
         directory.close();

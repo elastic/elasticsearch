@@ -11,7 +11,7 @@ highlight:
     When the new index mode is enabled then the following storage savings features are enabled automatically:
     * Synthetic source, which omits storing the _source. When _source or part of it is requested it is synthesized on the fly at runtime.
     * Index sorting. By default indices are sorted by `host.name` and `@timestamp` fields at index time. This can be overwritten if other sorting fields yield better compression rate.
-    * Enable more space efficient compressions for fields with doc values enabled. These are the same codecs used
+    * Enable more space efficient compression for fields with doc values enabled. These are the same codecs used
       when `time_series` index mode is enabled.
 
     The `index.mode` index setting to `logs` should be configured in index templates or defined when creating a plain index.

@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -59,19 +61,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testBasicEsql() throws IOException {
-        StringBuilder b = new StringBuilder();
-        for (int i = 0; i < 1000; i++) {
-            b.append(String.format(Locale.ROOT, """
-                {"create":{"_index":"%s"}}
-                {"@timestamp":"2020-12-12","test":"value%s","value":%d}
-                """, testIndexName(), i, i));
-        }
-        Request bulk = new Request("POST", "/_bulk");
-        bulk.addParameter("refresh", "true");
-        bulk.addParameter("filter_path", "errors");
-        bulk.setJsonEntity(b.toString());
-        Response response = client().performRequest(bulk);
-        Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+        indexTestData();
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | stats avg(value)");
         if (Build.current().isSnapshot()) {
@@ -271,6 +261,32 @@ public class RestEsqlIT extends RestEsqlTestCase {
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(re.getMessage(), containsString("[6:10] Duplicate field 'a'"));
+    }
+
+    public void testProfile() throws IOException {
+        indexTestData();
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+        builder.profile(true);
+        Map<String, Object> result = runEsql(builder);
+        Map<String, String> colA = Map.of("name", "AVG(value)", "type", "double");
+        assertMap(result, matchesMap().entry("columns", List.of(colA)).entry("values", List.of(List.of(499.5d))));
+    }
+
+    private void indexTestData() throws IOException {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            b.append(String.format(Locale.ROOT, """
+                {"create":{"_index":"%s"}}
+                {"@timestamp":"2020-12-12","test":"value%s","value":%d}
+                """, testIndexName(), i, i));
+        }
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.addParameter("filter_path", "errors");
+        bulk.setJsonEntity(b.toString());
+        Response response = client().performRequest(bulk);
+        Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
     }
 
     private void assertException(String query, String... errorMessages) throws IOException {

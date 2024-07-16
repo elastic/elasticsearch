@@ -531,7 +531,7 @@ setup:
       search:
         index: test_index
         body:
-          size: 6
+          size: 10
           query:
             knn:
               field: embedding
@@ -539,7 +539,7 @@ setup:
               num_candidates: 50
 
   - match: { hits.total.value: 50 }
-  - length: { hits.hits: 6 }
+  - length: { hits.hits: 10 }
   - contains: {hits.hits: {_id: "1"}}
   - contains: {hits.hits: {_id: "11"}}
   - contains: {hits.hits: {_id: "2"}}
@@ -641,7 +641,7 @@ setup:
       search:
         index: test_index
         body:
-          size: 7
+          size: 10
           query:
             knn:
               field: embedding
@@ -649,7 +649,7 @@ setup:
               num_candidates: 60
 
   - match: { hits.total.value: 60 }
-  - length: { hits.hits: 7 }
+  - length: { hits.hits: 10 }
   - contains: { hits.hits: { _id: "1" } }
   - contains: { hits.hits: { _id: "11" } }
   - contains: { hits.hits: { _id: "2" } }

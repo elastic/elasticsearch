@@ -36,9 +36,6 @@ public interface OperatorOnlyRegistry {
      * for partial restriction. It's the responsibility of the downstream REST handler to apply the necessary partial restrictions
      * (if any).
      *
-     * Marking requests is an implementation-specific detail. For Serverless mode restrictions, this is implemented via
-     * {@link RestRequest#setUseServerlessPartialApiRestrictions()} and {@link RestRequest#shouldUseServerlessPartialApiRestrictions()}}.
-     *
      * @param restHandler The {@link RestHandler} to check for any full restrictions
      * @param restRequest The {@link RestRequest} to mark all REST APIs that are not fully restricted as possible subjects to partial
      *                    restrictions

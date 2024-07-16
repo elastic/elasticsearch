@@ -62,7 +62,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final boolean shouldRestrictForServerless = request.shouldUseServerlessPartialApiRestrictions();
+        final boolean shouldRestrictForServerless = shouldRestrictForServerless(request);
         return channel -> client.execute(
             GetBuiltinPrivilegesAction.INSTANCE,
             new GetBuiltinPrivilegesRequest(),
@@ -86,7 +86,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     protected Exception innerCheckFeatureAvailable(RestRequest request) {
-        final boolean shouldRestrictForServerless = request.shouldUseServerlessPartialApiRestrictions();
+        final boolean shouldRestrictForServerless = shouldRestrictForServerless(request);
         assert false == shouldRestrictForServerless || DiscoveryNode.isStateless(settings);
         if (false == shouldRestrictForServerless) {
             return super.innerCheckFeatureAvailable(request);
@@ -105,6 +105,10 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
         } else {
             return null;
         }
+    }
+
+    private boolean shouldRestrictForServerless(RestRequest request) {
+        return request.isServerlessRequest() && false == request.isOperatorRequest();
     }
 
 }

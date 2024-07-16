@@ -61,7 +61,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
@@ -441,8 +440,6 @@ public class PercolatorFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
                 } else if (queryName.equals("has_parent")) {
                     throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
-                } else if (queryName.equals(KnnVectorQueryBuilder.NAME)) {
-                    throw new IllegalArgumentException("the [knn] query is unsupported inside a percolator query");
                 }
             });
         } catch (IOException e) {

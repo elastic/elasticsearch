@@ -87,6 +87,10 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         final String id = request.getDatabaseId();
+        final IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        if (geoIpMeta.getDatabases().containsKey(id) == false) {
+            throw new ResourceNotFoundException("Database configuration not found: {}", id);
+        }
         deleteDatabaseConfigurationTaskQueue.submitTask(
             Strings.format("delete-geoip-database-configuration-[%s]", id),
             new DeleteDatabaseConfigurationTask(listener, id),
@@ -99,23 +103,15 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
             ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            IngestGeoIpMetadata geoIpMeta = currentState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+            final IngestGeoIpMetadata geoIpMeta = currentState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
-            final String id = databaseId;
-
-            if (geoIpMeta.getDatabases().containsKey(id) == false) {
-                throw new ResourceNotFoundException("Database configuration not found: {}", id);
-            }
-
-            // delete
-            logger.debug("deleting database configuration [{}]", id);
+            logger.debug("deleting database configuration [{}]", databaseId);
             Map<String, DatabaseConfigurationMetadata> databases = new HashMap<>(geoIpMeta.getDatabases());
-            databases.remove(id);
-            geoIpMeta = new IngestGeoIpMetadata(databases);
+            databases.remove(databaseId);
 
             Metadata currentMeta = currentState.metadata();
             return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentMeta).putCustom(IngestGeoIpMetadata.TYPE, geoIpMeta))
+                .metadata(Metadata.builder(currentMeta).putCustom(IngestGeoIpMetadata.TYPE, new IngestGeoIpMetadata(databases)))
                 .build();
         }
 

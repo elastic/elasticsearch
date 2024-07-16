@@ -21,7 +21,7 @@ public class BooleanSimplificationTests extends ESTestCase {
         new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
 
     public void testBoolSimplifyOr() {
-        OptimizerRules.BooleanSimplification simplification = new OptimizerRules.BooleanSimplification();
+        BooleanSimplification simplification = new BooleanSimplification();
 
         assertEquals(TRUE, simplification.rule(new Or(EMPTY, TRUE, TRUE)));
         assertEquals(TRUE, simplification.rule(new Or(EMPTY, TRUE, DUMMY_EXPRESSION)));
@@ -33,7 +33,7 @@ public class BooleanSimplificationTests extends ESTestCase {
     }
 
     public void testBoolSimplifyAnd() {
-        OptimizerRules.BooleanSimplification simplification = new OptimizerRules.BooleanSimplification();
+        BooleanSimplification simplification = new BooleanSimplification();
 
         assertEquals(TRUE, simplification.rule(new And(EMPTY, TRUE, TRUE)));
         assertEquals(DUMMY_EXPRESSION, simplification.rule(new And(EMPTY, TRUE, DUMMY_EXPRESSION)));
@@ -45,7 +45,7 @@ public class BooleanSimplificationTests extends ESTestCase {
     }
 
     public void testBoolCommonFactorExtraction() {
-        OptimizerRules.BooleanSimplification simplification = new OptimizerRules.BooleanSimplification();
+        BooleanSimplification simplification = new BooleanSimplification();
 
         Expression a1 = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 1);
         Expression a2 = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 1);

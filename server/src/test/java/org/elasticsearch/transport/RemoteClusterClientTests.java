@@ -99,17 +99,15 @@ public class RemoteClusterClientTests extends ESTestCase {
                     threadPool.executor(TEST_THREAD_POOL_NAME),
                     randomFrom(RemoteClusterService.DisconnectedStrategy.values())
                 );
-                ClusterStateResponse clusterStateResponse = PlainActionFuture.get(
-                    future -> client.execute(
+                ClusterStateResponse clusterStateResponse = safeAwait(
+                    listener -> client.execute(
                         ClusterStateAction.REMOTE_TYPE,
                         new ClusterStateRequest(),
                         ActionListener.runBefore(
-                            future,
+                            listener,
                             () -> assertTrue(Thread.currentThread().getName().contains('[' + TEST_THREAD_POOL_NAME + ']'))
                         )
-                    ),
-                    10,
-                    TimeUnit.SECONDS
+                    )
                 );
                 assertNotNull(clusterStateResponse);
                 assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());

@@ -114,10 +114,6 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
         return new GeoIpMetadataDiff((IngestGeoIpMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return new GeoIpMetadataDiff(in);
-    }
-
     static class GeoIpMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, DatabaseConfigurationMetadata>> databases;

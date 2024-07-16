@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSurrogates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -141,7 +143,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
             new ImplicitCasting()
         );
-        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new UnresolveUnionTypes());
+        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new UnionTypesCleanup());
         rules = List.of(init, resolution, finish);
     }
 
@@ -217,13 +219,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return list;
     }
 
-    private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
+    private static void mappingAsAttributes(List<Attribute> list, Source source, FieldAttribute parent, Map<String, EsField> mapping) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
             EsField t = entry.getValue();
 
             if (t != null) {
-                name = parentName == null ? name : parentName + "." + name;
+                name = parent == null ? name : parent.fieldName() + "." + name;
                 var fieldProperties = t.getProperties();
                 var type = t.getDataType().widenSmallNumeric();
                 // due to a bug also copy the field since the Attribute hierarchy extracts the data type
@@ -232,19 +234,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias());
                 }
 
+                FieldAttribute attribute = t instanceof UnsupportedEsField uef
+                    ? new UnsupportedAttribute(source, name, uef)
+                    : new FieldAttribute(source, parent, name, t);
                 // primitive branch
                 if (EsqlDataTypes.isPrimitive(type)) {
-                    Attribute attribute;
-                    if (t instanceof UnsupportedEsField uef) {
-                        attribute = new UnsupportedAttribute(source, name, uef);
-                    } else {
-                        attribute = new FieldAttribute(source, null, name, t);
-                    }
                     list.add(attribute);
                 }
                 // allow compound object even if they are unknown (but not NESTED)
                 if (type != NESTED && fieldProperties.isEmpty() == false) {
-                    mappingAsAttributes(list, source, name, fieldProperties);
+                    mappingAsAttributes(list, source, attribute, fieldProperties);
                 }
             }
         }
@@ -1087,38 +1086,51 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            // Otherwise drop the converted attributes after the alias function, as they are only needed for this function, and
-            // the original version of the attribute should still be seen as unconverted.
-            plan = dropConvertedAttributes(plan, unionFieldAttributes);
+            // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
+            // Now that we have resolved those, we need to re-resolve the aggregates.
+            if (plan instanceof EsqlAggregate agg) {
+                // If the union-types resolution occurred in a child of the aggregate, we need to check the groupings
+                plan = agg.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
+
+                // Aggregates where the grouping key comes from a union-type field need to be resolved against the grouping key
+                Map<Attribute, Expression> resolved = new HashMap<>();
+                for (Expression e : agg.groupings()) {
+                    Attribute attr = Expressions.attribute(e);
+                    if (attr != null && attr.resolved()) {
+                        resolved.put(attr, e);
+                    }
+                }
+                plan = plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolved));
+            }
 
             // And add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
             // and thereby get used in FieldExtractExec
             plan = plan.transformDown(EsRelation.class, esr -> {
-                List<Attribute> output = esr.output();
                 List<Attribute> missing = new ArrayList<>();
                 for (FieldAttribute fa : unionFieldAttributes) {
-                    if (output.stream().noneMatch(a -> a.id().equals(fa.id()))) {
+                    // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
+                    if (esr.outputSet().contains(fa) == false) {
                         missing.add(fa);
                     }
                 }
+
                 if (missing.isEmpty() == false) {
-                    output.addAll(missing);
-                    return new EsRelation(esr.source(), esr.index(), output, esr.indexMode(), esr.frozen());
+                    List<Attribute> newOutput = new ArrayList<>(esr.output());
+                    newOutput.addAll(missing);
+                    return new EsRelation(esr.source(), esr.index(), newOutput, esr.indexMode(), esr.frozen());
                 }
                 return esr;
             });
             return plan;
         }
 
-        private LogicalPlan dropConvertedAttributes(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {
-            List<NamedExpression> projections = new ArrayList<>(plan.output());
-            for (var e : unionFieldAttributes) {
-                projections.removeIf(p -> p.id().equals(e.id()));
-            }
-            if (projections.size() != plan.output().size()) {
-                return new EsqlProject(plan.source(), plan, projections);
-            }
-            return plan;
+        private Expression resolveAttribute(UnresolvedAttribute ua, Map<Attribute, Expression> resolved) {
+            var named = resolveAgainstList(ua, resolved.keySet());
+            return switch (named.size()) {
+                case 0 -> ua;
+                case 1 -> named.get(0).equals(ua) ? ua : resolved.get(named.get(0));
+                default -> ua.withUnresolvedMessage("Resolved [" + ua + "] unexpectedly to multiple attributes " + named);
+            };
         }
 
         private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
@@ -1149,7 +1161,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             MultiTypeEsField resolvedField,
             List<FieldAttribute> unionFieldAttributes
         ) {
-            var unionFieldAttribute = new FieldAttribute(fa.source(), fa.name(), resolvedField);  // Generates new ID for the field
+            // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
+            String unionTypedFieldName = SubstituteSurrogates.rawTemporaryName(
+                fa.name(),
+                "converted_to",
+                resolvedField.getDataType().typeName()
+            );
+            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parent(), unionTypedFieldName, resolvedField);
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
@@ -1182,32 +1200,53 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * If there was no AbstractConvertFunction that resolved multi-type fields in the ResolveUnionTypes rules,
-     * then there could still be some FieldAttributes that contain unresolved MultiTypeEsFields.
-     * These need to be converted back to actual UnresolvedAttribute in order for validation to generate appropriate failures.
+     * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
+     * If there was no {@code AbstractConvertFunction} that resolved multi-type fields in the {@link ResolveUnionTypes} rule,
+     * then there could still be some {@code FieldAttribute}s that contain unresolved {@link MultiTypeEsField}s.
+     * These need to be converted back to actual {@code UnresolvedAttribute} in order for validation to generate appropriate failures.
+     * <p>
+     * Finally, if {@code client_ip} is present in 2 indices, once with type {@code ip} and once with type {@code keyword},
+     * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
+     * This should not spill into the query output, so we drop such attributes at the end.
      */
-    private static class UnresolveUnionTypes extends AnalyzerRules.AnalyzerRule<LogicalPlan> {
-        @Override
-        protected boolean skipResolved() {
-            return false;
+    private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
+        public LogicalPlan apply(LogicalPlan plan) {
+            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(LogicalPlan.class, p -> {
+                if (p instanceof EsRelation esRelation) {
+                    // Leave esRelation as InvalidMappedField so that UNSUPPORTED fields can still pass through
+                    return esRelation;
+                }
+                return p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
+            });
+
+            // To drop synthetic attributes at the end, we need to compute the plan's output.
+            // This is only legal to do if the plan is resolved.
+            return planWithCheckedUnionTypes.resolved()
+                ? planWithoutSyntheticAttributes(planWithCheckedUnionTypes)
+                : planWithCheckedUnionTypes;
         }
 
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof EsRelation esRelation) {
-                // Leave esRelation as InvalidMappedField so that UNSUPPORTED fields can still pass through
-                return esRelation;
-            }
-            return plan.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
-        }
-
-        private static Attribute checkUnresolved(FieldAttribute fa) {
-            var field = fa.field();
-            if (field instanceof InvalidMappedField imf) {
+        static Attribute checkUnresolved(FieldAttribute fa) {
+            if (fa.field() instanceof InvalidMappedField imf) {
                 String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
                 return new UnresolvedAttribute(fa.source(), fa.name(), fa.qualifier(), fa.id(), unresolvedMessage, null);
             }
             return fa;
+        }
+
+        private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
+            List<Attribute> output = plan.output();
+            List<Attribute> newOutput = new ArrayList<>(output.size());
+
+            for (Attribute attr : output) {
+                // TODO: this should really use .synthetic()
+                // https://github.com/elastic/elasticsearch/issues/105821
+                if (attr.name().startsWith(FieldAttribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX) == false) {
+                    newOutput.add(attr);
+                }
+            }
+
+            return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
         }
     }
 }

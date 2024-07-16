@@ -116,7 +116,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             DataType dataType = attr.dataType();
             MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-            String fieldName = attr.name();
+            // Do not use the field attribute name, this can deviate from the field name for union types.
+            String fieldName = attr instanceof FieldAttribute fa ? fa.fieldName() : attr.name();
             boolean isUnsupported = dataType == DataType.UNSUPPORTED;
             IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, isUnsupported, fieldExtractPreference, unionTypes);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
@@ -233,8 +234,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         boolean isUnsupported = attrSource.dataType() == DataType.UNSUPPORTED;
+        var unionTypes = findUnionTypes(attrSource);
+        // Do not use the field attribute name, this can deviate from the field name for union types.
+        String fieldName = attrSource instanceof FieldAttribute fa ? fa.fieldName() : attrSource.name();
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported, NONE),
+            shardIdx -> getBlockLoaderFor(shardIdx, fieldName, isUnsupported, NONE, unionTypes),
             vsShardContexts,
             groupElementType,
             docChannel,
@@ -434,12 +438,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public boolean supportsOrdinals() {
-            return delegate.supportsOrdinals();
+            // Fields with mismatching types cannot use ordinals for uniqueness determination, but must convert the values first
+            return false;
         }
 
         @Override
-        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-            return delegate.ordinals(context);
+        public SortedSetDocValues ordinals(LeafReaderContext context) {
+            throw new IllegalArgumentException("Ordinals are not supported for type conversion");
         }
 
         @Override

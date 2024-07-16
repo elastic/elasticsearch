@@ -4,8 +4,8 @@ setup:
         - method: POST
           path: /_query
           parameters: [method, path, parameters, capabilities]
-          capabilities: [union_types]
-      reason: "Union types introduced in 8.15.0"
+          capabilities: [union_types, union_types_remove_fields, casting_operator]
+      reason: "Union types and casting operator introduced in 8.15.0"
       test_runner_features: [capabilities, allowed_warnings_regex]
 
   - do:
@@ -147,6 +147,9 @@ setup:
           - '{"index": {}}'
           - '{"@timestamp": "2023-10-23T12:15:03.360Z", "client_ip": "172.21.2.162", "event_duration": "3450233", "message": "Connected to 10.1.0.3"}'
 
+############################################################################################################
+# Test a single index as a control of the expected results
+
 ---
 load single index ip_long:
   - do:
@@ -173,9 +176,6 @@ load single index ip_long:
   - match: { values.0.3: 1756467 }
   - match: { values.0.4: "Connected to 10.1.0.1" }
 
-############################################################################################################
-# Test a single index as a control of the expected results
-
 ---
 load single index keyword_keyword:
   - do:
@@ -201,6 +201,62 @@ load single index keyword_keyword:
   - match: { values.0.2: "172.21.3.15" }
   - match: { values.0.3: "1756467" }
   - match: { values.0.4: "Connected to 10.1.0.1" }
+
+---
+load single index ip_long and aggregate by client_ip:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM events_ip_long | STATS count = COUNT(*) BY client_ip::ip | SORT count DESC, `client_ip::ip` ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "client_ip::ip" }
+  - match: { columns.1.type: "ip" }
+  - length: { values: 4 }
+  - match: { values.0.0: 4 }
+  - match: { values.0.1: "172.21.3.15" }
+  - match: { values.1.0: 1 }
+  - match: { values.1.1: "172.21.0.5" }
+  - match: { values.2.0: 1 }
+  - match: { values.2.1: "172.21.2.113" }
+  - match: { values.3.0: 1 }
+  - match: { values.3.1: "172.21.2.162" }
+
+---
+load single index ip_long and aggregate client_ip my message:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM events_ip_long | STATS count = COUNT(client_ip::ip) BY message | SORT count DESC, message ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "message" }
+  - match: { columns.1.type: "keyword" }
+  - length: { values: 5 }
+  - match: { values.0.0: 3 }
+  - match: { values.0.1: "Connection error" }
+  - match: { values.1.0: 1 }
+  - match: { values.1.1: "Connected to 10.1.0.1" }
+  - match: { values.2.0: 1 }
+  - match: { values.2.1: "Connected to 10.1.0.2" }
+  - match: { values.3.0: 1 }
+  - match: { values.3.1: "Connected to 10.1.0.3" }
+  - match: { values.4.0: 1 }
+  - match: { values.4.1: "Disconnected" }
+
+---
+load single index ip_long stats invalid grouping:
+  - do:
+      catch: '/Unknown column \[x\]/'
+      esql.query:
+        body:
+          query: 'FROM events_ip_long | STATS count = COUNT(client_ip::ip) BY x'
 
 ############################################################################################################
 # Test two indices where the event_duration is mapped as a LONG and as a KEYWORD
@@ -511,6 +567,62 @@ load two indices, convert, rename but not drop ambiguous field client_ip:
   - match: { values.1.4: "172.21.3.15" }
   - match: { values.1.5: "172.21.3.15" }
   - match: { values.1.6: "172.21.3.15" }
+
+---
+load two indexes and group by converted client_ip:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM events_*_long | STATS count = COUNT(*) BY client_ip::ip | SORT count DESC, `client_ip::ip` ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "client_ip::ip" }
+  - match: { columns.1.type: "ip" }
+  - length: { values: 4 }
+  - match: { values.0.0: 8 }
+  - match: { values.0.1: "172.21.3.15" }
+  - match: { values.1.0: 2 }
+  - match: { values.1.1: "172.21.0.5" }
+  - match: { values.2.0: 2 }
+  - match: { values.2.1: "172.21.2.113" }
+  - match: { values.3.0: 2 }
+  - match: { values.3.1: "172.21.2.162" }
+
+---
+load two indexes and aggregate converted client_ip:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM events_*_long | STATS count = COUNT(client_ip::ip) BY message | SORT count DESC, message ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "message" }
+  - match: { columns.1.type: "keyword" }
+  - length: { values: 5 }
+  - match: { values.0.0: 6 }
+  - match: { values.0.1: "Connection error" }
+  - match: { values.1.0: 2 }
+  - match: { values.1.1: "Connected to 10.1.0.1" }
+  - match: { values.2.0: 2 }
+  - match: { values.2.1: "Connected to 10.1.0.2" }
+  - match: { values.3.0: 2 }
+  - match: { values.3.1: "Connected to 10.1.0.3" }
+  - match: { values.4.0: 2 }
+  - match: { values.4.1: "Disconnected" }
+
+---
+load two indexes, convert client_ip and group by something invalid:
+  - do:
+      catch: '/Unknown column \[x\]/'
+      esql.query:
+        body:
+          query: 'FROM events_*_long | STATS count = COUNT(client_ip::ip) BY x'
 
 ############################################################################################################
 # Test four indices with both the client_IP (IP and KEYWORD) and event_duration (LONG and KEYWORD) mappings

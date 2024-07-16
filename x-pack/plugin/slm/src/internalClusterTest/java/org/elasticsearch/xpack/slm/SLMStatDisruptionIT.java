@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.slm;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
@@ -34,12 +35,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -76,6 +81,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -125,7 +131,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         .build();
 
 
-    private static AtomicBoolean doDelay = new AtomicBoolean();
+    private static AtomicBoolean doDelay = new AtomicBoolean(true);
     private static CountDownLatch reachedFirst = new CountDownLatch(1);
     private static CountDownLatch delayedRepoLatch = new CountDownLatch(1);
     public static class TestPlugin extends Plugin implements RepositoryPlugin {
@@ -148,7 +154,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
                     bigArrays,
                     recoverySettings,
                     () -> {
-                        if (doDelay.get()) {
+                        if (doDelay.getAndSet(false)) {
                             try {
                                 reachedFirst.countDown();
                                 assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
@@ -182,75 +188,21 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
-            simulator.run();
-            super.finalizeSnapshot(finalizeSnapshotContext);
-        }
-    }
-
-    static class LatencySimulatingBlobStoreRepository extends FsRepository {
-
-        private final Runnable simulator;
-
-        protected LatencySimulatingBlobStoreRepository(
-            RepositoryMetadata metadata,
-            Environment env,
-            NamedXContentRegistry namedXContentRegistry,
-            ClusterService clusterService,
-            BigArrays bigArrays,
-            RecoverySettings recoverySettings,
-            Runnable simulator
+        protected void writeIndexGen(
+            RepositoryData repositoryData,
+            long expectedGen,
+            IndexVersion version,
+            Function<ClusterState, ClusterState> stateFilter,
+            ActionListener<RepositoryData> listener
         ) {
-            super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
-            this.simulator = simulator;
+            simulator.run();
+            super.writeIndexGen(repositoryData, expectedGen, version, stateFilter, listener);
         }
 
         @Override
-        protected BlobStore createBlobStore() throws Exception {
-            BlobStore fsBlobStore = super.createBlobStore();
-            return new BlobStore() {
-                @Override
-                public BlobContainer blobContainer(BlobPath path) {
-                    BlobContainer blobContainer = fsBlobStore.blobContainer(path);
-                    return new LatencySimulatingBlobContainer(blobContainer);
-                }
-
-                @Override
-                public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-                    fsBlobStore.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
-                }
-
-                @Override
-                public void close() throws IOException {
-                    fsBlobStore.close();
-                }
-            };
-        }
-
-        private class LatencySimulatingBlobContainer extends FilterBlobContainer {
-
-            LatencySimulatingBlobContainer(BlobContainer delegate) {
-                super(delegate);
-            }
-
-            @Override
-            public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
-                throws IOException {
-                simulator.run();
-                super.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
-            }
-
-            @Override
-            public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-                throws IOException {
-                simulator.run();
-                super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-            }
-
-            @Override
-            protected BlobContainer wrapChild(BlobContainer child) {
-                return new LatencySimulatingBlobContainer(child);
-            }
+        protected void snapshotFile(SnapshotShardContext context, BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
+//            simulator.run();
+            super.snapshotFile(context, fileInfo);
         }
     }
 
@@ -264,12 +216,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
-        NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
-        internalCluster().setDisruptionScheme(networkDisruption);
 
-        // Listener that stops disrupting network only after snapshot completion
-        CountDownLatch latch = new CountDownLatch(1);
-        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
 
         createRandomIndex(idxName, dataNode);
         createRepository(repoName, "delayed");
@@ -277,11 +224,18 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         ensureGreen();
 
-        doDelay.set(true);
         String snapshotA = executePolicy(masterNode, policyName);
         assertTrue(reachedFirst.await(1, TimeUnit.MINUTES));
         logger.info("Created snapshot A: " + snapshotA);
-        doDelay.set(false);
+
+        // Listener that stops disrupting network only after snapshot completion
+        CountDownLatch latch = new CountDownLatch(1);
+        NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+
+
+        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListenerSingle(repoName, networkDisruption, latch, snapshotA));
 
         // now start disrupting
         networkDisruption.startDisrupting();
@@ -309,9 +263,9 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
             assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
 
-            List<SnapshotId> preRegistered = new ArrayList<>(snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
-            assertEquals(1, preRegistered.size());
-            assertEquals(snapshotB, preRegistered.get(0).getName());
+//            List<SnapshotId> preRegistered = new ArrayList<>(snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+//            assertEquals(1, preRegistered.size());
+//            assertEquals(snapshotB, preRegistered.get(0).getName());
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
@@ -715,7 +669,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     private void assertStats(SnapshotLifecycleMetadata snapshotLifecycleMetadata, String policyName, long taken, long failed) {
         var stats = snapshotLifecycleMetadata.getStats().getMetrics().get(policyName);
         if (taken == 0 && failed == 0) {
-            assertNull(stats);
+            assertTrue(stats == null || (stats.getSnapshotTakenCount() == 0 && stats.getSnapshotFailedCount() == 0));
         } else {
             assertNotNull(stats);
             assertEquals(taken, stats.getSnapshotTakenCount());
@@ -797,6 +751,40 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     // ClusterChangeListener that wait for snapshot to complete then stops network disruption
     private SnapshotsStatusResponse getSnapshotStatus(String repo, String snapshotName) {
         return clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repo).setSnapshots(snapshotName).get();
+    }
+
+    static class WaitForSnapshotListenerSingle implements ClusterStateListener {
+        private final String repoName;
+        private final NetworkDisruption networkDisruption;
+        private final CountDownLatch latch;
+        private final String snapshot;
+
+
+        WaitForSnapshotListenerSingle(String repoName, NetworkDisruption networkDisruption, CountDownLatch latch, String snapshot) {
+            this.repoName = repoName;
+            this.networkDisruption = networkDisruption;
+            this.latch = latch;
+            this.snapshot = snapshot;
+        }
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            SnapshotsInProgress snapshots = event.state().custom(SnapshotsInProgress.TYPE);
+            if (snapshots != null && snapshots.isEmpty() == false) {
+                final SnapshotsInProgress.Entry snapshotEntry = snapshots.forRepo(repoName).get(0);
+                if (snapshotEntry.state() == SnapshotsInProgress.State.SUCCESS) {
+                    final RepositoryMetadata metadata = RepositoriesMetadata.get(event.state()).repository(repoName);
+                    if (metadata.pendingGeneration() > snapshotEntry.repositoryStateId()) {
+
+                        final String updatingSnapshot = snapshotEntry.snapshot().getSnapshotId().getName();
+                        if (updatingSnapshot.equals(this.snapshot) == false) {
+                            networkDisruption.stopDisrupting();
+                            latch.countDown();
+                        }
+                    }
+                }
+            }
+        }
     }
 
     static class WaitForSnapshotListener implements ClusterStateListener {

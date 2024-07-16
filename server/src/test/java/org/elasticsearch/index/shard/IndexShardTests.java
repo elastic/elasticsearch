@@ -3849,7 +3849,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101008")
     @TestIssueLogging(
         issueUrl = "https://github.com/elastic/elasticsearch/issues/101008",
         value = "org.elasticsearch.index.shard.IndexShard:TRACE"
@@ -3925,11 +3924,16 @@ public class IndexShardTests extends IndexShardTestCase {
         logger.info("--> ensure search idle");
         assertTrue(primary.isSearchIdle());
         assertTrue(primary.searchIdleTime() >= TimeValue.ZERO.millis());
+        long periodicFlushesBefore = primary.flushStats().getPeriodic();
         primary.flushOnIdle(0);
+        assertBusy(() -> assertThat(primary.flushStats().getPeriodic(), greaterThan(periodicFlushesBefore)));
+
+        long externalRefreshesBefore = primary.refreshStats().getExternalTotal();
         logger.info("--> scheduledRefresh(future5)");
-        PlainActionFuture<Boolean> future5 = new PlainActionFuture<>();
-        primary.scheduledRefresh(future5);
-        assertTrue(future5.actionGet()); // make sure we refresh once the shard is inactive
+        primary.scheduledRefresh(ActionListener.noop());
+        // We can't check whether scheduledRefresh returns true because it races with a potential
+        // refresh triggered by the flush. We just check that one the refreshes ultimately wins.
+        assertBusy(() -> assertThat(primary.refreshStats().getExternalTotal(), equalTo(externalRefreshesBefore + 1)));
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
         }

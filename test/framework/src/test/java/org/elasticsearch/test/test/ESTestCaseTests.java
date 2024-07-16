@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -386,5 +387,26 @@ public class ESTestCaseTests extends ESTestCase {
     public void testRandomUnsignedLongBetweenDegenerate() {
         BigInteger target = BigInteger.valueOf(randomLong()).subtract(BigInteger.valueOf(Long.MIN_VALUE));
         assertThat(randomUnsignedLongBetween(target, target), equalTo(target));
+    }
+
+    public void testSafeConsumeHappyPath() {
+        AtomicInteger value = new AtomicInteger(0);
+        safeConsume(value::set).onResponse(123);
+        assertThat(value.get(), equalTo(123));
+    }
+
+    public void testSafeConsumeErrorResponse() {
+        assertThrows(AssertionError.class, () -> safeConsume(v -> {}).onFailure(new RuntimeException()));
+    }
+
+    public void testSafeConsumeNoResponse() throws Exception {
+        ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+        reachabilityChecker.register(safeConsume(i -> {}));
+        reachabilityChecker.ensureUnreachable();
+        assertBusy(ESTestCase::assertLeakDetected);
+    }
+
+    public void testSafeConsumeErrorInHandler() {
+        assertThrows(AssertionError.class, () -> safeConsume(v -> { throw new RuntimeException(); }).onResponse(5));
     }
 }

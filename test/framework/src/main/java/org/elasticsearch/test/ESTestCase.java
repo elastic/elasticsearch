@@ -2393,6 +2393,17 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Return an {@link ActionListener} that must be completed successfully
+     *
+     * @param consumer The {@link Consumer} of the result
+     * @return An action listener that will fail with an assertion error on an error response, if it's not completed, or the consumer throws
+     * @param <Response> the type of response to expect
+     */
+    public <Response> ActionListener<Response> safeConsume(CheckedConsumer<Response, ?> consumer) {
+        return ActionListener.assertAtLeastOnce(ActionListener.wrap(consumer, e -> fail(e, "safeConsume")));
+    }
+
+    /**
      * Wait for all tasks currently running or enqueued on the given executor to complete.
      */
     public static void flushThreadPoolExecutor(ThreadPool threadPool, String executorName) {

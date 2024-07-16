@@ -17,6 +17,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
@@ -80,6 +82,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -921,7 +924,9 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
-            ConnectTransportException ex = connectToNodeExpectFailure(serviceA, dummy, builder.build());
+            final var future = new TestPlainActionFuture<Releasable>();
+            serviceA.connectToNode(dummy, builder.build(), future);
+            final var ex = expectThrows(ExecutionException.class, ConnectTransportException.class, future::get); // long wait
             assertEquals("[][" + dummy.getAddress() + "] connect_exception", ex.getMessage());
             assertNotNull(ExceptionsHelper.unwrap(ex, SslHandshakeTimeoutException.class));
         } finally {

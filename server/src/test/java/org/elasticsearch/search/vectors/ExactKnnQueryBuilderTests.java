@@ -16,16 +16,12 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
 
 public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQueryBuilder> {
 
@@ -49,11 +45,6 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
             new CompressedXContent(Strings.toString(builder)),
             MapperService.MergeReason.MAPPING_UPDATE
         );
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

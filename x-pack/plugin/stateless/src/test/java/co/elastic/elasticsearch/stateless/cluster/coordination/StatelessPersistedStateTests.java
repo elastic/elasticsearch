@@ -25,7 +25,6 @@ import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -73,11 +72,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // We check that the repository is empty after each test
 public class StatelessPersistedStateTests extends ESTestCase {
@@ -130,9 +131,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
 
             assertThat(persistedState.getLastAcceptedState(), is(lastAcceptedState));
 
-            Optional<PersistedClusterState> latestStoredState = PlainActionFuture.get(
-                f -> persistedState.readLatestClusterStateForTerm(term, f)
-            );
+            Optional<PersistedClusterState> latestStoredState = safeAwait(l -> persistedState.readLatestClusterStateForTerm(term, l));
             assertThat(latestStoredState.isEmpty(), is(true));
         }
     }
@@ -201,7 +200,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
     public void testGetStoredStateWhenNoDataIsStored() throws Exception {
         try (var ctx = createTestContext()) {
             var persistedState = ctx.persistedState();
-            ClusterState state = PlainActionFuture.get(f -> persistedState.getLatestStoredState(1, f));
+            ClusterState state = safeAwait(l -> persistedState.getLatestStoredState(1, l));
             assertThat(state, is(nullValue()));
         }
     }
@@ -293,9 +292,10 @@ public class StatelessPersistedStateTests extends ESTestCase {
             long term = 1;
             persistedState.setCurrentTerm(term);
             persistedState.setLastAcceptedState(createClusterStateWithLocalNodeAsMaster(term, 1, localNode));
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<ClusterState, Exception>get(f -> persistedState.getLatestStoredState(2, f))
+            assertThat(
+                asInstanceOf(IOException.class, safeAwaitFailure(ClusterState.class, l -> persistedState.getLatestStoredState(2, l)))
+                    .getMessage(),
+                anyOf(startsWith("Failed reading commit file"), startsWith("Failed reading segments file"))
             );
         }
     }
@@ -381,7 +381,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
             long term = 1;
             persistedState.setCurrentTerm(term);
             persistedState.setLastAcceptedState(createClusterStateWithLocalNodeAsMaster(term, 1, localNode));
-            var clusterState = PlainActionFuture.<ClusterState, Exception>get(f -> persistedState.getLatestStoredState(2, f));
+            ClusterState clusterState = safeAwait(l -> persistedState.getLatestStoredState(2, l));
             assertThat(clusterState, is(nullValue()));
         }
     }
@@ -398,16 +398,14 @@ public class StatelessPersistedStateTests extends ESTestCase {
             try (var node2Ctx = createTestContext(node1Ctx.statelessNode.objectStoreService)) {
                 var node2PersistedState = node2Ctx.persistedState();
                 node2PersistedState.setCurrentTerm(2);
-                var clusterState = PlainActionFuture.<ClusterState, Exception>get(f -> node2PersistedState.getLatestStoredState(2, f));
+                ClusterState clusterState = safeAwait(l -> node2PersistedState.getLatestStoredState(2, l));
                 assertThat(clusterState, is(notNullValue()));
             }
         }
     }
 
     private PersistedClusterState getPersistedStateForTerm(StatelessPersistedState persistedState, long term) {
-        Optional<PersistedClusterState> latestStoredState = PlainActionFuture.get(
-            f -> persistedState.readLatestClusterStateForTerm(term, f)
-        );
+        Optional<PersistedClusterState> latestStoredState = safeAwait(l -> persistedState.readLatestClusterStateForTerm(term, l));
         return latestStoredState.orElseThrow(AssertionError::new);
     }
 

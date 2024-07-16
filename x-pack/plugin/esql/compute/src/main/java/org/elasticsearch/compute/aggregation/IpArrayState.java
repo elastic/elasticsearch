@@ -10,9 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -35,6 +33,8 @@ import org.elasticsearch.core.Releasables;
 final class IpArrayState extends AbstractArrayState implements GroupingAggregatorState {
     private static final int IP_LENGTH = 16;
 
+    private final BytesRef scratch = new BytesRef();
+
     private final byte[] init;
 
     private ByteArray values;
@@ -49,13 +49,13 @@ final class IpArrayState extends AbstractArrayState implements GroupingAggregato
         this.values.set(0, this.init, 0, IP_LENGTH);
     }
 
-    BytesRef get(int groupId, BytesRef scratch) {
+    BytesRef get(int groupId) {
         var ipIndex = getIndex(groupId);
         values.get(ipIndex, IP_LENGTH, scratch);
         return scratch;
     }
 
-    BytesRef getOrDefault(int groupId, BytesRef scratch) {
+    BytesRef getOrDefault(int groupId) {
         var ipIndex = getIndex(groupId);
         if (ipIndex < values.size()) {
             values.get(ipIndex, IP_LENGTH, scratch);
@@ -75,13 +75,12 @@ final class IpArrayState extends AbstractArrayState implements GroupingAggregato
     }
 
     Block toValuesBlock(IntVector selected, DriverContext driverContext) {
-        var scratch = new BytesRef();
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newBytesRefVectorBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int group = selected.getInt(i);
-                    get(group, scratch);
-                    builder.appendBytesRef(scratch);
+                    var value = get(group);
+                    builder.appendBytesRef(value);
                 }
                 return builder.build().asBlock();
             }
@@ -90,8 +89,8 @@ final class IpArrayState extends AbstractArrayState implements GroupingAggregato
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (hasValue(group)) {
-                    get(group, scratch);
-                    builder.appendBytesRef(scratch);
+                    var value = get(group);
+                    builder.appendBytesRef(value);
                 } else {
                     builder.appendNull();
                 }
@@ -126,13 +125,12 @@ final class IpArrayState extends AbstractArrayState implements GroupingAggregato
             var valuesBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount());
             var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
-            var scratch = new BytesRef();
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 int ipIndex = getIndex(group);
                 if (ipIndex < values.size()) {
-                    get(group, scratch);
-                    valuesBuilder.appendBytesRef(scratch);
+                    var value = get(group);
+                    valuesBuilder.appendBytesRef(value);
                 } else {
                     scratch.length = 0;
                     valuesBuilder.appendBytesRef(scratch); // TODO can we just use null?

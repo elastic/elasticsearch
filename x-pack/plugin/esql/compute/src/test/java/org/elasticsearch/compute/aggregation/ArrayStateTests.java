@@ -200,7 +200,7 @@ public class ArrayStateTests extends ESTestCase {
             case FLOAT -> ((FloatArrayState) state).get(index);
             case DOUBLE -> ((DoubleArrayState) state).get(index);
             case BOOLEAN -> ((BooleanArrayState) state).get(index);
-            case IP -> ((IpArrayState) state).get(index, new BytesRef());
+            case IP -> ((IpArrayState) state).get(index);
             default -> throw new IllegalArgumentException();
         };
     }

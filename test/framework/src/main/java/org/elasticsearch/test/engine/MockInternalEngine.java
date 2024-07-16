@@ -9,8 +9,6 @@ package org.elasticsearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -40,11 +38,7 @@ final class MockInternalEngine extends InternalEngine {
     @Override
     public void close() throws IOException {
         switch (support().flushOrClose(MockEngineSupport.CloseAction.CLOSE)) {
-            case FLUSH_AND_CLOSE -> {
-                var future = new PlainActionFuture<Void>();
-                flushAndCloseInternal(future);
-                FutureUtils.get(future);
-            }
+            case FLUSH_AND_CLOSE -> flushAndCloseInternal(ActionListener.noop());
             case CLOSE -> super.close();
         }
     }

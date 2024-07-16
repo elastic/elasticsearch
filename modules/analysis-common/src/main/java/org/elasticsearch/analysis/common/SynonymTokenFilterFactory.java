@@ -187,14 +187,13 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     );
                 }
                 String synonymsSet = settings.get(SynonymsSource.INDEX.getSettingName(), null);
-                // provide fake synonyms on index creation and index metadata checks to ensure that we
+                // provide empty synonyms on index creation and index metadata checks to ensure that we
                 // don't block a master thread
                 ReaderWithOrigin reader;
                 if (context != IndexCreationContext.RELOAD_ANALYZERS) {
-                    // TODO: Don't make fake rule
                     reader = new ReaderWithOrigin(
-                        new StringReader("fake rule => fake"),
-                        "fake [" + synonymsSet + "] synonyms_set in .synonyms index",
+                        new StringReader(""),
+                        "fake empty [" + synonymsSet + "] synonyms_set in .synonyms index",
                         synonymsSet
                     );
                 } else {

@@ -1,6 +1,6 @@
 pr: 109025
-summary: Introduce a setting controlling the activation of the `logs` index mode in logs@settings
+summary: Introduce a node setting controlling the activation of the `logs` index mode in logs@settings component template
 area: Logs
-type: feature
+type: enhancement
 issues:
  - 108762

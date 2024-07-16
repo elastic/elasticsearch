@@ -18,15 +18,18 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class TransportGetDatabaseConfigurationAction extends TransportMasterNodeAction<
@@ -62,10 +65,8 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
         final ActionListener<GetDatabaseConfigurationAction.Response> listener
     ) {
         IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
-
-        // halfway serious no-configurations case(s)
         if (geoIpMeta.getDatabases().isEmpty()) {
-            if (request.getDatabaseIds().length == 0) { // all
+            if (request.getDatabaseIds().length == 0) {
                 // you asked for all, and there are none, we return the none that there are
                 listener.onResponse(new GetDatabaseConfigurationAction.Response(List.of()));
             } else {
@@ -77,33 +78,43 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
                     )
                 );
             }
-            return;
         }
 
-        // okay, now it's back to something almost like serious code
-        final Set<String> ids = new HashSet<>(Arrays.asList(request.getDatabaseIds()));
-        final var databases = geoIpMeta.getDatabases().values().stream().filter(meta -> {
-            if (ids.isEmpty()) {
-                return true;
-            } else {
-                return ids.contains(meta.database().id());
-            }
-        }).toList();
-
-        if (databases.isEmpty()) {
-            if (request.getDatabaseIds().length == 0) {
-                listener.onResponse(new GetDatabaseConfigurationAction.Response(List.of()));
-            } else {
-                listener.onFailure(
-                    new ResourceNotFoundException(
-                        "database configuration or configurations {} not found",
-                        Arrays.toString(request.getDatabaseIds())
-                    )
-                );
-            }
+        final Set<String> ids;
+        if (request.getDatabaseIds().length == 0) {
+            // if we did not ask for a specific name, then return all databases
+            ids = Set.of("*");
         } else {
-            listener.onResponse(new GetDatabaseConfigurationAction.Response(databases));
+            ids = new HashSet<>(Arrays.asList(request.getDatabaseIds()));
         }
+
+        if (ids.size() > 1 && ids.stream().anyMatch(Regex::isSimpleMatchPattern)) {
+            throw new IllegalArgumentException(
+                "wildcard only supports a single value, please use comma-separated values or a single wildcard value"
+            );
+        }
+
+        List<DatabaseConfigurationMetadata> results = new ArrayList<>();
+
+        for (String id : ids) {
+            if (Regex.isSimpleMatchPattern(id)) {
+                for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
+                    if (Regex.simpleMatch(id, entry.getKey())) {
+                        results.add(entry.getValue());
+                    }
+                }
+            } else {
+                DatabaseConfigurationMetadata meta = geoIpMeta.getDatabases().get(id);
+                if (meta == null) {
+                    listener.onFailure(new ResourceNotFoundException("database configuration not found: {}", id));
+                    return;
+                } else {
+                    results.add(meta);
+                }
+            }
+        }
+
+        listener.onResponse(new GetDatabaseConfigurationAction.Response(results));
     }
 
     @Override

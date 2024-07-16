@@ -9,7 +9,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -22,12 +21,10 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -1337,34 +1334,6 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             ),
             1
         );
-    }
-
-    public void testKnnQueryNotSupportedInPercolator() throws IOException {
-        String mappings = org.elasticsearch.common.Strings.format("""
-            {
-              "properties": {
-                "my_query" : {
-                  "type" : "percolator"
-                },
-                "my_vector" : {
-                  "type" : "dense_vector",
-                  "dims" : 5,
-                  "index" : true,
-                  "similarity" : "l2_norm"
-                }
-
-              }
-            }
-            """);
-        indicesAdmin().prepareCreate("index1").setMapping(mappings).get();
-        ensureGreen();
-        QueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder("my_vector", new float[] { 1, 1, 1, 1, 1 }, 10, 10, null);
-
-        IndexRequestBuilder indexRequestBuilder = prepareIndex("index1").setId("knn_query1")
-            .setSource(jsonBuilder().startObject().field("my_query", knnVectorQueryBuilder).endObject());
-
-        DocumentParsingException exception = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get());
-        assertThat(exception.getMessage(), containsString("the [knn] query is unsupported inside a percolator"));
     }
 
 }

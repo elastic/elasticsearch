@@ -88,18 +88,6 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         final String id = request.getDatabase().id();
-
-        {
-            IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
-
-            final DatabaseConfigurationMetadata existingDatabase = geoIpMeta.getDatabases().get(id);
-            // make the request a no-op if the databases match exactly
-            if (isNoopUpdate(existingDatabase, request.getDatabase())) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
-                return;
-            }
-        }
-
         updateDatabaseConfigurationTaskQueue.submitTask(
             Strings.format("update-geoip-database-configuration-[%s]", id),
             new UpdateDatabaseConfigurationTask(listener, request.getDatabase()),

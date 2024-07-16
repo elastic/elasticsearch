@@ -5023,8 +5023,13 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardRouting routing,
         BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer
     ) {
-        PlainActionFuture.<Void, RuntimeException>get(
-            f -> indexShard.relocated(routing.relocatingNodeId(), routing.getTargetRelocatingShard().allocationId().getId(), consumer, f)
+        safeAwait(
+            (ActionListener<Void> listener) -> indexShard.relocated(
+                routing.relocatingNodeId(),
+                routing.getTargetRelocatingShard().allocationId().getId(),
+                consumer,
+                listener
+            )
         );
     }
 }

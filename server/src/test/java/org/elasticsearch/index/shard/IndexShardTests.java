@@ -3913,8 +3913,8 @@ public class IndexShardTests extends IndexShardTestCase {
         });
         latch.await();
 
-        // Index a document while shard is search active and ensure scheduleRefresh(...) makes documen visible:
-        logger.info("--> index doc while shard search active");
+        // Index a document while shard is search is idle and ensure scheduleRefresh(...) returns false:
+        logger.info("--> index doc while shard search is idle");
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         logger.info("--> scheduledRefresh(future4)");
         PlainActionFuture<Boolean> future4 = new PlainActionFuture<>();
@@ -3931,8 +3931,6 @@ public class IndexShardTests extends IndexShardTestCase {
         long externalRefreshesBefore = primary.refreshStats().getExternalTotal();
         logger.info("--> scheduledRefresh(future5)");
         primary.scheduledRefresh(ActionListener.noop());
-        // We can't check whether scheduledRefresh returns true because it races with a potential
-        // refresh triggered by the flush. We just check that one the refreshes ultimately wins.
         assertBusy(() -> assertThat(primary.refreshStats().getExternalTotal(), equalTo(externalRefreshesBefore + 1)));
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());

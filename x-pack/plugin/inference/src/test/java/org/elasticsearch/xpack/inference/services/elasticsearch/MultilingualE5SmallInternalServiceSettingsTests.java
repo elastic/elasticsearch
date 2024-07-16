@@ -134,18 +134,18 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
             case 0 -> new MultilingualE5SmallInternalServiceSettings(
                 instance.getNumAllocations() + 1,
                 instance.getNumThreads(),
-                instance.getModelId(),
+                instance.modelId(),
                 null
             );
             case 1 -> new MultilingualE5SmallInternalServiceSettings(
                 instance.getNumAllocations(),
                 instance.getNumThreads() + 1,
-                instance.getModelId(),
+                instance.modelId(),
                 null
             );
             case 2 -> {
                 var versions = new HashSet<>(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS);
-                versions.remove(instance.getModelId());
+                versions.remove(instance.modelId());
                 yield new MultilingualE5SmallInternalServiceSettings(
                     instance.getNumAllocations(),
                     instance.getNumThreads(),

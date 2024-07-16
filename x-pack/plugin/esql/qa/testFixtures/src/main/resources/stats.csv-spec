@@ -1946,3 +1946,35 @@ MIN(i):integer | a:keyword | b:integer
              1 | b         | 3
 // end::multi-mv-group-result[]
 ;
+
+statsByConstant
+required_capability: stats_by_constant
+from employees
+| stats m = max(salary), a = round(avg(salary)) by 0
+;
+
+m:integer |a:double |0:integer
+74999     |48249.0  |0
+;
+
+statsByConstantFromStats
+required_capability: stats_by_constant
+from employees
+| stats c = count(languages)
+| stats a = count(*) by c
+;
+
+a:long |c:long
+1      |90
+;
+
+statsByConstantFromEval
+required_capability: stats_by_constant
+from employees
+| eval x = 0
+| stats m = max(salary), a = round(avg(salary)) by x
+;
+
+m:integer |a:double |x:integer
+74999     |48249.0  |0
+;

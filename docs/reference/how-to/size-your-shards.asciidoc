@@ -551,9 +551,9 @@ PUT _cluster/settings
 
 Each {es} shard is a separate Lucene index, so it shares Lucene's
 https://github.com/apache/lucene/issues/5176[`MAX_DOC` limit] of having at most
-2,147,483,519 (`(2^31)-129`) documents. This limit applies to the sum of
-`docs.count` plus `docs.deleted` as reported by the <<indices-stats,Index stats
-API>>. Exceeding this limit will result in errors like the following:
+2,147,483,519 (`(2^31)-129`) documents. This per-shard limit applies to the sum
+of `docs.count` plus `docs.deleted` as reported by the <<indices-stats,Index
+stats API>>. Exceeding this limit will result in errors like the following:
 
 [source,txt]
 ----
@@ -564,8 +564,12 @@ TIP: This calculation may differ from the <<search-count,Count API's>>
 calculation, because the Count API does not include nested documents and does
 not count deleted documents.
 
-Use the <<indices-forcemerge,Force Merge API>> to merge away some deleted docs.
-For example:
+This limit is much higher than the <<shard-size-recommendation,recommended
+maximum document count>> of approximately 200M documents per shard.
+
+If you encounter this problem, try to mitigate it by using the
+<<indices-forcemerge,Force Merge API>> to merge away some deleted docs. For
+example:
 
 [source,console]
 ----
@@ -576,8 +580,6 @@ POST my-index-000001/_forcemerge?only_expunge_deletes=true
 This will launch an asynchronous task which can be monitored via the
 <<tasks,Task Management API>>.
 
-For a long-term solution try:
-
-* <<docs-delete-by-query,deleting unneeded documents>>, or
-* aligning the index to recommendations on this page by either
-<<indices-split-index,Splitting>> or <<docs-reindex,Reindexing>> the index.
+It may also be helpful to <<docs-delete-by-query,delete unneeded documents>>,
+or to <<indices-split-index,split>> or <<docs-reindex,reindex>> the index into
+one with a larger number of shards.

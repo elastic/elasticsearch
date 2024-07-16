@@ -96,6 +96,9 @@ tests:
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: "test {stats.Count_or_null SYNC #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/110950
 
 # Examples:
 #

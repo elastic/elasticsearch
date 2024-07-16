@@ -11,6 +11,10 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.inference.InferenceRequestStats;
 
+/**
+ * The purpose of this class is to get around an issue with {@link org.elasticsearch.common.inject.Inject} that doesn't seem to allow
+ * generics in the constructor. Subclassing it here seems to work.
+ */
 public class InferenceRequestStatsMap extends StatsMap<Model, InferenceAPMStats, InferenceRequestStats> {
     public static InferenceRequestStatsMap of(MeterRegistry meterRegistry) {
         var statsFactory = new InferenceAPMStats.Factory(meterRegistry);

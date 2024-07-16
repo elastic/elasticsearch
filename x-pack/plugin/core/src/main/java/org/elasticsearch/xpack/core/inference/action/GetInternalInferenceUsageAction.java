@@ -18,9 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceRequestStats;
 
 import java.io.IOException;
@@ -66,7 +63,7 @@ public class GetInternalInferenceUsageAction extends ActionType<GetInternalInfer
         public NodeRequest() {}
     }
 
-    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
+    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable {
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -74,23 +71,6 @@ public class GetInternalInferenceUsageAction extends ActionType<GetInternalInfer
 
         public Response(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
-        }
-
-        // TODO do we need this?
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-
-            for (var entry : getNodesMap().entrySet()) {
-                NodeResponse response = entry.getValue();
-
-                builder.startObject(entry.getKey());
-                response.toXContent(builder, params);
-                builder.endObject();
-            }
-
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -117,9 +97,7 @@ public class GetInternalInferenceUsageAction extends ActionType<GetInternalInfer
         }
     }
 
-    public static class NodeResponse extends BaseNodeResponse implements ToXContentFragment {
-        static final String REQUEST_STATS_FIELD_NAME = "requests";
-
+    public static class NodeResponse extends BaseNodeResponse {
         private final Map<String, InferenceRequestStats> inferenceRequestStats;
 
         public NodeResponse(DiscoveryNode node, Map<String, InferenceRequestStats> inferenceRequestStats) {
@@ -141,12 +119,6 @@ public class GetInternalInferenceUsageAction extends ActionType<GetInternalInfer
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeMap(inferenceRequestStats, StreamOutput::writeString, StreamOutput::writeWriteable);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(REQUEST_STATS_FIELD_NAME, inferenceRequestStats);
-            return builder;
         }
 
         @Override

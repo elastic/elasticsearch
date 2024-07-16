@@ -35,7 +35,9 @@ public class InferenceAPMStats extends InferenceStats {
         public Factory(MeterRegistry meterRegistry) {
             Objects.requireNonNull(meterRegistry);
 
+            // A meter with a specific name can only be registered once
             this.requestCounter = meterRegistry.registerLongCounter(
+                // We get an error if the name doesn't end with a specific value, total is a valid option
                 "es.inference.requests.count.total",
                 "Inference API request counts for a particular service, task type, model ID",
                 "operations"

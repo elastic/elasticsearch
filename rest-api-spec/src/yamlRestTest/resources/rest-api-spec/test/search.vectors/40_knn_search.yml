@@ -285,7 +285,7 @@ setup:
 ---
 "Nonexistent field returns empty query":
   - requires:
-      cluster_features: "gte_v8.16.0" // what will happen if we go to 9.0 from 8.15
+      cluster_features: "gte_v8.16.0"
       reason: 'allow unmapped field is true'
   - do:
       search:
@@ -316,7 +316,7 @@ setup:
             query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
-  - match: { error.root_cause.0.type: "query_shard_exception" } // how does it have query shard exception where as the unit test had IllegalArgumentException
+  - match: { error.root_cause.0.type: "query_shard_exception" }
   - match: { error.root_cause.0.reason: "failed to create query: field [nonexistent] does not exist in the mapping" }
 
 ---

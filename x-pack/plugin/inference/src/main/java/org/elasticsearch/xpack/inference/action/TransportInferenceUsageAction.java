@@ -107,13 +107,14 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         }));
     }
 
-    private void getRequestStats(ActionListener<Collection<InferenceRequestStats>> listener) {
+    // default for testing
+    void getRequestStats(ActionListener<Collection<InferenceRequestStats>> listener) {
         var action = new GetInternalInferenceUsageAction.Request();
         client.execute(GetInternalInferenceUsageAction.INSTANCE, action, listener.delegateFailureAndWrap((delegate, response) -> {
             var accumulatedStats = new TreeMap<String, InferenceRequestStats>();
 
             for (var node : response.getNodes()) {
-                node.getInferenceRequestStats().forEach((key, value) -> accumulatedStats.merge(key, value, (v1, v2) -> v1));
+                node.getInferenceRequestStats().forEach((key, value) -> accumulatedStats.merge(key, value, InferenceRequestStats::merge));
             }
 
             delegate.onResponse(accumulatedStats.values());

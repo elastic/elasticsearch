@@ -111,6 +111,9 @@ s|Description
 |{wikipedia}/Smile_(data_interchange_format)[Smile] binary data format similar
 to CBOR
 
+|arrow
+|application/vnd.apache.arrow.stream
+|**Experimental.** https://arrow.apache.org/[Apache Arrow] dataframes, https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format[IPC streaming format]
 |===
 
 The `csv` format accepts a formatting URL query attribute, `delimiter`, which

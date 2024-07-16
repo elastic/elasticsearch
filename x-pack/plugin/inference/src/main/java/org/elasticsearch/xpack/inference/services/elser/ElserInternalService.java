@@ -211,11 +211,12 @@ public class ElserInternalService implements InferenceService {
         var serviceSettings = elserModel.getServiceSettings();
 
         var startRequest = new StartTrainedModelDeploymentAction.Request(
-            serviceSettings.getModelId(),
+            serviceSettings.modelId(),
             model.getConfigurations().getInferenceEntityId()
         );
         startRequest.setNumberOfAllocations(serviceSettings.getNumAllocations());
         startRequest.setThreadsPerAllocation(serviceSettings.getNumThreads());
+        startRequest.setAdaptiveAllocationsSettings(serviceSettings.getAdaptiveAllocationsSettings());
         startRequest.setWaitForState(STARTED);
         return startRequest;
     }
@@ -361,7 +362,7 @@ public class ElserInternalService implements InferenceService {
             );
             return;
         } else {
-            String modelId = ((ElserInternalModel) model).getServiceSettings().getModelId();
+            String modelId = ((ElserInternalModel) model).getServiceSettings().modelId();
             var input = new TrainedModelInput(List.<String>of("text_field")); // by convention text_field is used
             var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).validate(true).build();
             PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
@@ -388,7 +389,7 @@ public class ElserInternalService implements InferenceService {
         });
 
         if (model instanceof ElserInternalModel elserModel) {
-            String modelId = elserModel.getServiceSettings().getModelId();
+            String modelId = elserModel.getServiceSettings().modelId();
             GetTrainedModelsAction.Request getRequest = new GetTrainedModelsAction.Request(modelId);
             executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
         } else {

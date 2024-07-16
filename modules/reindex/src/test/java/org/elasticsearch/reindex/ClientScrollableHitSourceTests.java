@@ -19,7 +19,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -42,12 +41,14 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ClientScrollableHitSourceTests extends ESTestCase {
 
@@ -73,12 +74,11 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         dotestBasicsWithRetry(retries, 0, retries, e -> fail());
     }
 
-    public void testRetryFail() {
-        int retries = randomInt(10);
-        expectThrows(
-            EsRejectedExecutionException.class,
-            () -> PlainActionFuture.get(f -> dotestBasicsWithRetry(retries, retries + 1, retries + 1, f::onFailure), 0, TimeUnit.SECONDS)
-        );
+    public void testRetryFail() throws InterruptedException {
+        final int retries = randomInt(10);
+        final var exceptionRef = new AtomicReference<Exception>();
+        dotestBasicsWithRetry(retries, retries + 1, retries + 1, exceptionRef::set);
+        assertThat(exceptionRef.get(), instanceOf(EsRejectedExecutionException.class));
     }
 
     private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures, Consumer<Exception> failureHandler)

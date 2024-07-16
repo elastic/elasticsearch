@@ -25,7 +25,7 @@ public @interface FunctionInfo {
 
     /**
      * The description of the function rendered in {@code META FUNCTIONS}
-     * and the docs.
+     * and the docs. These should be complete sentences.
      */
     String description() default "";
 

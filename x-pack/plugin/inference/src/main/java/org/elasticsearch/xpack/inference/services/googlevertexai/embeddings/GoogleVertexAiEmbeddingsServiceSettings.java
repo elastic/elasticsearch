@@ -155,6 +155,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
+    @Override
     public String projectId() {
         return projectId;
     }

@@ -695,6 +695,23 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(javaFormatted, equalTo("-292275055-05-16T16:47:04.192Z"));
     }
 
+    public void testMinNanos() {
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatNanos(Long.MIN_VALUE);
+        assertThat(javaFormatted, equalTo("1677-09-21T00:12:43.145Z"));
+
+        // It is deeply unclear to me why the last 6 digits of this aren't 775808, which are the last 6 digits of Long.MIN_VALUE
+        javaFormatted = DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(Long.MIN_VALUE);
+        assertThat(javaFormatted, equalTo("1677-09-21T00:12:43.145224192Z"));
+    }
+
+    public void testMaxNanos() {
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatNanos(Long.MAX_VALUE);
+        assertThat(javaFormatted, equalTo("2262-04-11T23:47:16.854Z"));
+
+        javaFormatted = DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(Long.MAX_VALUE);
+        assertThat(javaFormatted, equalTo("2262-04-11T23:47:16.854775807Z"));
+    }
+
     public void testYearParsing() {
         // this one is considered a year
         assertParses("1234", "strict_date_optional_time||epoch_millis");

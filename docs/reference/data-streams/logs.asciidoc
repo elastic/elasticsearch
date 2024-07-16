@@ -26,7 +26,7 @@ PUT _index_template/my-index-template
      "settings": {
         "index.mode": "logs" <1>
      }
-  }
+  },
   "priority": 500 <2>
 }
 ----

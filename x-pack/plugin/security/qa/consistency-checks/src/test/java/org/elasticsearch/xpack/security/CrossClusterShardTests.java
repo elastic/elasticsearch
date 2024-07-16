@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
-import org.elasticsearch.action.search.TransportSearchShardsAction;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.common.inject.Binding;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -22,6 +20,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.downsample.Downsample;
-import org.elasticsearch.xpack.downsample.DownsampleShardPersistentTaskExecutor;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
@@ -41,32 +39,47 @@ import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.search.AsyncSearch;
 import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
+import org.reflections.Reflections;
+import org.reflections.scanners.Scanners;
+import org.reflections.util.ConfigurationBuilder;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.Predicate;
 
+/**
+ * This test helps to ensure that RCS 2.0 transport actions and transport request handlers are correctly marked with the
+ * IndicesRequest.RemoteClusterShardRequest interface. This interface is used to identify transport actions and request handlers
+ * that operate on shards directly and can be used across clusters. This test will fail if a new transport action or request handler
+ * is added that operates on shards directly and is not marked with the IndicesRequest.RemoteClusterShardRequest interface.
+ * This is a best effort and no guarantee that all transport actions and request handlers are correctly marked.
+ */
 public class CrossClusterShardTests extends ESSingleNodeTestCase {
 
-    Set<String> MANUALLY_CHECKED_SHARD_ACTIONS = Set.of(
-        // The request types for these actions are all subtypes of SingleShardRequest, and have been evaluated to make sure their
-        // `shards()` methods return the correct thing.
-        TransportSearchShardsAction.NAME,
+    Set<String> IGNORED_ACTIONS = Set.of(
+        // TODO: go through this list and add comment or add interface
+        "org.elasticsearch.xpack.profiling.action.TransportGetStackTracesAction",
+        "org.elasticsearch.action.search.TransportSearchAction",
+        "org.elasticsearch.xpack.rollup.action.TransportRollupSearchAction.TransportHandler",
+        "org.elasticsearch.xpack.profiling.action.TransportGetFlamegraphAction",
+        "org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction.NodeTransportHandler",
+        "org.elasticsearch.xpack.rollup.action.TransportRollupSearchAction",
+        "org.elasticsearch.action.search.TransportOpenPointInTimeAction.ShardOpenReaderRequestHandler",
+        "org.elasticsearch.xpack.profiling.action.TransportGetTopNFunctionsAction",
+        "org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcastUnpromotableAction.UnpromotableTransportHandler",
+        "org.elasticsearch.xpack.esql.plugin.ComputeService.DataNodeRequestHandler",
+        "org.elasticsearch.action.search.TransportOpenPointInTimeAction",
+        "org.elasticsearch.xpack.core.termsenum.action.TransportTermsEnumAction.NodeTransportHandler",
+        "org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction",
+        "org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction.BroadcastByNodeTransportRequestHandler"
 
-        // These types have had the interface implemented manually.
-        DownsampleShardPersistentTaskExecutor.DelegatingAction.NAME,
-
-        // These actions do not have any references to shard IDs in their requests.
-        TransportClusterSearchShardsAction.TYPE.name()
-    );
-
-    Set<Class<?>> CHECKED_ABSTRACT_CLASSES = Set.of(
-        // This abstract class implements the interface so we can assume all of its subtypes do so properly as well.
-        TransportSingleShardAction.class
     );
 
     @Override
@@ -101,65 +114,112 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
         return plugins;
     }
 
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testCheckForNewShardLevelTransportActions() throws Exception {
         Node node = node();
+
+        Reflections reflections = new Reflections(
+            new ConfigurationBuilder().forPackages("org.elasticsearch").addScanners(Scanners.SubTypes).setParallel(false)
+        );
+
+        // Find all subclasses of IndicesRequest
+        Set<Class<? extends IndicesRequest>> indicesRequest = reflections.getSubTypesOf(IndicesRequest.class);
+
+        // Ignore any indices requests that are already marked with the RemoteClusterShardRequest interface
+        indicesRequest.removeAll(reflections.getSubTypesOf(IndicesRequest.RemoteClusterShardRequest.class));
+
+        // Find any IndicesRequest that have methods related to shards, these are the candidate requests for the marker interface
+        Set<String> candidateRequests = new HashSet<>();
+        for (Class<? extends IndicesRequest> clazz : indicesRequest) {
+            for (Method method : clazz.getDeclaredMethods()) {
+                // not the most efficient way to check for shard related methods, but it's good enough for this test
+                // alternatively we could check methods that return some collection of ShardId or similar
+                // really we need a better way to inspect the request/action relationship
+                if (method.getName().toLowerCase(Locale.ROOT).contains("shard")) {
+                    candidateRequests.add(method.getDeclaringClass().getCanonicalName());
+                }
+            }
+        }
+
+        // Find all transport actions
         List<Binding<TransportAction>> transportActionBindings = node.injector().findBindingsByType(TypeLiteral.get(TransportAction.class));
+
+        // Find all transport actions that can execute over RCS 2.0
         Set<String> crossClusterPrivilegeNames = new HashSet<>();
         crossClusterPrivilegeNames.addAll(List.of(CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES));
         crossClusterPrivilegeNames.addAll(List.of(CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES));
-
-        List<String> shardActions = transportActionBindings.stream()
+        List<TransportAction> candidateActions = transportActionBindings.stream()
             .map(binding -> binding.getProvider().get())
             .filter(action -> IndexPrivilege.get(crossClusterPrivilegeNames).predicate().test(action.actionName))
-            .filter(this::actionIsLikelyShardAction)
-            .map(action -> action.actionName)
             .toList();
 
-        List<String> actionsNotOnAllowlist = shardActions.stream().filter(Predicate.not(MANUALLY_CHECKED_SHARD_ACTIONS::contains)).toList();
-        if (actionsNotOnAllowlist.isEmpty() == false) {
-            fail("""
-                If this test fails, you likely just added a transport action, probably with `shard` in the name. Transport actions which
+        Set<FinalCandidate> actionsWithShardRequests = new HashSet<>();
+
+        // Find any transport actions that have methods related to shards, these are the candidate actions for the marker interface
+        for (TransportAction transportAction : candidateActions) {
+            String actionRequestType = getRequestTypeName(transportAction.getClass().getGenericSuperclass());
+            if (candidateRequests.contains(actionRequestType)) {
+                actionsWithShardRequests.add(new FinalCandidate(transportAction.getClass().getCanonicalName(), actionRequestType));
+            }
+        }
+
+        // Find any TransportRequestHandler by looking at the request type of the messageReceived method
+        Set<Class<? extends TransportRequestHandler>> transportRequestHandlers = reflections.getSubTypesOf(TransportRequestHandler.class);
+        for (Class<? extends TransportRequestHandler> transportRequestHandler : transportRequestHandlers) {
+            for (Method method : transportRequestHandler.getDeclaredMethods()) {
+                if (method.getName().equals("messageReceived")) {
+                    //first parameter is the resolved generic type of the TransportRequestHandler
+                    Parameter firstParameter = method.getParameters()[0];
+                    String actionRequestType = firstParameter.getType().getCanonicalName();
+                    if (candidateRequests.contains(actionRequestType)) {
+                        actionsWithShardRequests.add(new FinalCandidate(transportRequestHandler.getCanonicalName(), actionRequestType));
+                    }
+                }
+            }
+        }
+
+        // Sanity check that this test actually needs to ignore the actions it lists
+        for (String ignoredAction : IGNORED_ACTIONS) {
+            if (actionsWithShardRequests.stream().noneMatch(action -> action.actionClassName.equals(ignoredAction))) {
+                fail(
+                    String.format(
+                        "The action [%s] is in the IGNORED_ACTIONS list but is not needed. "
+                            + "Please remove [%s] from the IGNORED_ACTIONS.",
+                        ignoredAction, ignoredAction
+                    )
+                );
+            }
+        }
+
+        // filter out any ignored actions
+        actionsWithShardRequests.removeIf(action -> IGNORED_ACTIONS.contains(action.actionClassName));
+
+        if (actionsWithShardRequests.isEmpty() == false) {
+            fail(String.format("""
+                This test failed. You likely just added an index level transport action or transport request handler with an associated
+                transport request with `shard` in a method name. Transport actions or transport request handlers which
                 operate on shards directly and can be used across clusters must meet some additional requirements in order to be
                 handled correctly by all Elasticsearch infrastructure, so please make sure you have read the javadoc on the
-                IndicesRequest.RemoteClusterShardRequest interface and implemented it if appropriate and not already appropriately
-                implemented by a supertype, then add the name (as in "indices:data/read/get") of your new transport action to
-                MANUALLY_CHECKED_SHARD_ACTIONS above. Found actions not in allowlist:
-                """ + actionsNotOnAllowlist);
-        }
-
-        // Also make sure the allowlist stays up to date and doesn't have any unnecessary entries.
-        List<String> actionsOnAllowlistNotFound = MANUALLY_CHECKED_SHARD_ACTIONS.stream()
-            .filter(Predicate.not(shardActions::contains))
-            .toList();
-        if (actionsOnAllowlistNotFound.isEmpty() == false) {
-            fail(
-                "Some actions were on the allowlist but not found in the list of cross-cluster capable transport actions, please remove "
-                    + "these from MANUALLY_CHECKED_SHARD_ACTIONS if they have been removed from Elasticsearch: "
-                    + actionsOnAllowlistNotFound
-            );
+                IndicesRequest.RemoteClusterShardRequest interface and implemented. If this does apply to your change, please add the
+                canonical class name to the set of IGNORED_ACTIONS in this test. Failed action (request): %s
+                """, actionsWithShardRequests));
         }
     }
 
-    /**
-     * Getting to the actual request classes themselves is made difficult by the design of Elasticsearch's transport
-     * protocol infrastructure combined with JVM type erasure. Therefore, we resort to a crude heuristic here.
-     * @param transportAction The transportport action to be checked.
-     * @return True if the action is suspected of being an action which may operate on shards directly.
-     */
-    private boolean actionIsLikelyShardAction(TransportAction<?, ?> transportAction) {
-        Class<?> clazz = transportAction.getClass();
-        Set<Class<?>> classHeirarchy = new HashSet<>();
-        while (clazz != TransportAction.class) {
-            classHeirarchy.add(clazz);
-            clazz = clazz.getSuperclass();
+    private static String getRequestTypeName(Type type) {
+        if (type instanceof ParameterizedType parameterizedType) {
+            Type[] typeArguments = parameterizedType.getActualTypeArguments();
+            return getRequestTypeName(typeArguments[0]);
+        } else if (type instanceof Class) {
+            return ((Class<?>) type).getCanonicalName();
         }
-        boolean hasCheckedSuperclass = classHeirarchy.stream().anyMatch(clz -> CHECKED_ABSTRACT_CLASSES.contains(clz));
-        boolean shardInClassName = classHeirarchy.stream().anyMatch(clz -> clz.getName().toLowerCase(Locale.ROOT).contains("shard"));
-        return hasCheckedSuperclass == false
-            && (shardInClassName
-                || transportAction.actionName.toLowerCase(Locale.ROOT).contains("shard")
-                || transportAction.actionName.toLowerCase(Locale.ROOT).contains("[s]"));
+        throw new RuntimeException("Unknown type: " + type);
     }
 
+    private record FinalCandidate(String actionClassName, String requestClassName) {
+        @Override
+        public String toString() {
+            return actionClassName + " (" + requestClassName + ")";
+        }
+    }
 }

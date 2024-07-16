@@ -2,6 +2,12 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
 
+  testImplementation "org.reflections:reflections:0.10.2"
+  testImplementation "org.javassist:javassist:3.30.2-GA"
+
+  //while it is possible to place a dependency on all x-pack plugins and modules,
+  //we will end up with dependency convergence issues as well as jar hell since the test uses a single classpath
+  //the set here is a best attempt to include all the relevant modules and x-pack plugins
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:data-streams')
@@ -24,4 +30,8 @@ dependencies {
   testImplementation project(path: xpackModule('rollup'))
   testImplementation project(path: xpackModule('slm'))
   testImplementation project(path: xpackModule('sql'))
+}
+tasks.named("test").configure {
+  //test uses reflections to find classes, so we need to disable the security manager
+  systemProperty 'tests.security.manager', 'false'
 }

@@ -1,5 +1,5 @@
 pr: 110901
 summary: Gracefully handle invalid synonym rules in synonyms sets
-area: "Relevance, Search"
+area: Analysis
 type: bug
 issues: []

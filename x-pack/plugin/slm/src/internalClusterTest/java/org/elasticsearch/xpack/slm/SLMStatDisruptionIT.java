@@ -47,6 +47,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -77,10 +78,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -134,6 +138,12 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     private static AtomicBoolean doDelay = new AtomicBoolean(true);
     private static CountDownLatch reachedFirst = new CountDownLatch(1);
     private static CountDownLatch delayedRepoLatch = new CountDownLatch(1);
+
+
+    private static AtomicReference<String> snapA = new AtomicReference<>();
+    private static AtomicReference<String> snapB = new AtomicReference<>();
+    private static CountDownLatch bError = new CountDownLatch(1);
+
     public static class TestPlugin extends Plugin implements RepositoryPlugin {
         @Override
         public Map<String, Repository.Factory> getRepositories(
@@ -153,13 +163,26 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    () -> {
-                        if (doDelay.getAndSet(false)) {
-                            try {
-                                reachedFirst.countDown();
-                                assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
-                            } catch (InterruptedException e) {
-                                throw new RuntimeException(e);
+                    (snapshotId) -> {
+                        while (snapA.get() == null) {}
+
+                        if (snapshotId.getName().equals(snapA.get())) {
+                            if (doDelay.getAndSet(false)) {
+                                try {
+                                    reachedFirst.countDown();
+                                    assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
+                                } catch (InterruptedException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                        } else {
+                            while (snapB.get() == null) {}
+                            if (snapshotId.getName().equals(snapB.get())) {
+                                try {
+                                    throw new RuntimeException("uhoh") ;
+                                } finally {
+                                    bError.countDown();
+                                }
                             }
                         }
                     }
@@ -172,7 +195,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     static class DelayedRepo extends FsRepository {
 
-        private final Runnable simulator;
+        private final Consumer<SnapshotId> simulator;
 
         protected DelayedRepo(
             RepositoryMetadata metadata,
@@ -181,7 +204,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            Runnable simulator
+            Consumer<SnapshotId> simulator
         ) {
             super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
             this.simulator = simulator;
@@ -195,13 +218,13 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             Function<ClusterState, ClusterState> stateFilter,
             ActionListener<RepositoryData> listener
         ) {
-            simulator.run();
+//            simulator.run();
             super.writeIndexGen(repositoryData, expectedGen, version, stateFilter, listener);
         }
 
         @Override
         protected void snapshotFile(SnapshotShardContext context, BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
-//            simulator.run();
+            simulator.accept(context.snapshotId());
             super.snapshotFile(context, fileInfo);
         }
     }
@@ -225,25 +248,20 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         ensureGreen();
 
         String snapshotA = executePolicy(masterNode, policyName);
+        snapA.set(snapshotA);
         assertTrue(reachedFirst.await(1, TimeUnit.MINUTES));
         logger.info("Created snapshot A: " + snapshotA);
 
         // Listener that stops disrupting network only after snapshot completion
-        CountDownLatch latch = new CountDownLatch(1);
-        NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
-        internalCluster().setDisruptionScheme(networkDisruption);
 
-
-
-        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListenerSingle(repoName, networkDisruption, latch, snapshotA));
-
-        // now start disrupting
-        networkDisruption.startDisrupting();
         String snapshotB = executePolicy(masterNode, policyName);
+        snapB.set(snapshotB);
         logger.info("Created snapshot B: " + snapshotB);
 
+        assertTrue(bError.await(1, TimeUnit.MINUTES));
+        delayedRepoLatch.countDown();
+
         // wait for snapshot to complete and network disruption to stop
-        assertTrue(latch.await(1, TimeUnit.MINUTES));
 
         // restart master so failure stat is lost
         // TODO this relies on a race condition.
@@ -298,7 +316,6 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
 
         // continue with original snapshot
-        delayedRepoLatch.countDown();
 
         waitForSnapshot(repoName, snapshotA);
 

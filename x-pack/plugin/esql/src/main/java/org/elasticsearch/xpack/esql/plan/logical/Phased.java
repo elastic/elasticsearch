@@ -17,12 +17,12 @@ import java.util.List;
 /**
  * Marks a {@link LogicalPlan} node as requiring multiple ESQL executions to run.
  * All logical plans are now run by:
- * We do this by:
  * <ol>
  *     <li>{@link Analyzer analyzing} the entire query</li>
  *     <li>{@link Phased#extractFirstPhase extracting} the first phase from the
  *         logical plan</li>
- *     <li>if there isn't a first phase, run the logical plan and return the results. you are done.</li>
+ *     <li>if there isn't a first phase, run the entire logical plan and return the
+ *         results. you are done.</li>
  *     <li>if there is first phase, run that</li>
  *     <li>{@link Phased#applyResultsFromFirstPhase appling} the results from the
  *         first phase into the logical plan</li>
@@ -30,10 +30,22 @@ import java.util.List;
  * </ol>
  */
 public interface Phased {
+    /**
+     * Return a {@link LogicalPlan} for the first "phase" of this operation.
+     * The result of this phase will be provided to {@link #nextPhase}.
+     */
     LogicalPlan firstPhase();
 
+    /**
+     * Use the results of plan provided from {@link #firstPhase} to produce the
+     * next phase of the query.
+     */
     LogicalPlan nextPhase(List<Attribute> schema, List<Page> firstPhaseResult);
 
+    /**
+     * Find the first {@link Phased} operation and return it's {@link #firstPhase}.
+     * Or {@code null} if there aren't any {@linkplain Phased} operations.
+     */
     static LogicalPlan extractFirstPhase(LogicalPlan plan) {
         assert plan.analyzed();
         var firstPhase = new Holder<LogicalPlan>();
@@ -49,6 +61,16 @@ public interface Phased {
         return firstPhasePlan;
     }
 
+    /**
+     * Merge the results of {@link #extractFirstPhase} into a {@link LogicalPlan}
+     * and produce a new {@linkplain LogicalPlan} that will execute the rest of the
+     * query. This plan <strong>may</strong> contain <strong>another</strong>
+     * {@link #firstPhase}. If it does then it will also need to be
+     * {@link #extractFirstPhase extracted} and the results will need to be applied
+     * again by calling this method. Eventually this will produce a plan which
+     * does not have a {@link #firstPhase} and <strong>that</strong> is the "final"
+     * phase of the plan.
+     */
     static LogicalPlan applyResultsFromFirstPhase(LogicalPlan plan, List<Attribute> schema, List<Page> result) {
         assert plan.analyzed();
         Holder<Boolean> seen = new Holder<>(false);

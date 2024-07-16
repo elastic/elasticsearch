@@ -39,7 +39,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
- * Enriches the stream of data with the results of running a {@link Aggregate STATS.
+ * Enriches the stream of data with the results of running a {@link Aggregate STATS}.
  * <p>
  *     This is a {@link Phased} operation that doesn't have a "native" implementation.
  *     Instead, it's implemented as first running a {@link Aggregate STATS} and then

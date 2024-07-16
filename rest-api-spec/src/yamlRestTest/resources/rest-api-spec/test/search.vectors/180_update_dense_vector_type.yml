@@ -531,7 +531,7 @@ setup:
       search:
         index: test_index
         body:
-          size: 5
+          size: 6
           query:
             knn:
               field: embedding
@@ -539,12 +539,13 @@ setup:
               num_candidates: 50
 
   - match: { hits.total.value: 50 }
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 6 }
   - contains: {hits.hits: {_id: "1"}}
   - contains: {hits.hits: {_id: "11"}}
   - contains: {hits.hits: {_id: "2"}}
   - contains: {hits.hits: {_id: "21"}}
   - contains: {hits.hits: {_id: "31"}}
+  - contains: {hits.hits: {_id: "44"}}
 
   - do:
       indices.put_mapping:
@@ -570,31 +571,31 @@ setup:
         index: test_index
         id: "51"
         body:
-          embedding: [ 1, 1, 1, 2 ]
+          embedding: [ 0.5, 1, 1, 1 ]
   - do:
       index:
         index: test_index
         id: "52"
         body:
-          embedding: [ 1, 1, 1, 3 ]
+          embedding: [ 1, 1, 5, 3 ]
   - do:
       index:
         index: test_index
         id: "53"
         body:
-          embedding: [ 1, 1, 1, 4 ]
+          embedding: [ 1, 1, 5, 4 ]
   - do:
       index:
         index: test_index
         id: "54"
         body:
-          embedding: [ 1, 1, 1, 5 ]
+          embedding: [ 1, 1, 5, 5 ]
   - do:
       index:
         index: test_index
         id: "55"
         body:
-          embedding: [ 1, 1, 1, 6 ]
+          embedding: [ 1, 1, 5, 6 ]
 
   - do:
       indices.flush: { }
@@ -604,31 +605,31 @@ setup:
         index: test_index
         id: "56"
         body:
-          embedding: [ 1, 1, 1, 7 ]
+          embedding: [ 1, 1, 5, 7 ]
   - do:
       index:
         index: test_index
         id: "57"
         body:
-          embedding: [ 1, 1, 1, 8 ]
+          embedding: [ 1, 1, 5, 8 ]
   - do:
       index:
         index: test_index
         id: "58"
         body:
-          embedding: [ 1, 1, 1, 9 ]
+          embedding: [ 1, 1, 5, 9 ]
   - do:
       index:
         index: test_index
         id: "59"
         body:
-          embedding: [ 1, 1, 1, 10 ]
+          embedding: [ 1, 1, 5, 10 ]
   - do:
       index:
         index: test_index
         id: "60"
         body:
-          embedding: [ 1, 1, 1, 11 ]
+          embedding: [ 1, 1, 5, 11 ]
 
   - do:
       indices.flush: { }
@@ -640,7 +641,7 @@ setup:
       search:
         index: test_index
         body:
-          size: 6
+          size: 7
           query:
             knn:
               field: embedding
@@ -648,12 +649,13 @@ setup:
               num_candidates: 60
 
   - match: { hits.total.value: 60 }
-  - length: { hits.hits: 6 }
+  - length: { hits.hits: 7 }
   - contains: { hits.hits: { _id: "1" } }
   - contains: { hits.hits: { _id: "11" } }
   - contains: { hits.hits: { _id: "2" } }
   - contains: { hits.hits: { _id: "21" } }
   - contains: { hits.hits: { _id: "31" } }
+  - contains: { hits.hits: { _id: "44" } }
   - contains: { hits.hits: { _id: "51" } }
 
 ---

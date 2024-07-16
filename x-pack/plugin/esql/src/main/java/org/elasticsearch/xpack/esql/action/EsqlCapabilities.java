@@ -162,7 +162,7 @@ public class EsqlCapabilities {
         STATS_BY_CONSTANT,
 
         /**
-         * Fix for non-unique attribute names in ROW.
+         * Fix for non-unique attribute names in ROW and logical plans.
          * https://github.com/elastic/elasticsearch/issues/110541
          */
         UNIQUE_NAMES;

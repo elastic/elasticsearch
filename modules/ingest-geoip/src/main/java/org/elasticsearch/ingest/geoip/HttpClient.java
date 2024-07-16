@@ -35,6 +35,11 @@ import static java.net.HttpURLConnection.HTTP_SEE_OTHER;
 
 class HttpClient {
 
+    /**
+     * A PasswordAuthenticationHolder is just a wrapper around a PasswordAuthentication to implement AutoCloseable.
+     * This construction makes it possible to use a PasswordAuthentication in a try-with-resources statement, which
+     * makes it easier to ensure cleanup of the PasswordAuthentication is performed after it's finished being used.
+     */
     static final class PasswordAuthenticationHolder implements AutoCloseable {
         private PasswordAuthentication auth;
 

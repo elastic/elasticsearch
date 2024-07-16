@@ -122,7 +122,7 @@ class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWri
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_13_0;
+        return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
     }
 
     @Override

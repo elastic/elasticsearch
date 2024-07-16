@@ -1,0 +1,5 @@
+pr: 110917
+summary: Enable knn query support for percolator
+area: Percolator
+type: enhancement
+issues: []

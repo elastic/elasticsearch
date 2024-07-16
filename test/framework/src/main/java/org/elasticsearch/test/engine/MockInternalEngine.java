@@ -36,10 +36,10 @@ final class MockInternalEngine extends InternalEngine {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close(ActionListener<Void> listener) throws IOException {
         switch (support().flushOrClose(MockEngineSupport.CloseAction.CLOSE)) {
-            case FLUSH_AND_CLOSE -> flushAndCloseInternal(ActionListener.noop());
-            case CLOSE -> super.close();
+            case FLUSH_AND_CLOSE -> flushAndCloseInternal(listener);
+            case CLOSE -> super.close(listener);
         }
     }
 

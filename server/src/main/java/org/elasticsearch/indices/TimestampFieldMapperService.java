@@ -42,9 +42,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Tracks the mapping of the '@timestamp' and 'event.ingested' fields of immutable indices that expose their timestamp range in their
- * index metadata. Coordinating nodes do not have (easy) access to mappings for all indices, so we extract the type of these two fields
- * from the mapping here, since timestamp fields can have millis or nanos level resolution.
+ * Tracks the mapping of the {@code @timestamp} field of immutable indices that expose their timestamp range in their index metadata.
+ * Coordinating nodes do not have (easy) access to mappings for all indices, so we extract the type of this one field from the mapping here.
  */
 public class TimestampFieldMapperService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
@@ -54,12 +53,10 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     private final ExecutorService executor; // single thread to construct mapper services async as needed
 
     /**
-     * The type of the 'event.ingested' and/or '@timestamp' fields keyed by index.
-     * The inner map is keyed by field name ('@timestamp' or 'event.ingested').
-     * Futures may be completed with {@code null} to indicate that there is
-     * no usable timestamp field.
+     * The type of the {@code @timestamp} field keyed by index. Futures may be completed with {@code null} to indicate that there is
+     * no usable {@code @timestamp} field.
      */
-    private final Map<Index, PlainActionFuture<DateFieldRangeInfo>> fieldTypesByIndex = ConcurrentCollections.newConcurrentMap();
+    private final Map<Index, PlainActionFuture<DateFieldMapper.DateFieldType>> fieldTypesByIndex = ConcurrentCollections.newConcurrentMap();
 
     public TimestampFieldMapperService(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
         this.indicesService = indicesService;
@@ -105,8 +102,8 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             final Index index = indexMetadata.getIndex();
 
             if (hasUsefulTimestampField(indexMetadata) && fieldTypesByIndex.containsKey(index) == false) {
-                logger.trace("computing timestamp mapping(s) for {}", index);
-                final PlainActionFuture<DateFieldRangeInfo> future = new PlainActionFuture<>();
+                logger.trace("computing timestamp mapping for {}", index);
+                final PlainActionFuture<DateFieldMapper.DateFieldType> future = new PlainActionFuture<>();
                 fieldTypesByIndex.put(index, future);
 
                 final IndexService indexService = indicesService.indexService(index);
@@ -151,45 +148,29 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             return true;
         }
 
-        IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
-        if (timestampRange.isComplete() && timestampRange != IndexLongFieldRange.UNKNOWN) {
-            return true;
-        }
-
-        IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
-        return eventIngestedRange.isComplete() && eventIngestedRange != IndexLongFieldRange.UNKNOWN;
+        final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
+        return timestampRange.isComplete() && timestampRange != IndexLongFieldRange.UNKNOWN;
     }
 
-    private static DateFieldRangeInfo fromMapperService(MapperService mapperService) {
-        DateFieldMapper.DateFieldType timestampFieldType = null;
-        DateFieldMapper.DateFieldType eventIngestedFieldType = null;
-
-        MappedFieldType mappedFieldType = mapperService.fieldType(DataStream.TIMESTAMP_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
-            timestampFieldType = dateFieldType;
-        }
-        mappedFieldType = mapperService.fieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
-            eventIngestedFieldType = dateFieldType;
-        }
-        if (timestampFieldType == null && eventIngestedFieldType == null) {
+    private static DateFieldMapper.DateFieldType fromMapperService(MapperService mapperService) {
+        final MappedFieldType mappedFieldType = mapperService.fieldType(DataStream.TIMESTAMP_FIELD_NAME);
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+            return (DateFieldMapper.DateFieldType) mappedFieldType;
+        } else {
             return null;
         }
-        // the mapper only fills in the field types, not the actual range values
-        return new DateFieldRangeInfo(timestampFieldType, null, eventIngestedFieldType, null);
     }
 
     /**
-     * @return DateFieldRangeInfo holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the index.
-     * or {@code null} if:
+     * @return the field type of the {@code @timestamp} field of the given index, or {@code null} if:
      * - the index is not found,
      * - the field is not found,
      * - the mapping is not known yet, or
-     * - the index does not have a useful timestamp field.
+     * - the field is not a timestamp field.
      */
     @Nullable
-    public DateFieldRangeInfo getTimestampFieldTypeMap(Index index) {
-        final PlainActionFuture<DateFieldRangeInfo> future = fieldTypesByIndex.get(index);
+    public DateFieldMapper.DateFieldType getTimestampFieldType(Index index) {
+        final PlainActionFuture<DateFieldMapper.DateFieldType> future = fieldTypesByIndex.get(index);
         if (future == null || future.isDone() == false) {
             return null;
         }
@@ -200,4 +181,5 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             throw new UncategorizedExecutionException("An error occurred fetching timestamp field type for " + index, e);
         }
     }
+
 }

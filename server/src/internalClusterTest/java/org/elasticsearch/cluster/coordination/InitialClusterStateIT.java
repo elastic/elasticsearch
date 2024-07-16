@@ -11,15 +11,12 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 
@@ -40,10 +37,8 @@ public class InitialClusterStateIT extends ESIntegTestCase {
             assertEquals(expectCommitted, metadata.clusterUUIDCommitted());
             assertEquals(expectedValue, metadata.clusterUUID());
 
-            final ClusterStatsResponse response = PlainActionFuture.get(
-                fut -> client(nodeName).execute(TransportClusterStatsAction.TYPE, new ClusterStatsRequest(), fut),
-                10,
-                TimeUnit.SECONDS
+            final ClusterStatsResponse response = safeAwait(
+                listener -> client(nodeName).execute(TransportClusterStatsAction.TYPE, new ClusterStatsRequest(), listener)
             );
             assertEquals(expectedValue, response.getClusterUUID());
         }

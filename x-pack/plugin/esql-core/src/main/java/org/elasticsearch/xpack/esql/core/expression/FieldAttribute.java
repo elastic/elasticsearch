@@ -32,6 +32,10 @@ import static org.elasticsearch.TransportVersions.ESQL_AGGREGATE_DOUBLE_METRIC_F
  * - nestedParent - if nested, what's the parent (which might not be the immediate one)
  */
 public class FieldAttribute extends TypedAttribute {
+    // TODO: This constant should not be used if possible; use .synthetic()
+    // https://github.com/elastic/elasticsearch/issues/105821
+    public static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
+
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "FieldAttribute",
@@ -84,7 +88,7 @@ public class FieldAttribute extends TypedAttribute {
         NameId valueCountNameId
     ) {
         super(source, name, type, qualifier, nullability, id, synthetic);
-        this.path = parent != null ? parent.name() : StringUtils.EMPTY;
+        this.path = parent != null ? parent.fieldName() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
         this.minSubNameId = minSubNameId;
@@ -93,7 +97,6 @@ public class FieldAttribute extends TypedAttribute {
         this.valueCountNameId = valueCountNameId;
     }
 
-    @SuppressWarnings("unchecked")
     public FieldAttribute(StreamInput in) throws IOException {
         /*
          * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
@@ -194,6 +197,20 @@ public class FieldAttribute extends TypedAttribute {
 
     public String path() {
         return path;
+    }
+
+    /**
+     * The full name of the field in the index, including all parent fields. E.g. {@code parent.subfield.this_field}.
+     */
+    public String fieldName() {
+        // Before 8.15, the field name was the same as the attribute's name.
+        // On later versions, the attribute can be renamed when creating synthetic attributes.
+        // TODO: We should use synthetic() to check for that case.
+        // https://github.com/elastic/elasticsearch/issues/105821
+        if (name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX) == false) {
+            return name();
+        }
+        return Strings.hasText(path) ? path + "." + field.getName() : field.getName();
     }
 
     public String qualifiedPath() {

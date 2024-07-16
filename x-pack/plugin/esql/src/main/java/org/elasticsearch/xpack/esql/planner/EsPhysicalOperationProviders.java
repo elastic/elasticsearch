@@ -130,7 +130,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 fieldName = fieldAttribute.parent().name();
                 hint = fieldAttribute.metric();
             } else {
-                fieldName = attr.name();
+                // Do not use the field attribute name, this can deviate from the field name for union types.
+                fieldName = attr instanceof FieldAttribute fa ? fa.fieldName() : attr.name();
                 hint = null;
             }
             IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, hint, isUnsupported, fieldExtractPreference, unionTypes);
@@ -250,8 +251,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // Costin: why are they ready and not already exposed in the layout?
         boolean isUnsupported = attrSource.dataType() == DataType.UNSUPPORTED;
         var unionTypes = findUnionTypes(attrSource);
+        // Do not use the field attribute name, this can deviate from the field name for union types.
+        String fieldName = attrSource instanceof FieldAttribute fa ? fa.fieldName() : attrSource.name();
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            shardIdx -> getBlockLoaderFor(shardIdx, attrSource.name(), null, isUnsupported, NONE, unionTypes),
+            shardIdx -> getBlockLoaderFor(shardIdx, fieldName, null, isUnsupported, NONE, unionTypes),
             vsShardContexts,
             groupElementType,
             docChannel,

@@ -175,6 +175,11 @@ public class EsqlFeatures implements FeatureSpecification {
     public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
 
     /**
+     * Internal resolve_fields API for ES|QL
+     */
+    public static final NodeFeature RESOLVE_FIELDS_API = new NodeFeature("esql.resolve_fields_api");
+
+    /**
      * Support metrics syntax
      */
     public static final NodeFeature METRICS_AGGREGATE_DOUBLE_METRIC_FIELD = new NodeFeature("esql.aggregate_metric_double");
@@ -208,6 +213,7 @@ public class EsqlFeatures implements FeatureSpecification {
             METADATA_FIELDS,
             TIMESPAN_ABBREVIATIONS,
             COUNTER_TYPES,
+            RESOLVE_FIELDS_API,
             METRICS_AGGREGATE_DOUBLE_METRIC_FIELD
         );
         if (Build.current().isSnapshot()) {

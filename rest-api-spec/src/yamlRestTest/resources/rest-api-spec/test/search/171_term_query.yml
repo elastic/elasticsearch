@@ -33,3 +33,5 @@
         rest_total_hits_as_int: true
         index: index_with_blank_keyword
         body: { "query": { "term": { "keyword_field": {"value": "", "case_insensitive": true } } } }
+
+  - match: { hits.total: 1 }

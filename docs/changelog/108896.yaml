@@ -14,7 +14,7 @@ highlight:
     * Enable more space efficient compression for fields with doc values enabled. These are the same codecs used
       when `time_series` index mode is enabled.
 
-    The `index.mode` index setting to `logs` should be configured in index templates or defined when creating a plain index.
+    The `index.mode` index setting set to `logs` should be configured in index templates or defined when creating a plain index.
     Benchmarks and other tests have shown that logs data sets use around 2.5 times less storage with the new index mode enabled compared to not configuring it.
     The new `logs` index mode is a tech preview feature.
   notable: true

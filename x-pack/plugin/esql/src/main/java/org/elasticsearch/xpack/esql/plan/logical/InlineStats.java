@@ -38,6 +38,14 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
+/**
+ * Enriches the stream of data with the results of running a {@link Aggregate STATS.
+ * <p>
+ *     This is a {@link Phased} operation that doesn't have a "native" implementation.
+ *     Instead, it's implemented as first running a {@link Aggregate STATS} and then
+ *     a {@link Join}.
+ * </p>
+ */
 public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, Stats {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         InlineStats.class,

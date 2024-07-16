@@ -50,6 +50,17 @@ public class SynonymsApiIT extends ESIntegTestCase {
         return List.of(CommonAnalysisPlugin.class, MapperExtrasPlugin.class, ReindexPlugin.class);
     }
 
+    public void testLoadIndexWithEmptySynonymsSet() throws Exception {
+        final String indexName = "test-index";
+        final String fieldName = "field";
+        final String synonymsSetId = "test-synonyms-set";
+
+        assertCreateSynonymsSet(createPutSynonymsRequest(synonymsSetId, List.of()));
+        assertCreateIndexWithSynonyms(indexName, fieldName, synonymsSetId, null);
+        ensureGreen(DEFAULT_TIMEOUT, indexName);
+        assertAnalysis(DEFAULT_TIMEOUT, indicesAdmin().prepareAnalyze(indexName, "foo").setAnalyzer(SEARCH_ANALYZER_NAME), List.of("foo"));
+    }
+
     public void testLoadIndexWithInvalidSynonymRule() throws Exception {
         final String indexName = "test-index";
         final String fieldName = "field";

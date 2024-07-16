@@ -2,7 +2,7 @@
 == Logs data stream (LogsDS)
 
 You can use a LogsDS to store log data more efficiently. In our benchmarks,
-metrics data stored in a LogsDS used ~2.5 times less disk space than a regular data
+log data stored in a LogsDS used ~2.5 times less disk space than a regular data
 stream. The exact impact will vary per data set. The main benefit from using LogsDS is reduced storage.
 
 The following features are enabled in a logs data stream:

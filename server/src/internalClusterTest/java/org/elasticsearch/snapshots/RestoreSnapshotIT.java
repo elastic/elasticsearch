@@ -230,8 +230,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setMetadata(true)
             .get()
             .getState()
-            .metadata()
-            .index(indexName);
+            .metadata().projectMetadata.index(indexName);
         assertThat(indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID), nullValue());
         final int numPrimaries = getNumShards(indexName).numPrimaries;
         final Map<Integer, Long> primaryTerms = IntStream.range(0, numPrimaries)
@@ -257,8 +256,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setMetadata(true)
             .get()
             .getState()
-            .metadata()
-            .index(indexName);
+            .metadata().projectMetadata.index(indexName);
         for (int shardId = 0; shardId < numPrimaries; shardId++) {
             assertThat(restoredIndexMetadata.primaryTerm(shardId), greaterThan(primaryTerms.get(shardId)));
         }

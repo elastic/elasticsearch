@@ -92,7 +92,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             .get();
 
         logger.info("--> verify meta _routing required exists");
-        MappingMetadata mappingMd = clusterAdmin().prepareState().get().getState().metadata().index("test").mapping();
+        MappingMetadata mappingMd = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test").mapping();
         assertThat(mappingMd.routingRequired(), equalTo(true));
 
         logger.info("--> restarting nodes...");
@@ -102,7 +102,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureYellow();
 
         logger.info("--> verify meta _routing required exists");
-        mappingMd = clusterAdmin().prepareState().get().getState().metadata().index("test").mapping();
+        mappingMd = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test").mapping();
         assertThat(mappingMd.routingRequired(), equalTo(true));
     }
 
@@ -119,7 +119,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
+        assertThat(stateResponse.getState().metadata().projectMetadata.index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
@@ -133,7 +133,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareClose("test"));
 
         stateResponse = clusterAdmin().prepareState().get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(stateResponse.getState().metadata().projectMetadata.index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> verifying that the state is green");
@@ -159,7 +159,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         stateResponse = clusterAdmin().prepareState().get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
+        assertThat(stateResponse.getState().metadata().projectMetadata.index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
@@ -173,7 +173,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> closing test index...");
         assertAcked(indicesAdmin().prepareClose("test"));
         stateResponse = clusterAdmin().prepareState().get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(stateResponse.getState().metadata().projectMetadata.index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> restarting nodes...");
@@ -182,7 +182,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         stateResponse = clusterAdmin().prepareState().get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(stateResponse.getState().metadata().projectMetadata.index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> trying to index into a closed index ...");
@@ -200,7 +200,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         stateResponse = clusterAdmin().prepareState().get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
+        assertThat(stateResponse.getState().metadata().projectMetadata.index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
@@ -238,7 +238,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify we have an index");
         ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().setIndices("test").get();
-        assertThat(clusterStateResponse.getState().metadata().hasIndex("test"), equalTo(true));
+        assertThat(clusterStateResponse.getState().metadata().projectMetadata.hasIndex("test"), equalTo(true));
     }
 
     public void testJustMasterNodeAndJustDataNode() {
@@ -280,7 +280,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareClose("test"));
 
         ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(stateResponse.getState().metadata().projectMetadata.index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> opening the index...");
@@ -380,7 +380,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
         ClusterState state = clusterAdmin().prepareState().get().getState();
 
-        final IndexMetadata metadata = state.getMetadata().index("test");
+        final IndexMetadata metadata = state.getMetadata().projectMetadata.index("test");
         final IndexMetadata.Builder brokenMeta = IndexMetadata.builder(metadata)
             .settings(
                 Settings.builder()
@@ -411,8 +411,11 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         indicesAdmin().prepareClose("test").get();
 
         state = clusterAdmin().prepareState().get().getState();
-        assertEquals(IndexMetadata.State.CLOSE, state.getMetadata().index(metadata.getIndex()).getState());
-        assertEquals("boolean", state.getMetadata().index(metadata.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
+        assertEquals(IndexMetadata.State.CLOSE, state.getMetadata().projectMetadata.index(metadata.getIndex()).getState());
+        assertEquals(
+            "boolean",
+            state.getMetadata().projectMetadata.index(metadata.getIndex()).getSettings().get("archived.index.similarity.BM25.type")
+        );
         // try to open it with the broken setting - fail again!
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, indicesAdmin().prepareOpen("test"));
         assertEquals(ex.getMessage(), "Failed to verify index " + metadata.getIndex());
@@ -457,7 +460,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
         ClusterState state = clusterAdmin().prepareState().get().getState();
 
-        final IndexMetadata metadata = state.getMetadata().index("test");
+        final IndexMetadata metadata = state.getMetadata().projectMetadata.index("test");
         final IndexMetadata.Builder brokenMeta = IndexMetadata.builder(metadata)
             .settings(metadata.getSettings().filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false));
         restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(brokenMeta)));
@@ -561,7 +564,10 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     // term in the coordination metadata
                     .coordinationMetadata(CoordinationMetadata.builder(metadata.coordinationMetadata()).term(0L).build())
                     // add a tombstone but do not delete the index metadata from disk
-                    .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metadata.index("test").getIndex()).build())
+                    .putCustom(
+                        IndexGraveyard.TYPE,
+                        IndexGraveyard.builder().addTombstone(metadata.projectMetadata.index("test").getIndex()).build()
+                    )
                     .build()
             );
             NodeMetadata.FORMAT.writeAndCleanup(

@@ -743,7 +743,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         } else {
             snapshot.shardsByRepoShardId().forEach((key, value) -> {
                 final Index index = snapshot.indexByName(key.indexName());
-                if (metadata.index(index) == null) {
+                if (metadata.projectMetadata.index(index) == null) {
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                     return;
                 }
@@ -759,7 +759,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             // Remove global state from the cluster state
             builder = Metadata.builder();
             for (IndexId index : snapshot.indices().values()) {
-                final IndexMetadata indexMetadata = metadata.index(index.getName());
+                final IndexMetadata indexMetadata = metadata.projectMetadata.index(index.getName());
                 if (indexMetadata == null) {
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                 } else {
@@ -2936,7 +2936,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         for (IndexId index : indices) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
-            IndexMetadata indexMetadata = currentState.metadata().index(indexName);
+            IndexMetadata indexMetadata = currentState.metadata().projectMetadata.index(indexName);
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
                 builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), ShardSnapshotStatus.MISSING);
@@ -3036,7 +3036,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             for (final SnapshotsInProgress.Entry entry : snapshotsInRepo) {
                 if (entry.partial() == false && entry.isClone() == false) {
                     for (String indexName : entry.indices().keySet()) {
-                        IndexMetadata indexMetadata = currentState.metadata().index(indexName);
+                        IndexMetadata indexMetadata = currentState.metadata().projectMetadata.index(indexName);
                         if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {
                             indices.add(indexMetadata.getIndex());
                         }

@@ -244,7 +244,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
     @Nullable
     private ShardRouting systemIndexPrimaryShard(final ClusterState state) {
-        final IndexMetadata indexMetadata = state.metadata().index(systemIndexName);
+        final IndexMetadata indexMetadata = state.metadata().projectMetadata.index(systemIndexName);
         if (indexMetadata != null) {
             final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexMetadata.getIndex());
             if (indexRoutingTable != null) {
@@ -312,12 +312,12 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             final ClusterState state = event.state();
 
             for (Index deletedIndex : event.indicesDeleted()) {
-                final IndexMetadata indexMetadata = event.previousState().metadata().index(deletedIndex);
+                final IndexMetadata indexMetadata = event.previousState().metadata().projectMetadata.index(deletedIndex);
                 assert indexMetadata != null || state.metadata().indexGraveyard().containsIndex(deletedIndex)
                     : "no previous metadata found for " + deletedIndex;
                 if (indexMetadata != null) {
                     if (indexMetadata.isSearchableSnapshot()) {
-                        assert state.metadata().hasIndex(deletedIndex) == false;
+                        assert state.metadata().projectMetadata.hasIndex(deletedIndex) == false;
 
                         final Settings indexSetting = indexMetadata.getSettings();
                         final String snapshotId = SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSetting);

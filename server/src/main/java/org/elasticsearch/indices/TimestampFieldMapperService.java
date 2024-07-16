@@ -95,7 +95,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         }
 
         // clear out mappers for indices that no longer exist or whose timestamp range is no longer known
-        fieldTypesByIndex.keySet().removeIf(index -> hasUsefulTimestampField(metadata.index(index)) == false);
+        fieldTypesByIndex.keySet().removeIf(index -> hasUsefulTimestampField(metadata.projectMetadata.index(index)) == false);
 
         // capture mappers for indices that do exist
         for (IndexMetadata indexMetadata : indices.values()) {

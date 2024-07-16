@@ -332,7 +332,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     }
 
     private static IndexLongFieldRange getEventIngestedRange(String indexName, ClusterState simulatedState) {
-        final IndexMetadata indexMetadata = simulatedState.metadata().index(indexName);
+        final IndexMetadata indexMetadata = simulatedState.metadata().projectMetadata.index(indexName);
         return indexMetadata == null ? IndexLongFieldRange.NO_SHARDS : indexMetadata.getEventIngestedRange();
     }
 }

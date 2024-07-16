@@ -93,7 +93,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         start = DataStream.getCanonicalTimestampBound(resolvedAt.minusMillis(lookBackTime.getMillis()));
                         end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
                     } else {
-                        IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
+                        IndexMetadata currentLatestBackingIndex = metadata.projectMetadata.index(dataStream.getWriteIndex());
                         if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
                             throw new IllegalStateException(
                                 String.format(

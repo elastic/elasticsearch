@@ -123,7 +123,7 @@ public class ShardLimitValidator {
         int frozen = 0;
         int normal = 0;
         for (Index index : indicesToOpen) {
-            IndexMetadata imd = currentState.metadata().index(index);
+            IndexMetadata imd = currentState.metadata().projectMetadata.index(index);
             if (imd.getState().equals(IndexMetadata.State.CLOSE)) {
                 int totalNewShards = imd.getNumberOfShards() * (1 + imd.getNumberOfReplicas());
                 if (FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()))) {
@@ -146,7 +146,7 @@ public class ShardLimitValidator {
         int frozen = 0;
         int normal = 0;
         for (Index index : indices) {
-            IndexMetadata imd = currentState.metadata().index(index);
+            IndexMetadata imd = currentState.metadata().projectMetadata.index(index);
             int totalNewShards = getTotalNewShards(index, currentState, replicas);
             if (FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()))) {
                 frozen += totalNewShards;
@@ -164,7 +164,7 @@ public class ShardLimitValidator {
     }
 
     private static int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
-        IndexMetadata indexMetadata = currentState.metadata().index(index);
+        IndexMetadata indexMetadata = currentState.metadata().projectMetadata.index(index);
         int shardsInIndex = indexMetadata.getNumberOfShards();
         int oldNumberOfReplicas = indexMetadata.getNumberOfReplicas();
         int replicaIncrease = updatedNumberOfReplicas - oldNumberOfReplicas;

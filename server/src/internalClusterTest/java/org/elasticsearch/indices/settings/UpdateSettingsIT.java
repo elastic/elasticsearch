@@ -64,7 +64,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.dummy", "boom"))
         );
         assertEquals(exception.getCause().getMessage(), "this setting goes boom");
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test");
         assertNotEquals(indexMetadata.getSettings().get("index.dummy"), "invalid dynamic value");
     }
 
@@ -230,7 +230,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         createIndex("test");
 
         indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", -1)).get();
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test");
         assertEquals(indexMetadata.getSettings().get("index.refresh_interval"), "-1");
         for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
             IndexService indexService = service.indexService(resolveIndex("test"));
@@ -239,7 +239,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             }
         }
         indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().putNull("index.ref*")).get();
-        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
+        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test");
         assertNull(indexMetadata.getSettings().get("index.refresh_interval"));
         for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
             IndexService indexService = service.indexService(resolveIndex("test"));
@@ -259,7 +259,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                     .put("index.translog.generation_threshold_size", "4096b")
             )
             .get();
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test");
         assertEquals(indexMetadata.getSettings().get("index.refresh_interval"), "-1");
         for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
             IndexService indexService = service.indexService(resolveIndex("test"));
@@ -270,7 +270,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             }
         }
         indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().putNull("index.refresh_interval")).get();
-        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
+        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test");
         assertNull(indexMetadata.getSettings().get("index.refresh_interval"));
         for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
             IndexService indexService = service.indexService(resolveIndex("test"));
@@ -303,7 +303,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                         .put("index.final", "no")
                 ) // this one can't
         );
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test");
         assertThat(indexMetadata.getSettings().get("index.refresh_interval"), nullValue());
         assertThat(indexMetadata.getSettings().get("index.fielddata.cache"), nullValue());
         assertThat(indexMetadata.getSettings().get("index.final"), nullValue());
@@ -318,7 +318,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("index.refresh_interval", -1)) // this one can change
             .get();
 
-        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
+        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test");
         assertThat(indexMetadata.getSettings().get("index.refresh_interval"), equalTo("-1"));
         // Now verify via dedicated get settings api:
         getSettingsResponse = indicesAdmin().prepareGetSettings("test").get();
@@ -338,7 +338,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
 
-        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
+        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test");
         assertThat(indexMetadata.getNumberOfReplicas(), equalTo(1));
 
         indicesAdmin().prepareUpdateSettings("test")
@@ -349,7 +349,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             ) // this one can't
             .get();
 
-        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
+        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test");
         assertThat(indexMetadata.getSettings().get("index.refresh_interval"), equalTo("1s"));
         assertThat(indexMetadata.getSettings().get("index.fielddata.cache"), equalTo("none"));
 
@@ -363,7 +363,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 ) // this one really can't
         );
         assertThat(ex.getMessage(), containsString("final test setting [index.final], not updateable"));
-        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
+        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test");
         assertThat(indexMetadata.getSettings().get("index.refresh_interval"), equalTo("1s"));
         assertThat(indexMetadata.getSettings().get("index.final"), nullValue());
 
@@ -426,22 +426,26 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         ensureGreen("test");
 
         {
-            final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+            final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+                .getSettingsVersion();
             assertAcked(
                 indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "500ms"))
             );
-            final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+            final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+                .getSettingsVersion();
             assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
         }
 
         {
             final boolean block = randomBoolean();
             assertAcked(indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", block)));
-            final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+            final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+                .getSettingsVersion();
             assertAcked(
                 indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", block == false))
             );
-            final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+            final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+                .getSettingsVersion();
             assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
 
             // if the read-only block is present, remove it
@@ -458,12 +462,14 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         ensureGreen("test");
 
         {
-            final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+            final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+                .getSettingsVersion();
             final String refreshInterval = indicesAdmin().prepareGetSettings("test").get().getSetting("test", "index.refresh_interval");
             assertAcked(
                 indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", refreshInterval))
             );
-            final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+            final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+                .getSettingsVersion();
             assertThat(newSettingsVersion, equalTo(settingsVersion));
         }
 
@@ -471,9 +477,11 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             final boolean block = randomBoolean();
             assertAcked(indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", block)));
             // now put the same block again
-            final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+            final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+                .getSettingsVersion();
             assertAcked(indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", block)));
-            final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+            final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+                .getSettingsVersion();
             assertThat(newSettingsVersion, equalTo(settingsVersion));
 
             // if the read-only block is present, remove it
@@ -493,14 +501,16 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     public void testNumberOfReplicasSettingsVersionUnchanged() {
         createIndex("test");
 
-        final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+        final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+            .getSettingsVersion();
         final int numberOfReplicas = Integer.valueOf(
             indicesAdmin().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas")
         );
         assertAcked(
             indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas))
         );
-        final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+        final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+            .getSettingsVersion();
         assertThat(newSettingsVersion, equalTo(settingsVersion));
     }
 
@@ -512,7 +522,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     public void testNumberOfReplicasSettingsVersion() {
         createIndex("test");
 
-        final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+        final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+            .getSettingsVersion();
         final int numberOfReplicas = Integer.valueOf(
             indicesAdmin().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas")
         );
@@ -520,7 +531,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             indicesAdmin().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put("index.number_of_replicas", 1 + numberOfReplicas))
         );
-        final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+        final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("test")
+            .getSettingsVersion();
         assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
     }
 
@@ -622,8 +634,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         createIndex(index1, index2);
         final ClusterService clusterServiceMaster = internalCluster().getInstance(ClusterService.class, masterNode);
         final ClusterService clusterServiceData = internalCluster().getInstance(ClusterService.class, dataNode);
-        final Settings index1SettingsMaster = clusterServiceMaster.state().metadata().index(index1).getSettings();
-        final Settings index1SettingsData = clusterServiceData.state().metadata().index(index1).getSettings();
+        final Settings index1SettingsMaster = clusterServiceMaster.state().metadata().projectMetadata.index(index1).getSettings();
+        final Settings index1SettingsData = clusterServiceData.state().metadata().projectMetadata.index(index1).getSettings();
         assertNotSame(index1SettingsMaster, index1SettingsData);
         assertSame(index1SettingsMaster.get(IndexMetadata.SETTING_INDEX_UUID), index1SettingsData.get(IndexMetadata.SETTING_INDEX_UUID));
 
@@ -633,13 +645,19 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             indicesAdmin().prepareUpdateSettings(index1, index2)
                 .setSettings(Settings.builder().putList("query.default_field", queryFieldsSetting))
         );
-        final Settings updatedIndex1SettingsMaster = clusterServiceMaster.state().metadata().index(index1).getSettings();
-        final Settings updatedIndex1SettingsData = clusterServiceData.state().metadata().index(index1).getSettings();
+        final Settings updatedIndex1SettingsMaster = clusterServiceMaster.state().metadata().projectMetadata.index(index1).getSettings();
+        final Settings updatedIndex1SettingsData = clusterServiceData.state().metadata().projectMetadata.index(index1).getSettings();
         assertNotSame(updatedIndex1SettingsMaster, updatedIndex1SettingsData);
         assertEqualsAndStringsInterned(queryFieldsSetting, updatedIndex1SettingsMaster);
         assertEqualsAndStringsInterned(queryFieldsSetting, updatedIndex1SettingsData);
-        assertEqualsAndStringsInterned(queryFieldsSetting, clusterServiceMaster.state().metadata().index(index2).getSettings());
-        assertEqualsAndStringsInterned(queryFieldsSetting, clusterServiceData.state().metadata().index(index2).getSettings());
+        assertEqualsAndStringsInterned(
+            queryFieldsSetting,
+            clusterServiceMaster.state().metadata().projectMetadata.index(index2).getSettings()
+        );
+        assertEqualsAndStringsInterned(
+            queryFieldsSetting,
+            clusterServiceData.state().metadata().projectMetadata.index(index2).getSettings()
+        );
     }
 
     private void assertEqualsAndStringsInterned(List<String> queryFieldsSetting, Settings settings) {

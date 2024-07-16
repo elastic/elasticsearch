@@ -700,7 +700,8 @@ public final class RestoreService implements ClusterStateApplier {
             .flatMap(feature -> feature.getIndexDescriptors().stream())
             .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
             .map(indexName -> {
-                assert currentState.metadata().hasIndex(indexName) : "index [" + indexName + "] not found in metadata but must be present";
+                assert currentState.metadata().projectMetadata.hasIndex(indexName)
+                    : "index [" + indexName + "] not found in metadata but must be present";
                 return currentState.metadata().getIndices().get(indexName).getIndex();
             })
             .collect(Collectors.toUnmodifiableSet());
@@ -1033,7 +1034,7 @@ public final class RestoreService implements ClusterStateApplier {
                 Index index = shard.getKey().getIndex();
                 if (indicesToCheck.contains(index)
                     && shard.getValue().state().completed() == false
-                    && currentState.getMetadata().index(index) != null) {
+                    && currentState.getMetadata().projectMetadata.index(index) != null) {
                     indices.add(index);
                 }
             }
@@ -1294,7 +1295,7 @@ public final class RestoreService implements ClusterStateApplier {
             final String localNodeId = clusterService.state().nodes().getLocalNodeId();
             for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
                 final IndexId index = indexEntry.getValue();
-                final IndexMetadata originalIndexMetadata = metadata.index(index.getName());
+                final IndexMetadata originalIndexMetadata = metadata.projectMetadata.index(index.getName());
                 repositoriesService.getPreRestoreVersionChecks()
                     .forEach(check -> check.accept(snapshot, originalIndexMetadata.getCreationVersion()));
                 IndexMetadata snapshotIndexMetadata = updateIndexSettings(
@@ -1313,7 +1314,7 @@ public final class RestoreService implements ClusterStateApplier {
                     throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
                 }
                 final String renamedIndexName = indexEntry.getKey();
-                final IndexMetadata currentIndexMetadata = currentState.metadata().index(renamedIndexName);
+                final IndexMetadata currentIndexMetadata = currentState.metadata().projectMetadata.index(renamedIndexName);
                 final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                     restoreUUID,
                     snapshot,

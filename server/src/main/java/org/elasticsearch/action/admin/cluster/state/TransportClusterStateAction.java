@@ -209,11 +209,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         // Also the IMD of other backing indices need to be included, otherwise the cluster state api
                         // can't create a valid cluster state instance:
                         for (Index backingIndex : dataStream.getIndices()) {
-                            mdBuilder.put(currentState.metadata().index(backingIndex), false);
+                            mdBuilder.put(currentState.metadata().projectMetadata.index(backingIndex), false);
                         }
                         mdBuilder.put(dataStream);
                     } else {
-                        IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
+                        IndexMetadata indexMetadata = currentState.metadata().projectMetadata.index(filteredIndex);
                         if (indexMetadata != null) {
                             mdBuilder.put(indexMetadata, false);
                         }

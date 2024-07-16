@@ -1009,8 +1009,8 @@ public class IndicesService extends AbstractLifecycleComponent
         if (nodeEnv.hasNodeFile()) {
             Index index = oldIndexMetadata.getIndex();
             try {
-                if (clusterState.metadata().hasIndex(index)) {
-                    final IndexMetadata currentMetadata = clusterState.metadata().index(index);
+                if (clusterState.metadata().projectMetadata.hasIndex(index)) {
+                    final IndexMetadata currentMetadata = clusterState.metadata().projectMetadata.index(index);
                     throw new IllegalStateException(
                         "Can't delete unassigned index store for ["
                             + index.getName()
@@ -1185,7 +1185,7 @@ public class IndicesService extends AbstractLifecycleComponent
     @Nullable
     public IndexMetadata verifyIndexIsDeleted(final Index index, final ClusterState clusterState) {
         // this method should only be called when we know the index (name + uuid) is not part of the cluster state
-        if (clusterState.metadata().index(index) != null) {
+        if (clusterState.metadata().projectMetadata.index(index) != null) {
             throw new IllegalStateException("Cannot delete index [" + index + "], it is still part of the cluster state.");
         }
         if (nodeEnv.hasNodeFile() && FileSystemUtils.exists(nodeEnv.indexPaths(index))) {
@@ -1747,7 +1747,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         } else {
-            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata indexMetadata = metadata.projectMetadata.index(index);
             return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
         }
     }

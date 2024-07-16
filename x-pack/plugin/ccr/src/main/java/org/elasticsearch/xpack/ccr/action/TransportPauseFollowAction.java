@@ -64,7 +64,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        final IndexMetadata followerIMD = state.metadata().index(request.getFollowIndex());
+        final IndexMetadata followerIMD = state.metadata().projectMetadata.index(request.getFollowIndex());
         if (followerIMD == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowIndex()));
             return;

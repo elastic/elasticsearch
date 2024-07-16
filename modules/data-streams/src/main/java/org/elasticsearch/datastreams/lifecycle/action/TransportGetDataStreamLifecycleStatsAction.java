@@ -82,7 +82,7 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
                 int total = 0;
                 int inError = 0;
                 for (Index index : dataStream.getIndices()) {
-                    if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index)) {
+                    if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index)) {
                         total++;
                         if (indicesInErrorStore.contains(index.getName())) {
                             inError++;

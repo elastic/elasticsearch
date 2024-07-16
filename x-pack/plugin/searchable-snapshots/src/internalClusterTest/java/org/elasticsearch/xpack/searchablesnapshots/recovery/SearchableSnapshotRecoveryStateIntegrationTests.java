@@ -83,12 +83,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         mountSnapshot(fsRepoName, snapshotName, indexName, restoredIndexName, Settings.EMPTY);
         ensureGreen(restoredIndexName);
 
-        final Index restoredIndex = clusterAdmin().prepareState()
-            .clear()
-            .setMetadata(true)
-            .get()
-            .getState()
-            .metadata()
+        final Index restoredIndex = clusterAdmin().prepareState().clear().setMetadata(true).get().getState().metadata().projectMetadata
             .index(restoredIndexName)
             .getIndex();
 
@@ -145,12 +140,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         internalCluster().restartRandomDataNode();
         ensureGreen(restoredIndexName);
 
-        final Index restoredIndex = clusterAdmin().prepareState()
-            .clear()
-            .setMetadata(true)
-            .get()
-            .getState()
-            .metadata()
+        final Index restoredIndex = clusterAdmin().prepareState().clear().setMetadata(true).get().getState().metadata().projectMetadata
             .index(restoredIndexName)
             .getIndex();
 

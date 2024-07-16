@@ -248,9 +248,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         state = cluster.applyStartedShards(state, state.routingTable().index(index).shard(0).replicaShards());
 
         // close the index and open it up again (this will sometimes swap roles between primary and replica)
-        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().index(index).getIndex().getName());
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().projectMetadata.index(index).getIndex().getName());
         state = cluster.closeIndices(state, closeIndexRequest);
-        OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().index(index).getIndex().getName());
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().projectMetadata.index(index).getIndex().getName());
         openIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
         state = cluster.openIndices(state, openIndexRequest);
 
@@ -384,7 +384,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             }
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
-            assertTrue(state.metadata().hasIndex(name));
+            assertTrue(state.metadata().projectMetadata.hasIndex(name));
         }
 
         // randomly delete indices
@@ -394,13 +394,13 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             numberOfIndicesToDelete,
             state.metadata().projectMetadata.indices().keySet().toArray(new String[0])
         )) {
-            indicesToDelete.add(state.metadata().index(index).getIndex().getName());
+            indicesToDelete.add(state.metadata().projectMetadata.index(index).getIndex().getName());
         }
         if (indicesToDelete.isEmpty() == false) {
             DeleteIndexRequest deleteRequest = new DeleteIndexRequest(indicesToDelete.toArray(new String[indicesToDelete.size()]));
             state = cluster.deleteIndices(state, deleteRequest);
             for (String index : indicesToDelete) {
-                assertFalse(state.metadata().hasIndex(index));
+                assertFalse(state.metadata().projectMetadata.hasIndex(index));
             }
         }
 
@@ -410,7 +410,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             numberOfIndicesToClose,
             state.metadata().projectMetadata.indices().keySet().toArray(new String[0])
         )) {
-            CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().index(index).getIndex().getName());
+            CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().projectMetadata.index(index).getIndex().getName());
             state = cluster.closeIndices(state, closeIndexRequest);
         }
 
@@ -420,7 +420,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             numberOfIndicesToOpen,
             state.metadata().projectMetadata.indices().keySet().toArray(new String[0])
         )) {
-            OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().index(index).getIndex().getName());
+            OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().projectMetadata.index(index).getIndex().getName());
             openIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.openIndices(state, openIndexRequest);
         }
@@ -433,8 +433,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             numberOfIndicesToUpdate,
             state.metadata().projectMetadata.indices().keySet().toArray(new String[0])
         )) {
-            indicesToUpdate.add(state.metadata().index(index).getIndex().getName());
-            if (state.metadata().index(index).getState() == IndexMetadata.State.CLOSE) {
+            indicesToUpdate.add(state.metadata().projectMetadata.index(index).getIndex().getName());
+            if (state.metadata().projectMetadata.index(index).getState() == IndexMetadata.State.CLOSE) {
                 containsClosedIndex = true;
             }
         }

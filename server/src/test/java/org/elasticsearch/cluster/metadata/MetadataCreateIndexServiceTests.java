@@ -136,7 +136,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        routingTableBuilder.addAsNew(metadata.index(name));
+        routingTableBuilder.addAsNew(metadata.projectMetadata.index(name));
 
         RoutingTable routingTable = routingTableBuilder.build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -530,7 +530,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         MetadataCreateIndexService.prepareResizeIndexSettings(
             clusterState,
             indexSettingsBuilder,
-            clusterState.metadata().index(indexName).getIndex(),
+            clusterState.metadata().projectMetadata.index(indexName).getIndex(),
             "target",
             ResizeType.SHRINK,
             copySettings,
@@ -935,7 +935,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request,
             templateMetadata.settings(),
             List.of(templateMetadata.getMappings()),
-            clusterState.metadata().index("sourceIndex"),
+            clusterState.metadata().projectMetadata.index("sourceIndex"),
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
@@ -1003,7 +1003,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         IndexAbstraction alias = metadata.getIndicesLookup().get("alias1");
         assertNotNull(alias);
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        Index index = metadata.index("test").getIndex();
+        Index index = metadata.projectMetadata.index("test").getIndex();
         assertThat(alias.getIndices(), contains(index));
         assertThat(metadata.aliasedIndices("alias1"), contains(index));
     }

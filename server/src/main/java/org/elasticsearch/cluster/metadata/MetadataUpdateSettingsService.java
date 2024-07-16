@@ -207,7 +207,7 @@ public class MetadataUpdateSettingsService {
                     );
                     for (Index index : openIndices) {
                         // We only want to take on the expense of reopening all shards for an index if the setting is really changing
-                        Settings existingSettings = currentState.getMetadata().index(index).getSettings();
+                        Settings existingSettings = currentState.getMetadata().projectMetadata.index(index).getSettings();
                         boolean needToReopenIndex = false;
                         for (String setting : skippedSettings) {
                             String newValue = request.settings().get(setting);
@@ -312,7 +312,10 @@ public class MetadataUpdateSettingsService {
             boolean changed = false;
             // increment settings versions
             for (final String index : actualIndices) {
-                if (same(currentState.metadata().index(index).getSettings(), metadataBuilder.get(index).getSettings()) == false) {
+                if (same(
+                    currentState.metadata().projectMetadata.index(index).getSettings(),
+                    metadataBuilder.get(index).getSettings()
+                ) == false) {
                     changed = true;
                     final IndexMetadata.Builder builder = IndexMetadata.builder(metadataBuilder.get(index));
                     builder.settingsVersion(1 + builder.settingsVersion());

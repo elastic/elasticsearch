@@ -635,7 +635,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             } else {
                 Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
                 if (resizeSourceIndex != null) {
-                    IndexMetadata sourceIndexMetadata = metadata.index(resizeSourceIndex);
+                    IndexMetadata sourceIndexMetadata = metadata.projectMetadata.index(resizeSourceIndex);
                     // source indicators stay on the index even after started and also after source is deleted.
                     if (sourceIndexMetadata != null) {
                         // ResizeAllocationDecider only handles clone or split, do the same here.
@@ -768,7 +768,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             int count = 0;
             while (count < indices.size()) {
                 ++count;
-                IndexMetadata indexMetadata = metadata.index(indices.get(indices.size() - count));
+                IndexMetadata indexMetadata = metadata.projectMetadata.index(indices.get(indices.size() - count));
                 long creationDate = indexMetadata.getCreationDate();
                 if (creationDate < 0) {
                     return null;
@@ -811,7 +811,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 scaledTotalSize = totalSize;
             }
 
-            IndexMetadata writeIndex = metadata.index(stream.getWriteIndex());
+            IndexMetadata writeIndex = metadata.projectMetadata.index(stream.getWriteIndex());
 
             Map<IndexMetadata, Long> newIndices = new HashMap<>();
             for (int i = 0; i < numberNewIndices; ++i) {
@@ -852,7 +852,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          */
         private boolean dataStreamAllocatedToNodes(Metadata metadata, List<Index> indices) {
             for (int i = 0; i < indices.size(); ++i) {
-                IndexMetadata indexMetadata = metadata.index(indices.get(indices.size() - i - 1));
+                IndexMetadata indexMetadata = metadata.projectMetadata.index(indices.get(indices.size() - i - 1));
                 Set<Boolean> inNodes = state.getRoutingTable()
                     .allShards(indexMetadata.getIndex().getName())
                     .stream()

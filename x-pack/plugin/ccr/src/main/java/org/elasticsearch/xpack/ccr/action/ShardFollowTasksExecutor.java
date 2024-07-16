@@ -560,7 +560,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
     }
 
     private String getLeaderShardHistoryUUID(ShardFollowTask params) {
-        IndexMetadata followIndexMetadata = clusterService.state().metadata().index(params.getFollowShardId().getIndex());
+        IndexMetadata followIndexMetadata = clusterService.state().metadata().projectMetadata.index(params.getFollowShardId().getIndex());
         Map<String, String> ccrIndexMetadata = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         String[] recordedLeaderShardHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
         return recordedLeaderShardHistoryUUIDs[params.getLeaderShardId().id()];
@@ -629,7 +629,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
         followerClient.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
             IndexStats indexStats = r.getIndex(shardId.getIndexName());
             if (indexStats == null) {
-                IndexMetadata indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                IndexMetadata indexMetadata = clusterService.state().metadata().projectMetadata.index(shardId.getIndex());
                 if (indexMetadata != null) {
                     errorHandler.accept(new ShardNotFoundException(shardId));
                 } else {

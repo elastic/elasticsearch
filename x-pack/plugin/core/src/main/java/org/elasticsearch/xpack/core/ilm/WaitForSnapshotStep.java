@@ -55,7 +55,7 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = metadata.index(index);
+        IndexMetadata indexMetadata = metadata.projectMetadata.index(index);
         if (indexMetadata == null) {
             listener.onFailure(error(NO_INDEX_METADATA_MESSAGE, index.getName()));
             return;

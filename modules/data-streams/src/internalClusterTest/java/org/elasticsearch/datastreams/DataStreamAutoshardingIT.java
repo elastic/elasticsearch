@@ -133,7 +133,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                 .currentNodeId();
 
             Index firstGenerationIndex = clusterStateBeforeRollover.metadata().dataStreams().get(dataStreamName).getWriteIndex();
-            IndexMetadata firstGenerationMeta = clusterStateBeforeRollover.getMetadata().index(firstGenerationIndex);
+            IndexMetadata firstGenerationMeta = clusterStateBeforeRollover.getMetadata().projectMetadata.index(firstGenerationIndex);
 
             List<ShardStats> shards = new ArrayList<>(firstGenerationMeta.getNumberOfShards());
             for (int i = 0; i < firstGenerationMeta.getNumberOfShards(); i++) {
@@ -159,7 +159,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
             // we auto sharded up to 5 shards
             assertThat(secondGenerationMeta.getNumberOfShards(), is(5));
 
-            IndexMetadata index = clusterStateAfterRollover.metadata().index(firstGenerationIndex);
+            IndexMetadata index = clusterStateAfterRollover.metadata().projectMetadata.index(firstGenerationIndex);
             Map<String, RolloverInfo> rolloverInfos = index.getRolloverInfos();
             assertThat(rolloverInfos.size(), is(1));
             List<Condition<?>> metConditions = rolloverInfos.get(dataStreamName).getMetConditions();
@@ -183,7 +183,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                 .primaryShard()
                 .currentNodeId();
 
-            IndexMetadata secondGenerationMeta = clusterStateBeforeRollover.metadata().index(dataStreamBeforeRollover.getIndices().get(1));
+            IndexMetadata secondGenerationMeta = clusterStateBeforeRollover.metadata().projectMetadata.index(
+                dataStreamBeforeRollover.getIndices().get(1)
+            );
             List<ShardStats> shards = new ArrayList<>(secondGenerationMeta.getNumberOfShards());
             for (int i = 0; i < secondGenerationMeta.getNumberOfShards(); i++) {
                 // the shard stats will yield a write load of 100.0 which will make the auto sharding service recommend an optimal number of
@@ -232,7 +234,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     .primaryShard()
                     .currentNodeId();
 
-                IndexMetadata thirdGenIndex = clusterStateBeforeRollover.metadata().index(dataStreamBeforeRollover.getIndices().get(2));
+                IndexMetadata thirdGenIndex = clusterStateBeforeRollover.metadata().projectMetadata.index(
+                    dataStreamBeforeRollover.getIndices().get(2)
+                );
                 List<ShardStats> shards = new ArrayList<>(thirdGenIndex.getNumberOfShards());
                 for (int i = 0; i < thirdGenIndex.getNumberOfShards(); i++) {
                     // the shard stats will yield a write load of 100.0 which will make the auto sharding service recommend an optimal
@@ -298,7 +302,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                 .currentNodeId();
 
             Index firstGenerationIndex = clusterStateBeforeRollover.metadata().dataStreams().get(dataStreamName).getWriteIndex();
-            IndexMetadata firstGenerationMeta = clusterStateBeforeRollover.getMetadata().index(firstGenerationIndex);
+            IndexMetadata firstGenerationMeta = clusterStateBeforeRollover.getMetadata().projectMetadata.index(firstGenerationIndex);
 
             List<ShardStats> shards = new ArrayList<>(firstGenerationMeta.getNumberOfShards());
             for (int i = 0; i < firstGenerationMeta.getNumberOfShards(); i++) {
@@ -335,8 +339,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     .primaryShard()
                     .currentNodeId();
 
-                IndexMetadata secondGenerationIndex = clusterStateBeforeRollover.metadata()
-                    .index(dataStreamBeforeRollover.getIndices().get(1));
+                IndexMetadata secondGenerationIndex = clusterStateBeforeRollover.metadata().projectMetadata.index(
+                    dataStreamBeforeRollover.getIndices().get(1)
+                );
                 List<ShardStats> shards = new ArrayList<>(secondGenerationIndex.getNumberOfShards());
                 for (int i = 0; i < secondGenerationIndex.getNumberOfShards(); i++) {
                     // the shard stats will yield a write load of 2.0 which will make the auto sharding service recommend an
@@ -406,7 +411,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
             DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
 
             Index firstGenerationIndex = clusterStateBeforeRollover.metadata().dataStreams().get(dataStreamName).getWriteIndex();
-            IndexMetadata firstGenerationMeta = clusterStateBeforeRollover.getMetadata().index(firstGenerationIndex);
+            IndexMetadata firstGenerationMeta = clusterStateBeforeRollover.getMetadata().projectMetadata.index(firstGenerationIndex);
 
             List<ShardStats> shards = new ArrayList<>(firstGenerationMeta.getNumberOfShards());
             String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
@@ -456,7 +461,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     .shard(0)
                     .primaryShard()
                     .currentNodeId();
-                IndexMetadata secondGenIndex = clusterStateBeforeRollover.metadata().index(dataStreamBeforeRollover.getIndices().get(1));
+                IndexMetadata secondGenIndex = clusterStateBeforeRollover.metadata().projectMetadata.index(
+                    dataStreamBeforeRollover.getIndices().get(1)
+                );
                 List<ShardStats> shards = new ArrayList<>(secondGenIndex.getNumberOfShards());
                 for (int i = 0; i < secondGenIndex.getNumberOfShards(); i++) {
                     // the shard stats will yield a write load of 100.0 which will make the auto sharding service recommend an optimal

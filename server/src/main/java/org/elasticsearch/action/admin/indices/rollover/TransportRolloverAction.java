@@ -305,7 +305,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
                 final Map<String, Boolean> trialConditionResults = evaluateConditions(
                     rolloverRequest.getConditionValues(),
-                    buildStats(metadata.index(trialSourceIndexName), statsResponse)
+                    buildStats(metadata.projectMetadata.index(trialSourceIndexName), statsResponse)
                 );
 
                 final RolloverResponse trialRolloverResponse = new RolloverResponse(
@@ -501,7 +501,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             );
 
             // Re-evaluate the conditions, now with our final source index name
-            IndexMetadata rolloverSourceIndex = currentState.metadata().index(rolloverNames.sourceName());
+            IndexMetadata rolloverSourceIndex = currentState.metadata().projectMetadata.index(rolloverNames.sourceName());
             final Map<String, Boolean> postConditionResults = evaluateConditions(
                 rolloverRequest.getConditionValues(),
                 buildStats(rolloverSourceIndex, rolloverTask.statsResponse())

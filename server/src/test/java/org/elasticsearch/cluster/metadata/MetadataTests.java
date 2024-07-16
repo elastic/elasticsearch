@@ -1817,15 +1817,15 @@ public class MetadataTests extends ESTestCase {
         // Add a new alias that points to existing indices
         builder = Metadata.builder(metadata);
         {
-            IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(metadata.index("alias-1-0"));
+            IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(metadata.projectMetadata.index("alias-1-0"));
             imBuilder.putAlias(new AliasMetadata.Builder(newAliasName));
             builder.put(imBuilder);
 
-            imBuilder = new IndexMetadata.Builder(metadata.index("alias-2-1"));
+            imBuilder = new IndexMetadata.Builder(metadata.projectMetadata.index("alias-2-1"));
             imBuilder.putAlias(new AliasMetadata.Builder(newAliasName));
             builder.put(imBuilder);
 
-            imBuilder = new IndexMetadata.Builder(metadata.index("alias-3-2"));
+            imBuilder = new IndexMetadata.Builder(metadata.projectMetadata.index("alias-3-2"));
             imBuilder.putAlias(new AliasMetadata.Builder(newAliasName));
             builder.put(imBuilder);
         }
@@ -1843,15 +1843,15 @@ public class MetadataTests extends ESTestCase {
         // Remove the new alias that points to existing indices
         builder = Metadata.builder(metadata);
         {
-            IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(metadata.index("alias-1-0"));
+            IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(metadata.projectMetadata.index("alias-1-0"));
             imBuilder.removeAlias(newAliasName);
             builder.put(imBuilder);
 
-            imBuilder = new IndexMetadata.Builder(metadata.index("alias-2-1"));
+            imBuilder = new IndexMetadata.Builder(metadata.projectMetadata.index("alias-2-1"));
             imBuilder.removeAlias(newAliasName);
             builder.put(imBuilder);
 
-            imBuilder = new IndexMetadata.Builder(metadata.index("alias-3-2"));
+            imBuilder = new IndexMetadata.Builder(metadata.projectMetadata.index("alias-3-2"));
             imBuilder.removeAlias(newAliasName);
             builder.put(imBuilder);
         }
@@ -2152,7 +2152,7 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.getMappingsByHash().get(mapping.getSha256()), equalTo(entry));
 
         // Update a mapping of an index:
-        IndexMetadata luckyIndex = metadata.index("index-" + randomInt(numIndices - 1));
+        IndexMetadata luckyIndex = metadata.projectMetadata.index("index-" + randomInt(numIndices - 1));
         entry = metadata.getMappingsByHash().get(luckyIndex.mapping().getSha256());
         MappingMetadata updatedMapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("mapping", "updated"));
         {
@@ -2210,13 +2210,13 @@ public class MetadataTests extends ESTestCase {
                     .numberOfReplicas(0)
             )
             .build();
-        IndexMetadata index1 = metadata1.index(indexName);
+        IndexMetadata index1 = metadata1.projectMetadata.index(indexName);
         assertThat(metadata1.getIndicesLookup(), notNullValue());
         assertThat(index1.getLifecycleExecutionState(), sameInstance(LifecycleExecutionState.EMPTY_STATE));
 
         LifecycleExecutionState state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").build();
         Metadata metadata2 = metadata1.withLifecycleState(index1.getIndex(), state);
-        IndexMetadata index2 = metadata2.index(indexName);
+        IndexMetadata index2 = metadata2.projectMetadata.index(indexName);
 
         // the indices lookups are the same object
         assertThat(metadata2.getIndicesLookup(), sameInstance(metadata1.getIndicesLookup()));

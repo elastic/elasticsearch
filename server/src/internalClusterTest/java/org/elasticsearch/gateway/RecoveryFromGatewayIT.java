@@ -428,8 +428,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         ClusterState state = clusterAdmin().prepareState().get().getState();
         assertThat(state.metadata().projectMetadata.templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
-        assertThat(state.metadata().index("test").getAliases().get("test_alias"), notNullValue());
-        assertThat(state.metadata().index("test").getAliases().get("test_alias").filter(), notNullValue());
+        assertThat(state.metadata().projectMetadata.index("test").getAliases().get("test_alias"), notNullValue());
+        assertThat(state.metadata().projectMetadata.index("test").getAliases().get("test_alias").filter(), notNullValue());
     }
 
     public void testReuseInFileBasedPeerRecovery() throws Exception {

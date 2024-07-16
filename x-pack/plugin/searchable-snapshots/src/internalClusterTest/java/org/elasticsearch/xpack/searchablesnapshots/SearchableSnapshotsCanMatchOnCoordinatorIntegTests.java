@@ -771,7 +771,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
     }
 
     private IndexMetadata getIndexMetadata(String indexName) {
-        return clusterAdmin().prepareState().clear().setMetadata(true).setIndices(indexName).get().getState().metadata().index(indexName);
+        return clusterAdmin().prepareState().clear().setMetadata(true).setIndices(indexName).get().getState().metadata().projectMetadata
+            .index(indexName);
     }
 
     private void waitUntilRecoveryIsDone(String index) throws Exception {

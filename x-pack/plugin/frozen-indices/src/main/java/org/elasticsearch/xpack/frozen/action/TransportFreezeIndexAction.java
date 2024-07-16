@@ -90,7 +90,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
     private Index[] resolveIndices(FreezeRequest request, ClusterState state) {
         List<Index> indices = new ArrayList<>();
         for (Index index : indexNameExpressionResolver.concreteIndices(state, request)) {
-            IndexMetadata metadata = state.metadata().index(index);
+            IndexMetadata metadata = state.metadata().projectMetadata.index(index);
             Settings settings = metadata.getSettings();
             // only unfreeze if we are frozen and only freeze if we are not frozen already.
             // this prevents all indices that are already frozen that match a pattern to

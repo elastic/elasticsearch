@@ -81,7 +81,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
+        IndexMetadata zeroIndex = newState.metadata().projectMetadata.index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
@@ -224,7 +224,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
+        IndexMetadata zeroIndex = newState.metadata().projectMetadata.index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
@@ -287,7 +287,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
+        IndexMetadata zeroIndex = newState.metadata().projectMetadata.index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));

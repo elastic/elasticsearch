@@ -448,7 +448,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indices.size() > 1) {
                 throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " + indices);
             }
-            return metadata.index(indices.get(0));
+            return metadata.projectMetadata.index(indices.get(0));
         }
         return null;
     }

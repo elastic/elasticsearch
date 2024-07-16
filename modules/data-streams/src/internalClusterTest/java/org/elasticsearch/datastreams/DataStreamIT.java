@@ -2064,7 +2064,7 @@ public class DataStreamIT extends ESIntegTestCase {
         final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
 
         for (Index index : dataStream.getIndices()) {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            final IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(index);
             final IndexMetadataStats metadataStats = indexMetadata.getStats();
 
             if (index.equals(dataStream.getWriteIndex()) == false) {
@@ -2141,7 +2141,7 @@ public class DataStreamIT extends ESIntegTestCase {
         final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
 
         for (Index index : dataStream.getIndices()) {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            final IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(index);
             final IndexMetadataStats metadataStats = indexMetadata.getStats();
 
             // If all the shards are co-located within the failing nodes, no stats will be stored during rollover
@@ -2250,7 +2250,7 @@ public class DataStreamIT extends ESIntegTestCase {
             shardCount++;
         }
 
-        final IndexMetadata writeIndexMetadata = clusterState.metadata().index(dataStream.getWriteIndex());
+        final IndexMetadata writeIndexMetadata = clusterState.metadata().projectMetadata.index(dataStream.getWriteIndex());
         final OptionalLong forecastedShardSizeInBytes = writeIndexMetadata.getForecastedShardSizeInBytes();
         assertThat(forecastedShardSizeInBytes.isPresent(), is(equalTo(true)));
         assertThat(forecastedShardSizeInBytes.getAsLong(), is(equalTo(expectedTotalSizeInBytes / shardCount)));

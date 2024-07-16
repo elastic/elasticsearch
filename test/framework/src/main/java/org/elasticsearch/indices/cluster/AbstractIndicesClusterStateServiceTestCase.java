@@ -138,8 +138,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
                         if (shard.routingEntry().primary() && shard.routingEntry().active()) {
                             IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shard.shardId());
-                            Set<String> inSyncIds = state.metadata()
-                                .index(shard.shardId().getIndex())
+                            Set<String> inSyncIds = state.metadata().projectMetadata.index(shard.shardId().getIndex())
                                 .inSyncAllocationIds(shard.shardId().id());
                             assertThat(
                                 shard.routingEntry() + " isn't updated with in-sync aIDs",

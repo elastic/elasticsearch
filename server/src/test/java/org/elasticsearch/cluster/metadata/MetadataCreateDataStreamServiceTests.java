@@ -76,12 +76,17 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
+        assertThat(newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
         assertThat(
-            newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
+            newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                .getSettings()
+                .get("index.hidden"),
             equalTo("true")
         );
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));
+        assertThat(
+            newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(),
+            is(false)
+        );
     }
 
     public void testCreateDataStreamWithAliasFromTemplate() throws Exception {
@@ -130,13 +135,21 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             newState.metadata().dataStreamAliases().values().stream().map(DataStreamAlias::getName).toArray(),
             arrayContainingInAnyOrder(new ArrayList<>(aliases.keySet()).toArray())
         );
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getAliases().size(), is(0));
+        assertThat(newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
         assertThat(
-            newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
+            newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getAliases().size(),
+            is(0)
+        );
+        assertThat(
+            newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                .getSettings()
+                .get("index.hidden"),
             equalTo("true")
         );
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));
+        assertThat(
+            newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(),
+            is(false)
+        );
     }
 
     public void testCreateDataStreamWithAliasFromComponentTemplate() throws Exception {
@@ -205,13 +218,21 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             }
         }
 
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getAliases().size(), is(0));
+        assertThat(newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
         assertThat(
-            newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
+            newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getAliases().size(),
+            is(0)
+        );
+        assertThat(
+            newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                .getSettings()
+                .get("index.hidden"),
             equalTo("true")
         );
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));
+        assertThat(
+            newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(),
+            is(false)
+        );
     }
 
     private static AliasMetadata randomAlias(String prefix) {
@@ -250,18 +271,18 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
-        assertThat(newState.metadata().index(backingIndexName), notNullValue());
-        assertThat(newState.metadata().index(backingIndexName).getSettings().get("index.hidden"), equalTo("true"));
-        assertThat(newState.metadata().index(backingIndexName).isSystem(), is(false));
-        assertThat(newState.metadata().index(failureStoreIndexName), notNullValue());
-        assertThat(newState.metadata().index(failureStoreIndexName).getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(newState.metadata().projectMetadata.index(backingIndexName), notNullValue());
+        assertThat(newState.metadata().projectMetadata.index(backingIndexName).getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(newState.metadata().projectMetadata.index(backingIndexName).isSystem(), is(false));
+        assertThat(newState.metadata().projectMetadata.index(failureStoreIndexName), notNullValue());
+        assertThat(newState.metadata().projectMetadata.index(failureStoreIndexName).getSettings().get("index.hidden"), equalTo("true"));
         assertThat(
             DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING.get(
-                newState.metadata().index(failureStoreIndexName).getSettings()
+                newState.metadata().projectMetadata.index(failureStoreIndexName).getSettings()
             ),
             equalTo(DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION)
         );
-        assertThat(newState.metadata().index(failureStoreIndexName).isSystem(), is(false));
+        assertThat(newState.metadata().projectMetadata.index(failureStoreIndexName).isSystem(), is(false));
     }
 
     public void testCreateDataStreamWithFailureStoreUninitialized() throws Exception {
@@ -291,10 +312,10 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getFailureIndices().getIndices(), empty());
-        assertThat(newState.metadata().index(backingIndexName), notNullValue());
-        assertThat(newState.metadata().index(backingIndexName).getSettings().get("index.hidden"), equalTo("true"));
-        assertThat(newState.metadata().index(backingIndexName).isSystem(), is(false));
-        assertThat(newState.metadata().index(failureStoreIndexName), nullValue());
+        assertThat(newState.metadata().projectMetadata.index(backingIndexName), notNullValue());
+        assertThat(newState.metadata().projectMetadata.index(backingIndexName).getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(newState.metadata().projectMetadata.index(backingIndexName).isSystem(), is(false));
+        assertThat(newState.metadata().projectMetadata.index(failureStoreIndexName), nullValue());
     }
 
     public void testCreateDataStreamWithFailureStoreWithRefreshRate() throws Exception {
@@ -324,10 +345,12 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         var failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, req.getStartTime());
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
-        assertThat(newState.metadata().index(backingIndexName), notNullValue());
-        assertThat(newState.metadata().index(failureStoreIndexName), notNullValue());
+        assertThat(newState.metadata().projectMetadata.index(backingIndexName), notNullValue());
+        assertThat(newState.metadata().projectMetadata.index(failureStoreIndexName), notNullValue());
         assertThat(
-            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(newState.metadata().index(failureStoreIndexName).getSettings()),
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(
+                newState.metadata().projectMetadata.index(failureStoreIndexName).getSettings()
+            ),
             equalTo(timeValue)
         );
     }
@@ -357,12 +380,17 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(true));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(true));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
+        assertThat(newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
         assertThat(
-            newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
+            newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                .getSettings()
+                .get("index.hidden"),
             equalTo("true")
         );
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(true));
+        assertThat(
+            newState.metadata().projectMetadata.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(),
+            is(true)
+        );
     }
 
     public void testCreateDuplicateDataStream() throws Exception {

@@ -276,7 +276,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
             Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
             for (String concreteIndex : concreteIndexNames) {
-                IndexMetadata indexMetadata = stateWithSkippedSettingsRemoved.getMetadata().index(concreteIndex);
+                IndexMetadata indexMetadata = stateWithSkippedSettingsRemoved.getMetadata().projectMetadata.index(concreteIndex);
                 List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks, c -> c.apply(indexMetadata));
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
@@ -314,7 +314,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         );
         Map<String, IndexMetadata> indicesBuilder = new HashMap<>(state.getMetadata().projectMetadata.indices());
         for (String indexName : indexNames) {
-            IndexMetadata indexMetadata = state.getMetadata().index(indexName);
+            IndexMetadata indexMetadata = state.getMetadata().projectMetadata.index(indexName);
             IndexMetadata.Builder filteredIndexMetadataBuilder = new IndexMetadata.Builder(indexMetadata);
             Settings filteredSettings = indexMetadata.getSettings()
                 .filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false);

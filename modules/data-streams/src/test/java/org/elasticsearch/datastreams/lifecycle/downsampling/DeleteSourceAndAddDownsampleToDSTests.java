@@ -163,7 +163,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
         // let's add some lifecycle custom metadata to the first generation index
-        IndexMetadata indexMetadata = previousState.metadata().index(firstGenIndex);
+        IndexMetadata indexMetadata = previousState.metadata().projectMetadata.index(firstGenIndex);
         RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(dataStreamName);
 
         IndexMetadata.Builder firstGenBuilder = IndexMetadata.builder(indexMetadata)
@@ -184,7 +184,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
         assertThat(sourceIndexAbstraction, is(nullValue()));
 
         // let's check the downsample index has the origination date configured to the source index rollover time
-        IndexMetadata downsampleMeta = newState.metadata().index(downsampleIndex);
+        IndexMetadata downsampleMeta = newState.metadata().projectMetadata.index(downsampleIndex);
         assertThat(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(downsampleMeta.getSettings()), is(rolloverInfo.getTime()));
         assertThat(downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY), notNullValue());
         assertThat(
@@ -231,7 +231,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
         IndexAbstraction sourceIndexAbstraction = newState.metadata().getIndicesLookup().get(firstGenIndex);
         assertThat(sourceIndexAbstraction, is(nullValue()));
 
-        IndexMetadata downsampleMeta = newState.metadata().index(downsampleIndex);
+        IndexMetadata downsampleMeta = newState.metadata().projectMetadata.index(downsampleIndex);
         assertThat(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(downsampleMeta.getSettings()), is(downsampleOriginationDate));
     }
 

@@ -26,9 +26,9 @@ public class ClusterChangedEventUtils {
         final List<String> created = new ArrayList<>();
         for (Map.Entry<String, IndexMetadata> cursor : state.metadata().projectMetadata.indices().entrySet()) {
             final String index = cursor.getKey();
-            if (previousState.metadata().hasIndex(index)) {
+            if (previousState.metadata().projectMetadata.hasIndex(index)) {
                 final IndexMetadata currIndexMetadata = cursor.getValue();
-                final IndexMetadata prevIndexMetadata = previousState.metadata().index(index);
+                final IndexMetadata prevIndexMetadata = previousState.metadata().projectMetadata.index(index);
                 if (currIndexMetadata.getIndexUUID().equals(prevIndexMetadata.getIndexUUID()) == false) {
                     created.add(index);
                 }

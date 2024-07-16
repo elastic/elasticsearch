@@ -85,7 +85,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         RoutingTable initialRoutingTable = RoutingTable.builder(
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             clusterState.routingTable()
-        ).addAsNew(metadata.index(index)).build();
+        ).addAsNew(metadata.projectMetadata.index(index)).build();
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(initialRoutingTable).build();
 
         ShardRouting shard = clusterState.routingTable().index("idx_new").shard(0).primaryShard();
@@ -139,7 +139,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             getPerNode(
                 clusterState,
                 summingDouble(
-                    it -> TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(clusterState.metadata().index(it.index())).orElse(0.0)
+                    it -> TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(clusterState.metadata().projectMetadata.index(it.index()))
+                        .orElse(0.0)
                 )
             ).values(),
             everyItem(lessThanOrEqualTo(8.0))
@@ -173,7 +174,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(
             getPerNode(
                 clusterState,
-                summingLong(it -> clusterState.metadata().index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
+                summingLong(it -> clusterState.metadata().projectMetadata.index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
             ).values(),
             everyItem(lessThanOrEqualTo(ByteSizeValue.ofGb(8).getBytes()))
         );
@@ -218,7 +219,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(
             getPerNode(
                 clusterState,
-                summingLong(it -> clusterState.metadata().index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
+                summingLong(it -> clusterState.metadata().projectMetadata.index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
             ).values(),
             everyItem(lessThanOrEqualTo(ByteSizeValue.ofGb(8).getBytes()))
         );
@@ -254,7 +255,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(
             getPerNode(
                 clusterState,
-                summingLong(it -> clusterState.metadata().index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
+                summingLong(it -> clusterState.metadata().projectMetadata.index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
             ).values(),
             everyItem(lessThanOrEqualTo(ByteSizeValue.ofGb(8).getBytes()))
         );

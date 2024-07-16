@@ -48,7 +48,7 @@ public class WatchStoreUtils {
         if (concreteIndex == null) {
             concreteIndex = indexAbstraction.getIndices().get(indexAbstraction.getIndices().size() - 1);
         }
-        return metadata.index(concreteIndex);
+        return metadata.getProject().index(concreteIndex);
     }
 
 }

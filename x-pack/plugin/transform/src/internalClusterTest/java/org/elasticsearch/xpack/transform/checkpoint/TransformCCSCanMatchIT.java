@@ -163,7 +163,8 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
                 .get();
             client.admin().indices().prepareOpen(index).get();
             assertBusy(() -> {
-                IndexLongFieldRange timestampRange = cluster(cluster).clusterService().state().metadata().index(index).getTimestampRange();
+                IndexLongFieldRange timestampRange = cluster(cluster).clusterService().state().metadata().projectMetadata.index(index)
+                    .getTimestampRange();
                 assertTrue(Strings.toString(timestampRange), timestampRange.containsAllShardRanges());
             });
         } else {

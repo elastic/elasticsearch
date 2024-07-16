@@ -178,7 +178,7 @@ public class MetadataIndexAliasesService {
             }
 
             for (final String maybeModifiedIndex : maybeModifiedIndices) {
-                final IndexMetadata currentIndexMetadata = currentState.metadata().index(maybeModifiedIndex);
+                final IndexMetadata currentIndexMetadata = currentState.metadata().projectMetadata.index(maybeModifiedIndex);
                 final IndexMetadata newIndexMetadata = metadata.get(maybeModifiedIndex);
                 // only increment the aliases version if the aliases actually changed for this index
                 if (currentIndexMetadata.getAliases().equals(newIndexMetadata.getAliases()) == false) {

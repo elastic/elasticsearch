@@ -369,7 +369,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     requests.toArray(new BulkItemRequest[0]),
                     bulkRequest.isSimulated()
                 );
-                var indexMetadata = clusterState.getMetadata().index(shardId.getIndexName());
+                var indexMetadata = clusterState.getMetadata().projectMetadata.index(shardId.getIndexName());
                 if (indexMetadata != null && indexMetadata.getInferenceFields().isEmpty() == false) {
                     bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
                 }

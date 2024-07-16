@@ -74,6 +74,38 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         this.oldestIndexVersion = oldestIndexVersion;
     }
 
+    /**
+     * Checks whether an index exists (as of this {@link ProjectMetadata} with the given name. Does not check aliases or data streams.
+     * @param index An index name that may or may not exist in the cluster.
+     * @return {@code true} if a concrete index with that name exists, {@code false} otherwise.
+     */
+    public boolean hasIndex(String index) {
+        return indices.containsKey(index);
+    }
+
+    /**
+     * Checks whether an index exists. Similar to {@link ProjectMetadata#hasIndex(String)}, but ensures that the index has the same UUID as
+     * the given {@link Index}.
+     * @param index An {@link Index} object that may or may not exist in the cluster.
+     * @return {@code true} if an index exists with the same name and UUID as the given index object, {@code false} otherwise.
+     */
+    public boolean hasIndex(Index index) {
+        IndexMetadata metadata = index(index.getName());
+        return metadata != null && metadata.getIndexUUID().equals(index.getUUID());
+    }
+
+    public IndexMetadata index(String index) {
+        return indices.get(index);
+    }
+
+    public IndexMetadata index(Index index) {
+        IndexMetadata metadata = index(index.getName());
+        if (metadata != null && metadata.getIndexUUID().equals(index.getUUID())) {
+            return metadata;
+        }
+        return null;
+    }
+
     public Map<String, IndexMetadata> indices() {
         return indices;
     }

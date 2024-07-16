@@ -98,7 +98,7 @@ public class IndexStatsCollector extends Collector {
                         interval,
                         node,
                         indexStats,
-                        metadata.index(indexName),
+                        metadata.getProject().index(indexName),
                         routingTable.index(indexName)
                     )
                 );

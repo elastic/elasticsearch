@@ -85,7 +85,7 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
         PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
 
         for (String index : concreteFollowerIndices) {
-            IndexMetadata indexMetadata = state.metadata().index(index);
+            IndexMetadata indexMetadata = state.metadata().projectMetadata.index(index);
             Map<String, String> ccrCustomData = indexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
             if (ccrCustomData != null) {
                 Optional<ShardFollowTask> result;

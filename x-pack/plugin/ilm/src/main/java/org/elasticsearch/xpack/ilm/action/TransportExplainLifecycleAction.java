@@ -121,7 +121,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         NamedXContentRegistry xContentRegistry,
         boolean rolloverOnlyIfHasDocuments
     ) throws IOException {
-        IndexMetadata indexMetadata = metadata.index(indexName);
+        IndexMetadata indexMetadata = metadata.projectMetadata.index(indexName);
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String policyName = indexMetadata.getLifecyclePolicyName();

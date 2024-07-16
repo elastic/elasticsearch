@@ -142,7 +142,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             // otherwise resolve shardPath based on the index name and shard id
             String indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
             shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
-            indexMetadata = clusterState.metadata().index(indexName);
+            indexMetadata = clusterState.metadata().projectMetadata.index(indexName);
         }
 
         if (indexMetadata == null) {

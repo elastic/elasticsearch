@@ -90,7 +90,7 @@ public final class EnrichStore {
                     indexExpression
                 );
                 for (String concreteIndex : concreteIndices) {
-                    IndexMetadata imd = current.getMetadata().index(concreteIndex);
+                    IndexMetadata imd = current.getMetadata().projectMetadata.index(concreteIndex);
                     assert imd != null;
                     MappingMetadata mapping = imd.mapping();
                     if (mapping == null) {

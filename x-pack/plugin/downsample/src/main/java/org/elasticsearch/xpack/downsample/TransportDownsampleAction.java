@@ -224,7 +224,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             }
         }
         // Assert source index exists
-        IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
+        IndexMetadata sourceIndexMetadata = state.getMetadata().projectMetadata.index(sourceIndexName);
         if (sourceIndexMetadata == null) {
             recordInvalidConfigurationMetrics(startTime);
             listener.onFailure(new IndexNotFoundException(sourceIndexName));
@@ -424,7 +424,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         Metadata metadata,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        IndexMetadata targetIndexMetadata = metadata.index(targetIndexName);
+        IndexMetadata targetIndexMetadata = metadata.projectMetadata.index(targetIndexName);
         if (targetIndexMetadata == null) {
             return false;
         }
@@ -1019,7 +1019,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         final Metadata metadata = currentState.metadata();
-                        final IndexMetadata downsampleIndex = metadata.index(metadata.index(downsampleIndexName).getIndex());
+                        final IndexMetadata downsampleIndex = metadata.projectMetadata.index(
+                            metadata.projectMetadata.index(downsampleIndexName).getIndex()
+                        );
                         if (IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(downsampleIndex.getSettings()) == DownsampleTaskStatus.SUCCESS) {
                             return currentState;
                         }

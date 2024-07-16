@@ -229,7 +229,7 @@ public class ClusterChangedEvent {
 
         if (currentMetadata.projectMetadata.indices() != previousMetadata.projectMetadata.indices()) {
             for (IndexMetadata index : previousMetadata.projectMetadata.indices().values()) {
-                IndexMetadata current = currentMetadata.index(index.getIndex());
+                IndexMetadata current = currentMetadata.projectMetadata.index(index.getIndex());
                 if (current == null) {
                     if (deleted == null) {
                         deleted = new HashSet<>();

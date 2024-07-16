@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -697,6 +698,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
      */
     private ClusterState mockClusterState(String watchIndex) {
         Metadata metadata = mock(Metadata.class);
+        ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(projectMetadata);
         if (watchIndex == null) {
             when(metadata.getIndicesLookup()).thenReturn(Collections.emptySortedMap());
         } else {
@@ -713,7 +716,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 when(aliasMetadata.getAlias()).thenReturn(Watch.INDEX);
                 when(indexMetadata.getAliases()).thenReturn(Map.of(Watch.INDEX, aliasMetadata));
                 indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetadata, List.of(indexMetadata)));
-                when(metadata.index(any(Index.class))).thenReturn(indexMetadata);
+                when(projectMetadata.index(any(Index.class))).thenReturn(indexMetadata);
             }
 
             when(metadata.getIndicesLookup()).thenReturn(indices);

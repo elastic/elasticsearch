@@ -250,8 +250,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 .metadata(
                     Metadata.builder(currentState.metadata())
                         .put(
-                            IndexMetadata.builder(currentState.metadata().index("test"))
-                                .settings(Settings.builder().put(currentState.metadata().index("test").getSettings()))
+                            IndexMetadata.builder(currentState.metadata().projectMetadata.index("test"))
+                                .settings(Settings.builder().put(currentState.metadata().projectMetadata.index("test").getSettings()))
                                 .putCustom(ILM_CUSTOM_METADATA_KEY, newIndexState.build().asMap())
                         )
                 )
@@ -259,7 +259,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 .build();
             registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
             assertThat(registeredStepsForPolicy.get(step.getKey()), equalTo(step));
-            assertThat(registry.getStep(metadata.index(index), step.getKey()), equalTo(step));
+            assertThat(registry.getStep(metadata.projectMetadata.index(index), step.getKey()), equalTo(step));
         }
 
         Map<String, LifecyclePolicyMetadata> registryPolicyMap = registry.getLifecyclePolicyMap();
@@ -406,7 +406,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .findFirst()
             .get()
             .getValue();
-        Step gotStep = registry.getStep(metadata.index(index), shrinkStep.getKey());
+        Step gotStep = registry.getStep(metadata.projectMetadata.index(index), shrinkStep.getKey());
         assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(1));
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
 
@@ -435,7 +435,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .findFirst()
             .get()
             .getValue();
-        gotStep = registry.getStep(metadata.index(index), shrinkStep.getKey());
+        gotStep = registry.getStep(metadata.projectMetadata.index(index), shrinkStep.getKey());
         assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(2));
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
     }

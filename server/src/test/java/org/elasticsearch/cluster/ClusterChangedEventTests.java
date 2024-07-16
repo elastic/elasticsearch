@@ -135,7 +135,7 @@ public class ClusterChangedEventTests extends ESTestCase {
 
         // test when its not the same IndexMetadata
         final Index index = initialIndices.get(0);
-        final IndexMetadata originalIndexMeta = state.metadata().index(index);
+        final IndexMetadata originalIndexMeta = state.metadata().projectMetadata.index(index);
         // make sure the metadata is actually on the cluster state
         assertNotNull("IndexMetadata for " + index + " should exist on the cluster state", originalIndexMeta);
         IndexMetadata newIndexMeta = createIndexMetadata(index, originalIndexMeta.getVersion() + 1);

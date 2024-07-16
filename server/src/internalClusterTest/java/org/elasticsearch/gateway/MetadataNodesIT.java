@@ -99,7 +99,10 @@ public class MetadataNodesIT extends ESIntegTestCase {
         indicesAdmin().prepareClose(index).get();
         // close the index
         ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().get();
-        assertThat(clusterStateResponse.getState().getMetadata().index(index).getState().name(), equalTo(IndexMetadata.State.CLOSE.name()));
+        assertThat(
+            clusterStateResponse.getState().getMetadata().projectMetadata.index(index).getState().name(),
+            equalTo(IndexMetadata.State.CLOSE.name())
+        );
 
         // update the mapping. this should cause the new meta data to be written although index is closed
         indicesAdmin().preparePutMapping(index)

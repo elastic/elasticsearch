@@ -142,7 +142,7 @@ public class MetadataMigrateToDataStreamService {
         validateBackingIndices(currentState, request.aliasName);
         Metadata.Builder mb = Metadata.builder(currentState.metadata());
         for (Index index : alias.getIndices()) {
-            IndexMetadata im = currentState.metadata().index(index);
+            IndexMetadata im = currentState.metadata().projectMetadata.index(index);
             prepareBackingIndex(mb, im, request.aliasName, mapperSupplier, true);
         }
         currentState = ClusterState.builder(currentState).metadata(mb).build();
@@ -153,7 +153,7 @@ public class MetadataMigrateToDataStreamService {
         List<IndexMetadata> backingIndices = alias.getIndices()
             .stream()
             .filter(x -> writeIndex == null || x.equals(writeIndex) == false)
-            .map(x -> finalCurrentState.metadata().index(x))
+            .map(x -> finalCurrentState.metadata().projectMetadata.index(x))
             .toList();
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
@@ -165,7 +165,7 @@ public class MetadataMigrateToDataStreamService {
             isDslOnlyMode,
             req,
             backingIndices,
-            currentState.metadata().index(writeIndex),
+            currentState.metadata().projectMetadata.index(writeIndex),
             listener,
             // No need to initialize the failure store when migrating to a data stream.
             false
@@ -263,7 +263,7 @@ public class MetadataMigrateToDataStreamService {
         // ensure that no other aliases reference indices
         List<String> indicesWithOtherAliases = new ArrayList<>();
         for (Index index : alias.getIndices()) {
-            IndexMetadata im = currentState.metadata().index(index);
+            IndexMetadata im = currentState.metadata().projectMetadata.index(index);
             if (im.getAliases().size() > 1 || im.getAliases().containsKey(alias.getName()) == false) {
                 indicesWithOtherAliases.add(index.getName());
             }

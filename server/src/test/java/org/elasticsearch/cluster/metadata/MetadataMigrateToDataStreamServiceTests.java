@@ -308,7 +308,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         assertThat(backingIndexNames, containsInAnyOrder("foo1", "foo2"));
         assertThat(ds.getWriteIndex().getName(), equalTo("foo1"));
         for (Index index : ds.getIndices()) {
-            IndexMetadata im = newState.metadata().index(index);
+            IndexMetadata im = newState.metadata().projectMetadata.index(index);
             assertThat(im.getSettings().get("index.hidden"), equalTo("true"));
             assertThat(im.getAliases().size(), equalTo(0));
         }
@@ -367,7 +367,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         assertThat(backingIndexNames, containsInAnyOrder("foo1", "foo2"));
         assertThat(ds.getWriteIndex().getName(), equalTo("foo1"));
         for (Index index : ds.getIndices()) {
-            IndexMetadata im = newState.metadata().index(index);
+            IndexMetadata im = newState.metadata().projectMetadata.index(index);
             assertThat(im.getSettings().get("index.hidden"), equalTo("true"));
             assertThat(im.getAliases().size(), equalTo(0));
         }

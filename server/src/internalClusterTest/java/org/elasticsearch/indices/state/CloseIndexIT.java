@@ -437,7 +437,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             .getName();
         internalCluster().restartNode(nodeWithPrimary, new InternalTestCluster.RestartCallback());
         ensureGreen(indexName);
-        long primaryTerm = clusterService().state().metadata().index(indexName).primaryTerm(0);
+        long primaryTerm = clusterService().state().metadata().projectMetadata.index(indexName).primaryTerm(0);
         for (String nodeName : internalCluster().nodesInclude(indexName)) {
             IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeName)
                 .indexService(resolveIndex(indexName))

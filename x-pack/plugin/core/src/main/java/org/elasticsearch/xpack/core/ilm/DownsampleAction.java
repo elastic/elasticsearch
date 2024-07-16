@@ -158,7 +158,7 @@ public class DownsampleAction implements LifecycleAction {
             nextStepKey,
             checkNotWriteIndex,
             (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(index);
                 assert indexMetadata != null : "invalid cluster metadata. index [" + index.getName() + "] metadata not found";
                 if (IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
                     return false;

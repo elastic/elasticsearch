@@ -46,6 +46,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -2037,7 +2038,10 @@ public abstract class Engine implements Closeable {
 
     @Override
     public void close() throws IOException {
-        close(ActionListener.noop());
+        // TODO Remove when we remove sync close
+        var future = new PlainActionFuture<Void>();
+        close(future);
+        FutureUtils.get(future);
     }
 
     public void close(ActionListener<Void> listener) throws IOException {

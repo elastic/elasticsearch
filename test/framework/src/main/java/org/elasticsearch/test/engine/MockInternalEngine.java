@@ -41,6 +41,7 @@ final class MockInternalEngine extends InternalEngine {
     public void close() throws IOException {
         switch (support().flushOrClose(MockEngineSupport.CloseAction.CLOSE)) {
             case FLUSH_AND_CLOSE -> {
+                // TODO Remove when we remove sync close
                 var future = new PlainActionFuture<Void>();
                 flushAndCloseInternal(future);
                 FutureUtils.get(future);

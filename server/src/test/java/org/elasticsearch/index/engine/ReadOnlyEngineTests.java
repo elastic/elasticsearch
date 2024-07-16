@@ -184,7 +184,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 }
                 engine.syncTranslog();
                 globalCheckpoint.set(engine.getPersistedLocalCheckpoint() - 1);
-                engine.flushAndClose();
+                flushAndClose(engine);
 
                 IllegalStateException exception = expectThrows(
                     IllegalStateException.class,
@@ -298,7 +298,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     globalCheckpoint.set(i);
                 }
                 engine.syncTranslog();
-                engine.flushAndClose();
+                flushAndClose(engine);
                 numSegments = engine.getLastCommittedSegmentInfos().size();
             }
 
@@ -361,7 +361,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     globalCheckpoint.set(i);
                 }
                 engine.syncTranslog();
-                engine.flushAndClose();
+                flushAndClose(engine);
             }
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean())) {
                 final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());

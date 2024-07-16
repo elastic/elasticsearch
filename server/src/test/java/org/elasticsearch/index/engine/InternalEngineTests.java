@@ -1302,7 +1302,7 @@ public class InternalEngineTests extends EngineTestCase {
         if (randomBoolean()) {
             engine.close();
         } else {
-            engine.flushAndClose();
+            flushAndClose(engine);
         }
         if (randomBoolean()) {
             final String translogUUID = Translog.createEmptyTranslog(
@@ -3711,7 +3711,7 @@ public class InternalEngineTests extends EngineTestCase {
                 protected void doRun() throws Exception {
                     barrier.await();
                     if (flushAndClose) {
-                        engine.flushAndClose();
+                        flushAndClose(engine);
                     } else {
                         engine.close();
                     }
@@ -6402,7 +6402,7 @@ public class InternalEngineTests extends EngineTestCase {
         if (randomBoolean()) {
             engine.close();
         } else {
-            engine.flushAndClose();
+            flushAndClose(engine);
         }
         try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
             assertThat(recoveringEngine.getMinRetainedSeqNo(), equalTo(lastMinRetainedSeqNo));

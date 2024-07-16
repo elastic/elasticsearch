@@ -1731,31 +1731,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 checkAndCallWaitForEngineOrClosedShardListeners();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
-                closeExecutor.execute(ActionRunnable.run(closeListener, new CheckedRunnable<>() {
+                closeExecutor.execute(new AbstractRunnable() {
+
                     @Override
-                    public void run() throws Exception {
-                        try {
-                            if (engine != null && flushEngine) {
-                                engine.flushAndClose();
-                            }
-                        } finally {
-                            // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                            // Also closing refreshListeners to prevent us from accumulating any more listeners
-                            IOUtils.close(
-                                engine,
-                                globalCheckpointListeners,
-                                refreshListeners,
-                                pendingReplicationActions,
-                                indexShardOperationPermits
-                            );
+                    protected void doRun() throws Exception {
+                        var cleanUpAndClose = ActionListener.runBefore(closeListener, this::cleanUp);
+                        if (engine != null && flushEngine) {
+                            engine.flushAndClose(cleanUpAndClose);
+                        } else {
+                            cleanUpAndClose.onResponse(null);
                         }
                     }
 
-                    @Override
-                    public String toString() {
-                        return "IndexShard#close[" + shardId + "]";
+                    private void cleanUp() throws IOException {
+                        // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                        // Also closing refreshListeners to prevent us from accumulating any more listeners
+                        IOUtils.close(
+                            engine,
+                            globalCheckpointListeners,
+                            refreshListeners,
+                            pendingReplicationActions,
+                            indexShardOperationPermits
+                        );
                     }
-                }));
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        closeListener.onFailure(e);
+                    }
+                });
             }
         }
     }

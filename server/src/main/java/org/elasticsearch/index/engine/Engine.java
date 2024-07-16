@@ -1997,7 +1997,7 @@ public abstract class Engine implements Closeable {
     private void drainForClose(ActionListener<Void> listener) {
         if (isClosing.compareAndSet(false, true) == false) {
             logger.trace("drainForClose(): already closing");
-            listener.onFailure(new AlreadyClosedException("Already closing"));
+            listener.onResponse(null);
             return;
         }
 
@@ -2009,12 +2009,7 @@ public abstract class Engine implements Closeable {
     /**
      * Flush the engine (committing segments to disk and truncating the translog) and close it.
      */
-    public void flushAndClose() throws IOException {
-        // TODO Do we have to wait here?
-        flushAndClose(ActionListener.noop());
-    }
-
-    private void flushAndClose(ActionListener<Void> listener) throws IOException {
+    public void flushAndClose(ActionListener<Void> listener) throws IOException {
         logger.trace("flushAndClose() maybe draining ops");
         if (isClosed.get() == false) {
             drainForClose(listener.map(unused -> {

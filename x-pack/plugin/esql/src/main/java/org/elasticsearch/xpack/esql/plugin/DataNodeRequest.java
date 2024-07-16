@@ -32,11 +32,12 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-final class DataNodeRequest extends TransportRequest implements IndicesRequest {
+final class DataNodeRequest extends TransportRequest implements IndicesRequest.Replaceable {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String sessionId;
     private final EsqlConfiguration configuration;
@@ -44,8 +45,8 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
     private final List<ShardId> shardIds;
     private final Map<Index, AliasFilter> aliasFilters;
     private final PhysicalPlan plan;
-
-    private String[] indices; // lazily computed
+    private String[] indices;
+    private final IndicesOptions indicesOptions;
 
     DataNodeRequest(
         String sessionId,
@@ -53,7 +54,9 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         String clusterAlias,
         List<ShardId> shardIds,
         Map<Index, AliasFilter> aliasFilters,
-        PhysicalPlan plan
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -61,6 +64,8 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         this.shardIds = shardIds;
         this.aliasFilters = aliasFilters;
         this.plan = plan;
+        this.indices = indices;
+        this.indicesOptions = indicesOptions;
     }
 
     DataNodeRequest(StreamInput in) throws IOException {
@@ -78,6 +83,13 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         this.shardIds = in.readCollectionAsList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
         this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration).readPhysicalPlanNode();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
+            this.indices = in.readStringArray();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+        } else {
+            this.indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
+            this.indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        }
     }
 
     @Override
@@ -91,19 +103,26 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         out.writeCollection(shardIds);
         out.writeMap(aliasFilters);
         new PlanStreamOutput(out, planNameRegistry, configuration).writePhysicalPlanNode(plan);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
+            out.writeStringArray(indices);
+            indicesOptions.writeIndicesOptions(out);
+        }
     }
 
     @Override
     public String[] indices() {
-        if (indices == null) {
-            indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
-        }
         return indices;
     }
 
     @Override
+    public IndicesRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
+    }
+
+    @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return indicesOptions;
     }
 
     @Override
@@ -172,11 +191,13 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
             && shardIds.equals(request.shardIds)
             && aliasFilters.equals(request.aliasFilters)
             && plan.equals(request.plan)
-            && getParentTask().equals(request.getParentTask());
+            && getParentTask().equals(request.getParentTask())
+            && Arrays.equals(indices, request.indices)
+            && indicesOptions.equals(request.indicesOptions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, configuration, clusterAlias, shardIds, aliasFilters, plan);
+        return Objects.hash(sessionId, configuration, clusterAlias, shardIds, aliasFilters, plan, Arrays.hashCode(indices), indicesOptions);
     }
 }

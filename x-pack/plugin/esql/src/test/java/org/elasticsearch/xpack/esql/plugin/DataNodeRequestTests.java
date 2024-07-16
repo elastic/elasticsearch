@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -88,7 +89,9 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
             randomAlphaOfLength(10),
             shardIds,
             aliasFilters,
-            physicalPlan
+            physicalPlan,
+            generateRandomStringArray(10, 10, false, false),
+            IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -96,7 +99,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
 
     @Override
     protected DataNodeRequest mutateInstance(DataNodeRequest in) throws IOException {
-        return switch (between(0, 6)) {
+        return switch (between(0, 8)) {
             case 0 -> {
                 var request = new DataNodeRequest(
                     randomAlphaOfLength(20),
@@ -104,7 +107,9 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                     in.clusterAlias(),
                     in.shardIds(),
                     in.aliasFilters(),
-                    in.plan()
+                    in.plan(),
+                    in.indices(),
+                    in.indicesOptions()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -116,7 +121,9 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                     in.clusterAlias(),
                     in.shardIds(),
                     in.aliasFilters(),
-                    in.plan()
+                    in.plan(),
+                    in.indices(),
+                    in.indicesOptions()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -129,7 +136,9 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                     in.clusterAlias(),
                     shardIds,
                     in.aliasFilters(),
-                    in.plan()
+                    in.plan(),
+                    in.indices(),
+                    in.indicesOptions()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -154,7 +163,9 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                     in.clusterAlias(),
                     in.shardIds(),
                     in.aliasFilters(),
-                    mapAndMaybeOptimize(parse(newQuery))
+                    mapAndMaybeOptimize(parse(newQuery)),
+                    in.indices(),
+                    in.indicesOptions()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -172,7 +183,9 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                     in.clusterAlias(),
                     in.shardIds(),
                     aliasFilters,
-                    in.plan()
+                    in.plan(),
+                    in.indices(),
+                    in.indicesOptions()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -184,7 +197,9 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                     in.clusterAlias(),
                     in.shardIds(),
                     in.aliasFilters(),
-                    in.plan()
+                    in.plan(),
+                    in.indices(),
+                    in.indicesOptions()
                 );
                 request.setParentTask(
                     randomValueOtherThan(request.getParentTask().getNodeId(), () -> randomAlphaOfLength(10)),
@@ -200,7 +215,42 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                     clusterAlias,
                     in.shardIds(),
                     in.aliasFilters(),
-                    in.plan()
+                    in.plan(),
+                    in.indices(),
+                    in.indicesOptions()
+                );
+                request.setParentTask(request.getParentTask());
+                yield request;
+            }
+            case 7 -> {
+                var indices = randomValueOtherThan(in.indices(), () -> generateRandomStringArray(10, 10, false, false));
+                var request = new DataNodeRequest(
+                    in.sessionId(),
+                    in.configuration(),
+                    in.clusterAlias(),
+                    in.shardIds(),
+                    in.aliasFilters(),
+                    in.plan(),
+                    indices,
+                    in.indicesOptions()
+                );
+                request.setParentTask(request.getParentTask());
+                yield request;
+            }
+            case 8 -> {
+                var indicesOptions = randomValueOtherThan(
+                    in.indicesOptions(),
+                    () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+                );
+                var request = new DataNodeRequest(
+                    in.sessionId(),
+                    in.configuration(),
+                    in.clusterAlias(),
+                    in.shardIds(),
+                    in.aliasFilters(),
+                    in.plan(),
+                    in.indices(),
+                    indicesOptions
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;

@@ -79,6 +79,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_AUTOMATON = patterns(
         "indices:data/read/*",
         ResolveIndexAction.NAME,
+        TransportSearchShardsAction.NAME,
         TransportResolveClusterAction.NAME
     );
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -38,24 +40,25 @@ import java.util.Objects;
  * via {@link ExchangeService#openExchange} before sending this request to the remote cluster. The coordinator on the main cluster
  * will poll pages from this sink. Internally, this compute will trigger sub-computes on data nodes via {@link DataNodeRequest}.
  */
-final class ClusterComputeRequest extends TransportRequest implements IndicesRequest {
+final class ClusterComputeRequest extends TransportRequest implements IndicesRequest.Replaceable {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String clusterAlias;
     private final String sessionId;
     private final EsqlConfiguration configuration;
     private final PhysicalPlan plan;
 
-    private final String[] originalIndices;
-    private final String[] indices;
+    private String[] indices;
+    private final OriginalIndices originalIndices;
+    private final String[] targetIndices;
 
     /**
      * A request to start a compute on a remote cluster.
      *
-     * @param clusterAlias the cluster alias of this remote cluster
-     * @param sessionId the sessionId in which the output pages will be placed in the exchange sink specified by this id
-     * @param configuration the configuration for this compute
-     * @param plan the physical plan to be executed
-     * @param indices the target indices
+     * @param clusterAlias    the cluster alias of this remote cluster
+     * @param sessionId       the sessionId in which the output pages will be placed in the exchange sink specified by this id
+     * @param configuration   the configuration for this compute
+     * @param plan            the physical plan to be executed
+     * @param targetIndices   the target indices
      * @param originalIndices the original indices - needed to resolve alias filters
      */
     ClusterComputeRequest(
@@ -63,14 +66,14 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         String sessionId,
         EsqlConfiguration configuration,
         PhysicalPlan plan,
-        String[] indices,
-        String[] originalIndices
+        String[] targetIndices,
+        OriginalIndices originalIndices
     ) {
         this.clusterAlias = clusterAlias;
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.plan = plan;
-        this.indices = indices;
+        this.targetIndices = targetIndices;
         this.originalIndices = originalIndices;
     }
 
@@ -83,8 +86,12 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
             new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
         );
         this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration).readPhysicalPlanNode();
-        this.indices = in.readStringArray();
-        this.originalIndices = in.readStringArray();
+        this.targetIndices = in.readStringArray();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
+            this.originalIndices = OriginalIndices.readOriginalIndices(in);
+        } else {
+            this.originalIndices = new OriginalIndices(in.readStringArray(), IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+        }
     }
 
     @Override
@@ -94,18 +101,28 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         out.writeString(sessionId);
         configuration.writeTo(out);
         new PlanStreamOutput(out, planNameRegistry, configuration).writePhysicalPlanNode(plan);
-        out.writeStringArray(indices);
-        out.writeStringArray(originalIndices);
+        out.writeStringArray(targetIndices);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
+            OriginalIndices.writeOriginalIndices(originalIndices, out);
+        } else {
+            out.writeStringArray(originalIndices.indices());
+        }
     }
 
     @Override
     public String[] indices() {
-        return indices;
+        return indices != null ? indices : originalIndices.indices();
+    }
+
+    @Override
+    public IndicesRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
     }
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return originalIndices.indicesOptions();
     }
 
     @Override
@@ -122,6 +139,14 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         };
     }
 
+    OriginalIndices originalIndices() {
+        return originalIndices;
+    }
+
+    String[] targetIndices() {
+        return targetIndices;
+    }
+
     String clusterAlias() {
         return clusterAlias;
     }
@@ -134,17 +159,13 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         return configuration;
     }
 
-    String[] originalIndices() {
-        return originalIndices;
-    }
-
     PhysicalPlan plan() {
         return plan;
     }
 
     @Override
     public String getDescription() {
-        return "indices=" + Arrays.toString(indices) + " plan=" + plan;
+        return "indices=" + Arrays.toString(targetIndices) + " plan=" + plan;
     }
 
     @Override
@@ -160,14 +181,14 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         return clusterAlias.equals(request.clusterAlias)
             && sessionId.equals(request.sessionId)
             && configuration.equals(request.configuration)
-            && Arrays.equals(indices, request.indices)
-            && Arrays.equals(originalIndices, request.originalIndices)
+            && Arrays.equals(targetIndices, request.targetIndices)
+            && originalIndices.equals(request.originalIndices)
             && plan.equals(request.plan)
             && getParentTask().equals(request.getParentTask());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, configuration, Arrays.hashCode(indices), Arrays.hashCode(originalIndices), plan);
+        return Objects.hash(sessionId, configuration, Arrays.hashCode(targetIndices), originalIndices, plan);
     }
 }

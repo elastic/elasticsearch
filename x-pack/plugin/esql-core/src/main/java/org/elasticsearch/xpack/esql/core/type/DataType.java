@@ -28,8 +28,8 @@ import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public enum DataType {
-    UNSUPPORTED(builder().typeName("UNSUPPORTED")),
-    NULL(builder().esType("null")),
+    UNSUPPORTED(builder().typeName("UNSUPPORTED").unknownSize()),
+    NULL(builder().esType("null").size(0)),
     BOOLEAN(builder().esType("boolean").size(1)),
 
     /**
@@ -56,17 +56,21 @@ public enum DataType {
     KEYWORD(builder().esType("keyword").unknownSize().docValues()),
     TEXT(builder().esType("text").unknownSize()),
     DATETIME(builder().esType("date").typeName("DATETIME").size(Long.BYTES).docValues()),
-    IP(builder().esType("ip").size(45).docValues()),
-    VERSION(builder().esType("version").unknownSize().docValues()),
-    OBJECT(builder().esType("object")),
-    NESTED(builder().esType("nested")),
+    // IP addresses, both IPv4 and IPv6, are encoded using 16 bytes.
+    IP(builder().esType("ip").size(16).docValues()),
+    // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
+    VERSION(builder().esType("version").size(15).docValues()),
+    OBJECT(builder().esType("object").unknownSize()),
+    NESTED(builder().esType("nested").unknownSize()),
     SOURCE(builder().esType(SourceFieldMapper.NAME).unknownSize()),
     DATE_PERIOD(builder().typeName("DATE_PERIOD").size(3 * Integer.BYTES)),
     TIME_DURATION(builder().typeName("TIME_DURATION").size(Integer.BYTES + Long.BYTES)),
-    GEO_POINT(builder().esType("geo_point").size(Double.BYTES * 2).docValues()),
-    CARTESIAN_POINT(builder().esType("cartesian_point").size(Double.BYTES * 2).docValues()),
-    CARTESIAN_SHAPE(builder().esType("cartesian_shape").unknownSize().docValues()),
-    GEO_SHAPE(builder().esType("geo_shape").unknownSize().docValues()),
+    // WKB for points is typically 21 bytes.
+    GEO_POINT(builder().esType("geo_point").size(21).docValues()),
+    CARTESIAN_POINT(builder().esType("cartesian_point").size(21).docValues()),
+    // wild estimate for size, based on some test data (airport_city_boundaries)
+    CARTESIAN_SHAPE(builder().esType("cartesian_shape").size(200).docValues()),
+    GEO_SHAPE(builder().esType("geo_shape").size(200).docValues()),
 
     DOC_DATA_TYPE(builder().esType("_doc").size(Integer.BYTES * 3)),
     TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues()),
@@ -114,6 +118,7 @@ public enum DataType {
 
     DataType(Builder builder) {
         String typeString = builder.typeName != null ? builder.typeName : builder.esType;
+        assert builder.size != null : "Missing size for type " + typeString;
         this.typeName = typeString.toLowerCase(Locale.ROOT);
         this.name = typeString.toUpperCase(Locale.ROOT);
         this.esType = builder.esType;
@@ -283,6 +288,10 @@ public enum DataType {
         return isWholeNumber || isRationalNumber;
     }
 
+    /**
+     * @return the estimated size, in bytes, of this data type.  If there's no reasonable way to estimate the size,
+     *         the optional will be empty.
+     */
     public Optional<Integer> size() {
         return size;
     }
@@ -405,7 +414,7 @@ public enum DataType {
         }
 
         Builder unknownSize() {
-            Optional.empty();
+            this.size = Optional.empty();
             return this;
         }
 

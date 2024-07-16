@@ -126,6 +126,7 @@ MIN(salary  * 10):i | MAX(languages):i
 // Not really shadowing, but let's keep the name consistent with the other command's tests
 shadowingInternal
 FROM employees
+| SORT emp_no ASC
 | KEEP emp_no, first_name, last_name
 | DROP last_name, last_name
 | LIMIT 2
@@ -138,6 +139,7 @@ emp_no:integer | first_name:keyword
 
 shadowingInternalWildcard
 FROM employees
+| SORT emp_no ASC
 | KEEP emp_no, first_name, last_name
 | DROP last*name, last*name, last*, last_name
 | LIMIT 2

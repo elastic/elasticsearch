@@ -7,7 +7,7 @@ stream. The exact impact will vary per data set. The main benefit from using Log
 
 The following features are enabled in a logs data stream:
 * <<synthetic-source,Synthetic source>>, which omits storing the _source. When _source or part of it is requested it is synthesized on the fly at runtime.
-* Indexing sorting. By default indices are sorting by `host.name` and `@timestamp` fields at index time, which can be overwritten.
+* Index sorting. By default indices are sorted by `host.name` and `@timestamp` fields at index time, which can be overwritten.
 * Enable more space efficient compressions for fields with doc values enabled.
 
 [discrete]

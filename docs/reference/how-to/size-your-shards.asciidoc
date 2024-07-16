@@ -568,6 +568,7 @@ Try using the <<indices-forcemerge,Force Merge API>> to clear deleted docs. For 
 ----
 POST my-index-000001/_forcemerge?only_expunge_deletes=true
 ----
+// TEST[setup:my_index]
 
 This will launch an asynchronous task which can be monitored via the <<tasks,Task Management API>>. 
 

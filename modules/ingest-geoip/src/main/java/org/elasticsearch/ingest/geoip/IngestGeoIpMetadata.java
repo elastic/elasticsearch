@@ -69,7 +69,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
     }
 
     public Map<String, DatabaseConfigurationMetadata> getDatabases() {

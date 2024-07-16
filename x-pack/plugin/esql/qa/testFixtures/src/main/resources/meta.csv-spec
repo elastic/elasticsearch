@@ -111,7 +111,7 @@ double tau()
 "keyword|text to_upper(str:keyword|text)"
 "version to_ver(field:keyword|text|version)"
 "version to_version(field:keyword|text|version)"
-"double|integer|long|date top(field:double|integer|long|date, limit:integer, order:keyword)"
+"boolean|double|integer|long|date top(field:boolean|double|integer|long|date, limit:integer, order:keyword)"
 "keyword|text trim(string:keyword|text)"
 "boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)"
 "double weighted_avg(number:double|integer|long, weight:double|integer|long)"
@@ -232,7 +232,7 @@ to_unsigned_lo|field                               |"boolean|date|keyword|text|d
 to_upper      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 to_ver        |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
 to_version    |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
-top      |[field, limit, order]               |["double|integer|long|date", integer, keyword]                                                                                    |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
+top           |[field, limit, order]               |["boolean|double|integer|long|date", integer, keyword]                                                                            |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
 trim          |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 values        |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
 weighted_avg  |[number, weight]                    |["double|integer|long", "double|integer|long"]                                                                                    |[A numeric value., A numeric weight.]
@@ -477,7 +477,7 @@ to_unsigned_lo|unsigned_long                                                    
 to_upper      |"keyword|text"                                                                                                              |false                       |false           |false
 to_ver        |version                                                                                                                     |false                       |false           |false
 to_version    |version                                                                                                                     |false                       |false           |false
-top      |"double|integer|long|date"                                                                                                  |[false, false, false]       |false           |true
+top           |"boolean|double|integer|long|date"                                                                                          |[false, false, false]       |false           |true
 trim          |"keyword|text"                                                                                                              |false                       |false           |false
 values        |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |true
 weighted_avg  |"double"                                                                                                                    |[false, false]              |false           |true

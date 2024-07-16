@@ -9,6 +9,8 @@ package org.elasticsearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -38,8 +40,11 @@ final class MockInternalEngine extends InternalEngine {
     @Override
     public void close() throws IOException {
         switch (support().flushOrClose(MockEngineSupport.CloseAction.CLOSE)) {
-            // TODO Remove the no-op when close accepts listener
-            case FLUSH_AND_CLOSE -> flushAndCloseInternal(ActionListener.noop());
+            case FLUSH_AND_CLOSE -> {
+                var future = new PlainActionFuture<Void>();
+                flushAndCloseInternal(future);
+                FutureUtils.get(future);
+            }
             case CLOSE -> super.close();
         }
     }
@@ -48,7 +53,7 @@ final class MockInternalEngine extends InternalEngine {
     public void flushAndClose(ActionListener<Void> listener) throws IOException {
         switch (support().flushOrClose(MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
             case FLUSH_AND_CLOSE -> flushAndCloseInternal(listener);
-            case CLOSE -> super.close();
+            case CLOSE -> super.close(listener);
         }
     }
 
@@ -56,7 +61,7 @@ final class MockInternalEngine extends InternalEngine {
         if (support().isFlushOnCloseDisabled() == false) {
             super.flushAndClose(listener);
         } else {
-            super.close();
+            super.close(listener);
         }
     }
 

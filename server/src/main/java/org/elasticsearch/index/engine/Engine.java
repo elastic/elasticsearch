@@ -1994,16 +1994,16 @@ public abstract class Engine implements Closeable {
      *
      * @param listener the action to perform when all open refs are released
      */
-    private void drainForClose(ActionListener<Void> listener) {
+    private void drainForClose(ActionListener<Boolean> listener) {
         if (isClosing.compareAndSet(false, true) == false) {
             logger.trace("drainForClose(): already closing");
-            listener.onResponse(null);
+            listener.onResponse(false);
             return;
         }
 
         logger.debug("drainForClose(): draining ops");
         releaseEnsureOpenRef.close();
-        drainOnCloseListener.addListener(listener);
+        drainOnCloseListener.addListener(listener.map(unused -> true));
     }
 
     /**
@@ -2011,24 +2011,28 @@ public abstract class Engine implements Closeable {
      */
     public void flushAndClose(ActionListener<Void> listener) throws IOException {
         logger.trace("flushAndClose() maybe draining ops");
+        var awaitPendingCloseListener = ActionListener.runBefore(listener, this::awaitPendingClose);
         if (isClosed.get() == false) {
-            drainForClose(listener.map(unused -> {
-                logger.trace("flushAndClose drained ops");
-                try {
-                    logger.debug("flushing shard on close - this might take some time to sync files to disk");
+            drainForClose(awaitPendingCloseListener.map(drained -> {
+                if (drained) {
+                    logger.trace("flushAndClose drained ops");
                     try {
-                        // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
-                        flushHoldingLock(false, false, ActionListener.noop());
-                    } catch (AlreadyClosedException ex) {
-                        logger.debug("engine already closed - skipping flushAndClose");
+                        logger.debug("flushing shard on close - this might take some time to sync files to disk");
+                        try {
+                            // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
+                            flushHoldingLock(false, false, ActionListener.noop());
+                        } catch (AlreadyClosedException ex) {
+                            logger.debug("engine already closed - skipping flushAndClose");
+                        }
+                    } finally {
+                        closeNoLock("flushAndClose", closedLatch);
                     }
-                    return null;
-                } finally {
-                    closeNoLock("flushAndClose", closedLatch);
                 }
+                return null;
             }));
+        } else {
+            awaitPendingCloseListener.onResponse(null);
         }
-        awaitPendingClose();
     }
 
     @Override
@@ -2036,16 +2040,20 @@ public abstract class Engine implements Closeable {
         close(ActionListener.noop());
     }
 
-    private void close(ActionListener<Void> listener) throws IOException {
+    public void close(ActionListener<Void> listener) throws IOException {
         logger.debug("close() maybe draining ops");
+        var awaitPendingCloseListener = ActionListener.runBefore(listener, this::awaitPendingClose);
         if (isClosed.get() == false) {
-            drainForClose(listener.map(unused -> {
-                logger.debug("close drained ops");
-                closeNoLock("api", closedLatch);
+            drainForClose(awaitPendingCloseListener.map(drained -> {
+                if (drained) {
+                    logger.debug("close drained ops");
+                    closeNoLock("api", closedLatch);
+                }
                 return null;
             }));
+        } else {
+            awaitPendingCloseListener.onResponse(null);
         }
-        awaitPendingClose();
     }
 
     private void awaitPendingClose() {

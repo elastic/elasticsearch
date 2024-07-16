@@ -277,6 +277,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder indexed(boolean indexed) {
+            this.indexed.setValue(indexed);
+            return this;
+        }
+
+        public Builder indexOptions(IndexOptions indexOptions) {
+            this.indexOptions.setValue(indexOptions);
+            return this;
+        }
+
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             // Validate again here because the dimensions or element type could have been set programmatically,
@@ -1064,7 +1074,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static final Map<String, ElementType> namesToElementType = Map.of(
+    public static final Map<String, ElementType> namesToElementType = Map.of(
         ElementType.BYTE.toString(),
         ElementType.BYTE,
         ElementType.FLOAT.toString(),
@@ -1143,29 +1153,36 @@ public class DenseVectorFieldMapper extends FieldMapper {
         abstract float score(float similarity, ElementType elementType, int dim);
 
         public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
+
+        public static Optional<VectorSimilarity> fromString(String type) {
+            return Stream.of(VectorSimilarity.values()).filter(vectorIndexType -> vectorIndexType.toString().equals(type)).findFirst();
+        }
     }
 
-    abstract static class IndexOptions implements ToXContent {
-        final String type;
+    public abstract static class IndexOptions implements ToXContent {
+        final VectorIndexType type;
 
-        IndexOptions(String type) {
+        IndexOptions(VectorIndexType type) {
             this.type = type;
         }
 
         abstract KnnVectorsFormat getVectorsFormat(ElementType elementType);
 
-        boolean supportsElementType(ElementType elementType) {
-            return true;
+        final boolean supportsElementType(ElementType elementType) {
+            return type.supportsElementType(elementType);
         }
 
         abstract boolean updatableTo(IndexOptions update);
 
-        void validateDimension(int dim) {
-            // no-op
+        public final void validateDimension(int dim) {
+            if (type.supportsDimension(dim)) {
+                return;
+            }
+            throw new IllegalArgumentException(type.name + " only supports even dimensions; provided=" + dim);
         }
     }
 
-    private enum VectorIndexType {
+    public enum VectorIndexType {
         HNSW("hnsw") {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
@@ -1181,6 +1198,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new HnswIndexOptions(m, efConstruction);
+            }
+
+            @Override
+            public boolean supportsElementType(ElementType elementType) {
+                return true;
+            }
+
+            @Override
+            public boolean supportsDimension(int dims) {
+                return true;
             }
         },
         INT8_HNSW("int8_hnsw") {
@@ -1204,6 +1231,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval);
             }
+
+            @Override
+            public boolean supportsElementType(ElementType elementType) {
+                return elementType == ElementType.FLOAT;
+            }
+
+            @Override
+            public boolean supportsDimension(int dims) {
+                return true;
+            }
         },
         INT4_HNSW("int4_hnsw") {
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
@@ -1225,12 +1262,32 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int4HnswIndexOptions(m, efConstruction, confidenceInterval);
             }
+
+            @Override
+            public boolean supportsElementType(ElementType elementType) {
+                return elementType == ElementType.FLOAT;
+            }
+
+            @Override
+            public boolean supportsDimension(int dims) {
+                return dims % 2 == 0;
+            }
         },
         FLAT("flat") {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new FlatIndexOptions();
+            }
+
+            @Override
+            public boolean supportsElementType(ElementType elementType) {
+                return true;
+            }
+
+            @Override
+            public boolean supportsDimension(int dims) {
+                return true;
             }
         },
         INT8_FLAT("int8_flat") {
@@ -1244,6 +1301,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int8FlatIndexOptions(confidenceInterval);
             }
+
+            @Override
+            public boolean supportsElementType(ElementType elementType) {
+                return elementType == ElementType.FLOAT;
+            }
+
+            @Override
+            public boolean supportsDimension(int dims) {
+                return true;
+            }
         },
         INT4_FLAT("int4_flat") {
             @Override
@@ -1256,9 +1323,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int4FlatIndexOptions(confidenceInterval);
             }
+
+            @Override
+            public boolean supportsElementType(ElementType elementType) {
+                return elementType == ElementType.FLOAT;
+            }
+
+            @Override
+            public boolean supportsDimension(int dims) {
+                return dims % 2 == 0;
+            }
         };
 
-        static Optional<VectorIndexType> fromString(String type) {
+        public static Optional<VectorIndexType> fromString(String type) {
             return Stream.of(VectorIndexType.values()).filter(vectorIndexType -> vectorIndexType.name.equals(type)).findFirst();
         }
 
@@ -1268,21 +1345,30 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.name = name;
         }
 
-        abstract IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap);
+        @Override
+        public String toString() {
+            return name;
+        }
+
+        public abstract IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap);
+
+        public abstract boolean supportsElementType(ElementType elementType);
+
+        public abstract boolean supportsDimension(int dims);
     }
 
     static class Int8FlatIndexOptions extends IndexOptions {
         private final Float confidenceInterval;
 
         Int8FlatIndexOptions(Float confidenceInterval) {
-            super("int8_flat");
+            super(VectorIndexType.INT8_FLAT);
             this.confidenceInterval = confidenceInterval;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("type", type);
+            builder.field("type", type.name);
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
             }
@@ -1310,11 +1396,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean supportsElementType(ElementType elementType) {
-            return elementType == ElementType.FLOAT;
-        }
-
-        @Override
         boolean updatableTo(IndexOptions update) {
             return update.type.equals(this.type)
                 || update.type.equals(VectorIndexType.HNSW.name)
@@ -1323,15 +1404,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     static class FlatIndexOptions extends IndexOptions {
-
         FlatIndexOptions() {
-            super("flat");
+            super(VectorIndexType.FLAT);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("type", type);
+            builder.field("type", type.name);
             builder.endObject();
             return builder;
         }
@@ -1367,7 +1447,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final float confidenceInterval;
 
         Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
-            super("int4_hnsw");
+            super(VectorIndexType.INT4_HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
             // The default confidence interval for int4 is dynamic quantiles, this provides the best relevancy and is
@@ -1384,7 +1464,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("type", type);
+            builder.field("type", type.name);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
             builder.field("confidence_interval", confidenceInterval);
@@ -1419,28 +1499,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean supportsElementType(ElementType elementType) {
-            return elementType == ElementType.FLOAT;
-        }
-
-        @Override
         boolean updatableTo(IndexOptions update) {
             return Objects.equals(this, update);
         }
 
-        @Override
-        void validateDimension(int dim) {
-            if (dim % 2 != 0) {
-                throw new IllegalArgumentException("int4_hnsw only supports even dimensions; provided=" + dim);
-            }
-        }
     }
 
     static class Int4FlatIndexOptions extends IndexOptions {
         private final float confidenceInterval;
 
         Int4FlatIndexOptions(Float confidenceInterval) {
-            super("int4_flat");
+            super(VectorIndexType.INT4_FLAT);
             // The default confidence interval for int4 is dynamic quantiles, this provides the best relevancy and is
             // effectively required for int4 to behave well across a wide range of data.
             this.confidenceInterval = confidenceInterval == null ? 0f : confidenceInterval;
@@ -1455,7 +1524,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("type", type);
+            builder.field("type", type.name);
             builder.field("confidence_interval", confidenceInterval);
             builder.endObject();
             return builder;
@@ -1480,21 +1549,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean supportsElementType(ElementType elementType) {
-            return elementType == ElementType.FLOAT;
-        }
-
-        @Override
         boolean updatableTo(IndexOptions update) {
             // TODO: add support for updating from flat, hnsw, and int8_hnsw and updating params
             return Objects.equals(this, update);
-        }
-
-        @Override
-        void validateDimension(int dim) {
-            if (dim % 2 != 0) {
-                throw new IllegalArgumentException("int4_flat only supports even dimensions; provided=" + dim);
-            }
         }
     }
 
@@ -1504,7 +1561,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Float confidenceInterval;
 
         Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
-            super("int8_hnsw");
+            super(VectorIndexType.INT8_HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
             this.confidenceInterval = confidenceInterval;
@@ -1519,7 +1576,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("type", type);
+            builder.field("type", type.name);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
             if (confidenceInterval != null) {
@@ -1556,11 +1613,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean supportsElementType(ElementType elementType) {
-            return elementType == ElementType.FLOAT;
-        }
-
-        @Override
         boolean updatableTo(IndexOptions update) {
             boolean updatable = update.type.equals(this.type);
             if (updatable) {
@@ -1581,7 +1633,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int efConstruction;
 
         HnswIndexOptions(int m, int efConstruction) {
-            super("hnsw");
+            super(VectorIndexType.HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
         }
@@ -1602,13 +1654,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) update;
                 updatable = hnswIndexOptions.m >= this.m;
             }
-            return updatable || (update.type.equals(VectorIndexType.INT8_HNSW.name) && ((Int8HnswIndexOptions) update).m >= m);
+            return updatable || (update.type.name.equals(VectorIndexType.INT8_HNSW.name) && ((Int8HnswIndexOptions) update).m >= m);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("type", type);
+            builder.field("type", type.name);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
             builder.endObject();

@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -1336,4 +1338,56 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         );
     }
 
+    public void testKnnQueryInPercolator() throws IOException {
+        String mappings = org.elasticsearch.common.Strings.format("""
+            {
+              "properties": {
+                "my_query" : {
+                  "type" : "percolator",
+                  "dense_vector_index_options": {
+                    "element_type": "float",
+                    "type": "flat",
+                    "dims" : 5,
+                    "similarity" : "l2_norm"
+                  }
+                },
+                "my_vector" : {
+                  "type" : "dense_vector",
+                  "dims" : 5,
+                  "index" : true,
+                  "similarity" : "l2_norm"
+                }
+              }
+            }
+            """);
+        indicesAdmin().prepareCreate("index1").setMapping(mappings).get();
+        ensureGreen();
+        prepareIndex("index1").setId("knn_query1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("my_query", new KnnVectorQueryBuilder("my_vector", new float[] { 1, 1, 1, 1, 1 }, 1, 1, null))
+                    .endObject()
+            )
+            .get();
+
+        prepareIndex("index1").setId("knn_query5")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("my_query", new KnnVectorQueryBuilder("my_vector", new float[] { 5, 5, 5, 5, 5 }, 1, 1, null))
+                    .endObject()
+            )
+            .get();
+        indicesAdmin().prepareRefresh().get();
+
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("my_vector", List.of(1, 1, 1, 1, 1)).endObject());
+        assertResponse(
+            prepareSearch().setQuery(new PercolateQueryBuilder("my_query", source, XContentType.JSON)).setIndices("index1"),
+            response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("knn_query1"));
+                assertThat(response.getHits().getAt(0).getIndex(), equalTo("index1"));
+            }
+        );
+
+    }
 }

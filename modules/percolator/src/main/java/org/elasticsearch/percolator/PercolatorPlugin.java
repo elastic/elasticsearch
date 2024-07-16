@@ -40,7 +40,7 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlug
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
+        return singletonMap(PercolatorFieldMapper.CONTENT_TYPE, PercolatorFieldMapper.PARSER);
     }
 
 }

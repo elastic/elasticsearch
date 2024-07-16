@@ -7,7 +7,7 @@ issues:
 highlight:
   title: Introduce logs index mode as Tech Preview
   body: |-
-    This change introduces a new index mode named: `logs`.
+    This change introduces a new index mode named `logs`.
     When the new index mode is enabled then the following storage savings features are enabled automatically:
     * Synthetic source, which omits storing the _source. When _source or part of it is requested it is synthesized on the fly at runtime.
     * Index sorting. By default indices are sorted by `host.name` and `@timestamp` fields at index time. This can be overwritten if other sorting fields yield better compression rate.

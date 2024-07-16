@@ -8,7 +8,6 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -337,7 +336,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         PasswordAuthentication auth = new PasswordAuthentication("name", "password".toCharArray());
         String id = randomIdentifier();
         DatabaseConfiguration databaseConfiguration = new DatabaseConfiguration(id, "test", new DatabaseConfiguration.Maxmind("name"));
-        geoIpDownloader.processDatabase(auth, id, databaseConfiguration);
+        geoIpDownloader.processDatabase(auth, databaseConfiguration);
         assertThat(indexedChunks.get(), equalTo(true));
     }
 
@@ -396,7 +395,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         PasswordAuthentication auth = new PasswordAuthentication("name", "password".toCharArray());
         String id = randomIdentifier();
         DatabaseConfiguration databaseConfiguration = new DatabaseConfiguration(id, "test", new DatabaseConfiguration.Maxmind("name"));
-        geoIpDownloader.processDatabase(auth, id, databaseConfiguration);
+        geoIpDownloader.processDatabase(auth, databaseConfiguration);
         assertThat(indexedChunks.get(), equalTo(true));
     }
 
@@ -460,7 +459,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         PasswordAuthentication auth = new PasswordAuthentication("name", "password".toCharArray());
         String id = randomIdentifier();
         DatabaseConfiguration databaseConfiguration = new DatabaseConfiguration(id, "test", new DatabaseConfiguration.Maxmind("name"));
-        geoIpDownloader.processDatabase(auth, id, databaseConfiguration);
+        geoIpDownloader.processDatabase(auth, databaseConfiguration);
     }
 
     public void testUpdateDatabasesWriteBlock() {
@@ -483,15 +482,14 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         verifyNoInteractions(httpClient);
     }
 
-    public void testUpdateDatabasesIndexNotReady() {
+    public void testUpdateDatabasesIndexNotReady() throws IOException {
         ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()), true);
         var geoIpIndex = state.getMetadata().getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
         state = ClusterState.builder(state)
             .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
         when(clusterService.state()).thenReturn(state);
-        var e = expectThrows(ElasticsearchException.class, () -> geoIpDownloader.updateDatabases());
-        assertThat(e.getMessage(), equalTo("not all primary shards of [.geoip_databases] index are active"));
+        geoIpDownloader.updateDatabases();
         verifyNoInteractions(httpClient);
     }
 

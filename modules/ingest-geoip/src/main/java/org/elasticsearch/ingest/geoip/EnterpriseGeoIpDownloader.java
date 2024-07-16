@@ -10,7 +10,6 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -67,6 +66,7 @@ import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecut
 public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloader.class);
+    private static final Pattern CHECKSUM_PATTERN = Pattern.compile("(\\w{64})\\s\\s(.*)");
 
     // for overriding in tests
     static String DEFAULT_MAXMIND_ENDPOINT = System.getProperty(
@@ -133,8 +133,9 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         // this is for injecting the state in GeoIpDownloaderTaskExecutor#nodeOperation just after the task instance has been created
         // by the PersistentTasksNodeService -- since the GeoIpDownloader is newly created, the state will be null, and the passed-in
         // state cannot be null
-        assert this.state == null;
-        assert state != null;
+        assert this.state == null
+            : "setState() cannot be called when state is already non-null. This most likely happened because setState() was called twice";
+        assert state != null : "Should never call setState with a null state. Pass an EnterpriseGeoIpTaskState.EMPTY instead.";
         this.state = state;
     }
 
@@ -143,9 +144,10 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         var clusterState = clusterService.state();
         var geoipIndex = clusterState.getMetadata().getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
-            logger.trace("The {} index is not null", EnterpriseGeoIpDownloader.DATABASES_INDEX);
+            logger.trace("the geoip index [{}] exists", EnterpriseGeoIpDownloader.DATABASES_INDEX);
             if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
-                throw new ElasticsearchException("not all primary shards of [" + DATABASES_INDEX + "] index are active");
+                logger.debug("not updating databases because not all primary shards of [{}] index are active yet", DATABASES_INDEX);
+                return;
             }
             var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
             if (blockException != null) {
@@ -179,7 +181,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                         if (holder == null) {
                             logger.warn("No credentials found to download database [{}], skipping download...", id);
                         } else {
-                            processDatabase(holder.get(), id, database);
+                            processDatabase(holder.get(), database);
                         }
                     }
 
@@ -199,10 +201,14 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                 .map(c -> c.database().name() + ".mmdb")
                 .collect(Collectors.toSet());
             EnterpriseGeoIpTaskState _state = state;
-            Collection<Map.Entry<String, Metadata>> metas = List.copyOf(_state.getDatabases().entrySet());
-            for (Map.Entry<String, Metadata> entry : metas) {
-                String name = entry.getKey();
-                Metadata meta = entry.getValue();
+            Collection<Tuple<String, Metadata>> metas = _state.getDatabases()
+                .entrySet()
+                .stream()
+                .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
+                .toList();
+            for (Tuple<String, Metadata> metaTuple : metas) {
+                String name = metaTuple.v1();
+                Metadata meta = metaTuple.v2();
                 if (databases.contains(name) == false) {
                     logger.debug("Dropping [{}], databases was {}", name, databases);
                     _state = _state.remove(name);
@@ -210,8 +216,10 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                     droppedSomething = true;
                 }
             }
-            state = _state;
-            updateTaskState();
+            if (droppedSomething) {
+                state = _state;
+                updateTaskState();
+            }
         }
 
         if (addedSomething == false && droppedSomething == false) {
@@ -225,7 +233,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                     if (holder == null) {
                         logger.warn("No credentials found to download database [{}], skipping download...", id);
                     } else {
-                        processDatabase(holder.get(), id, database);
+                        processDatabase(holder.get(), database);
                     }
                 } catch (Exception e) {
                     accumulator = ExceptionsHelper.useOrSuppress(accumulator, ExceptionsHelper.convertToRuntime(e));
@@ -237,16 +245,24 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         }
     }
 
-    void processDatabase(PasswordAuthentication auth, String id, DatabaseConfiguration database) throws IOException {
+    /**
+     * This method fetches the sha256 file and tar.gz file for the given database from the Maxmind endpoint, then indexes that tar.gz
+     * file into the .geoip_databases Elasticsearch index, deleting any old versions of the database tar.gz from the index if they exist.
+     * If the computed sha256 does not match the expected sha256, an error will be logged and the database will not be put into the
+     * Elasticsearch index.
+     * @param auth The credentials to use to download from the Maxmind endpoint
+     * @param database The database to be downloaded from Maxmind and indexed into an Elasticsearch index
+     * @throws IOException If there is an error fetching the sha256 file
+     */
+    void processDatabase(PasswordAuthentication auth, DatabaseConfiguration database) throws IOException {
         final String name = database.name();
-        logger.debug("Processing database [{}] for configuration [{}]", name, id);
+        logger.debug("Processing database [{}] for configuration [{}]", name, database.id());
 
         final String sha256Url = downloadUrl(name, "tar.gz.sha256");
         final String tgzUrl = downloadUrl(name, "tar.gz");
 
-        final Pattern checksumPattern = Pattern.compile("(\\w{64})\\s\\s(.*)");
         String result = new String(httpClient.getBytes(auth, sha256Url), StandardCharsets.UTF_8).trim(); // this throws if the auth is bad
-        var matcher = checksumPattern.matcher(result);
+        var matcher = CHECKSUM_PATTERN.matcher(result);
         boolean match = matcher.matches();
         if (match == false) {
             throw new RuntimeException("Unexpected sha256 response from [" + sha256Url + "]");
@@ -257,6 +273,14 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         processDatabase(auth, name + ".mmdb", sha256, tgzUrl);
     }
 
+    /**
+     * This method fetches the tar.gz file for the given database from the Maxmind endpoint, then indexes that tar.gz
+     * file into the .geoip_databases Elasticsearch index, deleting any old versions of the database tar.gz from the index if they exist.
+     * @param auth The credentials to use to download from the Maxmind endpoint
+     * The name of the database to be downloaded from Maxmind and indexed into an Elasticsearch index
+     * @param sha256 The sha256 to compare to the computed sha256 of the downloaded tar.gz file
+     * @param url The URL for the Maxmind endpoint from which the database's tar.gz will be downloaded
+     */
     private void processDatabase(PasswordAuthentication auth, String name, String sha256, String url) {
         Metadata metadata = state.getDatabases().getOrDefault(name, Metadata.EMPTY);
         if (Objects.equals(metadata.sha256(), sha256)) {
@@ -371,12 +395,12 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
      */
     synchronized void runDownloader() {
         // by the time we reach here, the state will never be null
-        assert state != null;
+        assert this.state != null : "this.setState() is null. You need to call setState() before calling runDownloader()";
 
         // there's a race condition between here and requestReschedule. originally this scheduleNextRun call was at the end of this
         // block, but remember that updateDatabases can take seconds to run (it's downloading bytes from the internet), and so during the
         // very first run there would be no future run scheduled to reschedule in requestReschedule. which meant that if you went from zero
-        // to N(>=2) databases in quick succession, then the all but the first database wouldn't necessarily get downloaded, because the
+        // to N(>=2) databases in quick succession, then all but the first database wouldn't necessarily get downloaded, because the
         // requestReschedule call in the EnterpriseGeoIpDownloaderTaskExecutor's clusterChanged wouldn't have a scheduled future run to
         // reschedule. scheduling the next run at the beginning of this run means that there's a much smaller window (milliseconds?, rather
         // than seconds) in which such a race could occur. technically there's a window here, still, but i think it's _greatly_ reduced.

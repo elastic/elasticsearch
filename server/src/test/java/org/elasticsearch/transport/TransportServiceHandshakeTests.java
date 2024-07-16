@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
@@ -267,17 +268,13 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             .roles(emptySet())
             .version(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
-        expectThrows(ConnectTransportException.class, () -> {
-            try (
-                Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
-                    transportServiceA,
-                    discoveryNode,
-                    TestProfiles.LIGHT_PROFILE
-                )
-            ) {
-                PlainActionFuture.get(fut -> transportServiceA.handshake(connection, timeout, fut.map(x -> null)));
-            }
-        });
+        assertThat(
+            safeAwaitFailure(
+                Transport.Connection.class,
+                listener -> transportServiceA.openConnection(discoveryNode, TestProfiles.LIGHT_PROFILE, listener)
+            ),
+            instanceOf(ConnectTransportException.class)
+        );
         // the error is exposed as a general connection exception, the actual message is in the logs
         assertFalse(transportServiceA.nodeConnected(discoveryNode));
     }
@@ -303,12 +300,14 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             .roles(emptySet())
             .version(transportServiceB.getLocalNode().getVersionInformation())
             .build();
-        ConnectTransportException ex = expectThrows(
-            ConnectTransportException.class,
-            () -> AbstractSimpleTransportTestCase.connectToNode(transportServiceA, discoveryNode, TestProfiles.LIGHT_PROFILE)
-        );
         assertThat(
-            ex.getMessage(),
+            asInstanceOf(
+                ConnectTransportException.class,
+                safeAwaitFailure(
+                    Releasable.class,
+                    listener -> transportServiceA.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE, listener)
+                )
+            ).getMessage(),
             allOf(
                 containsString("Connecting to [" + discoveryNode.getAddress() + "] failed"),
                 containsString("expected to connect to [" + discoveryNode.descriptionWithoutAttributes() + "]"),

@@ -32,7 +32,6 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.nio.channels.SeekableByteChannel;

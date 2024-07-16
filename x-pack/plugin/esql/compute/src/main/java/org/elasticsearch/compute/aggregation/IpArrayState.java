@@ -30,7 +30,7 @@ import org.elasticsearch.core.Releasables;
  *     This class is a specialized version of the {@code X-ArrayState.java.st} template.
  * </p>
  */
-final class IpArrayState extends AbstractArrayState implements GroupingAggregatorState {
+public final class IpArrayState extends AbstractArrayState implements GroupingAggregatorState {
     private static final int IP_LENGTH = 16;
 
     private final BytesRef scratch = new BytesRef();
@@ -57,7 +57,7 @@ final class IpArrayState extends AbstractArrayState implements GroupingAggregato
 
     BytesRef getOrDefault(int groupId) {
         var ipIndex = getIndex(groupId);
-        if (ipIndex < values.size()) {
+        if (ipIndex + IP_LENGTH <= values.size()) {
             values.get(ipIndex, IP_LENGTH, scratch);
         } else {
             scratch.bytes = init;
@@ -105,8 +105,9 @@ final class IpArrayState extends AbstractArrayState implements GroupingAggregato
         if (minSize > values.size()) {
             long prevSize = values.size();
             values = bigArrays.grow(values, minSize);
-            var lastIpIndex = prevSize - prevSize % IP_LENGTH;
-            for (long i = prevSize; i < lastIpIndex; i += IP_LENGTH) {
+            var prevLastIpIndex = prevSize - prevSize % IP_LENGTH;
+            var lastIpIndex = values.size() - values.size() % IP_LENGTH;
+            for (long i = prevLastIpIndex; i < lastIpIndex; i += IP_LENGTH) {
                 values.set(i, init, 0, IP_LENGTH);
             }
         }
@@ -114,12 +115,7 @@ final class IpArrayState extends AbstractArrayState implements GroupingAggregato
 
     /** Extracts an intermediate view of the contents of this state.  */
     @Override
-    public void toIntermediate(
-        Block[] blocks,
-        int offset,
-        IntVector selected,
-        DriverContext driverContext
-    ) {
+    public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
         assert blocks.length >= offset + 2;
         try (
             var valuesBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount());

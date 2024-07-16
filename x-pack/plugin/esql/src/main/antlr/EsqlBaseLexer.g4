@@ -132,6 +132,7 @@ FALSE : 'false';
 FIRST : 'first';
 LAST : 'last';
 LP : '(';
+MATCH: 'match';
 IN: 'in';
 IS: 'is';
 LIKE: 'like';

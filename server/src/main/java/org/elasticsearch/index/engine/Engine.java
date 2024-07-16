@@ -38,6 +38,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -46,6 +48,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -80,6 +83,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
@@ -2037,7 +2041,16 @@ public abstract class Engine implements Closeable {
 
     @Override
     public void close() throws IOException {
-        close(ActionListener.noop());
+        final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC) {
+            @Override
+            protected boolean blockingAllowed() {
+                // TODO remove this blocking, or at least do it elsewhere, see https://github.com/elastic/elasticsearch/issues/89821
+                return Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
+                    || super.blockingAllowed();
+            }
+        };
+        close(future);
+        FutureUtils.get(future);
     }
 
     public void close(ActionListener<Void> listener) throws IOException {

@@ -3506,7 +3506,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public static void connectToNode(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
-        UnsafePlainActionFuture.get(fut -> service.connectToNode(node, connectionProfile, fut.map(x -> null)), ThreadPool.Names.GENERIC);
+        safeAwait(l -> service.connectToNode(node, connectionProfile, l.map(ignored -> null)));
     }
 
     /**
@@ -3517,7 +3517,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      * @param connectionProfile the connection profile to use
      */
     public static Transport.Connection openConnection(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
-        return PlainActionFuture.get(fut -> service.openConnection(node, connectionProfile, fut));
+        return safeAwait(l -> service.openConnection(node, connectionProfile, l));
     }
 
     public static <T extends TransportResponse> Future<T> submitRequest(

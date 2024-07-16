@@ -94,7 +94,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
         ) == false;
         /*
          * We don't want to potentially start the task on every cluster state change, so only maybeUpdateTaskState if this cluster change
-         * event involved the addition of custom geoip metadata OR a master node change
+         * event involved the modification of custom geoip metadata OR a master node change
          */
         if (ingestGeoIpCustomMetaChangedInEvent || (masterNodeChanged && hasIngestGeoIpMetadata)) {
             maybeUpdateTaskState(event.state());

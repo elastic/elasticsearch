@@ -1,0 +1,90 @@
+pr: 109583
+summary: "ESQL: INLINESTATS"
+area: ES|QL
+type: feature
+issues:
+ - 107589
+highlight:
+  title: "ESQL: INLINESTATS"
+  body: |-
+    This implements `INLINESTATS`. Most of the heavy lifting is done by
+    `LOOKUP`, with this change mostly adding a new abstraction to logical
+    plans, an interface I'm calling `Phased`. Implementing this interface
+    allows a logical plan node to cut the query into phases. `INLINESTATS`
+    implements it by asking for a "first phase" that's the same query, up to
+    `INLINESTATS`, but with `INLINESTATS` replaced with `STATS`. The next
+    phase replaces the `INLINESTATS` with a hash join on the results of the
+    first phase.
+
+    So, this query:
+
+    ```
+    FROM foo
+    | EVAL bar = a * b
+    | INLINESTATS m = MAX(bar) BY b
+    | WHERE m = bar
+    | LIMIT 1
+    ```
+
+    gets split into
+
+    ```
+    FROM foo
+    | EVAL bar = a * b
+    | STATS m = MAX(bar) BY b
+    ```
+
+    followed by
+
+    ```
+    FROM foo
+    | EVAL bar = a * b
+    | LOOKUP (results of m = MAX(bar) BY b) ON b
+    | WHERE m = bar
+    | LIMIT 1
+    ```
+
+    Here's an example of the syntax:
+
+    ```
+    $ curl -k -XDELETE -u'elastic:password' 'http://localhost:9200/test'
+    $ for a in {0..99}; do
+        echo -n $a
+        rm -f /tmp/bulk
+        for b in {0..999}; do
+            echo '{"index": {}}' >> /tmp/bulk
+            echo '{"a": '$a', "b": '$b'}' >> /tmp/bulk
+        done
+        curl -s -k -XPOST -u'elastic:password' -HContent-Type:application/json 'http://localhost:9200/test/_bulk?pretty' --data-binary @/tmp/bulk | grep errors
+    done
+    $ curl -s -k -XPOST -u'elastic:password' -HContent-Type:application/json 'http://localhost:9200/test/_forcemerge?max_num_segments=1&pretty'
+    $ curl -s -k -XPOST -u'elastic:password' -HContent-Type:application/json 'http://localhost:9200/test/_refresh?pretty'
+    $ curl -k -XPOST -u'elastic:password' -HContent-Type:application/json http://localhost:9200/_query?pretty -d'{
+        "query": "FROM test | INLINESTATS m=MAX(a * b) BY b | WHERE m == a * b | SORT a DESC, b DESC | LIMIT 1",
+        "profile": true
+    }'
+    {
+      "columns" : [
+        {
+          "name" : "a",
+          "type" : "long"
+        },
+        {
+          "name" : "b",
+          "type" : "long"
+        },
+        {
+          "name" : "m",
+          "type" : "long"
+        }
+      ],
+      "values" : [
+        [
+          99,
+          999,
+          98901
+        ]
+    ```
+
+    Closes #107589
+  notable: true

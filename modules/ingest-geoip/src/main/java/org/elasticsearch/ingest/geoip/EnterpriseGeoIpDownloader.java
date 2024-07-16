@@ -444,7 +444,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         List<Map.Entry<String, Metadata>> expiredDatabases = state.getDatabases()
             .entrySet()
             .stream()
-            .filter(e -> e.getValue().isValid(clusterService.state().metadata().settings()) == false)
+            .filter(e -> e.getValue().isNewEnough(clusterService.state().metadata().settings()) == false)
             .toList();
         expiredDatabases.forEach(e -> {
             String name = e.getKey();

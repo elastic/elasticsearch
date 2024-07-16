@@ -191,7 +191,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             return true;
         }
 
-        boolean valid = metadata.isValid(currentState.metadata().settings());
+        boolean valid = metadata.isNewEnough(currentState.metadata().settings());
         if (valid && metadata.isCloseToExpiration()) {
             HeaderWarning.addWarning(
                 "database [{}] was not updated for over 25 days, geoip processor will stop working if there is no update for 30 days",
@@ -285,7 +285,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                 taskState.getDatabases()
                     .entrySet()
                     .stream()
-                    .filter(e -> e.getValue().isValid(state.getMetadata().settings()))
+                    .filter(e -> e.getValue().isNewEnough(state.getMetadata().settings()))
                     .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
                     .toList()
             );
@@ -302,7 +302,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                 taskState.getDatabases()
                     .entrySet()
                     .stream()
-                    .filter(e -> e.getValue().isValid(state.getMetadata().settings()))
+                    .filter(e -> e.getValue().isNewEnough(state.getMetadata().settings()))
                     .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
                     .toList()
             );

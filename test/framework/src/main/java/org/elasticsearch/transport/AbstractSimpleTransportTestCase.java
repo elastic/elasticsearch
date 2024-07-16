@@ -2446,10 +2446,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.STATE
             );
             builder.setHandshakeTimeout(TimeValue.timeValueMillis(1));
-            ConnectTransportException ex = expectThrows(
-                ConnectTransportException.class,
-                () -> connectToNode(serviceA, dummy, builder.build())
-            );
+            ConnectTransportException ex = connectToNodeExpectFailure(serviceA, dummy, builder.build());
             assertEquals("[][" + dummy.getAddress() + "] handshake_timeout[1ms]", ex.getMessage());
         }
     }
@@ -2486,10 +2483,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.STATE
             );
             builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
-            ConnectTransportException ex = expectThrows(
-                ConnectTransportException.class,
-                () -> connectToNode(serviceA, dummy, builder.build())
-            );
+            ConnectTransportException ex = connectToNodeExpectFailure(serviceA, dummy, builder.build());
             assertEquals("[][" + dummy.getAddress() + "] general node connection failure", ex.getMessage());
             assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
             t.join();

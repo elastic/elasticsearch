@@ -368,7 +368,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 testCase(iw -> {
                     // force single shard/segment
                     iw.addDocuments(
-                        Arrays.asList(doc(fieldType, "a", "b"), doc(fieldType, "c", "d"), doc(fieldType, "b", "d"), doc(fieldType, "b"))
+                        Arrays.asList(doc(fieldType, "a"), doc(fieldType, "c", "d"), doc(fieldType, "b", "d"), doc(fieldType, "b"))
                     );
                     if (delete) {
                         iw.deleteDocuments(new TermQuery(new Term("string", "b")));

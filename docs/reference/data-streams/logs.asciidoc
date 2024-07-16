@@ -1,9 +1,9 @@
 [[logsds]]
-== Logs data stream (LogsDS)
+== Logs data stream
 
-You can use a LogsDS to store log data more efficiently. In our benchmarks,
-log data stored in a LogsDS used ~2.5 times less disk space than a regular data
-stream. The exact impact will vary per data set. The main benefit from using LogsDS is reduced storage.
+You can use a logs data stream to store log data more efficiently. In our benchmarks,
+log data stored in a logs data stream used ~2.5 times less disk space than a regular data
+stream. The exact impact will vary per data set. The main benefit from using a logs data stream is reduced storage.
 
 The following features are enabled in a logs data stream:
 
@@ -14,10 +14,10 @@ The following features are enabled in a logs data stream:
 * Enable more space efficient compression for fields with doc values enabled.
 
 [discrete]
-[[how-to-use-tsds]]
-=== How to use a LogsDS
+[[how-to-use-logsds]]
+=== How to use a logs data stream
 
-Enabling LogsDS only requires configuring the `index.mode` setting to `logs`. For example like this is done in this template:
+Enabling a logs data stream only requires configuring the `index.mode` setting to `logs`. For example like this is done in this template:
 
 [source,console]
 ----

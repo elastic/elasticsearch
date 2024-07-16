@@ -1,0 +1,37 @@
+[[logsds]]
+== Logs data stream (LogsDS)
+
+You can use a LogsDS to store metrics data more efficiently. In our benchmarks,
+metrics data stored in a LogsDS used ~2.5 times less disk space than a regular data
+stream. The exact impact will vary per data set. The main benefit from using LogsDS is reduced storage.
+
+The following features are enabled in a logs data stream:
+* <<synthetic-source,Synthetic source>>, which omits storing the _source. When _source or part of it is requested it is synthesized on the fly at runtime.
+* Indexing sorting. By default indices are sorting by `host.name` and `@timestamp` fields at index time, which can be overwritten.
+* Enable more space efficient compressions for fields with doc values enabled.
+
+[discrete]
+[[how-to-use-tsds]]
+=== How to use a LogsDS
+
+Enabling LogsDS only requires configuring the `index.mode` setting to `logs`. For example like this is done in this template:
+
+[source,console]
+----
+PUT _index_template/my-index-template
+{
+  "index_patterns": ["logs-*"],
+  "data_stream": { },
+  "template": {
+     "settings": {
+        "index.mode": "logs" <1>
+     }
+  }
+  "priority": 500 <2>
+}
+----
+
+<1> The index mode setting
+<2> Defining a priority to potentially avoid that other index templates match with overlapping index patterns.
+
+After this data can be indexed like in any other data stream.

@@ -135,6 +135,11 @@ public class EsqlCapabilities {
         UNION_TYPES_INLINE_FIX,
 
         /**
+         * Fix for union-types when sorting a type-casted field. We changed how we remove synthetic union-types fields.
+         */
+        UNION_TYPES_REMOVE_FIELDS,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
@@ -149,7 +154,12 @@ public class EsqlCapabilities {
         /**
         * Use RangeQuery for BinaryComparison on DateTime fields.
         * */
-        RANGEQUERY_FOR_DATETIME;
+        RANGEQUERY_FOR_DATETIME,
+
+        /**
+         * Add tests for #105383, STATS BY constant.
+         */
+        STATS_BY_CONSTANT;
 
         private final boolean snapshotOnly;
 

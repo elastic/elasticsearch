@@ -8,6 +8,11 @@
 
 preview::["{ccs-cap} for {esql} is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
+[NOTE]
+====
+For {ccs-cap} with {esql} on version 8.16 or later, remote clusters must also be on version 8.16 or later.
+====
+
 With {esql}, you can execute a single query across multiple clusters.
 
 [discrete]
@@ -64,7 +69,7 @@ You will need to:
 * Create an API key on the *remote cluster* using the <<security-api-create-cross-cluster-api-key,Create cross-cluster API key>> API or using the {kibana-ref}/api-keys.html[Kibana API keys UI].
 * Add the API key to the keystore on the *local cluster*, as part of the steps in <<remote-clusters-security-api-key-local-actions,configuring the local cluster>>. All cross-cluster requests from the local cluster are bound by the API key’s privileges.
 
-Using {esql} with the API key based security model requires some additional permissions that may not be needed when using the traditional query DSL based search. 
+Using {esql} with the API key based security model requires some additional permissions that may not be needed when using the traditional query DSL based search.
 The following example API call creates a role that can query remote indices using {esql} when using the API key based security model.
 
 [source,console]
@@ -73,11 +78,11 @@ POST /_security/role/remote1
 {
   "cluster": ["cross_cluster_search"], <1>
   "indices": [
-    { 
+    {
       "names" : [""], <2>
       "privileges": ["read"]
     }
-  ], 
+  ],
   "remote_indices": [ <3>
     {
       "names": [ "logs-*" ],
@@ -93,7 +98,7 @@ POST /_security/role/remote1
 <3> The indices allowed read access to the remote cluster. The configured <<security-api-create-cross-cluster-api-key,cross-cluster API key>> must also allow this index to be read.
 <4> The `read_cross_cluster` privilege is always required when using {esql} across clusters with the API key based security model.
 <5> The remote clusters to which these privileges apply.
-This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and connected to the remote cluster before the remote index can be queried. 
+This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and connected to the remote cluster before the remote index can be queried.
 Verify connection using the <<cluster-remote-info, Remote cluster info>> API.
 
 You will then need a user or API key with the permissions you created above. The following example API call creates a user with the `remote1` role.

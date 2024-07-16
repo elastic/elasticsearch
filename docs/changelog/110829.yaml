@@ -6,6 +6,5 @@ issues: []
 deprecation:
   title: Actually deprecate `edge_ngram` side parameter
   area: Analysis
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: `edge_ngram` will no longer accept the `side` parameter.
+  impact: Users will need to update any usage of `edge_ngram` that utilizes `side` and if the `back` value was utilized, they must use the `reverse` token filter to achieve the desired result.

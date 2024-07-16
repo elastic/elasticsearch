@@ -1,8 +1,8 @@
 ---
 "Help":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: sparse vector was added in 8.15.0
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: search idle state was added in 8.16.0
   - do:
       cat.shards:
         help: true
@@ -267,3 +267,49 @@
 
   - match:
       $body: /foo \s+ 1\n/
+---
+"Test cat shards with change in idle state":
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: search idle state was added in 8.16.0
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+            search.idle.after: "1s"
+
+  - do:
+      index:
+        index: foo
+        body: { test: foo }
+
+  - do:
+      cat.shards:
+        index: foo
+        v: false
+        h: refresh.is_search_idle
+
+  - match:
+      $body: |
+        /^(false \n?)$/
+
+# very hacky way of sleeping
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 10
+        timeout: "2s"
+
+  - do:
+      cat.shards:
+        index: foo
+        v: false
+        h: refresh.is_search_idle
+
+  - match:
+      $body: |
+        /^(true \n?)$/

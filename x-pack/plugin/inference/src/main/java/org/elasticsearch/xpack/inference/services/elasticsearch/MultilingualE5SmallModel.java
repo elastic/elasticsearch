@@ -36,17 +36,15 @@ public class MultilingualE5SmallModel extends Model implements ElasticsearchMode
 
     @Override
     public String getModelId() {
-        return getServiceSettings().getModelId();
+        return getServiceSettings().modelId();
     }
 
     @Override
     public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
-        var startRequest = new StartTrainedModelDeploymentAction.Request(
-            this.getServiceSettings().getModelId(),
-            this.getInferenceEntityId()
-        );
+        var startRequest = new StartTrainedModelDeploymentAction.Request(this.getServiceSettings().modelId(), this.getInferenceEntityId());
         startRequest.setNumberOfAllocations(this.getServiceSettings().getNumAllocations());
         startRequest.setThreadsPerAllocation(this.getServiceSettings().getNumThreads());
+        startRequest.setAdaptiveAllocationsSettings(this.getServiceSettings().getAdaptiveAllocationsSettings());
         startRequest.setWaitForState(STARTED);
 
         return startRequest;

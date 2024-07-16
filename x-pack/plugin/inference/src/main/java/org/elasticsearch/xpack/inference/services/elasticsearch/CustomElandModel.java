@@ -29,14 +29,15 @@ public class CustomElandModel extends Model implements ElasticsearchModel {
     }
 
     public String getModelId() {
-        return internalServiceSettings.getModelId();
+        return internalServiceSettings.modelId();
     }
 
     @Override
     public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
-        var startRequest = new StartTrainedModelDeploymentAction.Request(internalServiceSettings.getModelId(), this.getInferenceEntityId());
+        var startRequest = new StartTrainedModelDeploymentAction.Request(internalServiceSettings.modelId(), this.getInferenceEntityId());
         startRequest.setNumberOfAllocations(internalServiceSettings.getNumAllocations());
         startRequest.setThreadsPerAllocation(internalServiceSettings.getNumThreads());
+        startRequest.setAdaptiveAllocationsSettings(internalServiceSettings.getAdaptiveAllocationsSettings());
         startRequest.setWaitForState(STARTED);
 
         return startRequest;

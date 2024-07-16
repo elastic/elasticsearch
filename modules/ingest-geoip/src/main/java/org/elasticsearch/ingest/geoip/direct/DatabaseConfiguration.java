@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.geoip.direct;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,10 +49,11 @@ public record DatabaseConfiguration(String id, String name, Maxmind maxmind) imp
     }
 
     /**
-     * An alphanumeric, followed by 0-126 alphanumerics or underscores. That is, 1-127 alphanumerics or underscores, but a leading
-     * underscore isn't allowed (we're reserving leading underscores [and other odd characters] for Elastic and the future).
+     * An alphanumeric, followed by 0-126 alphanumerics, dashes, or underscores. That is, 1-127 alphanumerics, dashes, or underscores,
+     * but a leading dash or underscore isn't allowed (we're reserving leading dashes and underscores [and other odd characters] for
+     * Elastic and the future).
      */
-    private static final Pattern ID_PATTERN = Pattern.compile("\\p{Alnum}[_\\p{Alnum}]{0,126}");
+    private static final Pattern ID_PATTERN = Pattern.compile("\\p{Alnum}[_\\-\\p{Alnum}]{0,126}");
 
     public static final Set<String> MAXMIND_NAMES = Set.of(
         "GeoIP2-Anonymous-IP",
@@ -115,35 +117,28 @@ public record DatabaseConfiguration(String id, String name, Maxmind maxmind) imp
     }
 
     /**
-     * An id is intended to be alphanumerics and underscores (only), but we're reserving leading underscores for ourselves
-     * in the future, that is, they're not for the ones that users can PUT.
+     * An id is intended to be alphanumerics, dashes, and underscores (only), but we're reserving leading dashes and underscores for
+     * ourselves in the future, that is, they're not for the ones that users can PUT.
      */
-    public static void validateId(String id) {
+    static void validateId(String id) throws IllegalArgumentException {
         if (Strings.isNullOrEmpty(id)) {
             throw new IllegalArgumentException("invalid database configuration id [" + id + "]: must not be null or empty");
         }
-        if (id.contains(" ")) {
-            throw new IllegalArgumentException("invalid database configuration id [" + id + "]: must not contain spaces");
-        }
-        if (id.contains(",")) {
-            throw new IllegalArgumentException("invalid database configuration id [" + id + "]: must not contain ','");
-        }
-        if (id.contains("-")) {
-            throw new IllegalArgumentException("invalid database configuration id [" + id + "]: must not contain '-'");
-        }
-        if (id.charAt(0) == '_') {
-            throw new IllegalArgumentException("invalid database configuration id [" + id + "]: must not start with '_'");
-        }
+        MetadataCreateIndexService.validateIndexOrAliasName(
+            id,
+            (id1, description) -> new IllegalArgumentException("invalid database configuration id [" + id1 + "]: " + description)
+        );
         int byteCount = id.getBytes(StandardCharsets.UTF_8).length;
         if (byteCount > 127) {
             throw new IllegalArgumentException(
-                "invalid database configuration id [" + id + "]: name is too long, (" + byteCount + " > " + 127 + ")"
+                "invalid database configuration id [" + id + "]: id is too long, (" + byteCount + " > " + 127 + ")"
             );
         }
         if (ID_PATTERN.matcher(id).matches() == false) {
             throw new IllegalArgumentException(
-                // TODO a better validation message here might be nice
-                "invalid database configuration id [" + id + "]: name doesn't match required rules (alphanumerics and underscores, only)"
+                "invalid database configuration id ["
+                    + id
+                    + "]: id doesn't match required rules (alphanumerics, dashes, and underscores, only)"
             );
         }
     }
@@ -164,7 +159,11 @@ public record DatabaseConfiguration(String id, String name, Maxmind maxmind) imp
 
         // important: the name must be unique across all configurations of this same type,
         // but we validate that in the cluster state update, not here.
-
+        try {
+            validateId(id);
+        } catch (IllegalArgumentException e) {
+            err.addValidationError(e.getMessage());
+        }
         return err.validationErrors().isEmpty() ? null : err;
     }
 

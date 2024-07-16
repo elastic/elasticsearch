@@ -14,14 +14,13 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration.MAXMIND_NAMES;
 
 public class DatabaseConfigurationTests extends AbstractXContentSerializingTestCase<DatabaseConfiguration> {
 
     private String id;
-
-    // TODO we also need to test the validation logic
 
     @Override
     protected DatabaseConfiguration doParseInstance(XContentParser parser) throws IOException {
@@ -63,5 +62,25 @@ public class DatabaseConfigurationTests extends AbstractXContentSerializingTestC
     @Override
     protected Writeable.Reader<DatabaseConfiguration> instanceReader() {
         return DatabaseConfiguration::new;
+    }
+
+    public void testValidateId() {
+        Set<String> invalidIds = Set.of("-foo", "_foo", "foo,bar", "foo bar", "foo*bar", "foo.bar");
+        for (String id : invalidIds) {
+            expectThrows(IllegalArgumentException.class, "expected exception for " + id, () -> DatabaseConfiguration.validateId(id));
+        }
+        Set<String> validIds = Set.of("f-oo", "f_oo", "foobar");
+        for (String id : validIds) {
+            DatabaseConfiguration.validateId(id);
+        }
+        // Note: the code checks for byte length, but randomAlphoOfLength is only using characters in the ascii subset
+        String longId = randomAlphaOfLength(128);
+        expectThrows(IllegalArgumentException.class, "expected exception for " + longId, () -> DatabaseConfiguration.validateId(longId));
+        String longestAllowedId = randomAlphaOfLength(127);
+        DatabaseConfiguration.validateId(longestAllowedId);
+        String shortId = randomAlphaOfLengthBetween(1, 127);
+        DatabaseConfiguration.validateId(shortId);
+        expectThrows(IllegalArgumentException.class, "expected exception for empty string", () -> DatabaseConfiguration.validateId(""));
+        expectThrows(IllegalArgumentException.class, "expected exception for null string", () -> DatabaseConfiguration.validateId(null));
     }
 }

@@ -100,8 +100,6 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             }
         }
 
-        DatabaseConfiguration.validateId(id);
-
         updateDatabaseConfigurationTaskQueue.submitTask(
             Strings.format("update-geoip-database-configuration-[%s]", id),
             new UpdateDatabaseConfigurationTask(listener, request.getDatabase()),
@@ -120,7 +118,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         }
     }
 
-    private static void validatePrerequisites(DatabaseConfiguration database, ClusterState state) {
+    static void validatePrerequisites(DatabaseConfiguration database, ClusterState state) {
         // we need to verify that the database represents a unique file (name) among the various databases for this same provider
         IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
@@ -135,13 +133,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
 
         sameName.ifPresent(d -> {
             throw new IllegalArgumentException(
-                // TODO yikes, this validation message
-                Strings.format(
-                    "name [%s] must be unique among database configurations, "
-                        + "but database configuration [%s] is already using this name",
-                    database.name(),
-                    d.id()
-                )
+                Strings.format("database [%s] is already being downloaded via configuration [%s]", database.name(), d.id())
             );
         });
     }

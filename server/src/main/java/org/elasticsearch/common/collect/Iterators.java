@@ -21,6 +21,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 
@@ -176,6 +177,59 @@ public class Iterators {
         @Override
         public void forEachRemaining(Consumer<? super U> action) {
             input.forEachRemaining(t -> action.accept(fn.apply(t)));
+        }
+    }
+
+    /**
+     * @param input An iterator over <i>non-null</i> values.
+     * @param predicate The predicate with which to filter the input.
+     * @return an iterator which returns the values from {@code input} which match {@code predicate}.
+     */
+    public static <T> Iterator<T> filter(Iterator<? extends T> input, Predicate<T> predicate) {
+        while (input.hasNext()) {
+            final var value = input.next();
+            assert value != null;
+            if (predicate.test(value)) {
+                return new FilterIterator<>(value, input, predicate);
+            }
+        }
+        return Collections.emptyIterator();
+    }
+
+    private static final class FilterIterator<T> implements Iterator<T> {
+        private final Iterator<? extends T> input;
+        private final Predicate<T> predicate;
+        private T next;
+
+        FilterIterator(T value, Iterator<? extends T> input, Predicate<T> predicate) {
+            this.next = value;
+            this.input = input;
+            this.predicate = predicate;
+            assert next != null;
+            assert predicate.test(next);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return next != null;
+        }
+
+        @Override
+        public T next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            final var value = next;
+            while (input.hasNext()) {
+                final var laterValue = input.next();
+                assert laterValue != null;
+                if (predicate.test(laterValue)) {
+                    next = laterValue;
+                    return value;
+                }
+            }
+            next = null;
+            return value;
         }
     }
 

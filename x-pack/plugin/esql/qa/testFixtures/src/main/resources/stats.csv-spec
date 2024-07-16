@@ -1158,6 +1158,34 @@ word_count:long
 // end::docsCountWithExpression-result[]
 ;
 
+count_or_null
+// tag::count-where[]
+ROW n=1
+| WHERE n < 0
+| STATS COUNT(n)
+// end::count-where[]
+;
+
+// tag::count-where-result[]
+COUNT(n):long
+            0
+// end::count-where-result[]
+;
+
+
+count_or_null
+// tag::count-or-null[]
+ROW n=1
+| STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)
+// end::count-or-null[]
+;
+
+// tag::count-or-null-result[]
+COUNT(n > 0 OR NULL):long | COUNT(n < 0 OR NULL):long
+                        1 | 0
+// end::count-or-null-result[]
+;
+
 countMultiValuesRow
 ROW keyword_field = ["foo", "bar"], int_field = [1, 2, 3] | STATS ck = COUNT(keyword_field), ci = COUNT(int_field), c = COUNT(*);
 
@@ -1884,4 +1912,36 @@ MIN(i):integer | a:keyword | b:integer
              1 | b         | 2
              1 | b         | 3
 // end::multi-mv-group-result[]
+;
+
+statsByConstant
+required_capability: stats_by_constant
+from employees
+| stats m = max(salary), a = round(avg(salary)) by 0
+;
+
+m:integer |a:double |0:integer
+74999     |48249.0  |0
+;
+
+statsByConstantFromStats
+required_capability: stats_by_constant
+from employees
+| stats c = count(languages)
+| stats a = count(*) by c
+;
+
+a:long |c:long
+1      |90
+;
+
+statsByConstantFromEval
+required_capability: stats_by_constant
+from employees
+| eval x = 0
+| stats m = max(salary), a = round(avg(salary)) by x
+;
+
+m:integer |a:double |x:integer
+74999     |48249.0  |0
 ;

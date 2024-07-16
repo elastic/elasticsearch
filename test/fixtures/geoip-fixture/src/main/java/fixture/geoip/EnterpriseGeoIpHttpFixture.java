@@ -10,9 +10,7 @@ package fixture.geoip;
 
 import com.sun.net.httpserver.HttpServer;
 
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.geoip.GeoIpCli;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
@@ -27,23 +25,26 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 
+/**
+ * This fixture is used to simulate a maxmind-provided server for downloading maxmind geoip database files from the
+ * EnterpriseGeoIpDownloader. It can be used by integration tests so that they don't actually hit maxmind servers.
+ */
 public class EnterpriseGeoIpHttpFixture extends ExternalResource {
 
     private final Path source;
-    private final Path target;
     private final boolean enabled;
     private final String[] databaseTypes;
     private HttpServer server;
 
     /*
-     * The values in databaseTypes must be in DatabaseConfiguration.MAXMIND_NAMES
+     * The values in databaseTypes must be in DatabaseConfiguration.MAXMIND_NAMES, and must be one of the databases copied in the
+     * copyFiles method of thisi class.
      */
     public EnterpriseGeoIpHttpFixture(boolean enabled, String... databaseTypes) {
         this.enabled = enabled;
         this.databaseTypes = databaseTypes;
         try {
             this.source = Files.createTempDirectory("source");
-            this.target = Files.createTempDirectory("target");
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -106,11 +107,5 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
                 StandardCopyOption.REPLACE_EXISTING
             );
         }
-
-        new GeoIpCli().main(
-            new String[] { "-s", source.toAbsolutePath().toString(), "-t", target.toAbsolutePath().toString() },
-            Terminal.DEFAULT,
-            null
-        );
     }
 }

@@ -27,8 +27,8 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
  * This class encapsulates the metrics and other information needed to define scope when we are requesting node stats.
  */
 public class NodesStatsRequestParameters implements Writeable {
-    private final EnumSet<Metric> requestedMetrics;
     private CommonStatsFlags indices = new CommonStatsFlags();
+    private final EnumSet<Metric> requestedMetrics;
     private boolean includeShardsStats = true;
 
     public NodesStatsRequestParameters() {
@@ -37,7 +37,7 @@ public class NodesStatsRequestParameters implements Writeable {
 
     public NodesStatsRequestParameters(StreamInput in) throws IOException {
         indices = new CommonStatsFlags(in);
-        requestedMetrics = Metric.readFrom(in);
+        requestedMetrics = Metric.readSetFrom(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             includeShardsStats = in.readBoolean();
         } else {
@@ -48,7 +48,7 @@ public class NodesStatsRequestParameters implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         indices.writeTo(out);
-        Metric.writeTo(out, requestedMetrics);
+        Metric.writeSetTo(out, requestedMetrics);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(includeShardsStats);
         }
@@ -113,7 +113,7 @@ public class NodesStatsRequestParameters implements Writeable {
             return NAMES_MAP.get(name);
         }
 
-        public static void writeTo(StreamOutput out, EnumSet<Metric> metrics) throws IOException {
+        public static void writeSetTo(StreamOutput out, EnumSet<Metric> metrics) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.USE_NODES_STATS_REQUEST_METRIC_ENUM)) {
                 out.writeEnumSet(metrics);
             } else {
@@ -121,7 +121,7 @@ public class NodesStatsRequestParameters implements Writeable {
             }
         }
 
-        public static EnumSet<Metric> readFrom(StreamInput in) throws IOException {
+        public static EnumSet<Metric> readSetFrom(StreamInput in) throws IOException {
             if (in.getTransportVersion().onOrAfter(TransportVersions.USE_NODES_STATS_REQUEST_METRIC_ENUM)) {
                 return in.readEnumSet(Metric.class);
             } else {

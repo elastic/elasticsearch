@@ -554,7 +554,7 @@ Elasticsearch shards reflect Lucene's underlying https://github.com/apache/lucen
 the sum of `docs.count` plus `docs.deleted` as reported by the <<indices-stats,Index stats API>> 
 per shard. Exceeding this limit will result in errors like the following:
 
-[source]
+[source,txt]
 ----
 Elasticsearch exception [type=illegal_argument_exception, reason=Number of documents in the shard cannot exceed [2147483519]]
 ----

@@ -94,14 +94,14 @@ See <<synonym-graph-tokenizer-stop-token-filter,synonyms and stop token filters>
 
 [discrete]
 [[synonym-graph-tokenizer-expand-equivalent-synonyms]]
-===== `expand` equivalent synonyms
+===== `expand` equivalent synonym rules
 
-The `expand` parameter controls whether to expand equivalent synonyms mappings.
+The `expand` parameter controls whether to expand equivalent synonym rules.
 Consider a synonym defined like:
 
 `foo, bar, baz`
 
-Using `expand: true`, the synonym would be expanded into:
+Using `expand: true`, the synonym rule would be expanded into:
 
 ```
 foo => foo
@@ -115,7 +115,7 @@ baz => bar
 baz => baz
 ```
 
-When `expand` is set to `false`, the synonyms are not expanded and the first synonym is treated as the canonical representation. The synonym would be equivalent to:
+When `expand` is set to `false`, the synonym rule is not expanded and the first synonym is treated as the canonical representation. The synonym would be equivalent to:
 
 ```
 foo => foo
@@ -123,7 +123,7 @@ bar => foo
 baz => foo
 ```
 
-The `expand` parameter does not affect explicit synonyms mappings, like `foo, bar => baz`.
+The `expand` parameter does not affect explicit synonym rules, like `foo, bar => baz`.
 
 [discrete]
 [[synonym-graph-tokenizer-ignore_case-deprecated]]
@@ -179,22 +179,22 @@ Synonyms and <<analysis-stop-tokenfilter,stop token filters>> interact with each
 Stop words will be removed from the synonym rule definition.
 This can can cause errors on the synonym rule.
 
-WARNING: An invalid synonym rule will cause an error when applying your analyzer changes.
+WARNING: An invalid synonym rule can cause an error when applying your analyzer changes.
 For reloadable analyzers, the analyzer will not be reloaded and the changes will not be applied.
-You must correct the error in the synonym rules and reload the analyzer, as an index that contains an invalid synonym rule won't be able to be reopened.
+You must correct the error in the synonym rules and reload the analyzer, as an index that contains an invalid synonym rule will not be reopened.
 This means that the index will be inoperable when a node that contains the index is started, or the index is opened from a closed state.
 
-For *explicit synonyms* like `foo, bar => baz` with a stop filter that removes `bar`:
+For *explicit synonym rules* like `foo, bar => baz` with a stop filter that removes `bar`:
 
 - If `lenient` is set to `false`, an error will be raised as `bar` would be removed from the left hand side of the synonym rule.
-- If `lenient` is set to `true`, the mapping `foo => baz` will be added and `bar => baz` will be ignored.
+- If `lenient` is set to `true`, the rule `foo => baz` will be added and `bar => baz` will be ignored.
 
 If the stop filter removed `baz` instead:
 
 - If `lenient` is set to `false`, an error will be raised as `baz` would be removed from the right hand side of the synonym rule.
 - If `lenient` is set to `true`, the synonym will have no effect as the target word is removed.
 
-For *equivalent synonyms* like `foo, bar, baz` with a stop filter that removes `bar`:
+For *equivalent synonym rules* like `foo, bar, baz` and `expand: true, with a stop filter that removes `bar`:
 
 - If `lenient` is set to `false`, an error will be raised as `bar` would be removed from the synonym rule.
 - If `lenient` is set to `true`, the synonyms added would be equivalent to the following synonym rules, which do not contain the removed word:
@@ -211,6 +211,6 @@ baz => baz
 
 The stop filter will remove the terms from the resulting synonym expansion.
 
-For example, a synonym like `foo, bar => baz` and a stop filter that removes `baz` will get no matches for `foo` or `bar`, as both would get expanded to `baz` which is removed by the stop filter.
+For example, a synonym rule like `foo, bar => baz` and a stop filter that removes `baz` will get no matches for `foo` or `bar`, as both would get expanded to `baz` which is removed by the stop filter.
 
 If the stop filter removed `foo` instead, then searching for `foo` would get expanded to `baz`, which is not removed by the stop filter thus potentially providing matches for `baz`.

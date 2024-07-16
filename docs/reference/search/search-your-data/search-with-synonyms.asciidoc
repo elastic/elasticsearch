@@ -82,7 +82,7 @@ If an index is created referencing a nonexistent synonyms set, the index will re
 The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.
 ======
 
-WARNING: An invalid synonym rule will cause an error when applying your synonym changes.
+WARNING: An invalid synonym rule can cause an error when applying your synonym changes.
 Indices that use invalid rules will not apply changes to their analyzers.
 You must correct the error in the synonym rules, as an index that contains an invalid synonym rule won't be able to be reopened.
 This means that the index will be inoperable when a node that contains the index is started, or the index is opened from a closed state.

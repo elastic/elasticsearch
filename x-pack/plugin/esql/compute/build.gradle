@@ -554,6 +554,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  topAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/TopDoubleAggregator.java"
   }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  topAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopBooleanAggregator.java"
+  }
 
   File multivalueDedupeInputFile = file("src/main/java/org/elasticsearch/compute/operator/mvdedupe/X-MultivalueDedupe.java.st")
   template {

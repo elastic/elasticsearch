@@ -8,32 +8,45 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 
 public class NodesStatsRequestParametersTests extends ESTestCase {
 
-    public void testMetricsReadWrite() throws IOException {
-        var out = new BytesRefStreamOutput();
-        var outMetics = Set.of(Metric.OS, Metric.JVM, Metric.ALLOCATIONS);
-        out.writeCollection(outMetics);
-        var in = new ByteArrayStreamInput(out.get().bytes);
-        var inMetrics = Metric.readSetFrom(in);
-        assertEquals(outMetics, inMetrics);
+    private static NodesStatsRequestParameters randomRequest() {
+        var req = new NodesStatsRequestParameters();
+        req.setIndices(CommonStatsFlags.ALL);
+        req.setIncludeShardsStats(randomBoolean());
+        req.requestedMetrics().addAll(randomSubsetOf(Metric.ALL));
+        return req;
     }
 
-    public void testUnknownMetricsReadWrite() throws IOException {
-        var out = new BytesRefStreamOutput();
-        var outMetics = Set.of(Metric.OS.metricName(), Metric.JVM.metricName(), "unknown");
-        out.writeStringCollection(outMetics);
-        var in = new ByteArrayStreamInput(out.get().bytes);
-        var inMetrics = Metric.readSetFrom(in);
-        assertEquals("should ignore unknown metrics", Set.of(Metric.OS, Metric.JVM), inMetrics);
+    public void testMetricBwc_writeReadEnumOrString() {
+        var versions = List.of(TransportVersions.ALLOCATION_STATS, TransportVersions.USE_NODES_STATS_REQUEST_METRIC_ENUM);
+        for (int i = 0; i < 20; i++) {
+            for (var version : versions) {
+                var reqOut = randomRequest();
+                try {
+                    var out = new BytesRefStreamOutput();
+                    out.setTransportVersion(version);
+                    reqOut.writeTo(out);
+                    var in = new ByteArrayStreamInput(out.get().bytes);
+                    in.setTransportVersion(version);
+                    var reqIn = new NodesStatsRequestParameters(in);
+                    assertEquals(reqOut.requestedMetrics(), reqIn.requestedMetrics());
+                } catch (IOException e) {
+                    var errMsg = "ver=" + version.toString() + " metrics=" + reqOut.requestedMetrics().toString();
+                    throw new AssertionError(errMsg, e);
+                }
+            }
+        }
     }
 
 }

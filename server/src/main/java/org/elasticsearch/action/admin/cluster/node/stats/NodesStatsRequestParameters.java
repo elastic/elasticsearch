@@ -15,11 +15,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static java.util.stream.Collectors.toUnmodifiableSet;
@@ -28,15 +27,17 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
  * This class encapsulates the metrics and other information needed to define scope when we are requesting node stats.
  */
 public class NodesStatsRequestParameters implements Writeable {
+    private final EnumSet<Metric> requestedMetrics;
     private CommonStatsFlags indices = new CommonStatsFlags();
-    private Set<Metric> requestedMetrics = new HashSet<>();
     private boolean includeShardsStats = true;
 
-    public NodesStatsRequestParameters() {}
+    public NodesStatsRequestParameters() {
+        this.requestedMetrics = EnumSet.noneOf(Metric.class);
+    }
 
     public NodesStatsRequestParameters(StreamInput in) throws IOException {
         indices = new CommonStatsFlags(in);
-        requestedMetrics = Metric.readSetFrom(in);
+        requestedMetrics = Metric.readFrom(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             includeShardsStats = in.readBoolean();
         } else {
@@ -47,7 +48,7 @@ public class NodesStatsRequestParameters implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         indices.writeTo(out);
-        out.writeCollection(requestedMetrics);
+        Metric.writeTo(out, requestedMetrics);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(includeShardsStats);
         }
@@ -77,7 +78,7 @@ public class NodesStatsRequestParameters implements Writeable {
      * An enumeration of the "core" sections of metrics that may be requested
      * from the nodes stats endpoint. Eventually this list will be pluggable.
      */
-    public enum Metric implements Writeable {
+    public enum Metric {
         OS("os"),
         PROCESS("process"),
         JVM("jvm"),
@@ -95,48 +96,45 @@ public class NodesStatsRequestParameters implements Writeable {
         REPOSITORIES("repositories"),
         ALLOCATIONS("allocations");
 
-        private static final Map<String, Metric> metricMap = Arrays.stream(values())
-            .collect(toUnmodifiableMap(Metric::metricName, Function.identity()));
+        public static final Set<Metric> ALL = Collections.unmodifiableSet(EnumSet.allOf(Metric.class));
+        public static final Set<String> ALL_NAMES = ALL.stream().map(Metric::metricName).collect(toUnmodifiableSet());
+        public static final Map<String, Metric> NAMES_MAP = ALL.stream().collect(toUnmodifiableMap(Metric::metricName, m -> m));
         private final String metricName;
 
-        public static final Set<Metric> ALL = Arrays.stream(values()).collect(toUnmodifiableSet());
-        public static final Set<String> ALL_NAMES = metricMap.keySet();
-
-        Metric(String name) {
-            this.metricName = name;
+        Metric(String metricName) {
+            this.metricName = metricName;
         }
 
         public static boolean isValid(String name) {
-            return metricMap.containsKey(name);
+            return NAMES_MAP.containsKey(name);
         }
 
         public static Metric get(String name) {
-            return metricMap.get(name);
+            return NAMES_MAP.get(name);
         }
 
-        /**
-         * Read set of metrics from the StreamInput. Ignores unknown metrics.
-         * It should not happen normally, except rolling update when enum changed.
-         * Silently dropping unknown metrics seems less harmful than dropping entire request in this case.
-         */
-        public static Set<Metric> readSetFrom(StreamInput in) throws IOException {
-            final var set = new HashSet<Metric>();
-            final var names = in.readStringArray();
-            for (var name : names) {
-                if (isValid(name)) {
-                    set.add(metricMap.get(name));
-                }
+        public static void writeTo(StreamOutput out, EnumSet<Metric> metrics) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_NODES_STATS_REQUEST_METRIC_ENUM)) {
+                out.writeEnumSet(metrics);
+            } else {
+                out.writeCollection(metrics, (output, metric) -> output.writeString(metric.metricName));
             }
-            return set;
+        }
+
+        public static EnumSet<Metric> readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.USE_NODES_STATS_REQUEST_METRIC_ENUM)) {
+                return in.readEnumSet(Metric.class);
+            } else {
+                var metrics = in.readStringCollectionAsList();
+                if (metrics.isEmpty()) {
+                    return EnumSet.noneOf(Metric.class);
+                }
+                return EnumSet.copyOf(metrics.stream().map(NAMES_MAP::get).toList());
+            }
         }
 
         public String metricName() {
-            return this.metricName;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(metricName);
+            return metricName;
         }
 
         @Override

@@ -116,7 +116,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Add an array of metric names
      */
     public NodesStatsRequest addMetrics(Metric... metrics) {
-        nodesStatsRequestParameters.requestedMetrics().addAll(List.of(metrics));
+        for (var metric : metrics) {
+            nodesStatsRequestParameters.requestedMetrics().add(metric);
+        }
         return this;
     }
 

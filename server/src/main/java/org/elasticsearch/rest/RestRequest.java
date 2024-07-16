@@ -48,18 +48,9 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params, Traceable {
 
-    /**
-     * This internal parameter indicates that APIs that have partial API restrictions in Serverless mode should apply them to the request.
-     * Partial API restrictions are for APIs that are public in Serverless but prevent the use of certain fields in the request, omit
-     * fields from the response, or otherwise partially restrict API functionality.
-     *
-     * This parameter is set for all requests that are made in Serverless mode against a public API by non-operator users.
-     *
-     * If you have an API with partial restrictions, use this flag to check if you need to apply them or not (i.e., if the request is
-     * subject to them, or is exempt). You can check for the presence of this parameter among the REST parameters of the request instance,
-     * or use {@link #shouldUseServerlessPartialApiRestrictions()}.
-     */
-    public static final String USE_SERVERLESS_PARTIAL_API_RESTRICTIONS = "useServerlessPartialApiRestrictions";
+    public static final String SERVERLESS_REQUEST = "serverlessRequest";
+    public static final String OPERATOR_REQUEST = "operatorRequest";
+
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -627,27 +618,29 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return restApiVersion.isPresent();
     }
 
-    public void setUseServerlessPartialApiRestrictions() {
-        if (params.containsKey(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS)) {
-            throw new IllegalArgumentException("The parameter [" + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS + "] is already defined.");
-        }
-        params.put(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS, "true");
-        // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
-        consumedParams.add(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS);
+    public void markAsServerlessRequest() {
+        setParamTrueOnceAndConsume(SERVERLESS_REQUEST);
     }
 
-    /**
-     * @see #USE_SERVERLESS_PARTIAL_API_RESTRICTIONS
-     */
-    public boolean shouldUseServerlessPartialApiRestrictions() {
-        final boolean hasParam = hasParam(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS);
-        assert false == hasParam || params.get(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS).equals("true")
-            : "only [true] is allowed for ["
-                + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS
-                + "] but got ["
-                + params.get(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS)
-                + "]";
-        return hasParam;
+    public boolean isServerlessRequest() {
+        return paramAsBoolean(SERVERLESS_REQUEST, false);
+    }
+
+    public void markAsOperatorRequest() {
+        setParamTrueOnceAndConsume(OPERATOR_REQUEST);
+    }
+
+    public boolean isOperatorRequest() {
+        return paramAsBoolean(OPERATOR_REQUEST, false);
+    }
+
+    private void setParamTrueOnceAndConsume(String param) {
+        if (params.containsKey(param)) {
+            throw new IllegalArgumentException("The parameter [" + param + "] is already defined.");
+        }
+        params.put(param, "true");
+        // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
+        consumedParams.add(param);
     }
 
     @Override

@@ -480,6 +480,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
             }
+
+            if (apiProtections.isEnabled()) {
+                request.markAsServerlessRequest();
+                logger.trace("Marked request for uri [{}] as serverless request", request.uri());
+            }
+
             final var finalChannel = responseChannel;
             this.interceptor.intercept(request, responseChannel, handler.getConcreteRestHandler(), new ActionListener<>() {
                 @Override

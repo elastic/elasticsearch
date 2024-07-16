@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.rest.RestRequest.USE_SERVERLESS_PARTIAL_API_RESTRICTIONS;
+import static org.elasticsearch.rest.RestRequest.SERVERLESS_REQUEST;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -249,17 +249,17 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("unknown content type", e.getMessage());
     }
 
-    public void testUseServerlessPartialApiRestrictions() {
+    public void testIsServerlessRequest() {
         RestRequest request1 = contentRestRequest("content", new HashMap<>());
-        request1.setUseServerlessPartialApiRestrictions();
-        assertEquals(request1.param(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS), "true");
-        assertTrue(request1.shouldUseServerlessPartialApiRestrictions());
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::setUseServerlessPartialApiRestrictions);
-        assertThat(exception.getMessage(), is("The parameter [" + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS + "] is already defined."));
+        request1.markAsServerlessRequest();
+        assertEquals(request1.param(SERVERLESS_REQUEST), "true");
+        assertTrue(request1.isServerlessRequest());
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::markAsServerlessRequest);
+        assertThat(exception.getMessage(), is("The parameter [" + SERVERLESS_REQUEST + "] is already defined."));
 
-        RestRequest request2 = contentRestRequest("content", Map.of(USE_SERVERLESS_PARTIAL_API_RESTRICTIONS, "true"));
-        exception = expectThrows(IllegalArgumentException.class, request2::setUseServerlessPartialApiRestrictions);
-        assertThat(exception.getMessage(), is("The parameter [" + USE_SERVERLESS_PARTIAL_API_RESTRICTIONS + "] is already defined."));
+        RestRequest request2 = contentRestRequest("content", Map.of(SERVERLESS_REQUEST, "true"));
+        exception = expectThrows(IllegalArgumentException.class, request2::markAsServerlessRequest);
+        assertThat(exception.getMessage(), is("The parameter [" + SERVERLESS_REQUEST + "] is already defined."));
     }
 
     public static RestRequest contentRestRequest(String content, Map<String, String> params) {

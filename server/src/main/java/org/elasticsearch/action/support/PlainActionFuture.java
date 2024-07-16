@@ -375,6 +375,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         return fut.actionGet();
     }
 
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public static <T, E extends Exception> T get(CheckedConsumer<PlainActionFuture<T>, E> e, long timeout, TimeUnit unit) throws E {
         PlainActionFuture<T> fut = new PlainActionFuture<>();
         e.accept(fut);

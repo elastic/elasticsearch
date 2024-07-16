@@ -3211,36 +3211,32 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         });
 
-        PlainActionFuture.get(
-            f -> submitRequest(
+        safeAwait(
+            listener -> submitRequest(
                 serviceA,
                 serviceA.getLocalNode(),
                 ACTION,
                 new EmptyRequest(),
                 new ActionListenerResponseHandler<>(
-                    f,
+                    listener,
                     ignored -> TransportResponse.Empty.INSTANCE,
                     TransportResponseHandler.TRANSPORT_WORKER
                 )
-            ),
-            10,
-            TimeUnit.SECONDS
+            )
         );
 
-        PlainActionFuture.get(
-            f -> submitRequest(
+        safeAwait(
+            listener -> submitRequest(
                 serviceA,
                 serviceB.getLocalNode(),
                 ACTION,
                 new EmptyRequest(),
                 new ActionListenerResponseHandler<>(
-                    f,
+                    listener,
                     ignored -> TransportResponse.Empty.INSTANCE,
                     TransportResponseHandler.TRANSPORT_WORKER
                 )
-            ),
-            10,
-            TimeUnit.SECONDS
+            )
         );
     }
 
@@ -3309,16 +3305,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         for (int iteration = 1; iteration <= 5; iteration++) {
             assertEquals(
                 responseSize,
-                PlainActionFuture.<Response, Exception>get(
-                    f -> submitRequest(
+                safeAwait(
+                    (ActionListener<Response> listener) -> submitRequest(
                         serviceA,
                         serviceB.getLocalNode(),
                         ACTION,
                         new Request(requestSize),
-                        new ActionListenerResponseHandler<>(f, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
-                    ),
-                    10,
-                    TimeUnit.SECONDS
+                        new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
+                    )
                 ).refSize
             );
 

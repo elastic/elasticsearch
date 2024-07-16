@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -524,9 +525,15 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
     }
 
+    private Releasable acquirePermitImmediately() {
+        final var listener = SubscribableListener.<Releasable>newForked(l -> permits.acquire(l, threadPool.generic(), false));
+        assertTrue(listener.isDone());
+        return safeAwait(listener);
+    }
+
     public void testAsyncBlockOperationsOnRejection() {
         final PlainActionFuture<Void> threadBlock = new PlainActionFuture<>();
-        try (Releasable firstPermit = PlainActionFuture.get(f -> permits.acquire(f, threadPool.generic(), false), 0, TimeUnit.SECONDS)) {
+        try (Releasable firstPermit = acquirePermitImmediately()) {
             assertNotNull(firstPermit);
 
             final var rejectingExecutor = threadPool.executor(REJECTING_EXECUTOR);
@@ -539,9 +546,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             );
 
             // ensure that the exception means no block was put in place
-            try (
-                Releasable secondPermit = PlainActionFuture.get(f -> permits.acquire(f, threadPool.generic(), false), 0, TimeUnit.SECONDS)
-            ) {
+            try (Releasable secondPermit = acquirePermitImmediately()) {
                 assertNotNull(secondPermit);
             }
         } finally {
@@ -556,7 +561,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     public void testAsyncBlockOperationsOnTimeout() {
         final PlainActionFuture<Void> threadBlock = new PlainActionFuture<>();
-        try (Releasable firstPermit = PlainActionFuture.get(f -> permits.acquire(f, threadPool.generic(), false), 0, TimeUnit.SECONDS)) {
+        try (Releasable firstPermit = acquirePermitImmediately()) {
             assertNotNull(firstPermit);
 
             assertEquals(
@@ -570,9 +575,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             );
 
             // ensure that the exception means no block was put in place
-            try (
-                Releasable secondPermit = PlainActionFuture.get(f -> permits.acquire(f, threadPool.generic(), false), 0, TimeUnit.SECONDS)
-            ) {
+            try (Releasable secondPermit = acquirePermitImmediately()) {
                 assertNotNull(secondPermit);
             }
 

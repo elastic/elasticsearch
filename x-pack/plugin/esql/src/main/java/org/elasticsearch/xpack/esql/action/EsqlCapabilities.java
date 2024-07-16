@@ -55,6 +55,11 @@ public class EsqlCapabilities {
         AGG_MAX_MIN_BOOLEAN_SUPPORT,
 
         /**
+         * Support for booleans in {@code TOP} aggregation.
+         */
+        AGG_TOP_BOOLEAN_SUPPORT,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -130,10 +135,31 @@ public class EsqlCapabilities {
         UNION_TYPES_INLINE_FIX,
 
         /**
+         * Fix for union-types when sorting a type-casted field. We changed how we remove synthetic union-types fields.
+         */
+        UNION_TYPES_REMOVE_FIELDS,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
-        FIX_PARSING_LARGE_NEGATIVE_NUMBERS;
+        FIX_PARSING_LARGE_NEGATIVE_NUMBERS,
+
+        /**
+         * Fix the status code returned when trying to run count_distinct on the _source type (which is not supported).
+         * see <a href="https://github.com/elastic/elasticsearch/issues/105240">count_distinct(_source) returns a 500 response</a>
+         */
+        FIX_COUNT_DISTINCT_SOURCE_ERROR,
+
+        /**
+        * Use RangeQuery for BinaryComparison on DateTime fields.
+        * */
+        RANGEQUERY_FOR_DATETIME,
+
+        /**
+         * Add tests for #105383, STATS BY constant.
+         */
+        STATS_BY_CONSTANT;
 
         private final boolean snapshotOnly;
 

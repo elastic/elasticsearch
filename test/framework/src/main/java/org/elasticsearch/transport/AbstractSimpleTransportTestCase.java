@@ -1868,8 +1868,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertBusy(() -> assertFalse(serviceB.nodeConnected(nodeA)));
 
         // now try to connect again and see that it fails
-        expectThrows(ConnectTransportException.class, () -> connectToNode(serviceB, nodeA));
-        expectThrows(ConnectTransportException.class, () -> openConnection(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
+        assertNotNull(connectToNodeExpectFailure(serviceB, nodeA, null));
+        assertNotNull(openConnectionExpectFailure(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
     public void testMockUnresponsiveRule() throws InterruptedException {
@@ -1916,11 +1916,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         );
 
         assertThat(expectThrows(ExecutionException.class, res::get).getCause(), instanceOf(ReceiveTimeoutTransportException.class));
-        expectThrows(ConnectTransportException.class, () -> {
-            serviceB.disconnectFromNode(nodeA);
-            connectToNode(serviceB, nodeA);
-        });
-        expectThrows(ConnectTransportException.class, () -> openConnection(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
+        serviceB.disconnectFromNode(nodeA);
+        assertNotNull(connectToNodeExpectFailure(serviceB, nodeA, null));
+        assertNotNull(openConnectionExpectFailure(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
     public void testHostOnMessages() throws InterruptedException {
@@ -2342,7 +2340,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
-            expectThrows(ConnectTransportException.class, () -> openConnection(serviceA, node, builder.build()));
+            assertNotNull(openConnectionExpectFailure(serviceA, node, builder.build()));
         }
     }
 
@@ -3160,10 +3158,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
-            final ConnectTransportException e = expectThrows(
-                ConnectTransportException.class,
-                () -> openConnection(service, nodeA, builder.build())
-            );
+            final ConnectTransportException e = openConnectionExpectFailure(service, nodeA, builder.build());
             assertThat(e, hasToString(containsString(("a channel closed while connecting"))));
             assertTrue(connectionClosedListenerCalled.get());
         }
@@ -3510,6 +3505,20 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     /**
+     * Attempt to connect to the specified node, but assert that this fails and return the resulting exception.
+     */
+    public static ConnectTransportException connectToNodeExpectFailure(
+        TransportService service,
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile
+    ) {
+        return asInstanceOf(
+            ConnectTransportException.class,
+            safeAwaitFailure(Releasable.class, listener -> service.connectToNode(node, connectionProfile, listener))
+        );
+    }
+
+    /**
      * Establishes and returns a new connection to the given node from the given {@link TransportService}.
      *
      * @param service service to connect from
@@ -3518,6 +3527,20 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      */
     public static Transport.Connection openConnection(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
         return safeAwait(listener -> service.openConnection(node, connectionProfile, listener));
+    }
+
+    /**
+     * Attempt to connect to the specified node, but assert that this fails and return the resulting exception.
+     */
+    public static ConnectTransportException openConnectionExpectFailure(
+        TransportService service,
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile
+    ) {
+        return asInstanceOf(
+            ConnectTransportException.class,
+            safeAwaitFailure(Transport.Connection.class, listener -> service.openConnection(node, connectionProfile, listener))
+        );
     }
 
     public static <T extends TransportResponse> Future<T> submitRequest(

@@ -544,3 +544,36 @@ PUT _cluster/settings
   }
 }
 ----
+
+[discrete]
+==== Number of documents in the shard cannot exceed [2147483519]
+
+
+Elasticsearch shards reflect Lucene's underlying https://github.com/apache/lucene/issues/5176[index 
+`MAX_DOC` hard limit] of 2,147,483,519 (`(2^31)-129`) docs. This figure is
+the sum of `docs.count` plus `docs.deleted` as reported by the <<indices-stats,Index stats API>> 
+per shard. Exceeding this limit will result in errors like the following:
+
+[source,txt]
+----
+Elasticsearch exception [type=illegal_argument_exception, reason=Number of documents in the shard cannot exceed [2147483519]]
+----
+
+TIP: This calculation may differ from the <<search-count,Count API's>> calculation, because the Count API does not include nested documents.
+
+
+Try using the <<indices-forcemerge,Force Merge API>> to clear deleted docs. For example:
+
+[source,console]
+----
+POST my-index-000001/_forcemerge?only_expunge_deletes=true
+----
+// TEST[setup:my_index]
+
+This will launch an asynchronous task which can be monitored via the <<tasks,Task Management API>>. 
+
+For a long-term solution try:
+
+* <<docs-delete-by-query,deleting unneeded documents>> 
+* aligning the index to recommendations on this page by either 
+<<indices-split-index,Splitting>> or <<docs-reindex,Reindexing>> the index 

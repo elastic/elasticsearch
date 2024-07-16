@@ -34,7 +34,6 @@ module org.elasticsearch.server {
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.simdvec;
 
-    requires com.sun.jna;
     requires hppc;
     requires HdrHistogram;
     requires jopt.simple;

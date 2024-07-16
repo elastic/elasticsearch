@@ -23,7 +23,6 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
-import java.util.concurrent.CountDownLatch;
 import java.util.zip.ZipException;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -45,34 +44,17 @@ public class DeflateCompressTests extends ESTestCase {
     }
 
     public void testRandomThreads() throws Exception {
-        final Random r = random();
-        int threadCount = TestUtil.nextInt(r, 2, 6);
-        Thread[] threads = new Thread[threadCount];
-        final CountDownLatch startingGun = new CountDownLatch(1);
-        for (int tid = 0; tid < threadCount; tid++) {
-            final long seed = r.nextLong();
-            threads[tid] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        Random r = new Random(seed);
-                        startingGun.await();
-                        for (int i = 0; i < 10; i++) {
-                            byte bytes[] = new byte[TestUtil.nextInt(r, 1, 100000)];
-                            r.nextBytes(bytes);
-                            doTest(bytes);
-                        }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
+        startInParallel(randomIntBetween(2, 6), tid -> {
+            try {
+                for (int i = 0; i < 10; i++) {
+                    byte[] bytes = new byte[randomIntBetween(1, 100000)];
+                    randomBytesBetween(bytes, Byte.MIN_VALUE, Byte.MAX_VALUE);
+                    doTest(bytes);
                 }
-            };
-            threads[tid].start();
-        }
-        startingGun.countDown();
-        for (Thread t : threads) {
-            t.join();
-        }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     public void testLineDocs() throws IOException {
@@ -91,40 +73,24 @@ public class DeflateCompressTests extends ESTestCase {
     }
 
     public void testLineDocsThreads() throws Exception {
-        final Random r = random();
-        int threadCount = TestUtil.nextInt(r, 2, 6);
-        Thread[] threads = new Thread[threadCount];
-        final CountDownLatch startingGun = new CountDownLatch(1);
-        for (int tid = 0; tid < threadCount; tid++) {
-            final long seed = r.nextLong();
-            threads[tid] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        Random r = new Random(seed);
-                        startingGun.await();
-                        LineFileDocs lineFileDocs = new LineFileDocs(r);
-                        for (int i = 0; i < 10; i++) {
-                            int numDocs = TestUtil.nextInt(r, 1, 200);
-                            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                            for (int j = 0; j < numDocs; j++) {
-                                String s = lineFileDocs.nextDoc().get("body");
-                                bos.write(s.getBytes(StandardCharsets.UTF_8));
-                            }
-                            doTest(bos.toByteArray());
-                        }
-                        lineFileDocs.close();
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+        int threadCount = randomIntBetween(2, 6);
+        startInParallel(threadCount, tid -> {
+            try {
+                LineFileDocs lineFileDocs = new LineFileDocs(random());
+                for (int i = 0; i < 10; i++) {
+                    int numDocs = randomIntBetween(1, 200);
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    for (int j = 0; j < numDocs; j++) {
+                        String s = lineFileDocs.nextDoc().get("body");
+                        bos.write(s.getBytes(StandardCharsets.UTF_8));
                     }
+                    doTest(bos.toByteArray());
                 }
-            };
-            threads[tid].start();
-        }
-        startingGun.countDown();
-        for (Thread t : threads) {
-            t.join();
-        }
+                lineFileDocs.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     public void testRepetitionsL() throws IOException {
@@ -151,48 +117,32 @@ public class DeflateCompressTests extends ESTestCase {
     }
 
     public void testRepetitionsLThreads() throws Exception {
-        final Random r = random();
-        int threadCount = TestUtil.nextInt(r, 2, 6);
-        Thread[] threads = new Thread[threadCount];
-        final CountDownLatch startingGun = new CountDownLatch(1);
-        for (int tid = 0; tid < threadCount; tid++) {
-            final long seed = r.nextLong();
-            threads[tid] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        Random r = new Random(seed);
-                        startingGun.await();
-                        for (int i = 0; i < 10; i++) {
-                            int numLongs = TestUtil.nextInt(r, 1, 10000);
-                            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                            long theValue = r.nextLong();
-                            for (int j = 0; j < numLongs; j++) {
-                                if (r.nextInt(10) == 0) {
-                                    theValue = r.nextLong();
-                                }
-                                bos.write((byte) (theValue >>> 56));
-                                bos.write((byte) (theValue >>> 48));
-                                bos.write((byte) (theValue >>> 40));
-                                bos.write((byte) (theValue >>> 32));
-                                bos.write((byte) (theValue >>> 24));
-                                bos.write((byte) (theValue >>> 16));
-                                bos.write((byte) (theValue >>> 8));
-                                bos.write((byte) theValue);
-                            }
-                            doTest(bos.toByteArray());
+        int threadCount = randomIntBetween(2, 6);
+        startInParallel(threadCount, tid -> {
+            try {
+                for (int i = 0; i < 10; i++) {
+                    int numLongs = randomIntBetween(1, 10000);
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    long theValue = randomLong();
+                    for (int j = 0; j < numLongs; j++) {
+                        if (randomInt(10) == 0) {
+                            theValue = randomLong();
                         }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+                        bos.write((byte) (theValue >>> 56));
+                        bos.write((byte) (theValue >>> 48));
+                        bos.write((byte) (theValue >>> 40));
+                        bos.write((byte) (theValue >>> 32));
+                        bos.write((byte) (theValue >>> 24));
+                        bos.write((byte) (theValue >>> 16));
+                        bos.write((byte) (theValue >>> 8));
+                        bos.write((byte) theValue);
                     }
+                    doTest(bos.toByteArray());
                 }
-            };
-            threads[tid].start();
-        }
-        startingGun.countDown();
-        for (Thread t : threads) {
-            t.join();
-        }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     public void testRepetitionsI() throws IOException {
@@ -215,44 +165,28 @@ public class DeflateCompressTests extends ESTestCase {
     }
 
     public void testRepetitionsIThreads() throws Exception {
-        final Random r = random();
-        int threadCount = TestUtil.nextInt(r, 2, 6);
-        Thread[] threads = new Thread[threadCount];
-        final CountDownLatch startingGun = new CountDownLatch(1);
-        for (int tid = 0; tid < threadCount; tid++) {
-            final long seed = r.nextLong();
-            threads[tid] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        Random r = new Random(seed);
-                        startingGun.await();
-                        for (int i = 0; i < 10; i++) {
-                            int numInts = TestUtil.nextInt(r, 1, 20000);
-                            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                            int theValue = r.nextInt();
-                            for (int j = 0; j < numInts; j++) {
-                                if (r.nextInt(10) == 0) {
-                                    theValue = r.nextInt();
-                                }
-                                bos.write((byte) (theValue >>> 24));
-                                bos.write((byte) (theValue >>> 16));
-                                bos.write((byte) (theValue >>> 8));
-                                bos.write((byte) theValue);
-                            }
-                            doTest(bos.toByteArray());
+        int threadCount = randomIntBetween(2, 6);
+        startInParallel(threadCount, tid -> {
+            try {
+                for (int i = 0; i < 10; i++) {
+                    int numInts = randomIntBetween(1, 20000);
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    int theValue = randomInt();
+                    for (int j = 0; j < numInts; j++) {
+                        if (randomInt(10) == 0) {
+                            theValue = randomInt();
                         }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+                        bos.write((byte) (theValue >>> 24));
+                        bos.write((byte) (theValue >>> 16));
+                        bos.write((byte) (theValue >>> 8));
+                        bos.write((byte) theValue);
                     }
+                    doTest(bos.toByteArray());
                 }
-            };
-            threads[tid].start();
-        }
-        startingGun.countDown();
-        for (Thread t : threads) {
-            t.join();
-        }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     public void testRepetitionsS() throws IOException {
@@ -330,42 +264,26 @@ public class DeflateCompressTests extends ESTestCase {
     }
 
     public void testRepetitionsSThreads() throws Exception {
-        final Random r = random();
-        int threadCount = TestUtil.nextInt(r, 2, 6);
-        Thread[] threads = new Thread[threadCount];
-        final CountDownLatch startingGun = new CountDownLatch(1);
-        for (int tid = 0; tid < threadCount; tid++) {
-            final long seed = r.nextLong();
-            threads[tid] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        Random r = new Random(seed);
-                        startingGun.await();
-                        for (int i = 0; i < 10; i++) {
-                            int numShorts = TestUtil.nextInt(r, 1, 40000);
-                            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                            short theValue = (short) r.nextInt(65535);
-                            for (int j = 0; j < numShorts; j++) {
-                                if (r.nextInt(10) == 0) {
-                                    theValue = (short) r.nextInt(65535);
-                                }
-                                bos.write((byte) (theValue >>> 8));
-                                bos.write((byte) theValue);
-                            }
-                            doTest(bos.toByteArray());
+        int threadCount = randomIntBetween(2, 6);
+        startInParallel(threadCount, tid -> {
+            try {
+                for (int i = 0; i < 10; i++) {
+                    int numShorts = randomIntBetween(1, 40000);
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    short theValue = (short) randomInt(65535);
+                    for (int j = 0; j < numShorts; j++) {
+                        if (randomInt(10) == 0) {
+                            theValue = (short) randomInt(65535);
                         }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+                        bos.write((byte) (theValue >>> 8));
+                        bos.write((byte) theValue);
                     }
+                    doTest(bos.toByteArray());
                 }
-            };
-            threads[tid].start();
-        }
-        startingGun.countDown();
-        for (Thread t : threads) {
-            t.join();
-        }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     public void testCompressUncompressWithCorruptions() throws Exception {

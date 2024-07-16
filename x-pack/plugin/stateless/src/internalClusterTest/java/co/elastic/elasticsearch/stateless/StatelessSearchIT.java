@@ -29,11 +29,13 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngineTestUtils;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -47,6 +49,8 @@ import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -63,6 +67,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.TimeValue;
@@ -94,9 +99,11 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -114,11 +121,13 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.Stateless.CLEAR_BLOB_CACHE_ACTION;
+import static co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -1374,6 +1383,161 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             // There's an implicit incRef in prepareSearch(), so call decRef() to release the response object back into the resource pool.
             scrollSearchResponse.decRef();
         }
+    }
+
+    public void testConcurrentIndexingAndSearches() throws Exception {
+
+        int maxNonUploadedCommits = randomIntBetween(1, 20);
+        startIndexNode(
+            Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
+                .build()
+        );
+        startSearchNode();
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        // abort all indexing and searching threads if any of them encounter error
+        var erroneousStop = new AtomicBoolean(false);
+        var threads = new ArrayList<Thread>();
+
+        int indexingThreadsNumber = randomIntBetween(1, 5);
+        var runningIndexingThreadsCount = new CountDownLatch(indexingThreadsNumber);
+
+        final Runnable indexer = () -> {
+            try {
+                var bulkCount = randomIntBetween(1, 10);
+                for (int bulk = 0; bulk < bulkCount && erroneousStop.get() == false; bulk++) {
+                    indexQueryableDocs(indexName, scaledRandomIntBetween(10, 50));
+                    if (rarely()) {
+                        flush(indexName);
+                    }
+                    safeSleep(randomLongBetween(100, 200));
+                }
+            } catch (Exception e) {
+                erroneousStop.set(true);
+                throw new AssertionError(e);
+            } finally {
+                runningIndexingThreadsCount.countDown();
+            }
+        };
+        for (int i = 0; i < indexingThreadsNumber; i++) {
+            threads.add(new Thread(indexer));
+        }
+
+        int searchThreadsNumber = randomIntBetween(1, 5);
+        var runningSearchingThreadsCount = new CountDownLatch(searchThreadsNumber);
+
+        final Runnable searcher = () -> {
+            try {
+                while (runningIndexingThreadsCount.getCount() > 0 && erroneousStop.get() == false) {
+                    if (rarely()) {
+                        if (randomBoolean()) {
+                            // fan out to all nodes
+                            client().execute(CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).get();
+                        } else {
+                            // clear cache on just searching node
+                            evictSearchShardCache(indexName);
+                        }
+                    }
+
+                    var searchType = randomFrom(TestSearchType.values());
+                    var searchRequest = prepareSearch(indexName, searchType).setTimeout(TimeValue.timeValueMinutes(60));
+                    if (searchType != TestSearchType.SCROLL) {
+                        assertNoFailures(searchRequest);
+                    } else {
+                        assertScrollResponses(searchRequest);
+                    }
+                    safeSleep(randomLongBetween(100, 200));
+                }
+            } catch (Exception e) {
+                erroneousStop.set(true);
+                throw new AssertionError(e);
+            } finally {
+                runningSearchingThreadsCount.countDown();
+            }
+        };
+        for (int i = 0; i < searchThreadsNumber; i++) {
+            threads.add(new Thread(searcher));
+        }
+
+        threads.forEach(Thread::start);
+
+        for (Thread thread : threads) {
+            thread.join(10_000);
+        }
+
+        safeAwait(runningIndexingThreadsCount);
+        safeAwait(runningSearchingThreadsCount);
+    }
+
+    private void assertScrollResponses(SearchRequestBuilder searchRequestBuilder) {
+        var responses = new ArrayList<SearchResponse>();
+        var scrollResponse = searchRequestBuilder.get();
+        assertNoFailures(scrollResponse);
+        responses.add(scrollResponse);
+        try {
+            while (scrollResponse.getHits().getHits().length > 0) {
+                scrollResponse = client().prepareSearchScroll(scrollResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(60)).get();
+                assertNoFailures(scrollResponse);
+                responses.add(scrollResponse);
+            }
+        } finally {
+            ClearScrollResponse clearResponse = client().prepareClearScroll()
+                .setScrollIds(Arrays.asList(scrollResponse.getScrollId()))
+                .get();
+            responses.forEach(SearchResponse::decRef);
+            assertThat(clearResponse.isSucceeded(), Matchers.equalTo(true));
+        }
+    }
+
+    private void evictSearchShardCache(String indexName) {
+        IndexShard shard = findSearchShard(indexName);
+        Directory directory = shard.store().directory();
+        SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(directory);
+        getCacheService(searchDirectory).forceEvict((key) -> true);
+    }
+
+    private void indexQueryableDocs(String indexName, int numDocs) {
+        var bulkRequest = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            Map<String, Object> doc = new HashMap<>();
+            doc.put("field", randomUnicodeOfCodepointLengthBetween(1, 25));
+            if (randomBoolean()) {
+                doc.put("number", randomInt());
+            }
+            if (randomBoolean()) {
+                doc.put("custom", "value");
+            }
+            bulkRequest.add(new IndexRequest(indexName).source(doc));
+        }
+        var refreshPolicy = rarely() ? WAIT_UNTIL : randomFrom(NONE, IMMEDIATE);
+        logger.info("--> indexing [{}] docs with refresh_policy [{}]", numDocs, refreshPolicy);
+        bulkRequest.setRefreshPolicy(refreshPolicy).setTimeout(TimeValue.timeValueSeconds(60));
+        assertNoFailures(bulkRequest.get());
+    }
+
+    private enum TestSearchType {
+        MATCH_ALL,
+        MATCH_CUSTOM,
+        SUM,
+        SCROLL
+    }
+
+    static SearchRequestBuilder prepareSearch(String indexName, TestSearchType testSearchType) {
+        // Set a large size to retrieve all documents to force reading all relevant search data
+        return switch (testSearchType) {
+            case MATCH_ALL -> prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setSize(10_000);
+            case MATCH_CUSTOM -> prepareSearch(indexName).setQuery(QueryBuilders.termQuery("custom", "value")).setSize(10_000);
+            case SUM -> prepareSearch(indexName).addAggregation(sum("sum").field("number")).setSize(10_000);
+            case SCROLL -> prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())
+                .setSize(randomIntBetween(10, 1000))
+                .setScroll(TimeValue.timeValueSeconds(60));
+        };
     }
 
     private static SearchResponse countDocsInRange(Client client, String index, int min, int max) {

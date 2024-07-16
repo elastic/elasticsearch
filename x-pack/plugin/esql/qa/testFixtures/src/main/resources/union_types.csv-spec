@@ -298,6 +298,27 @@ count:long  |  client_ip:ip
 2           |  172.21.2.162
 ;
 
+statsUnionAggInline
+required_capability: union_types
+required_capability: inlinestats
+
+FROM sample_data, sample_data_str
+| STATS
+    count = COUNT(CIDR_MATCH(TO_IP(client_ip), "172.21.0.0/24") OR NULL)
+  BY
+    @timestamp = DATE_TRUNC(10 minutes, @timestamp)
+| SORT count DESC, @timestamp ASC
+| LIMIT 4
+;
+
+count:long | @timestamp:date
+         2 | 2023-10-23T13:30:00.000Z
+         0 | 2023-10-23T12:10:00.000Z
+         0 | 2023-10-23T12:20:00.000Z
+         0 | 2023-10-23T13:50:00.000Z
+;
+
+
 multiIndexIpStringStatsInline2
 required_capability: union_types
 required_capability: union_types_agg_cast
@@ -915,5 +936,4 @@ client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword 
 172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
 ;
 
-# Once INLINESTATS supports expressions in groups convert the group in the inlinestats
-# Once union types support unions in agg functions INLINESTATS should do
+# Once INLINESTATS supports expressions in agg functions and groups, convert the group in the inlinestats

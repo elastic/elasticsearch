@@ -32,8 +32,8 @@ The enrich fields from the enrich index that are added to the result as new
 columns. If a column with the same name as the enrich field already exists, the
 existing column will be replaced by the new column. If not specified, each of
 the enrich fields defined in the policy is added.
-If a column has the same name as the enrich field, it will be discarded unless
-that field is given a new name.
+A column with the same name as the enrich field will be dropped unless the
+enrich field is renamed.
 
 `new_nameX`::
 Enables you to change the name of the column that's added for each of the enrich

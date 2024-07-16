@@ -20,7 +20,7 @@ multiple values, `GROK` will process each value.
 
 `pattern`::
 A grok pattern.
-In case a field name coincides with an existing column, the existing column is discarded.
+If a field name conflicts with an existing column, the existing column is discarded.
 If a field name is used more than once, a multi-valued column will be created with one value
 per each occurrence of the field name.
 
@@ -71,7 +71,7 @@ include::{esql-specs}/docs.csv-spec[tag=grokWithToDatetime]
 include::{esql-specs}/docs.csv-spec[tag=grokWithToDatetime-result]
 |===
 
-In case a field name is used more than once, `GROK` creates a multi-valued
+If a field name is used more than once, `GROK` creates a multi-valued
 column:
 
 [source.merge.styled,esql]

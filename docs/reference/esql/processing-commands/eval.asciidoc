@@ -16,7 +16,7 @@ EVAL [column1 =] value1[, ..., [columnN =] valueN]
 
 `columnX`::
 The column name.
-In case a column name coincides with an existing column, the existing column is discarded.
+If a column with the same name already exists, the existing column is dropped.
 If a column name is used more than once, only the rightmost duplicate creates a column.
 
 `valueX`::

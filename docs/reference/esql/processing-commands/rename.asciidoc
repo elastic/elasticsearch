@@ -20,8 +20,7 @@ The name of a column you want to rename.
 The new name of the column. If it conflicts with an existing column name,
 the existing column is replaced by the renamed column. If multiple columns
 are renamed to the same name, all but the rightmost column with the same new
-name are dropped. If a column is renamed multiple times, all but the rightmost
-rename are ignored.
+name are dropped.
 
 *Description*
 

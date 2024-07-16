@@ -33,8 +33,17 @@ PUT _index_template/my-index-template
   "priority": 500 <2>
 }
 ----
+// TEST
 
 <1> The index mode setting
 <2> Defining a priority to avoid other index templates with overlapping index patterns potentially overriding the settings.
 
 After this data can be indexed like in any other data stream.
+
+////
+[source,console]
+----
+DELETE _index_template/my-index-template
+----
+// TEST[continued]
+////

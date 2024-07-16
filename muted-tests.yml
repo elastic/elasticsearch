@@ -81,6 +81,9 @@ tests:
   method: "testCreateAndRestorePartialSearchableSnapshot"
 - class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110591"
+- class: org.elasticsearch.preallocate.PreallocateTests
+  method: testPreallocate
+  issue: https://github.com/elastic/elasticsearch/issues/110948
 
 # Examples:
 #

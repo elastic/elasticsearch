@@ -43,7 +43,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -66,7 +65,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
@@ -211,20 +210,18 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     permittedFiles.clear();
                     permittedFiles.addAll(indexCommit.getFileNames());
 
-                    PlainActionFuture.<Void, IOException>get(
-                        future -> testHarness.commitService.onCommitCreation(
-                            new StatelessCommitRef(
-                                testHarness.shardId,
-                                new Engine.IndexCommitRef(indexCommit, () -> future.onResponse(null)),
-                                commitFiles,
-                                additionalFiles,
-                                1,
-                                0
-                            )
-                        ),
-                        10,
-                        TimeUnit.SECONDS
+                    final var commitCloseLatch = new CountDownLatch(1);
+                    testHarness.commitService.onCommitCreation(
+                        new StatelessCommitRef(
+                            testHarness.shardId,
+                            new Engine.IndexCommitRef(indexCommit, commitCloseLatch::countDown),
+                            commitFiles,
+                            additionalFiles,
+                            1,
+                            0
+                        )
                     );
+                    safeAwait(commitCloseLatch);
                 }
             }
 

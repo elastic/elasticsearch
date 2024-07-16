@@ -52,9 +52,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -71,16 +75,16 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
             for (long newTerm = 2; newTerm < 10; newTerm++) {
                 long proposedTerm = newTerm;
-                StartJoinRequest startJoinRequest = PlainActionFuture.get(f -> electionStrategy.onNewElection(localNode, proposedTerm, f));
+                StartJoinRequest startJoinRequest = safeAwait(l -> electionStrategy.onNewElection(localNode, proposedTerm, l));
                 assertThat(startJoinRequest.getTerm(), is(equalTo(proposedTerm)));
                 assertThat(startJoinRequest.getMasterCandidateNode(), is(equalTo(localNode)));
 
-                var currentTerm = PlainActionFuture.get(electionStrategy::getCurrentLeaseTerm).orElseThrow();
+                var currentTerm = safeAwait(electionStrategy::getCurrentLeaseTerm).orElseThrow();
                 assertThat(currentTerm, is(equalTo(proposedTerm)));
             }
 
             // We read the latest term before claiming a new term
-            StartJoinRequest startJoinRequest = PlainActionFuture.get(f -> electionStrategy.onNewElection(localNode, 1, f));
+            StartJoinRequest startJoinRequest = safeAwait(l -> electionStrategy.onNewElection(localNode, 1, l));
             assertThat(startJoinRequest.getTerm(), is(greaterThan(1L)));
         }
     }
@@ -124,9 +128,12 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
             var localNode = newDiscoveryNode("local-node");
 
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<StartJoinRequest, Exception>get(f -> electionStrategy.onNewElection(localNode, 2, f))
+            assertEquals(
+                failToReadRegister ? "Unable to get register value" : "Failed CAS",
+                asInstanceOf(
+                    IOException.class,
+                    safeAwaitFailure(StartJoinRequest.class, l -> electionStrategy.onNewElection(localNode, 2, l))
+                ).getMessage()
             );
         }
     }
@@ -207,14 +214,18 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                 fakeStatelessNode.objectStoreService::getClusterStateBlobContainer,
                 fakeStatelessNode.threadPool
             );
-            PlainActionFuture.<StartJoinRequest, Exception>get(f -> electionStrategy.onNewElection(localNode, 1, f));
+            safeAwait((ActionListener<StartJoinRequest> l) -> electionStrategy.onNewElection(localNode, 1, l));
+            safeAwait((ActionListener<Void> l) -> electionStrategy.beforeCommit(1, 1, l));
 
-            PlainActionFuture.<Void, Exception>get(f -> electionStrategy.beforeCommit(1, 1, f));
-
-            StartJoinRequest startJoinRequest = PlainActionFuture.get(f -> electionStrategy.onNewElection(localNode, 2, f));
+            StartJoinRequest startJoinRequest = safeAwait(l -> electionStrategy.onNewElection(localNode, 2, l));
             assertThat(startJoinRequest.getTerm(), is(equalTo(2L)));
-
-            expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(f -> electionStrategy.beforeCommit(1, 1, f)));
+            assertEquals(
+                "failing commit of cluster state version [1] in term [1] since current term is now [2]",
+                asInstanceOf(
+                    CoordinationStateRejectedException.class,
+                    safeAwaitFailure(Void.class, l -> electionStrategy.beforeCommit(1, 1, l))
+                ).getMessage()
+            );
         }
     }
 
@@ -366,17 +377,31 @@ public class StatelessElectionStrategyTests extends ESTestCase {
         public void run() {
             awaitForStartBarrier();
             while (running.get()) {
-                try {
-                    var currentTerm = PlainActionFuture.get(electionStrategy::getCurrentLeaseTerm).orElse(0);
-                    long proposedTerm = currentTerm + 1;
-                    // Add some variability to the scheduling
-                    sleepUninterruptibly(randomIntBetween(0, 50));
-                    StartJoinRequest startJoinRequest = PlainActionFuture.get(l -> electionStrategy.onNewElection(node, proposedTerm, l));
-                    grantedTerms.add(startJoinRequest.getTerm());
-                    onTermGranted.run();
-                } catch (CoordinationStateRejectedException e) {
-                    // Another node won this term
-                }
+                var currentTerm = safeAwait(electionStrategy::getCurrentLeaseTerm).orElse(0);
+                long proposedTerm = currentTerm + 1;
+                // Add some variability to the scheduling
+                sleepUninterruptibly(randomIntBetween(0, 50));
+                final var latch = new CountDownLatch(1);
+                electionStrategy.onNewElection(node, proposedTerm, ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(StartJoinRequest startJoinRequest) {
+                        grantedTerms.add(startJoinRequest.getTerm());
+                        onTermGranted.run();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // can fail if another node won this term, but that's ok
+                        assertThat(
+                            e,
+                            allOf(
+                                instanceOf(CoordinationStateRejectedException.class),
+                                hasToString(containsString("already claimed by a different node"))
+                            )
+                        );
+                    }
+                }, latch::countDown));
+                safeAwait(latch);
             }
         }
 

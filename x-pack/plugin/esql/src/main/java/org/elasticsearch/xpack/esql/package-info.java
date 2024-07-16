@@ -115,8 +115,6 @@
  *     but see also {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper}</li>
  * </ul>
  * </li>
- * <li>org.elasticsearch.compute.gen - ES|QL generates code for evaluators, which are type-specific implementations of
- * functions, designed to run over a {@link org.elasticsearch.compute.data.Block} </li>
  * <li>{@link org.elasticsearch.xpack.esql.session.EsqlSession} - Manages state across a query</li>
  * <li>{@link org.elasticsearch.xpack.esql.analysis.Analyzer} - The first step in query processing</li>
  * <li>{@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry} - Resolves function names to

@@ -131,16 +131,16 @@ public class ThreadedActionListenerTests extends ESTestCase {
 
         assertEquals(
             "ThreadedActionListener[DeterministicTaskQueue/forkingExecutor/NoopActionListener]/onResponse",
-            safeAwait(future -> new ThreadedActionListener<Void>(deterministicTaskQueue.getThreadPool(s -> {
-                future.onResponse(s.toString());
+            safeAwait(listener -> new ThreadedActionListener<Void>(deterministicTaskQueue.getThreadPool(s -> {
+                listener.onResponse(s.toString());
                 return s;
             }).generic(), randomBoolean(), ActionListener.noop()).onResponse(null))
         );
 
         assertEquals(
             "ThreadedActionListener[DeterministicTaskQueue/forkingExecutor/NoopActionListener]/onFailure",
-            safeAwait(future -> new ThreadedActionListener<Void>(deterministicTaskQueue.getThreadPool(s -> {
-                future.onResponse(s.toString());
+            safeAwait(listener -> new ThreadedActionListener<Void>(deterministicTaskQueue.getThreadPool(s -> {
+                listener.onResponse(s.toString());
                 return s;
             }).generic(), randomBoolean(), ActionListener.noop()).onFailure(new ElasticsearchException("test")))
         );

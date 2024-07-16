@@ -503,7 +503,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         assert lifecycle.closed();
         final var future = new PlainActionFuture<Void>();
         closedAndIdleListeners.addListener(future);
-        future.actionGet(); // wait forever
+        future.actionGet(); // wait for as long as it takes
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here

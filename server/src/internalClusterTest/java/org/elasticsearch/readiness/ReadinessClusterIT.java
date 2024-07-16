@@ -396,24 +396,24 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     private void causeClusterStateUpdate() {
-        safeAwait(
-            listener -> internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-                .submitUnbatchedStateUpdateTask("poke", new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return ClusterState.builder(currentState).build();
-                    }
+        final var latch = new CountDownLatch(1);
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .submitUnbatchedStateUpdateTask("poke", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return ClusterState.builder(currentState).build();
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        assert false : e;
-                    }
+                @Override
+                public void onFailure(Exception e) {
+                    assert false : e;
+                }
 
-                    @Override
-                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                        listener.onResponse(null);
-                    }
-                })
-        );
+                @Override
+                public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                    latch.countDown();
+                }
+            });
+        safeAwait(latch);
     }
 }

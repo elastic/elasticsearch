@@ -307,7 +307,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         );
 
         logger.info("--> verify that repo is assumed in old metadata format");
-        final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(
             SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
             is(SnapshotsService.OLD_SNAPSHOT_FORMAT)

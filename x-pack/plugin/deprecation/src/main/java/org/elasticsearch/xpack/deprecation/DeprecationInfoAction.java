@@ -312,7 +312,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         metadataBuilder.persistentSettings(
             metadataBuilder.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
         );
-        Map<String, IndexMetadata> indicesBuilder = new HashMap<>(state.getMetadata().indices());
+        Map<String, IndexMetadata> indicesBuilder = new HashMap<>(state.getMetadata().projectMetadata.indices());
         for (String indexName : indexNames) {
             IndexMetadata indexMetadata = state.getMetadata().index(indexName);
             IndexMetadata.Builder filteredIndexMetadataBuilder = new IndexMetadata.Builder(indexMetadata);

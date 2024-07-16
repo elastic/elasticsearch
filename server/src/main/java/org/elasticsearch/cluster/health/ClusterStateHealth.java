@@ -40,7 +40,7 @@ public final class ClusterStateHealth implements Writeable {
      * @param clusterState The current cluster state. Must not be null.
      */
     public ClusterStateHealth(final ClusterState clusterState) {
-        this(clusterState, clusterState.metadata().getConcreteAllIndices());
+        this(clusterState, clusterState.metadata().projectMetadata.getConcreteAllIndices());
     }
 
     /**

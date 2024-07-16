@@ -101,8 +101,7 @@ public class LifecyclePolicyUtils {
         final ClusterState state,
         final String policyName
     ) {
-        final List<String> indices = state.metadata()
-            .indices()
+        final List<String> indices = state.metadata().projectMetadata.indices()
             .values()
             .stream()
             .filter(indexMetadata -> policyName.equals(indexMetadata.getLifecyclePolicyName()))

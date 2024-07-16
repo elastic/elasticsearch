@@ -85,7 +85,7 @@ public class ClusterStateUpdaters {
             blocks.addGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
         }
 
-        for (final IndexMetadata indexMetadata : state.metadata()) {
+        for (final IndexMetadata indexMetadata : state.metadata().getProject()) {
             blocks.addBlocks(indexMetadata);
         }
 
@@ -95,7 +95,7 @@ public class ClusterStateUpdaters {
     static ClusterState updateRoutingTable(final ClusterState state, ShardRoutingRoleStrategy shardRoutingRoleStrategy) {
         // initialize all index routing tables as empty
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, state.routingTable());
-        for (final IndexMetadata indexMetadata : state.metadata().indices().values()) {
+        for (final IndexMetadata indexMetadata : state.metadata().projectMetadata.indices().values()) {
             routingTableBuilder.addAsRecovery(indexMetadata);
         }
         // start with 0 based versions for routing table
@@ -116,7 +116,7 @@ public class ClusterStateUpdaters {
     }
 
     static ClusterState mixCurrentStateAndRecoveredState(final ClusterState currentState, final ClusterState recoveredState) {
-        assert currentState.metadata().indices().isEmpty();
+        assert currentState.metadata().projectMetadata.indices().isEmpty();
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).blocks(recoveredState.blocks());
 
@@ -124,7 +124,7 @@ public class ClusterStateUpdaters {
         // automatically generate a UID for the metadata if we need to
         metadataBuilder.generateClusterUuidIfNeeded();
 
-        for (final IndexMetadata indexMetadata : recoveredState.metadata()) {
+        for (final IndexMetadata indexMetadata : recoveredState.metadata().getProject()) {
             metadataBuilder.put(indexMetadata, false);
         }
 
@@ -136,7 +136,7 @@ public class ClusterStateUpdaters {
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
             blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK);
             blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
-            for (IndexMetadata indexMetadata : state.metadata()) {
+            for (IndexMetadata indexMetadata : state.metadata().getProject()) {
                 blocks.removeIndexBlocks(indexMetadata.getIndex().getName());
             }
             final Metadata metadata = Metadata.builder()

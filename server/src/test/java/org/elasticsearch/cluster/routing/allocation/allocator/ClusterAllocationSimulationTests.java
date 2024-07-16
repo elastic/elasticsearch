@@ -138,7 +138,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var metadata = metadataBuilder.build();
 
         final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        for (final var indexMetadata : metadata) {
+        for (final var indexMetadata : metadata.getProject()) {
             routingTableBuilder.addAsNew(indexMetadata);
         }
 

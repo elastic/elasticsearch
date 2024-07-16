@@ -180,7 +180,7 @@ public class IndexLifecycleService
 
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
-            for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
+            for (IndexMetadata idxMeta : clusterState.metadata().projectMetadata.indices().values()) {
                 if (clusterState.metadata().isIndexManagedByILM(idxMeta)) {
                     String policyName = idxMeta.getLifecyclePolicyName();
                     final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
@@ -318,7 +318,7 @@ public class IndexLifecycleService
         if (this.isMaster) {
             // cleanup cache in policyRegistry on another thread since its not critical to have it run on the applier thread and computing
             // the deleted indices becomes expensive for larger cluster states
-            if (event.state().metadata().indices() != event.previousState().metadata().indices()) {
+            if (event.state().metadata().projectMetadata.indices() != event.previousState().metadata().projectMetadata.indices()) {
                 clusterService.getClusterApplierService().threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
                     for (Index index : event.indicesDeleted()) {
                         policyRegistry.delete(index);
@@ -393,7 +393,7 @@ public class IndexLifecycleService
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
-        for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
+        for (IndexMetadata idxMeta : clusterState.metadata().projectMetadata.indices().values()) {
             if (clusterState.metadata().isIndexManagedByILM(idxMeta)) {
                 String policyName = idxMeta.getLifecyclePolicyName();
                 final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
@@ -503,8 +503,7 @@ public class IndexLifecycleService
             return Collections.emptySet();
         }
 
-        Set<String> indicesPreventingShutdown = state.metadata()
-            .indices()
+        Set<String> indicesPreventingShutdown = state.metadata().projectMetadata.indices()
             .entrySet()
             .stream()
             // Filter out to only consider managed indices

@@ -168,8 +168,14 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 assertThat(clusterStateFromDiffs.metadata().clusterUUID(), equalTo(clusterState.metadata().clusterUUID()));
                 assertThat(clusterStateFromDiffs.metadata().transientSettings(), equalTo(clusterState.metadata().transientSettings()));
                 assertThat(clusterStateFromDiffs.metadata().persistentSettings(), equalTo(clusterState.metadata().persistentSettings()));
-                assertThat(clusterStateFromDiffs.metadata().indices(), equalTo(clusterState.metadata().indices()));
-                assertThat(clusterStateFromDiffs.metadata().templates(), equalTo(clusterState.metadata().templates()));
+                assertThat(
+                    clusterStateFromDiffs.metadata().projectMetadata.indices(),
+                    equalTo(clusterState.metadata().projectMetadata.indices())
+                );
+                assertThat(
+                    clusterStateFromDiffs.metadata().projectMetadata.templates(),
+                    equalTo(clusterState.metadata().projectMetadata.templates())
+                );
                 assertThat(clusterStateFromDiffs.metadata().customs(), equalTo(clusterState.metadata().customs()));
                 assertThat(clusterStateFromDiffs.metadata().equalsAliases(clusterState.metadata()), is(true));
 
@@ -543,7 +549,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public Map<String, IndexMetadata> parts(Metadata metadata) {
-                return metadata.indices();
+                return metadata.projectMetadata.indices();
             }
 
             @Override
@@ -607,7 +613,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return randomParts(metadata, "template", new RandomPart<IndexTemplateMetadata>() {
             @Override
             public Map<String, IndexTemplateMetadata> parts(Metadata metadata) {
-                return metadata.templates();
+                return metadata.projectMetadata.templates();
             }
 
             @Override

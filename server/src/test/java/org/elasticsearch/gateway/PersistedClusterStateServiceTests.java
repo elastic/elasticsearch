@@ -557,7 +557,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         writer.commit(
                             newTerm,
                             newState.version(),
-                            newState.metadata().oldestIndexVersion(),
+                            newState.metadata().projectMetadata.oldestIndexVersion(),
                             newState.metadata().clusterUUID(),
                             newState.metadata().clusterUUIDCommitted()
                         );
@@ -614,7 +614,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         writer.commit(
                             newTerm,
                             newState.version(),
-                            newState.metadata().oldestIndexVersion(),
+                            newState.metadata().projectMetadata.oldestIndexVersion(),
                             newState.metadata().clusterUUID(),
                             newState.metadata().clusterUUIDCommitted()
                         );
@@ -960,7 +960,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
 
-                assertThat(clusterState.metadata().indices().size(), equalTo(2));
+                assertThat(clusterState.metadata().projectMetadata.indices().size(), equalTo(2));
                 assertThat(clusterState.metadata().index("updated").getIndexUUID(), equalTo(updatedIndexUuid));
                 assertThat(
                     IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(clusterState.metadata().index("updated").getSettings()),
@@ -1006,7 +1006,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
             final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
 
-            assertThat(clusterState.metadata().indices().size(), equalTo(2));
+            assertThat(clusterState.metadata().projectMetadata.indices().size(), equalTo(2));
             assertThat(clusterState.metadata().index("updated").getIndexUUID(), equalTo(updatedIndexUuid));
             assertThat(
                 IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(clusterState.metadata().index("updated").getSettings()),
@@ -1111,7 +1111,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             writeDocumentsAndCommit(dataPath.resolve(METADATA_DIRECTORY_NAME), commitUserData, documents);
 
             final ClusterState loadedState = loadPersistedClusterState(persistedClusterStateService);
-            assertEquals(clusterState.metadata().indices(), loadedState.metadata().indices());
+            assertEquals(clusterState.metadata().projectMetadata.indices(), loadedState.metadata().projectMetadata.indices());
             assertEquals(clusterState.metadata().persistentSettings(), loadedState.metadata().persistentSettings());
 
             // Now corrupt one of the docs, breaking pagination invariants, and ensure it yields a CorruptStateException
@@ -1528,7 +1528,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodeEnvironment.nodeDataPaths());
 
             assertEquals(oldVersion, nodeMetadata.oldestIndexVersion());
-            assertEquals(oldVersion, fromDisk.metadata.oldestIndexVersion());
+            assertEquals(oldVersion, fromDisk.metadata.projectMetadata.oldestIndexVersion());
         }
     }
 

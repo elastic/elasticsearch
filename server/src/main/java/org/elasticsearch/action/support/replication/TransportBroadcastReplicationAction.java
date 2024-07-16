@@ -92,7 +92,7 @@ public abstract class TransportBroadcastReplicationAction<
 
                 final ClusterState clusterState = clusterService.state();
                 final List<ShardId> shards = shards(request, clusterState);
-                final Map<String, IndexMetadata> indexMetadataByName = clusterState.getMetadata().indices();
+                final Map<String, IndexMetadata> indexMetadataByName = clusterState.getMetadata().projectMetadata.indices();
 
                 try (var refs = new RefCountingRunnable(() -> finish(listener))) {
                     for (final ShardId shardId : shards) {

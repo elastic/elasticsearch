@@ -255,7 +255,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     }
 
     private static boolean hasSearchableSnapshotWith(final ClusterState state, final String snapshotId, final String indexId) {
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSearchableSnapshot()) {
                 final Settings indexSettings = indexMetadata.getSettings();
                 if (Objects.equals(snapshotId, SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))
@@ -273,7 +273,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
     private static Map<String, Set<String>> listSearchableSnapshots(final ClusterState state) {
         Map<String, Set<String>> snapshots = null;
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSearchableSnapshot()) {
                 final Settings indexSettings = indexMetadata.getSettings();
                 if (snapshots == null) {

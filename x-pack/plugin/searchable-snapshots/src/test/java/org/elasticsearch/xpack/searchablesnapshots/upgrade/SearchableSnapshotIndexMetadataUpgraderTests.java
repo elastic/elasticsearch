@@ -68,9 +68,12 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         ClusterState upgradedState = SearchableSnapshotIndexMetadataUpgrader.upgradeIndices(originalState);
 
         assertThat(upgradedState, not(sameInstance(originalState)));
-        assertThat(upgradedState.metadata().indices().size(), equalTo(originalState.metadata().indices().size()));
+        assertThat(
+            upgradedState.metadata().projectMetadata.indices().size(),
+            equalTo(originalState.metadata().projectMetadata.indices().size())
+        );
 
-        assertTrue(upgradedState.metadata().stream().anyMatch(upgraded -> {
+        assertTrue(upgradedState.metadata().getProject().stream().anyMatch(upgraded -> {
             IndexMetadata original = originalState.metadata().index(upgraded.getIndex());
             assertThat(original, notNullValue());
             if (upgraded.isPartialSearchableSnapshot() == false

@@ -156,7 +156,7 @@ public class EnableAllocationDecider extends AllocationDecider {
         }
 
         if (enableRebalance == Rebalance.NONE) {
-            for (IndexMetadata indexMetadata : allocation.metadata()) {
+            for (IndexMetadata indexMetadata : allocation.metadata().getProject()) {
                 if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetadata.getSettings())
                     && INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexMetadata.getSettings()) != Rebalance.NONE) {
                     return allocation.decision(Decision.YES, NAME, "rebalancing is permitted on one or more indices");

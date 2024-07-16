@@ -586,7 +586,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
         assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
         assertEquals(newIndexName, rolloverResult.rolloverIndexName());
         Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-        assertEquals(preRolloverDataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
+        assertEquals(preRolloverDataStream.getIndices().size() + 1, rolloverMetadata.projectMetadata.indices().size());
         IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
         // number of shards remained the same
         assertThat(rolloverIndexMetadata.getNumberOfShards(), is(expectedNumberOfShards));

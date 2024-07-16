@@ -50,9 +50,9 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(iner, cs, req, validator, Settings.EMPTY);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
-        assertThat(newState.metadata().indices().size(), equalTo(otherIndices.size()));
+        assertThat(newState.metadata().projectMetadata.indices().size(), equalTo(otherIndices.size()));
         for (String indexName : otherIndices) {
-            assertThat(newState.metadata().indices().get(indexName).getIndex().getName(), equalTo(indexName));
+            assertThat(newState.metadata().projectMetadata.indices().get(indexName).getIndex().getName(), equalTo(indexName));
         }
     }
 
@@ -74,9 +74,9 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(iner, cs, req, validator, Settings.EMPTY);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
-        assertThat(newState.metadata().indices().size(), equalTo(otherIndices.size()));
+        assertThat(newState.metadata().projectMetadata.indices().size(), equalTo(otherIndices.size()));
         for (String indexName : otherIndices) {
-            assertThat(newState.metadata().indices().get(indexName).getIndex().getName(), equalTo(indexName));
+            assertThat(newState.metadata().projectMetadata.indices().get(indexName).getIndex().getName(), equalTo(indexName));
         }
     }
 
@@ -97,9 +97,9 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         DataStream remainingDataStream = newState.metadata().dataStreams().get(dataStreamNames[0]);
         assertNotNull(remainingDataStream);
-        assertThat(newState.metadata().indices().size(), equalTo(remainingDataStream.getIndices().size()));
+        assertThat(newState.metadata().projectMetadata.indices().size(), equalTo(remainingDataStream.getIndices().size()));
         for (Index i : remainingDataStream.getIndices()) {
-            assertThat(newState.metadata().indices().get(i.getName()).getIndex(), equalTo(i));
+            assertThat(newState.metadata().projectMetadata.indices().get(i.getName()).getIndex(), equalTo(i));
         }
     }
 

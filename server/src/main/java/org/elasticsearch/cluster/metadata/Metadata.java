@@ -2745,8 +2745,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexMetadata.Builder.fromXContent(parser), false);
                         }
-                    } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
-                        // discarded
                     } else if ("templates".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));

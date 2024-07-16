@@ -992,6 +992,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                                 .toList();
                             executor.execute(() -> {
                                 try (streamFactory) {
+                                    // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
+                                    // gap will still be executed.
                                     gapFillingTasks.forEach(Runnable::run);
                                 }
                             });
@@ -1342,7 +1344,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         InputStream create(int relativePos) throws IOException;
     }
 
-    public abstract static class DelegatingRangeMissingHandler implements RangeMissingHandler {
+    private abstract static class DelegatingRangeMissingHandler implements RangeMissingHandler {
         protected final RangeMissingHandler delegate;
 
         protected DelegatingRangeMissingHandler(RangeMissingHandler delegate) {

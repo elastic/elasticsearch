@@ -12,15 +12,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 /**
  * Information about the safe commit, for making decisions about recoveries.
  */
-public class SafeCommitInfo {
-
-    public final long localCheckpoint;
-    public final int docCount;
-
-    public SafeCommitInfo(long localCheckpoint, int docCount) {
-        this.localCheckpoint = localCheckpoint;
-        this.docCount = docCount;
-    }
-
+public record SafeCommitInfo(long localCheckpoint, int docCount) {
     public static final SafeCommitInfo EMPTY = new SafeCommitInfo(SequenceNumbers.NO_OPS_PERFORMED, 0);
 }

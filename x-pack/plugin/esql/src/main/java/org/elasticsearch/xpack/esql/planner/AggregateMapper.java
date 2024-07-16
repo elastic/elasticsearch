@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.TopList;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 
 import java.lang.invoke.MethodHandle;
@@ -67,7 +67,7 @@ final class AggregateMapper {
         SpatialCentroid.class,
         Sum.class,
         Values.class,
-        TopList.class,
+        Top.class,
         Rate.class,
 
         // internal function
@@ -146,6 +146,8 @@ final class AggregateMapper {
         List<String> extraConfigs = List.of("");
         if (NumericAggregate.class.isAssignableFrom(clazz)) {
             types = NUMERIC;
+        } else if (Max.class.isAssignableFrom(clazz) || Min.class.isAssignableFrom(clazz)) {
+            types = List.of("Boolean", "Int", "Long", "Double");
         } else if (clazz == Count.class) {
             types = List.of(""); // no extra type distinction
         } else if (SpatialAggregateFunction.class.isAssignableFrom(clazz)) {
@@ -154,8 +156,8 @@ final class AggregateMapper {
         } else if (Values.class.isAssignableFrom(clazz)) {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
-        } else if (TopList.class.isAssignableFrom(clazz)) {
-            types = List.of("Int", "Long", "Double");
+        } else if (Top.class.isAssignableFrom(clazz)) {
+            types = List.of("Boolean", "Int", "Long", "Double");
         } else if (Rate.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");
         } else if (FromPartial.class.isAssignableFrom(clazz) || ToPartial.class.isAssignableFrom(clazz)) {
@@ -264,7 +266,7 @@ final class AggregateMapper {
             case INT -> DataType.INTEGER;
             case LONG -> DataType.LONG;
             case DOUBLE -> DataType.DOUBLE;
-            default -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
+            case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
         };
     }
 

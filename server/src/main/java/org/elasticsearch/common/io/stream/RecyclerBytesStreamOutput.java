@@ -32,7 +32,9 @@ import java.util.Objects;
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 
     static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+    static final VarHandle VH_LE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
     static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
+    static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
     private final ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>();
     private final Recycler<BytesRef> recycler;
@@ -118,6 +120,17 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
+    public void writeIntLE(int i) throws IOException {
+        if (4 > (pageSize - currentPageOffset)) {
+            super.writeIntLE(i);
+        } else {
+            BytesRef currentPage = pages.get(pageIndex).v();
+            VH_LE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            currentPageOffset += 4;
+        }
+    }
+
+    @Override
     public void writeLong(long i) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
         if (8 > (pageSize - currentPageOffset)) {
@@ -126,6 +139,17 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             BytesRef currentPage = pages.get(pageIndex).v();
             VH_BE_LONG.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
             this.currentPageOffset = currentPageOffset + 8;
+        }
+    }
+
+    @Override
+    public void writeLongLE(long i) throws IOException {
+        if (8 > (pageSize - currentPageOffset)) {
+            super.writeLongLE(i);
+        } else {
+            BytesRef currentPage = pages.get(pageIndex).v();
+            VH_LE_LONG.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            currentPageOffset += 8;
         }
     }
 

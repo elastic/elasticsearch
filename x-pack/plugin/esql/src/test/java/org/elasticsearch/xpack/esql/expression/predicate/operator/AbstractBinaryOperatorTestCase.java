@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;

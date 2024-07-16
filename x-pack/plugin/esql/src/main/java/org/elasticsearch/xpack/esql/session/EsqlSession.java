@@ -292,18 +292,14 @@ public class EsqlSession {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return IndexResolver.INDEX_METADATA_FIELD;
         } else {
-            if (fieldNames.size() > Operations.DEFAULT_DETERMINIZE_WORK_LIMIT) {
-                addFlattenedSubfields(fieldNames, fieldNames);
-            } else {
-                fieldNames.addAll(subfields(fieldNames));
-            }
+            fieldNames.addAll(subfields(fieldNames));
             fieldNames.addAll(enrichPolicyMatchFields);
-            if (fieldNames.size() > Operations.DEFAULT_DETERMINIZE_WORK_LIMIT) {
-                addFlattenedSubfields(fieldNames, enrichPolicyMatchFields);
+            fieldNames.addAll(subfields(enrichPolicyMatchFields));
+            if (fieldNames.size() >= Operations.DEFAULT_DETERMINIZE_WORK_LIMIT) {
+                return IndexResolver.ALL_FIELDS;
             } else {
-                fieldNames.addAll(subfields(enrichPolicyMatchFields));
+                return fieldNames;
             }
-            return fieldNames;
         }
     }
 
@@ -318,16 +314,6 @@ public class EsqlSession {
 
     private static Set<String> subfields(Set<String> names) {
         return names.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet());
-    }
-
-    private static void addFlattenedSubfields(Set<String> target, Set<String> source) {
-        if (source.isEmpty()) {
-            return;
-        }
-        String flattenedSubfields = source.stream().filter(name -> name.endsWith(WILDCARD) == false).collect(Collectors.joining("|"));
-        if (flattenedSubfields.isEmpty() == false) {
-            target.add("(" + flattenedSubfields + ").*");
-        }
     }
 
     private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan logicalPlan, EsqlQueryRequest request) {

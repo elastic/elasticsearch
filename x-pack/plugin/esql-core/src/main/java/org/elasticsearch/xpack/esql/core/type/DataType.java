@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -77,7 +78,7 @@ public enum DataType {
 
     private final String esType;
 
-    private final int size;
+    private final Optional<Integer> size;
 
     /**
      * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
@@ -282,7 +283,7 @@ public enum DataType {
         return isWholeNumber || isRationalNumber;
     }
 
-    public int size() {
+    public Optional<Integer> size() {
         return size;
     }
 
@@ -352,7 +353,7 @@ public enum DataType {
 
         private String typeName;
 
-        private int size;
+        private Optional<Integer> size;
 
         /**
          * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
@@ -399,12 +400,12 @@ public enum DataType {
         }
 
         Builder size(int size) {
-            this.size = size;
+            this.size = Optional.of(size);
             return this;
         }
 
         Builder unknownSize() {
-            this.size = Integer.MAX_VALUE;
+            Optional.empty();
             return this;
         }
 

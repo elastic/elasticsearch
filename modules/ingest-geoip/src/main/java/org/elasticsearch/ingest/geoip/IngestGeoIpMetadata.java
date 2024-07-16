@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfigurationMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -78,21 +77,12 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
     }
 
     public IngestGeoIpMetadata(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        Map<String, DatabaseConfigurationMetadata> databases = Maps.newMapWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            DatabaseConfigurationMetadata databaseMeta = new DatabaseConfigurationMetadata(in);
-            databases.put(databaseMeta.database().id(), databaseMeta);
-        }
-        this.databases = Map.copyOf(databases);
+        this.databases = in.readMap(StreamInput::readString, DatabaseConfigurationMetadata::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(databases.size());
-        for (DatabaseConfigurationMetadata database : databases.values()) {
-            database.writeTo(out);
-        }
+        out.writeMap(databases, StreamOutput::writeWriteable);
     }
 
     public static IngestGeoIpMetadata fromXContent(XContentParser parser) throws IOException {

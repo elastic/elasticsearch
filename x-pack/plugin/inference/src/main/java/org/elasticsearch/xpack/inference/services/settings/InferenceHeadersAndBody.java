@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -16,31 +17,25 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
-abstract class SettingsMap implements ToXContentObject, VersionedNamedWriteable {
-    private final Map<String, Object> headers;
-    private final Map<String, Object> body;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 
-    SettingsMap(Map<String, Object> headers, Map<String, Object> body) {
+public record InferenceHeadersAndBody(Map<String, Object> headers, Map<String, Object> body)
+    implements
+        ToXContentObject,
+        VersionedNamedWriteable {
+
+    public InferenceHeadersAndBody(Map<String, Object> headers, Map<String, Object> body) {
         this.headers = headers != null ? headers : Map.of();
         this.body = body != null ? body : Map.of();
     }
 
-    SettingsMap(StreamInput in) throws IOException {
-        this.headers = readSafeMap(in);
-        this.body = readSafeMap(in);
+    public InferenceHeadersAndBody(StreamInput in) throws IOException {
+        this(readSafeMap(in), readSafeMap(in));
     }
 
     private static Map<String, Object> readSafeMap(StreamInput in) throws IOException {
         var map = in.readGenericMap();
         return map != null ? map : Map.of();
-    }
-
-    public Map<String, Object> headers() {
-        return headers;
-    }
-
-    public Map<String, Object> body() {
-        return body;
     }
 
     @Override
@@ -59,8 +54,26 @@ abstract class SettingsMap implements ToXContentObject, VersionedNamedWriteable 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field("headers", headers);
         builder.field("body", body);
+        builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "";
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.current();
+    }
+
+    public static InferenceHeadersAndBody fromStorage(Map<String, Object> storage) {
+        var headers = removeFromMap(storage, "headers");
+        var body = removeFromMap(storage, "body");
+        return new InferenceHeadersAndBody(headers, body);
     }
 }

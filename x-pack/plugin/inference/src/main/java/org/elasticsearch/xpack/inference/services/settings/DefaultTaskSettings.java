@@ -8,19 +8,20 @@
 package org.elasticsearch.xpack.inference.services.settings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class DefaultTaskSettings extends SettingsMap implements TaskSettings {
-    DefaultTaskSettings(Map<String, Object> headers, Map<String, Object> body) {
-        super(headers, body);
-    }
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 
-    DefaultTaskSettings(StreamInput in) throws IOException {
-        super(in);
+public class DefaultTaskSettings implements TaskSettings {
+    private final InferenceHeadersAndBody headersAndBody;
+
+    public DefaultTaskSettings(InferenceHeadersAndBody headersAndBody) {
+        this.headersAndBody = headersAndBody;
     }
 
     @Override
@@ -30,6 +31,24 @@ public class DefaultTaskSettings extends SettingsMap implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.current();
+        return null;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeWriteable(headersAndBody);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("headersAndBody", headersAndBody);
+        builder.endObject();
+        return builder;
+    }
+
+    public static DefaultTaskSettings fromStorage(Map<String, Object> storage) {
+        var headersAndBody = InferenceHeadersAndBody.fromStorage(removeFromMapOrThrowIfNull(storage, "headersAndBody"));
+        return new DefaultTaskSettings(headersAndBody);
     }
 }

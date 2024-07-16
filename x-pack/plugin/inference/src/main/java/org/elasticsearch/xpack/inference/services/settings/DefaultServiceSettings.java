@@ -20,30 +20,39 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class DefaultServiceSettings extends SettingsMap implements ServiceSettings {
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsTypeOrThrowIfNull;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeStringOrThrowIfNull;
+
+public class DefaultServiceSettings implements ServiceSettings {
+    private final InferenceHeadersAndBody headersAndBody;
     private final TaskType taskType;
+    private final String modelId;
     private final RateLimitSettings rateLimitSettings;
     private final Integer tokenLimit;
     private final Integer rateLimitGroup;
 
     DefaultServiceSettings(
-        Map<String, Object> headers,
-        Map<String, Object> body,
+        InferenceHeadersAndBody headersAndBody,
         TaskType taskType,
+        String modelId,
         RateLimitSettings rateLimitSettings,
         Integer tokenLimit,
         Integer rateLimitGroup
     ) {
-        super(headers, body);
+        this.headersAndBody = headersAndBody;
         this.taskType = taskType;
+        this.modelId = modelId;
         this.rateLimitSettings = rateLimitSettings;
         this.tokenLimit = tokenLimit;
         this.rateLimitGroup = rateLimitGroup;
     }
 
     DefaultServiceSettings(StreamInput in) throws IOException {
-        super(in);
+        this.headersAndBody = in.readOptionalWriteable(InferenceHeadersAndBody::new);
         this.taskType = TaskType.fromString(in.readString());
+        this.modelId = in.readString();
         this.rateLimitSettings = in.readOptionalWriteable(rateLimitSettingsReader());
         this.tokenLimit = in.readOptionalInt();
         this.rateLimitGroup = in.readOptionalInt();
@@ -59,8 +68,9 @@ public class DefaultServiceSettings extends SettingsMap implements ServiceSettin
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        out.writeWriteable(headersAndBody);
         out.writeString(taskType.name());
+        out.writeString(modelId);
         out.writeOptionalWriteable(rateLimitSettingsWriteable());
         out.writeOptionalInt(tokenLimit);
         out.writeOptionalInt(rateLimitGroup);
@@ -85,8 +95,10 @@ public class DefaultServiceSettings extends SettingsMap implements ServiceSettin
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        super.toXContent(builder, params);
+        builder.startObject();
+        builder.field("headersAndBody", headersAndBody);
         builder.field("taskType", taskType.name());
+        builder.field("modelId", modelId);
         builder.field("rateLimitSettings");
         builder.startObject();
         builder.field("requestsPerTimeUnit", rateLimitSettings.requestsPerTimeUnit());
@@ -98,11 +110,33 @@ public class DefaultServiceSettings extends SettingsMap implements ServiceSettin
         if (rateLimitGroup != null) {
             builder.field("rateLimitGroup", rateLimitGroup);
         }
+        builder.endObject();
         return builder;
     }
 
     @Override
     public ToXContentObject getFilteredXContentObject() {
         return this; // do not filter anything
+    }
+
+    @Override
+    public String modelId() {
+        return modelId;
+    }
+
+    public static DefaultServiceSettings fromStorage(Map<String, Object> storage) {
+        var headersAndBody = InferenceHeadersAndBody.fromStorage(removeFromMapOrThrowIfNull(storage, "headersAndBody"));
+        var taskType = TaskType.fromString(removeStringOrThrowIfNull(storage, "taskType"));
+        var modelId = removeStringOrThrowIfNull(storage, "modelId");
+        var tokenLimit = removeAsType(storage, "tokenLimit", Integer.class);
+        var rateLimitSettings = rateLimitSettings(removeFromMapOrThrowIfNull(storage, "rateLimitSettings"));
+        var rateLimitGroup = removeAsType(storage, "rateLimitGroup", Integer.class);
+        return new DefaultServiceSettings(headersAndBody, taskType, modelId, rateLimitSettings, tokenLimit,  rateLimitGroup);
+    }
+
+    private static RateLimitSettings rateLimitSettings(Map<String, Object> storage) {
+        var requestsPerTimeUnit = removeAsTypeOrThrowIfNull(storage, "requestsPerTimeUnit", Long.class);
+        var timeUnit = TimeUnit.valueOf(removeStringOrThrowIfNull(storage, "timeUnit"));
+        return new RateLimitSettings(requestsPerTimeUnit, timeUnit);
     }
 }

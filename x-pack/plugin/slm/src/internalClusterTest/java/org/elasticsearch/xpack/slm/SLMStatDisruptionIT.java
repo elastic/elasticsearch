@@ -23,9 +23,24 @@ import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -36,6 +51,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -45,17 +61,21 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -76,7 +96,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             LocalStateCompositeXPackPlugin.class,
             IndexLifecycle.class,
             SnapshotLifecycle.class,
-            DataStreamsPlugin.class
+            DataStreamsPlugin.class,
+            TestPlugin.class
         );
     }
 
@@ -103,6 +124,249 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         // then the default of 30s, causing ensureGreen and friends to time out
         .build();
 
+
+    private static AtomicBoolean doDelay = new AtomicBoolean();
+    private static CountDownLatch reachedFirst = new CountDownLatch(1);
+    private static CountDownLatch delayedRepoLatch = new CountDownLatch(1);
+    public static class TestPlugin extends Plugin implements RepositoryPlugin {
+        @Override
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
+        ) {
+            return Map.of(
+                "delayed",
+                metadata -> new DelayedRepo(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    () -> {
+                        if (doDelay.get()) {
+                            try {
+                                reachedFirst.countDown();
+                                assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }
+                )
+            );
+        }
+    }
+
+
+
+    static class DelayedRepo extends FsRepository {
+
+        private final Runnable simulator;
+
+        protected DelayedRepo(
+            RepositoryMetadata metadata,
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
+            Runnable simulator
+        ) {
+            super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            this.simulator = simulator;
+        }
+
+        @Override
+        public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
+            simulator.run();
+            super.finalizeSnapshot(finalizeSnapshotContext);
+        }
+    }
+
+    static class LatencySimulatingBlobStoreRepository extends FsRepository {
+
+        private final Runnable simulator;
+
+        protected LatencySimulatingBlobStoreRepository(
+            RepositoryMetadata metadata,
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
+            Runnable simulator
+        ) {
+            super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            this.simulator = simulator;
+        }
+
+        @Override
+        protected BlobStore createBlobStore() throws Exception {
+            BlobStore fsBlobStore = super.createBlobStore();
+            return new BlobStore() {
+                @Override
+                public BlobContainer blobContainer(BlobPath path) {
+                    BlobContainer blobContainer = fsBlobStore.blobContainer(path);
+                    return new LatencySimulatingBlobContainer(blobContainer);
+                }
+
+                @Override
+                public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+                    fsBlobStore.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
+                }
+
+                @Override
+                public void close() throws IOException {
+                    fsBlobStore.close();
+                }
+            };
+        }
+
+        private class LatencySimulatingBlobContainer extends FilterBlobContainer {
+
+            LatencySimulatingBlobContainer(BlobContainer delegate) {
+                super(delegate);
+            }
+
+            @Override
+            public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                throws IOException {
+                simulator.run();
+                super.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
+            }
+
+            @Override
+            public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+                throws IOException {
+                simulator.run();
+                super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+            }
+
+            @Override
+            protected BlobContainer wrapChild(BlobContainer child) {
+                return new LatencySimulatingBlobContainer(child);
+            }
+        }
+    }
+
+    public void test() throws Exception {
+        final String idxName = "test-idx";
+        final String repoName = "test-repo";
+        final String policyName = "test-policy";
+
+        internalCluster().startMasterOnlyNodes(1);
+        final String masterNode = internalCluster().getMasterName();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+
+        NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        // Listener that stops disrupting network only after snapshot completion
+        CountDownLatch latch = new CountDownLatch(1);
+        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
+
+        createRandomIndex(idxName, dataNode);
+        createRepository(repoName, "delayed");
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName);
+
+        ensureGreen();
+
+        doDelay.set(true);
+        String snapshotA = executePolicy(masterNode, policyName);
+        assertTrue(reachedFirst.await(1, TimeUnit.MINUTES));
+        logger.info("Created snapshot A: " + snapshotA);
+        doDelay.set(false);
+
+        // now start disrupting
+        networkDisruption.startDisrupting();
+        String snapshotB = executePolicy(masterNode, policyName);
+        logger.info("Created snapshot B: " + snapshotB);
+
+        // wait for snapshot to complete and network disruption to stop
+        assertTrue(latch.await(1, TimeUnit.MINUTES));
+
+        // restart master so failure stat is lost
+        // TODO this relies on a race condition.
+        // The node restart must happen before stats are stored in cluster state, but this is not guaranteed.
+        internalCluster().restartNode(masterNode);
+
+        assertBusy(() -> {
+            assertSnapshotPartial(repoName, snapshotB);
+            logger.info("Verified that snapshot was not successful");
+        }, 1, TimeUnit.MINUTES);
+
+        assertBusy(() -> {
+            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
+            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
+            assertStats(snapshotLifecycleMetadata, policyName, 0, 0);
+            assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
+            assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
+            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
+
+            List<SnapshotId> preRegistered = new ArrayList<>(snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+            assertEquals(1, preRegistered.size());
+            assertEquals(snapshotB, preRegistered.get(0).getName());
+        }, 1, TimeUnit.MINUTES);
+
+        awaitNoMoreRunningOperations();
+        ensureGreen();
+
+        //
+        // Now execute again, but don't fail the stat upload. The failure from the previous run will now be recorded.
+        //
+
+        final String snapshotC = executePolicy(masterNode, policyName);
+        logger.info("Created snapshot: " + snapshotC);
+
+        waitForSnapshot(repoName, snapshotC);
+
+        assertBusy(() -> {
+            assertSnapshotSuccess(repoName, snapshotC);
+            logger.info("Verified that snapshot was successful");
+        }, 1, TimeUnit.MINUTES);
+
+        // Check stats, this time past failure should be accounted for
+        assertBusy(() -> {
+            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
+            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
+            assertStats(snapshotLifecycleMetadata, policyName, 1, 1);
+            assertNotNull(snapshotLifecyclePolicyMetadata.getLastFailure());
+            assertNotNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
+            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
+            assertEquals(Set.of(snapshotA), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+        }, 1, TimeUnit.MINUTES);
+
+
+        // continue with original snapshot
+        delayedRepoLatch.countDown();
+
+        waitForSnapshot(repoName, snapshotA);
+
+        assertBusy(() -> {
+            assertSnapshotSuccess(repoName, snapshotA);
+            logger.info("Verified that snapshot was successful");
+        }, 1, TimeUnit.MINUTES);
+
+        // Check stats, this time past failure should be accounted for
+        assertBusy(() -> {
+            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
+            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
+            assertStats(snapshotLifecycleMetadata, policyName, 2, 1);
+            assertNotNull(snapshotLifecyclePolicyMetadata.getLastFailure());
+            assertNotNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
+            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
+            assertEquals(Set.of(), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+        }, 1, TimeUnit.MINUTES);
+
+    }
+
+
     /**
      * Test that after successful snapshot preRegisteredRuns status is 0.
      */
@@ -128,7 +392,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         waitForSnapshot(repoName, snapshotName);
 
         assertBusy(() -> {
-            assertSnapshotSuccess("test-repo", snapshotName);
+            assertSnapshotSuccess(repoName, snapshotName);
             logger.info("Verified that snapshot was not successful");
         }, 1, TimeUnit.MINUTES);
 
@@ -182,7 +446,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         internalCluster().restartNode(masterNode);
 
         assertBusy(() -> {
-            assertSnapshotPartial("test-repo", snapshotName);
+            assertSnapshotPartial(repoName, snapshotName);
             logger.info("Verified that snapshot was not successful");
         }, 1, TimeUnit.MINUTES);
 
@@ -213,7 +477,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         waitForSnapshot(repoName, snapshotName2);
 
         assertBusy(() -> {
-            assertSnapshotSuccess("test-repo", snapshotName2);
+            assertSnapshotSuccess(repoName, snapshotName2);
             logger.info("Verified that snapshot was successful");
         }, 1, TimeUnit.MINUTES);
 
@@ -270,7 +534,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         internalCluster().restartNode(masterNode);
 
         assertBusy(() -> {
-            assertSnapshotPartial("test-repo", snapshotName);
+            assertSnapshotPartial(repoName, snapshotName);
             logger.info("--> Verified that snapshot was not successful");
         }, 1, TimeUnit.MINUTES);
 
@@ -305,7 +569,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertTrue(latch2.await(1, TimeUnit.MINUTES));
 
         assertBusy(() -> {
-            assertSnapshotPartial("test-repo", snapshotName2);
+            assertSnapshotPartial(repoName, snapshotName2);
             logger.info("Verified that snapshot was not successful");
         }, 1, TimeUnit.MINUTES);
 
@@ -357,7 +621,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> verify that snapshot was not successful");
         assertBusy(() -> {
-            assertSnapshotPartial("test-repo", snapshotName);
+            assertSnapshotPartial(repoName, snapshotName);
             logger.info("--> Verified that snapshot was not successful");
         }, 1, TimeUnit.MINUTES);
 
@@ -403,7 +667,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertTrue(latch.await(1, TimeUnit.MINUTES));
 
         assertBusy(() -> {
-            assertSnapshotPartial("test-repo", snapshotName);
+            assertSnapshotPartial(repoName, snapshotName);
             logger.info("--> Verified that snapshot was not successful");
         }, 1, TimeUnit.MINUTES);
 

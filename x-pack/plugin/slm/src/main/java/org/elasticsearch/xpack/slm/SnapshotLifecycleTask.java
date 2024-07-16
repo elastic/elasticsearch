@@ -43,6 +43,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -309,6 +310,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                             null,
                             Instant.now().toEpochMilli(),
                             String.format(
+                                Locale.ROOT,
                                 "found pre-registered snapshot [%s] which is no longer running, assuming failed.",
                                 snapshot.getName()
                             )

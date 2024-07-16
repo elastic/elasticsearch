@@ -1,5 +1,7 @@
 = Elasticsearch
 
+PAT WAS HERE
+
 Elasticsearch is a distributed search and analytics engine optimized for speed and relevance on production-scale workloads. Elasticsearch is the foundation of Elastic's open Stack platform. Search in near real-time over massive datasets, perform vector searches, integrate with generative AI applications, and much more.
 
 Use cases enabled by Elasticsearch include:

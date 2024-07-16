@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
 
@@ -102,27 +103,38 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     private final Collection<ModelStats> modelStats;
+    private final Collection<InferenceRequestStats> requestStats;
 
-    public InferenceFeatureSetUsage(Collection<ModelStats> modelStats) {
+    public InferenceFeatureSetUsage(Collection<ModelStats> modelStats, Collection<InferenceRequestStats> requestStats) {
         super(XPackField.INFERENCE, true, true);
-        this.modelStats = modelStats;
+        this.modelStats = Objects.requireNonNull(modelStats);
+        this.requestStats = Objects.requireNonNull(requestStats);
     }
 
     public InferenceFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
         this.modelStats = in.readCollectionAsList(ModelStats::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_TELEMETRY_ADDED)) {
+            this.requestStats = in.readCollectionAsList(InferenceRequestStats::new);
+        } else {
+            this.requestStats = new ArrayList<>();
+        }
     }
 
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
         builder.xContentList("models", modelStats);
+        builder.xContentList("requests", requestStats);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeCollection(modelStats);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_TELEMETRY_ADDED)) {
+            out.writeCollection(requestStats);
+        }
     }
 
     @Override

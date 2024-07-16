@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.inference.InferenceRequestStats;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
-public class InferenceStats implements Stats {
+public class InferenceStats implements Stats<InferenceRequestStats> {
     protected final String service;
     protected final TaskType taskType;
     protected final String modelId;

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.telemetry;
 
 import org.elasticsearch.xpack.core.inference.SerializableStats;
 
-public interface Stats {
+public interface Stats<T extends SerializableStats> {
 
     /**
      * Increase the counter by one.
@@ -26,5 +26,5 @@ public interface Stats {
      * Convert the object into a serializable form that can be written across nodes and returned in xcontent format.
      * @return the serializable format of the object
      */
-    SerializableStats toSerializableForm();
+    T toSerializableForm();
 }

@@ -16,32 +16,34 @@ import java.util.Objects;
 
 public class InferenceAPMStats extends InferenceStats {
 
-    private final LongCounter inferenceAPMRequestCounter;
+    private final LongCounter requestCounter;
 
-    public InferenceAPMStats(Model model, MeterRegistry meterRegistry) {
+    public InferenceAPMStats(Model model, LongCounter requestCounter) {
         super(model);
-        this.inferenceAPMRequestCounter = meterRegistry.registerLongCounter(
-            "es.inference.requests.count",
-            "Inference API request counts for a particular service, task type, model ID",
-            "operations"
-        );
+        this.requestCounter = Objects.requireNonNull(requestCounter);
     }
 
     @Override
     public void increment() {
         super.increment();
-        inferenceAPMRequestCounter.incrementBy(1, Map.of("service", service, "task_type", taskType.toString(), "model_id", modelId));
+        requestCounter.incrementBy(1, Map.of("service", service, "task_type", taskType.toString(), "model_id", modelId));
     }
 
     public static final class Factory {
-        private final MeterRegistry meterRegistry;
+        private final LongCounter requestCounter;
 
         public Factory(MeterRegistry meterRegistry) {
-            this.meterRegistry = Objects.requireNonNull(meterRegistry);
+            Objects.requireNonNull(meterRegistry);
+
+            this.requestCounter = meterRegistry.registerLongCounter(
+                "es.inference.requests.count.total",
+                "Inference API request counts for a particular service, task type, model ID",
+                "operations"
+            );
         }
 
         public InferenceAPMStats newInferenceRequestAPMCounter(Model model) {
-            return new InferenceAPMStats(model, meterRegistry);
+            return new InferenceAPMStats(model, requestCounter);
         }
     }
 }

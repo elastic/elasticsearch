@@ -16,6 +16,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -744,6 +745,32 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var field = as(project.child(), FieldExtractExec.class);
         var fields = field.attributesToExtract();
         assertThat(Expressions.names(fields), contains("_meta_field", "gender", "job", "job.raw", "languages", "long_noidx"));
+    }
+
+    /**
+     * Expects
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
+     * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]<[]>
+     *       \_EsQueryExec[test], indexMode[standard], query[{"match":{"first_name":{"query":"Anna"}}}][_doc{f}#13], limit[1000], sort[]
+     *       estimatedRowSize[324]
+     */
+    public void testMatchFilterPushdown() {
+        var plan = plannerOptimizer.plan("""
+            from test
+            | where first_name match "Anna"
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
+
+        var expectedLuceneQuery = new MatchQueryBuilder("first_name", "Anna");
+        assertThat(actualLuceneQuery, equalTo(expectedLuceneQuery));
     }
 
     private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {

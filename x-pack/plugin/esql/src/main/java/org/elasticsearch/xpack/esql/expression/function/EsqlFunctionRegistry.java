@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Exp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
@@ -270,6 +271,7 @@ public class EsqlFunctionRegistry {
                 def(Cos.class, Cos::new, "cos"),
                 def(Cosh.class, Cosh::new, "cosh"),
                 def(E.class, E::new, "e"),
+                def(Exp.class, Exp::new, "exp"),
                 def(Floor.class, Floor::new, "floor"),
                 def(Greatest.class, Greatest::new, "greatest"),
                 def(Log.class, Log::new, "log"),

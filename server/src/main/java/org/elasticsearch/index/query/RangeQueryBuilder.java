@@ -436,11 +436,11 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected MappedFieldType.Relation getRelation(final CoordinatorRewriteContext coordinatorRewriteContext) {
         final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
         if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
-            if (coordinatorRewriteContext.hasTimestampData(fieldName) == false) {
+            if (coordinatorRewriteContext.hasTimestampData() == false) {
                 return MappedFieldType.Relation.DISJOINT;
             }
-            long minTimestamp = coordinatorRewriteContext.getMinTimestamp(fieldName);
-            long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp(fieldName);
+            long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
+            long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
             DateMathParser dateMathParser = getForceDateParser();
             return dateFieldType.isFieldWithinQuery(
                 minTimestamp,

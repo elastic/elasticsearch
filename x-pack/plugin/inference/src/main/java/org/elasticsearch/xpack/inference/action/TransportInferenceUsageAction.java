@@ -107,8 +107,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         }));
     }
 
-    // default for testing
-    void getRequestStats(ActionListener<Collection<InferenceRequestStats>> listener) {
+    private void getRequestStats(ActionListener<Collection<InferenceRequestStats>> listener) {
         var action = new GetInternalInferenceUsageAction.Request();
         client.execute(GetInternalInferenceUsageAction.INSTANCE, action, listener.delegateFailureAndWrap((delegate, response) -> {
             var accumulatedStats = new TreeMap<String, InferenceRequestStats>();

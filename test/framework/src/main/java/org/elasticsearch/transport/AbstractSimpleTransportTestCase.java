@@ -3506,7 +3506,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public static void connectToNode(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
-        safeAwait(l -> service.connectToNode(node, connectionProfile, l.map(ignored -> null)));
+        safeAwait(listener -> service.connectToNode(node, connectionProfile, listener.map(ignored -> null)));
     }
 
     /**
@@ -3517,7 +3517,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      * @param connectionProfile the connection profile to use
      */
     public static Transport.Connection openConnection(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
-        return safeAwait(l -> service.openConnection(node, connectionProfile, l));
+        return safeAwait(listener -> service.openConnection(node, connectionProfile, listener));
     }
 
     public static <T extends TransportResponse> Future<T> submitRequest(

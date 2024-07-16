@@ -540,15 +540,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             SnapshotState.FAILED,
             Collections.emptyMap()
         );
-        final RepositoryData ignoredRepositoryData = safeAwait(
-            l -> repo.finalizeSnapshot(
+        safeAwait(
+            (ActionListener<RepositoryData> listener) -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
                     ShardGenerations.EMPTY,
                     getRepositoryData(repoName).getGenId(),
                     state.metadata(),
                     snapshotInfo,
                     SnapshotsService.OLD_SNAPSHOT_FORMAT,
-                    l,
+                    listener,
                     info -> {}
                 )
             )

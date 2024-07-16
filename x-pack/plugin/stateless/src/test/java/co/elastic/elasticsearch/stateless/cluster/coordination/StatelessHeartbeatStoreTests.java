@@ -19,7 +19,7 @@ package co.elastic.elasticsearch.stateless.cluster.coordination;
 
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.stateless.Heartbeat;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -47,8 +47,8 @@ public class StatelessHeartbeatStoreTests extends ESTestCase {
             );
 
             var heartbeat = randomHeartbeat();
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(heartbeat, f));
-            var readHeartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
+            safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(heartbeat, l));
+            var readHeartbeat = safeAwait(heartbeatStore::readLatestHeartbeat);
             assertThat(heartbeat, equalTo(readHeartbeat));
         }
     }
@@ -71,7 +71,7 @@ public class StatelessHeartbeatStoreTests extends ESTestCase {
                         boolean atomic,
                         CheckedConsumer<OutputStream, IOException> writer
                     ) throws IOException {
-                        throw new IOException("Unable to read " + blobName);
+                        throw new IOException("Simulated failure to write " + blobName);
                     }
                 };
             }
@@ -83,9 +83,12 @@ public class StatelessHeartbeatStoreTests extends ESTestCase {
             );
 
             var heartbeat = randomHeartbeat();
-            expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(heartbeat, f)));
+            assertEquals(
+                "Simulated failure to write heartbeat",
+                asInstanceOf(IOException.class, safeAwaitFailure(Void.class, l -> heartbeatStore.writeHeartbeat(heartbeat, l))).getMessage()
+            );
 
-            var readHeartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
+            var readHeartbeat = safeAwait(heartbeatStore::readLatestHeartbeat);
             assertThat(readHeartbeat, is(nullValue()));
         }
     }
@@ -130,10 +133,10 @@ public class StatelessHeartbeatStoreTests extends ESTestCase {
             );
 
             var heartbeat = randomHeartbeat();
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(heartbeat, f));
+            safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(heartbeat, l));
 
             assertThat(
-                expectThrows(IllegalStateException.class, () -> PlainActionFuture.get(heartbeatStore::readLatestHeartbeat)).getMessage(),
+                asInstanceOf(IllegalStateException.class, safeAwaitFailure(heartbeatStore::readLatestHeartbeat)).getMessage(),
                 containsString("checksum verification failed")
             );
         }

@@ -57,6 +57,29 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
             return rulesReaderProvider.apply(factory, context);
         }
+
+        public static SynonymsSource fromSettings(Settings settings) {
+            SynonymsSource synonymsSource;
+            if (settings.hasValue(SynonymsSource.INLINE.getSettingName())) {
+                synonymsSource = SynonymsSource.INLINE;
+            } else if (settings.hasValue(SynonymsSource.INDEX.getSettingName())) {
+                synonymsSource = SynonymsSource.INDEX;
+            } else if (settings.hasValue(SynonymsSource.LOCAL_FILE.getSettingName())) {
+                synonymsSource = SynonymsSource.LOCAL_FILE;
+            } else {
+                throw new IllegalArgumentException(
+                    "synonym requires either `"
+                        + SynonymsSource.INLINE.getSettingName()
+                        + "`, `"
+                        + SynonymsSource.INDEX.getSettingName()
+                        + "` or `"
+                        + SynonymsSource.LOCAL_FILE.getSettingName()
+                        + "` to be configured"
+                );
+            }
+
+            return synonymsSource;
+        }
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SynonymTokenFilterFactory.class);
@@ -89,7 +112,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             );
         }
 
-        this.synonymsSource = parseSettingsForSynonymsSource(settings);
+        this.synonymsSource = SynonymsSource.fromSettings(settings);
         this.expand = settings.getAsBoolean("expand", true);
         this.lenient = settings.getAsBoolean("lenient", this.synonymsSource == SynonymsSource.INDEX);
         this.format = settings.get("format", "");
@@ -184,29 +207,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         ReaderWithOrigin(Reader reader, String origin) {
             this(reader, origin, null);
         }
-    }
-
-    private static SynonymsSource parseSettingsForSynonymsSource(Settings settings) {
-        SynonymsSource synonymsSource;
-        if (settings.hasValue(SynonymsSource.INLINE.getSettingName())) {
-            synonymsSource = SynonymsSource.INLINE;
-        } else if (settings.hasValue(SynonymsSource.INDEX.getSettingName())) {
-            synonymsSource = SynonymsSource.INDEX;
-        } else if (settings.hasValue(SynonymsSource.LOCAL_FILE.getSettingName())) {
-            synonymsSource = SynonymsSource.LOCAL_FILE;
-        } else {
-            throw new IllegalArgumentException(
-                "synonym requires either `"
-                    + SynonymsSource.INLINE.getSettingName()
-                    + "`, `"
-                    + SynonymsSource.INDEX.getSettingName()
-                    + "` or `"
-                    + SynonymsSource.LOCAL_FILE.getSettingName()
-                    + "` to be configured"
-            );
-        }
-
-        return synonymsSource;
     }
 
     private static ReaderWithOrigin getRulesReader_Inline(SynonymTokenFilterFactory factory, IndexCreationContext context) {

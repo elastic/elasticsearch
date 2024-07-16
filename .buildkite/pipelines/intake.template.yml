@@ -79,12 +79,12 @@ steps:
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
       diskSizeGb: 250
-  - wait
-  - trigger: elasticsearch-dra-workflow
-    label: Trigger DRA snapshot workflow
-    async: true
-    build:
-      branch: "$BUILDKITE_BRANCH"
-      commit: "$BUILDKITE_COMMIT"
-      env:
-        DRA_WORKFLOW: snapshot
+  # - wait
+  # - trigger: elasticsearch-dra-workflow
+  #   label: Trigger DRA snapshot workflow
+  #   async: true
+  #   build:
+  #     branch: "$BUILDKITE_BRANCH"
+  #     commit: "$BUILDKITE_COMMIT"
+  #     env:
+  #       DRA_WORKFLOW: snapshot

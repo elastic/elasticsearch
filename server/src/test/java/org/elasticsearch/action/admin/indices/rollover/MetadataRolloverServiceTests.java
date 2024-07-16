@@ -563,7 +563,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-            assertEquals(2, rolloverMetadata.indices().size());
+            assertEquals(2, rolloverMetadata.projectMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
             assertThat(rolloverIndexMetadata.getNumberOfShards(), equalTo(numberOfShards));
 
@@ -640,7 +640,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
+            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.projectMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
 
             IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());
@@ -716,7 +716,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
             assertEquals(
                 dataStream.getIndices().size() + dataStream.getFailureIndices().getIndices().size() + 1,
-                rolloverMetadata.indices().size()
+                rolloverMetadata.projectMetadata.indices().size()
             );
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
 

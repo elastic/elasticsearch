@@ -1486,9 +1486,9 @@ public final class RestoreService implements ClusterStateApplier {
                 clusterSettings.validateUpdate(settings);
                 mdBuilder.persistentSettings(settings);
             }
-            if (metadata.templates() != null) {
+            if (metadata.projectMetadata.templates() != null) {
                 // TODO: Should all existing templates be deleted first?
-                for (IndexTemplateMetadata cursor : metadata.templates().values()) {
+                for (IndexTemplateMetadata cursor : metadata.projectMetadata.templates().values()) {
                     mdBuilder.put(cursor);
                 }
             }
@@ -1813,7 +1813,7 @@ public final class RestoreService implements ClusterStateApplier {
                 );
             }
 
-            for (IndexMetadata other : metadata) {
+            for (IndexMetadata other : metadata.getProject()) {
                 if (other.getIndex().equals(index)) {
                     continue; // do not check the searchable snapshot index against itself
                 }

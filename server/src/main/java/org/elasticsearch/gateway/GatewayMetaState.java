@@ -225,7 +225,7 @@ public class GatewayMetaState implements Closeable {
                 new NodeMetadata(
                     persistedClusterStateService.getNodeId(),
                     BuildVersion.current(),
-                    clusterState.metadata().oldestIndexVersion()
+                    clusterState.metadata().projectMetadata.oldestIndexVersion()
                 ),
                 persistedClusterStateService.getDataPaths()
             );
@@ -267,7 +267,7 @@ public class GatewayMetaState implements Closeable {
                 new NodeMetadata(
                     persistedClusterStateService.getNodeId(),
                     BuildVersion.current(),
-                    clusterState.metadata().oldestIndexVersion()
+                    clusterState.metadata().projectMetadata.oldestIndexVersion()
                 ),
                 persistedClusterStateService.getDataPaths()
             );
@@ -306,7 +306,7 @@ public class GatewayMetaState implements Closeable {
     static Metadata upgradeMetadata(Metadata metadata, IndexMetadataVerifier indexMetadataVerifier, MetadataUpgrader metadataUpgrader) {
         boolean changed = false;
         final Metadata.Builder upgradedMetadata = Metadata.builder(metadata);
-        for (IndexMetadata indexMetadata : metadata) {
+        for (IndexMetadata indexMetadata : metadata.getProject()) {
             IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(indexMetadata, IndexVersions.MINIMUM_COMPATIBLE);
             changed |= indexMetadata != newMetadata;
             upgradedMetadata.put(newMetadata, false);
@@ -575,7 +575,7 @@ public class GatewayMetaState implements Closeable {
                     getWriterSafe().writeIncrementalTermUpdateAndCommit(
                         currentTerm,
                         lastAcceptedState.version(),
-                        metadata.oldestIndexVersion(),
+                        metadata.projectMetadata.oldestIndexVersion(),
                         metadata.clusterUUID(),
                         metadata.clusterUUIDCommitted()
                     );

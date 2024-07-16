@@ -500,7 +500,7 @@ public class ClusterChangedEventTests extends ESTestCase {
     // Create the routing table for a cluster state.
     private static RoutingTable createRoutingTable(final long version, final Metadata metadata) {
         final RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).version(version);
-        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+        for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
             builder.addAsNew(indexMetadata);
         }
         return builder.build();
@@ -532,7 +532,7 @@ public class ClusterChangedEventTests extends ESTestCase {
     ) {
         final int numAdd = randomIntBetween(0, 5); // add random # of indices to the next cluster state
         final List<Index> stateIndices = new ArrayList<>();
-        for (IndexMetadata indexMetadata : previousState.metadata().indices().values()) {
+        for (IndexMetadata indexMetadata : previousState.metadata().projectMetadata.indices().values()) {
             stateIndices.add(indexMetadata.getIndex());
         }
         final int numDel = switch (deletionQuantity) {

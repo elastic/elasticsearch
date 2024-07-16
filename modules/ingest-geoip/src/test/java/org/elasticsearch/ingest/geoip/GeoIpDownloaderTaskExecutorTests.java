@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +44,9 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         final Settings[] indexSettings = new Settings[1];
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         when(indexMetadata.getSettings()).thenAnswer(invocationMock -> indexSettings[0]);
-        when(metadata.indices()).thenReturn(Map.of("index", indexMetadata));
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
+        when(project.indices()).thenReturn(Map.of("index", indexMetadata));
 
         for (String pipelineConfigJson : getPipelinesWithGeoIpProcessors(false)) {
             ingestMetadata[0] = new IngestMetadata(

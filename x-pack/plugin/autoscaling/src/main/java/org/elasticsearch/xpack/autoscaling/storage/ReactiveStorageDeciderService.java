@@ -615,7 +615,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         public long maxNodeLockedSize() {
             Metadata metadata = originalState.getMetadata();
-            return metadata.indices().values().stream().mapToLong(imd -> nodeLockedSize(imd, metadata)).max().orElse(0L);
+            return metadata.projectMetadata.indices().values().stream().mapToLong(imd -> nodeLockedSize(imd, metadata)).max().orElse(0L);
         }
 
         private long nodeLockedSize(IndexMetadata indexMetadata, Metadata metadata) {
@@ -887,7 +887,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         private static Metadata removeNodeLockFilters(Metadata metadata) {
             Metadata.Builder builder = Metadata.builder(metadata);
-            metadata.stream()
+            metadata.getProject()
+                .stream()
                 .filter(AllocationState::isNodeLocked)
                 .map(AllocationState::removeNodeLockFilters)
                 .forEach(imd -> builder.put(imd, false));

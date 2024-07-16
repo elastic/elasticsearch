@@ -603,11 +603,10 @@ public class TransportReplicationActionTests extends ESTestCase {
                 new CloseIndexRequest(index)
             )
         );
-        assertThat(clusterService.state().metadata().indices().get(index).getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(clusterService.state().metadata().projectMetadata.indices().get(index).getState(), equalTo(IndexMetadata.State.CLOSE));
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        Request request = new Request(new ShardId(clusterService.state().metadata().indices().get(index).getIndex(), 0)).timeout(
-            TimeValue.timeValueMillis(1)
-        );
+        Request request = new Request(new ShardId(clusterService.state().metadata().projectMetadata.indices().get(index).getIndex(), 0))
+            .timeout(TimeValue.timeValueMillis(1));
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
 

@@ -242,8 +242,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
         if (compatibilityVersions.transportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
             && metadata != null
-            && metadata.indices() != null) {
-            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            && metadata.projectMetadata.indices() != null) {
+            for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
                 assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
                     : "event.ingested range should be UNKNOWN but is "
                         + indexMetadata.getEventIngestedRange()
@@ -451,7 +451,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 }
             });
         }
-        if (metadata.indicesLookupInitialized() == false) {
+        if (metadata.projectMetadata.indicesLookupInitialized() == false) {
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -493,7 +493,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             .append(coordinationMetadata().getLastAcceptedConfiguration())
             .append("\n");
         sb.append(TAB).append(TAB).append("voting tombstones: ").append(coordinationMetadata().getVotingConfigExclusions()).append("\n");
-        for (IndexMetadata indexMetadata : metadata) {
+        for (IndexMetadata indexMetadata : metadata.getProject()) {
             sb.append(TAB).append(indexMetadata.getIndex());
             sb.append(": v[")
                 .append(indexMetadata.getVersion())

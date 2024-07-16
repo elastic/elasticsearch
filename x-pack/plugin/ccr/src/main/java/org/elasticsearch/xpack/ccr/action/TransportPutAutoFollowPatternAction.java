@@ -244,7 +244,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         List<String> followedIndexUUIDS
     ) {
 
-        for (final IndexMetadata indexMetadata : leaderMetadata) {
+        for (final IndexMetadata indexMetadata : leaderMetadata.getProject()) {
             IndexAbstraction indexAbstraction = leaderMetadata.getIndicesLookup().get(indexMetadata.getIndex().getName());
             if (AutoFollowPattern.match(patterns, exclusionPatterns, indexAbstraction)) {
                 followedIndexUUIDS.add(indexMetadata.getIndexUUID());

@@ -249,7 +249,7 @@ public class ShardLimitValidator {
 
     private static Result checkShardLimit(int newShards, ClusterState state, int maxConfiguredShardsPerNode, int nodeCount, String group) {
         int maxShardsInCluster = maxConfiguredShardsPerNode * nodeCount;
-        int currentOpenShards = state.getMetadata().getTotalOpenIndexShards();
+        int currentOpenShards = state.getMetadata().projectMetadata.getTotalOpenIndexShards();
 
         // Only enforce the shard limit if we have at least one data node, so that we don't block
         // index creation during cluster setup
@@ -260,8 +260,7 @@ public class ShardLimitValidator {
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
             Predicate<IndexMetadata> indexMetadataPredicate = imd -> imd.getState().equals(IndexMetadata.State.OPEN)
                 && group.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()));
-            long currentFilteredShards = state.metadata()
-                .indices()
+            long currentFilteredShards = state.metadata().projectMetadata.indices()
                 .values()
                 .stream()
                 .filter(indexMetadataPredicate)

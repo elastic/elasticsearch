@@ -89,8 +89,8 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         final Metadata metadata = event.state().metadata();
-        final Map<String, IndexMetadata> indices = metadata.indices();
-        if (indices == event.previousState().metadata().indices()) {
+        final Map<String, IndexMetadata> indices = metadata.projectMetadata.indices();
+        if (indices == event.previousState().metadata().projectMetadata.indices()) {
             return;
         }
 

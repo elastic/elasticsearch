@@ -1223,7 +1223,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 Settings indexSettings = clusterMetadata.index(index).getSettings();
                 String originalIndex = indexSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY);
                 if (originalIndex != null
-                    && clusterMetadata.indices().containsKey(originalIndex) != false
+                    && clusterMetadata.projectMetadata.indices().containsKey(originalIndex) != false
                     && indicesWithUnavailableShards.contains(originalIndex) == false) {
                     addSearchableSnapshotWithOriginalIndexAvailable(index);
                 }

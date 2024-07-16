@@ -83,7 +83,11 @@ class TransformClusterStateListener implements ClusterStateListener, Supplier<Op
             .get(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED)
             .getIndices()
             .stream()
-            .anyMatch(name -> metadata.index(name).getAliases().containsKey(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))) {
+            .anyMatch(
+                name -> metadata.projectMetadata.index(name)
+                    .getAliases()
+                    .containsKey(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS)
+            )) {
             finalListener.onResponse(false);
             return;
         }

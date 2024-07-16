@@ -188,12 +188,9 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
-                .get()
-                .getState()
-                .getMetadata()
-                .index("test")
-                .getLifecycleExecutionState();
+            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState().get().getState().getMetadata().projectMetadata.index(
+                "test"
+            ).getLifecycleExecutionState();
             assertThat(lifecycleState.step(), equalTo("complete"));
         });
     }
@@ -431,12 +428,9 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
-                .get()
-                .getState()
-                .getMetadata()
-                .index("test")
-                .getLifecycleExecutionState();
+            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState().get().getState().getMetadata().projectMetadata.index(
+                "test"
+            ).getLifecycleExecutionState();
             assertThat(lifecycleState.step(), equalTo("complete"));
         });
     }
@@ -595,7 +589,9 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public Result isConditionMet(Index index, ClusterState clusterState) {
-            boolean complete = clusterState.metadata().index("test").getSettings().getAsBoolean("index.lifecycle.test.complete", false);
+            boolean complete = clusterState.metadata().projectMetadata.index("test")
+                .getSettings()
+                .getAsBoolean("index.lifecycle.test.complete", false);
             return new Result(complete, null);
         }
     }

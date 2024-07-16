@@ -137,7 +137,7 @@ public class CcrLicenseChecker {
             onFailure,
             remoteClusterStateResponse -> {
                 ClusterState remoteClusterState = remoteClusterStateResponse.getState();
-                final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
+                final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().projectMetadata.index(leaderIndex);
                 if (leaderIndexMetadata == null) {
                     final IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
                     final Exception failure;

@@ -179,8 +179,8 @@ public class MetadataCreateIndexService {
         if (state.routingTable().hasIndex(index)) {
             throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
         }
-        if (state.metadata().hasIndex(index)) {
-            throw new ResourceAlreadyExistsException(state.metadata().index(index).getIndex());
+        if (state.metadata().projectMetadata.hasIndex(index)) {
+            throw new ResourceAlreadyExistsException(state.metadata().projectMetadata.index(index).getIndex());
         }
         if (state.metadata().hasAlias(index)) {
             throw new InvalidIndexNameException(index, "already exists as alias");
@@ -1252,7 +1252,7 @@ public class MetadataCreateIndexService {
         ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metadata(newMetadata).build();
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, updatedState.routingTable())
-            .addAsNew(updatedState.metadata().index(indexName));
+            .addAsNew(updatedState.metadata().projectMetadata.index(indexName));
         return ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
     }
 
@@ -1503,10 +1503,10 @@ public class MetadataCreateIndexService {
     }
 
     static IndexMetadata validateResize(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
-        if (state.metadata().hasIndex(targetIndexName)) {
-            throw new ResourceAlreadyExistsException(state.metadata().index(targetIndexName).getIndex());
+        if (state.metadata().projectMetadata.hasIndex(targetIndexName)) {
+            throw new ResourceAlreadyExistsException(state.metadata().projectMetadata.index(targetIndexName).getIndex());
         }
-        final IndexMetadata sourceMetadata = state.metadata().index(sourceIndex);
+        final IndexMetadata sourceMetadata = state.metadata().projectMetadata.index(sourceIndex);
         if (sourceMetadata == null) {
             throw new IndexNotFoundException(sourceIndex);
         }
@@ -1545,7 +1545,7 @@ public class MetadataCreateIndexService {
         final boolean copySettings,
         final IndexScopedSettings indexScopedSettings
     ) {
-        final IndexMetadata sourceMetadata = currentState.metadata().index(resizeSourceIndex.getName());
+        final IndexMetadata sourceMetadata = currentState.metadata().projectMetadata.index(resizeSourceIndex.getName());
         if (type == ResizeType.SHRINK) {
             final List<String> nodesToAllocateOn = validateShrinkIndex(
                 currentState,

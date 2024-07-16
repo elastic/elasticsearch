@@ -145,7 +145,7 @@ public class RestIndicesActionTests extends ESTestCase {
 
             ClusterIndexHealth indexHealth = clusterStateHealth.getIndices().get(indexName);
             IndexStats indexStats = indicesStats.get(indexName);
-            IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+            IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(indexName);
 
             if (indexHealth != null) {
                 assertThat(row.get(0).value, equalTo(indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)));

@@ -95,7 +95,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             verifyException(dataNodes, counts, e);
         }
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
-        assertFalse(clusterState.getMetadata().hasIndex("should-fail"));
+        assertFalse(clusterState.getMetadata().projectMetadata.hasIndex("should-fail"));
     }
 
     public void testIndexCreationOverLimitFromTemplate() {
@@ -126,7 +126,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareCreate("should-fail"));
         verifyException(dataNodes, counts, e);
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
-        assertFalse(clusterState.getMetadata().hasIndex("should-fail"));
+        assertFalse(clusterState.getMetadata().projectMetadata.hasIndex("should-fail"));
     }
 
     public void testIncreaseReplicasOverLimit() {
@@ -156,7 +156,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = clusterAdmin().prepareState().get().getState().metadata();
-        assertEquals(0, clusterState.index("growing-should-fail").getNumberOfReplicas());
+        assertEquals(0, clusterState.projectMetadata.index("growing-should-fail").getNumberOfReplicas());
     }
 
     public void testChangingMultipleIndicesOverLimit() {
@@ -215,8 +215,8 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = clusterAdmin().prepareState().get().getState().metadata();
-        assertEquals(firstIndexReplicas, clusterState.index("test-1-index").getNumberOfReplicas());
-        assertEquals(secondIndexReplicas, clusterState.index("test-2-index").getNumberOfReplicas());
+        assertEquals(firstIndexReplicas, clusterState.projectMetadata.index("test-1-index").getNumberOfReplicas());
+        assertEquals(secondIndexReplicas, clusterState.projectMetadata.index("test-2-index").getNumberOfReplicas());
     }
 
     public void testPreserveExistingSkipsCheck() {
@@ -241,7 +241,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("number_of_replicas", dataNodes))
         );
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
-        assertEquals(0, clusterState.getMetadata().index("test-index").getNumberOfReplicas());
+        assertEquals(0, clusterState.getMetadata().projectMetadata.index("test-index").getNumberOfReplicas());
     }
 
     public void testRestoreSnapshotOverLimit() {
@@ -326,7 +326,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         }
         ensureGreen();
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
-        assertFalse(clusterState.getMetadata().hasIndex("snapshot-index"));
+        assertFalse(clusterState.getMetadata().projectMetadata.hasIndex("snapshot-index"));
     }
 
     public void testOpenIndexOverLimit() {
@@ -367,7 +367,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             verifyException(dataNodes, counts, e);
         }
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
-        assertFalse(clusterState.getMetadata().hasIndex("snapshot-index"));
+        assertFalse(clusterState.getMetadata().projectMetadata.hasIndex("snapshot-index"));
     }
 
     private int ensureMultipleDataNodes(int dataNodes) {

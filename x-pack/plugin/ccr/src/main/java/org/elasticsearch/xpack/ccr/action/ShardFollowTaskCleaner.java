@@ -82,7 +82,7 @@ public final class ShardFollowTaskCleaner implements ClusterStateListener {
             }
             ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
             Index followerIndex = shardFollowTask.getFollowShardId().getIndex();
-            if (metadata.index(followerIndex) != null) {
+            if (metadata.projectMetadata.index(followerIndex) != null) {
                 // the index exists, do not clean this persistent task
                 continue;
             }

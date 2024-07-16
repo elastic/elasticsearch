@@ -140,7 +140,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     throw LicenseUtils.newComplianceException("searchable-snapshots");
                 }
 
-                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+                IndexMetadata indexMetadata = clusterState.getMetadata().projectMetadata.index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 SearchableSnapshotMetadata searchableSnapshotMetadata = extractSearchableSnapshotFromSettings(indexMetadata);
@@ -225,7 +225,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             keyForSnapshotGeneration,
             waitForDataTierKey,
             (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+                IndexMetadata indexMetadata = clusterState.getMetadata().projectMetadata.index(index);
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 LifecycleExecutionState lifecycleExecutionState = indexMetadata.getLifecycleExecutionState();
                 SearchableSnapshotMetadata searchableSnapshotMetadata = extractSearchableSnapshotFromSettings(indexMetadata);

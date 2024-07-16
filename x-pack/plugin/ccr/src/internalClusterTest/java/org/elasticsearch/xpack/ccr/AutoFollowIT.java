@@ -167,7 +167,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertTrue(ESIntegTestCase.indexExists("copy-logs-201901", followerClient()));
 
             Metadata metadata = getFollowerCluster().clusterService().state().metadata();
-            String leaderIndexUUID = metadata.index("copy-logs-201901")
+            String leaderIndexUUID = metadata.projectMetadata.index("copy-logs-201901")
                 .getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
                 .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
             AutoFollowMetadata autoFollowMetadata = metadata.custom(AutoFollowMetadata.TYPE);
@@ -712,7 +712,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         final Metadata metadata = followerClient().admin().cluster().prepareState().get().getState().metadata();
         final DataStream dataStream = metadata.dataStreams().get(datastream);
         assertTrue(dataStream.getIndices().stream().anyMatch(i -> i.getName().equals(indexInDatastream)));
-        assertEquals(IndexMetadata.State.OPEN, metadata.index(indexInDatastream).getState());
+        assertEquals(IndexMetadata.State.OPEN, metadata.projectMetadata.index(indexInDatastream).getState());
         ensureFollowerGreen("*");
         final IndicesStatsResponse stats = followerClient().admin().indices().prepareStats(datastream).get();
         assertThat(stats.getIndices(), aMapWithSize(2));

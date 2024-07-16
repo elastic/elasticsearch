@@ -171,7 +171,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         List<String> netNewSystemIndices = new ArrayList<>();
         List<String> systemIndicesNames = new ArrayList<>();
         aliasesMap.keySet().forEach(indexName -> {
-            IndexMetadata index = state.metadata().index(indexName);
+            IndexMetadata index = state.metadata().projectMetadata.index(indexName);
             if (index != null && index.isSystem()) {
                 if (systemIndexAccessAllowPredicate.test(indexName) == false) {
                     if (systemIndices.isNetNewSystemIndex(indexName)) {

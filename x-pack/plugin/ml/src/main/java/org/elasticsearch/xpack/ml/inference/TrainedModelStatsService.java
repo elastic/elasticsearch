@@ -237,7 +237,7 @@ public class TrainedModelStatsService {
             return false;
         }
         for (String index : indices) {
-            if (clusterState.metadata().hasIndex(index) == false) {
+            if (clusterState.metadata().projectMetadata.hasIndex(index) == false) {
                 return false;
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);

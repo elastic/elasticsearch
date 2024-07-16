@@ -298,7 +298,7 @@ public class MetadataCreateDataStreamService {
                 failureStoreIndexName,
                 null
             );
-            failureStoreIndex = currentState.metadata().index(failureStoreIndexName);
+            failureStoreIndex = currentState.metadata().projectMetadata.index(failureStoreIndexName);
         }
 
         if (writeIndex == null) {
@@ -314,7 +314,7 @@ public class MetadataCreateDataStreamService {
                 template,
                 firstBackingIndexName
             );
-            writeIndex = currentState.metadata().index(firstBackingIndexName);
+            writeIndex = currentState.metadata().projectMetadata.index(firstBackingIndexName);
         } else {
             rerouteListener.onResponse(null);
         }

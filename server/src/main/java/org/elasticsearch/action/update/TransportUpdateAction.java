@@ -163,7 +163,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         if (request.getShardId() != null) {
             return clusterState.routingTable().index(request.concreteIndex()).shard(request.getShardId().getId()).primaryShardIt();
         }
-        IndexMetadata indexMetadata = clusterState.metadata().index(request.concreteIndex());
+        IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(request.concreteIndex());
         if (indexMetadata == null) {
             throw new IndexNotFoundException(request.concreteIndex());
         }

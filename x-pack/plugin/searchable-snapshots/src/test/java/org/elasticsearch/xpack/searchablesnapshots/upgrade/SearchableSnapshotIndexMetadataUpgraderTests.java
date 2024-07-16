@@ -74,7 +74,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         );
 
         assertTrue(upgradedState.metadata().getProject().stream().anyMatch(upgraded -> {
-            IndexMetadata original = originalState.metadata().index(upgraded.getIndex());
+            IndexMetadata original = originalState.metadata().projectMetadata.index(upgraded.getIndex());
             assertThat(original, notNullValue());
             if (upgraded.isPartialSearchableSnapshot() == false
                 || ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.get(original.getSettings())

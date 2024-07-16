@@ -229,7 +229,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
             if (writeIndex == null) {
                 return null;
             }
-            return state.metadata().index(writeIndex);
+            return state.metadata().projectMetadata.index(writeIndex);
         }
 
         @Override

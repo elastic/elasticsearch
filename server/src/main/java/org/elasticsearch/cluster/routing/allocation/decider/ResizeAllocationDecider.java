@@ -38,7 +38,7 @@ public class ResizeAllocationDecider extends AllocationDecider {
             final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
             final Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
             assert resizeSourceIndex != null;
-            final IndexMetadata sourceIndexMetadata = allocation.metadata().index(resizeSourceIndex);
+            final IndexMetadata sourceIndexMetadata = allocation.metadata().projectMetadata.index(resizeSourceIndex);
             if (sourceIndexMetadata == null) {
                 return allocation.decision(Decision.NO, NAME, "resize source index [%s] doesn't exists", resizeSourceIndex.toString());
             }
@@ -82,7 +82,7 @@ public class ResizeAllocationDecider extends AllocationDecider {
     public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.unassignedInfo() != null && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             var targetIndexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-            var sourceIndexMetadata = allocation.metadata().index(targetIndexMetadata.getResizeSourceIndex());
+            var sourceIndexMetadata = allocation.metadata().projectMetadata.index(targetIndexMetadata.getResizeSourceIndex());
             if (sourceIndexMetadata == null) {
                 return Optional.of(Set.of());// source index not found
             }

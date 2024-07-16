@@ -42,7 +42,7 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         Metadata metadata = clusterState.metadata();
-        IndexMetadata indexMetadata = metadata.index(index);
+        IndexMetadata indexMetadata = metadata.projectMetadata.index(index);
         String indexName = index.getName();
 
         if (indexMetadata == null) {

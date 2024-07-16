@@ -642,7 +642,7 @@ public class EnrichPolicyRunner implements Runnable {
      * guard against accidental removal and recreation during policy execution.
      */
     private void validateIndexBeforePromotion(String destinationIndexName, ClusterState clusterState) {
-        IndexMetadata destinationIndex = clusterState.metadata().index(destinationIndexName);
+        IndexMetadata destinationIndex = clusterState.metadata().projectMetadata.index(destinationIndexName);
         if (destinationIndex == null) {
             throw new IndexNotFoundException(
                 "was not able to promote it as part of executing enrich policy [" + policyName + "]",

@@ -404,7 +404,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         List<Index> indices = ds.getIndices();
         long start = last - (decrement * (indices.size() - 1));
         for (int i = 0; i < indices.size(); ++i) {
-            IndexMetadata previousInstance = state.metadata().index(indices.get(i));
+            IndexMetadata previousInstance = state.metadata().projectMetadata.index(indices.get(i));
             metadataBuilder.put(IndexMetadata.builder(previousInstance).creationDate(start + (i * decrement)).build(), false);
         }
         return builder.metadata(metadataBuilder);

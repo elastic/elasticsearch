@@ -454,7 +454,7 @@ public class MetadataIndexStateService {
         for (Index index : concreteIndices) {
             IndexAbstraction ia = lookup.get(index.getName());
             if (ia != null && ia.getParentDataStream() != null) {
-                Index writeIndex = metadata.index(ia.getParentDataStream().getWriteIndex()).getIndex();
+                Index writeIndex = metadata.projectMetadata.index(ia.getParentDataStream().getWriteIndex()).getIndex();
                 if (writeIndex.equals(index)) {
                     writeIndices.add(index.getName());
                 }
@@ -599,7 +599,7 @@ public class MetadataIndexStateService {
             final ClusterState state,
             final Consumer<IndexResult> onResponse
         ) {
-            final IndexMetadata indexMetadata = state.metadata().index(index);
+            final IndexMetadata indexMetadata = state.metadata().projectMetadata.index(index);
             if (indexMetadata == null) {
                 logger.debug("index {} has been blocked before closing and is now deleted, ignoring", index);
                 onResponse.accept(new IndexResult(index));
@@ -730,7 +730,7 @@ public class MetadataIndexStateService {
             final ClusterState state,
             final Consumer<AddBlockResult> onResponse
         ) {
-            final IndexMetadata indexMetadata = state.metadata().index(index);
+            final IndexMetadata indexMetadata = state.metadata().projectMetadata.index(index);
             if (indexMetadata == null) {
                 logger.debug("index {} has since been deleted, ignoring", index);
                 onResponse.accept(new AddBlockResult(index));

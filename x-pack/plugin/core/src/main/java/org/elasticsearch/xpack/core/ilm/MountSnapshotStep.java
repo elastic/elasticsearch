@@ -97,7 +97,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         }
 
         String mountedIndexName = restoredIndexPrefix + indexName;
-        if (currentClusterState.metadata().index(mountedIndexName) != null) {
+        if (currentClusterState.metadata().projectMetadata.index(mountedIndexName) != null) {
             logger.debug(
                 "mounted index [{}] for policy [{}] and index [{}] already exists. will not attempt to mount the index again",
                 mountedIndexName,

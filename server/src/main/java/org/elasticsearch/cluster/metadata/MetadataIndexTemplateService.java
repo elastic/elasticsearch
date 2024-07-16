@@ -1664,7 +1664,7 @@ public class MetadataIndexTemplateService {
                     .build()
             )
             .build();
-        final IndexMetadata tmpIndexMetadata = stateWithIndex.metadata().index(temporaryIndexName);
+        final IndexMetadata tmpIndexMetadata = stateWithIndex.metadata().projectMetadata.index(temporaryIndexName);
         indicesService.withTempIndexService(tmpIndexMetadata, tempIndexService -> {
             // Validate aliases
             MetadataCreateIndexService.resolveAndValidateAliases(

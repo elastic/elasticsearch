@@ -684,7 +684,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         private static boolean leaderIndexAlreadyFollowed(AutoFollowPattern autoFollowPattern, Index leaderIndex, Metadata localMetadata) {
             String followIndexName = getFollowerIndexName(autoFollowPattern, leaderIndex.getName());
-            IndexMetadata indexMetadata = localMetadata.index(followIndexName);
+            IndexMetadata indexMetadata = localMetadata.projectMetadata.index(followIndexName);
             if (indexMetadata != null) {
                 // If an index with the same name exists, but it is not a follow index for this leader index then
                 // we should let the auto follower attempt to auto follow it, so it can fail later and

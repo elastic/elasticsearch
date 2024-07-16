@@ -1372,14 +1372,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (indexMetadata == null && indexRequest.index() != null) {
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexRequest.index());
             if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = metadata.index(indexAbstraction.getWriteIndex());
+                indexMetadata = metadata.projectMetadata.index(indexAbstraction.getWriteIndex());
             }
         }
         // check the alias for the action request (this is how upserts are modeled)
         if (indexMetadata == null && originalRequest != null && originalRequest.index() != null) {
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(originalRequest.index());
             if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = metadata.index(indexAbstraction.getWriteIndex());
+                indexMetadata = metadata.projectMetadata.index(indexAbstraction.getWriteIndex());
             }
         }
 

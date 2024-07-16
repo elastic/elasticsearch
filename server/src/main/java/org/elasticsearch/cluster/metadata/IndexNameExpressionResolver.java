@@ -492,7 +492,7 @@ public class IndexNameExpressionResolver {
         final SortedMap<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
         boolean matchedIndex = false;
         for (Index concreteIndex : concreteIndices) {
-            IndexMetadata idxMetadata = metadata.index(concreteIndex);
+            IndexMetadata idxMetadata = metadata.projectMetadata.index(concreteIndex);
             String name = concreteIndex.getName();
             if (idxMetadata.isSystem() && systemIndexAccessPredicate.test(name) == false) {
                 matchedIndex = true;
@@ -582,7 +582,7 @@ public class IndexNameExpressionResolver {
                 }
             }
         }
-        final IndexMetadata imd = context.state.metadata().index(index);
+        final IndexMetadata imd = context.state.metadata().projectMetadata.index(index);
         if (imd.getState() == IndexMetadata.State.CLOSE) {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
                 throw new IndexClosedException(index);
@@ -603,7 +603,7 @@ public class IndexNameExpressionResolver {
         // type of index to use the `search_throttled` threadpool at that time.
         // NOTE: We can't reference the Setting object, which is only defined and registered in x-pack.
         if (context.options.ignoreThrottled()) {
-            imd = imd != null ? imd : context.state.metadata().index(index);
+            imd = imd != null ? imd : context.state.metadata().projectMetadata.index(index);
             return imd.getSettings().getAsBoolean("index.frozen", false) == false;
         } else {
             return true;
@@ -931,7 +931,9 @@ public class IndexNameExpressionResolver {
                 for (Index index : indexAbstraction.getIndices()) {
                     String concreteIndex = index.getName();
                     if (norouting.contains(concreteIndex) == false) {
-                        AliasMetadata aliasMetadata = state.metadata().index(concreteIndex).getAliases().get(indexAbstraction.getName());
+                        AliasMetadata aliasMetadata = state.metadata().projectMetadata.index(concreteIndex)
+                            .getAliases()
+                            .get(indexAbstraction.getName());
                         if (aliasMetadata != null && aliasMetadata.searchRoutingValues().isEmpty() == false) {
                             // Routing alias
                             if (routings == null) {
@@ -1423,13 +1425,13 @@ public class IndexNameExpressionResolver {
                 } else {
                     Stream<IndexMetadata> indicesStateStream = Stream.of();
                     if (shouldIncludeRegularIndices(context.getOptions())) {
-                        indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata()::index);
+                        indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata().getProject()::index);
                     }
                     if (indexAbstraction.getType() == Type.DATA_STREAM && shouldIncludeFailureIndices(context.getOptions())) {
                         DataStream dataStream = (DataStream) indexAbstraction;
                         indicesStateStream = Stream.concat(
                             indicesStateStream,
-                            dataStream.getFailureIndices().getIndices().stream().map(context.state.metadata()::index)
+                            dataStream.getFailureIndices().getIndices().stream().map(context.state.metadata().getProject()::index)
                         );
                     }
                     if (excludeState != null) {

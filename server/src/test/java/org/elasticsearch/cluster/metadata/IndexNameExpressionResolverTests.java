@@ -3299,7 +3299,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         final ClusterState finalState = ClusterState.builder(state)
             .metadata(
                 Metadata.builder(state.getMetadata())
-                    .put(IndexMetadata.builder(state.getMetadata().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
+                    .put(
+                        IndexMetadata.builder(state.getMetadata().projectMetadata.index("my-index"))
+                            .putAlias(new AliasMetadata.Builder("my-alias"))
+                    )
                     .build()
             )
             .build();
@@ -3343,8 +3346,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         ClusterState state2 = ClusterState.builder(state1)
             .metadata(
                 Metadata.builder(state1.getMetadata())
-                    .put(IndexMetadata.builder(state1.getMetadata().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
-                    .put(IndexMetadata.builder(state1.getMetadata().index("my-index2")).putAlias(new AliasMetadata.Builder("my-alias")))
+                    .put(
+                        IndexMetadata.builder(state1.getMetadata().projectMetadata.index("my-index"))
+                            .putAlias(new AliasMetadata.Builder("my-alias"))
+                    )
+                    .put(
+                        IndexMetadata.builder(state1.getMetadata().projectMetadata.index("my-index2"))
+                            .putAlias(new AliasMetadata.Builder("my-alias"))
+                    )
                     .build()
             )
             .build();

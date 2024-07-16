@@ -100,7 +100,7 @@ public class ExpectedShardSizeEstimator {
         // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in the worst case
         long targetShardSize = 0;
         final Index mergeSourceIndex = indexMetadata.getResizeSourceIndex();
-        final IndexMetadata sourceIndexMetadata = metadata.index(mergeSourceIndex);
+        final IndexMetadata sourceIndexMetadata = metadata.projectMetadata.index(mergeSourceIndex);
         if (sourceIndexMetadata != null) {
             final Set<ShardId> shardIds = IndexMetadata.selectRecoverFromShards(
                 shard.id(),

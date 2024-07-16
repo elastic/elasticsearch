@@ -303,7 +303,7 @@ public class TransportWriteActionTests extends ESTestCase {
         ClusterState state = ClusterStateCreationUtils.stateWithActivePrimary(index, true, 1 + randomInt(3), randomInt(2));
         logger.info("using state: {}", state);
         ClusterServiceUtils.setState(clusterService, state);
-        final long primaryTerm = state.metadata().index(index).primaryTerm(0);
+        final long primaryTerm = state.metadata().projectMetadata.index(index).primaryTerm(0);
         ReplicationOperation.Replicas<TestRequest> proxy = action.newReplicasProxy();
 
         // check that at unknown node fails
@@ -527,7 +527,7 @@ public class TransportWriteActionTests extends ESTestCase {
         when(indicesService.indexService(any(Index.class))).then(invocation -> {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
-            if (state.metadata().hasIndex(index.getName())) {
+            if (state.metadata().projectMetadata.hasIndex(index.getName())) {
                 return mockIndexService(clusterService.state().metadata().getIndexSafe(index), clusterService);
             } else {
                 return null;

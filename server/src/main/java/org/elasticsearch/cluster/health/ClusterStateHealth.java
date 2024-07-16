@@ -63,7 +63,7 @@ public final class ClusterStateHealth implements Writeable {
 
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(index);
             if (indexRoutingTable == null) {
                 continue;
             }

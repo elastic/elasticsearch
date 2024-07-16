@@ -122,7 +122,7 @@ public final class IndexLifecycleTransition {
         PolicyStepsRegistry stepRegistry,
         boolean forcePhaseDefinitionRefresh
     ) {
-        IndexMetadata idxMeta = state.getMetadata().index(index);
+        IndexMetadata idxMeta = state.getMetadata().projectMetadata.index(index);
         Step.StepKey currentStepKey = Step.getCurrentStepKey(idxMeta.getLifecycleExecutionState());
         validateTransition(idxMeta, currentStepKey, newStepKey, stepRegistry);
 
@@ -154,7 +154,7 @@ public final class IndexLifecycleTransition {
         LongSupplier nowSupplier,
         BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction
     ) {
-        IndexMetadata idxMeta = clusterState.getMetadata().index(index);
+        IndexMetadata idxMeta = clusterState.getMetadata().projectMetadata.index(index);
         IndexLifecycleMetadata ilmMeta = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(idxMeta.getLifecyclePolicyName());
         LifecycleExecutionState currentState = idxMeta.getLifecycleExecutionState();
@@ -216,7 +216,7 @@ public final class IndexLifecycleTransition {
         boolean isAutomaticRetry
     ) {
         ClusterState newState;
-        IndexMetadata indexMetadata = currentState.metadata().index(index);
+        IndexMetadata indexMetadata = currentState.metadata().projectMetadata.index(index);
         if (indexMetadata == null) {
             throw new IllegalArgumentException("index [" + index + "] does not exist");
         }
@@ -415,7 +415,7 @@ public final class IndexLifecycleTransition {
      * if no changes to step info exist
      */
     static ClusterState addStepInfoToClusterState(Index index, ClusterState clusterState, ToXContentObject stepInfo) {
-        IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+        IndexMetadata indexMetadata = clusterState.getMetadata().projectMetadata.index(index);
         if (indexMetadata == null) {
             // This index doesn't exist anymore, we can't do anything
             return clusterState;
@@ -438,7 +438,7 @@ public final class IndexLifecycleTransition {
         Metadata.Builder newMetadata = Metadata.builder(currentState.getMetadata());
         boolean clusterStateChanged = false;
         for (Index index : indices) {
-            IndexMetadata indexMetadata = currentState.getMetadata().index(index);
+            IndexMetadata indexMetadata = currentState.getMetadata().projectMetadata.index(index);
             if (indexMetadata == null) {
                 // Index doesn't exist so fail it
                 failedIndexes.add(index.getName());

@@ -137,7 +137,8 @@ public class TransportFollowStatsAction extends TransportTasksAction<
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
                 return shardFollowTask.getFollowShardId().getIndex();
             })
-            .filter(followerIndex -> metadata.index(followerIndex) != null) // hide tasks that are orphaned (see ShardFollowTaskCleaner)
+            .filter(followerIndex -> metadata.projectMetadata.index(followerIndex) != null) // hide tasks that are orphaned (see
+                                                                                            // ShardFollowTaskCleaner)
             .map(Index::getName)
             .filter(followerIndex -> Strings.isAllOrWildcard(indices) || requestedFollowerIndices.contains(followerIndex))
             .collect(Collectors.toSet());

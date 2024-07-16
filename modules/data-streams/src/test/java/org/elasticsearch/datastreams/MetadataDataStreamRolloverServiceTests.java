@@ -126,26 +126,28 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.projectMetadata.indices().size());
-            IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
+            IndexMetadata rolloverIndexMetadata = rolloverMetadata.projectMetadata.index(newIndexName);
 
             IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size() + 1));
-            assertThat(ds.getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+            assertThat(ds.getIndices(), hasItem(rolloverMetadata.projectMetadata.index(sourceIndexName).getIndex()));
             assertThat(ds.getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
             assertThat(ds.getWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
 
-            RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
+            RolloverInfo info = rolloverMetadata.projectMetadata.index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
             assertThat(info.getTime(), lessThanOrEqualTo(after));
             assertThat(info.getTime(), greaterThanOrEqualTo(before));
             assertThat(info.getMetConditions(), hasSize(1));
             assertThat(info.getMetConditions().get(0).value(), equalTo(condition.value()));
 
-            IndexMetadata im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(0));
+            IndexMetadata im = rolloverMetadata.projectMetadata.index(
+                rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(0)
+            );
             Instant startTime1 = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
             Instant endTime1 = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             IndexMetadataStats indexStats1 = im.getStats();
-            im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(1));
+            im = rolloverMetadata.projectMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(1));
             Instant startTime2 = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
             Instant endTime2 = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             IndexMetadataStats indexStats2 = im.getStats();
@@ -227,12 +229,14 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             assertThat(rolloverMetadata.dataStreams().get(dataStreamName).getIndexMode(), equalTo(IndexMode.TIME_SERIES));
 
             // Nothing changed for the original backing index:
-            IndexMetadata im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(0));
+            IndexMetadata im = rolloverMetadata.projectMetadata.index(
+                rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(0)
+            );
             assertThat(IndexSettings.MODE.get(im.getSettings()), equalTo(IndexMode.STANDARD));
             assertThat(IndexSettings.TIME_SERIES_START_TIME.exists(im.getSettings()), is(false));
             assertThat(IndexSettings.TIME_SERIES_END_TIME.exists(im.getSettings()), is(false));
             // New backing index is a tsdb index:
-            im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(1));
+            im = rolloverMetadata.projectMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(1));
             assertThat(IndexSettings.MODE.get(im.getSettings()), equalTo(IndexMode.TIME_SERIES));
             Instant startTime = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
             Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
@@ -315,7 +319,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             assertThat(rolloverMetadata.dataStreams().get(dataStreamName).getIndexMode(), equalTo(IndexMode.TIME_SERIES));
 
             // Nothing changed for the original tsdb backing index:
-            IndexMetadata im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(0));
+            IndexMetadata im = rolloverMetadata.projectMetadata.index(
+                rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(0)
+            );
             assertThat(IndexSettings.MODE.exists(im.getSettings()), is(true));
             Instant startTime = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
             Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
@@ -323,7 +329,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             assertThat(startTime, equalTo(now.minus(4, ChronoUnit.HOURS)));
             assertThat(endTime, equalTo(now.minus(2, ChronoUnit.HOURS)));
             // New backing index is also a tsdb index:
-            im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(1));
+            im = rolloverMetadata.projectMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(1));
             assertThat(IndexSettings.MODE.get(im.getSettings()), equalTo(IndexMode.TIME_SERIES));
             startTime = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
             endTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
@@ -379,30 +385,30 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.projectMetadata.indices().size());
-            IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
+            IndexMetadata rolloverIndexMetadata = rolloverMetadata.projectMetadata.index(newIndexName);
 
             IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size() + 1));
-            assertThat(ds.getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+            assertThat(ds.getIndices(), hasItem(rolloverMetadata.projectMetadata.index(sourceIndexName).getIndex()));
             assertThat(ds.getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
             assertThat(ds.getWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
             assertThat(((DataStream) ds).getIndexMode(), equalTo(IndexMode.TIME_SERIES));
 
-            RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
+            RolloverInfo info = rolloverMetadata.projectMetadata.index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
             assertThat(info.getTime(), lessThanOrEqualTo(after));
             assertThat(info.getTime(), greaterThanOrEqualTo(before));
             assertThat(info.getMetConditions(), hasSize(1));
             assertThat(info.getMetConditions().get(0).value(), equalTo(condition.value()));
 
             for (int i = 0; i < numberOfBackingIndices; i++) {
-                var im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(i));
+                var im = rolloverMetadata.projectMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(i));
                 assertThat(im.getTimeSeriesStart(), nullValue());
                 assertThat(im.getTimeSeriesEnd(), nullValue());
                 assertThat(im.getIndexMode(), nullValue());
             }
             {
-                var im = rolloverMetadata.index(
+                var im = rolloverMetadata.projectMetadata.index(
                     rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(numberOfBackingIndices)
                 );
                 var lastStartTime = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());

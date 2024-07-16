@@ -291,7 +291,7 @@ public class OperationRouting {
     }
 
     private static IndexMetadata indexMetadata(ClusterState clusterState, String index) {
-        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
         if (indexMetadata == null) {
             throw new IndexNotFoundException(index);
         }
@@ -304,7 +304,7 @@ public class OperationRouting {
     }
 
     public static boolean canSearchShard(ShardRouting shardRouting, ClusterState clusterState) {
-        if (INDEX_FAST_REFRESH_SETTING.get(clusterState.metadata().index(shardRouting.index()).getSettings())) {
+        if (INDEX_FAST_REFRESH_SETTING.get(clusterState.metadata().getProject().index(shardRouting.index()).getSettings())) {
             return shardRouting.isPromotableToPrimary();
         } else {
             return shardRouting.isSearchable();

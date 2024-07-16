@@ -273,7 +273,7 @@ public class MetadataDataStreamsService {
         try {
             MetadataMigrateToDataStreamService.prepareBackingIndex(
                 builder,
-                metadata.index(index.getWriteIndex()),
+                metadata.projectMetadata.index(index.getWriteIndex()),
                 dataStreamName,
                 mapperSupplier,
                 false,

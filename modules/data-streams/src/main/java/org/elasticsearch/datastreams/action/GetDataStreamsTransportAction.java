@@ -167,7 +167,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                 // But it is not enforced in API, so we explicitly sort here.
                 var sortedRanges = dataStream.getIndices()
                     .stream()
-                    .map(metadata::index)
+                    .map(metadata.getProject()::index)
                     .filter(m -> m.getIndexMode() == IndexMode.TIME_SERIES)
                     .map(m -> new IndexInfo(m.getIndex().getName(), m.getTimeSeriesStart(), m.getTimeSeriesEnd()))
                     .sorted()
@@ -234,13 +234,13 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         List<Index> backingIndices
     ) {
         for (Index index : backingIndices) {
-            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata indexMetadata = metadata.projectMetadata.index(index);
             Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
             assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
             ManagedBy managedBy;
             if (metadata.isIndexManagedByILM(indexMetadata)) {
                 managedBy = ManagedBy.ILM;
-            } else if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index)) {
+            } else if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index)) {
                 managedBy = ManagedBy.LIFECYCLE;
             } else {
                 managedBy = ManagedBy.UNMANAGED;

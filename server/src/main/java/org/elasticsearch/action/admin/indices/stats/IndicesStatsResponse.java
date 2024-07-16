@@ -80,7 +80,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         Map<String, IndexMetadata.State> indexStateModifiableMap = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
-            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata indexMetadata = metadata.projectMetadata.index(index);
             if (indexMetadata != null) {
                 indexHealthModifiableMap.computeIfAbsent(
                     index.getName(),

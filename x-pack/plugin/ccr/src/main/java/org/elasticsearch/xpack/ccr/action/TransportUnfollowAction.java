@@ -107,7 +107,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
 
             @Override
             public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
-                final IndexMetadata indexMetadata = oldState.metadata().index(request.getFollowerIndex());
+                final IndexMetadata indexMetadata = oldState.metadata().projectMetadata.index(request.getFollowerIndex());
                 final Map<String, String> ccrCustomMetadata = indexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
                 final String remoteClusterName = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
 
@@ -251,7 +251,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
     }
 
     static ClusterState unfollow(String followerIndex, ClusterState current) {
-        IndexMetadata followerIMD = current.metadata().index(followerIndex);
+        IndexMetadata followerIMD = current.metadata().projectMetadata.index(followerIndex);
         if (followerIMD == null) {
             throw new IndexNotFoundException(followerIndex);
         }

@@ -51,7 +51,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         Metadata metadata = clusterState.metadata();
-        IndexMetadata originalIndexMeta = metadata.index(index);
+        IndexMetadata originalIndexMeta = metadata.projectMetadata.index(index);
 
         if (originalIndexMeta == null) {
             String errorMessage = String.format(
@@ -94,7 +94,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             if (rolledIndex == null) {
                 return getErrorResultOnNullMetadata(getKey(), index);
             }
-            IndexMetadata rolledIndexMeta = metadata.index(rolledIndex);
+            IndexMetadata rolledIndexMeta = metadata.projectMetadata.index(rolledIndex);
             rolledIndexName = rolledIndexMeta.getIndex().getName();
             waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
         } else {
@@ -114,7 +114,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
             Index aliasWriteIndex = aliasAbstraction.getWriteIndex();
             if (aliasWriteIndex != null) {
-                IndexMetadata writeIndexImd = metadata.index(aliasWriteIndex);
+                IndexMetadata writeIndexImd = metadata.projectMetadata.index(aliasWriteIndex);
                 rolledIndexName = writeIndexImd.getIndex().getName();
                 waitForActiveShardsSettingValue = writeIndexImd.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
             } else {
@@ -132,7 +132,9 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                     return getErrorResultOnNullMetadata(getKey(), index);
                 }
                 rolledIndexName = tmpRolledIndex.getName();
-                waitForActiveShardsSettingValue = metadata.index(rolledIndexName).getSettings().get("index.write.wait_for_active_shards");
+                waitForActiveShardsSettingValue = metadata.projectMetadata.index(rolledIndexName)
+                    .getSettings()
+                    .get("index.write.wait_for_active_shards");
             }
         }
 

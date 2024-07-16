@@ -72,7 +72,7 @@ public class MetaStateServiceTests extends ESTestCase {
 
         MetaStateWriterUtils.writeGlobalState(env, "test_write", metadataWithIndex);
         assertThat(metaStateService.loadGlobalState().persistentSettings(), equalTo(metadata.persistentSettings()));
-        assertThat(metaStateService.loadGlobalState().hasIndex("test1"), equalTo(false));
+        assertThat(metaStateService.loadGlobalState().projectMetadata.hasIndex("test1"), equalTo(false));
     }
 
     public void testLoadFullStateBWC() throws Exception {
@@ -93,8 +93,8 @@ public class MetaStateServiceTests extends ESTestCase {
 
         Metadata loadedMetadata = manifestAndMetadata.v2();
         assertThat(loadedMetadata.persistentSettings(), equalTo(metadata.persistentSettings()));
-        assertThat(loadedMetadata.hasIndex("test1"), equalTo(true));
-        assertThat(loadedMetadata.index("test1"), equalTo(indexMetadata));
+        assertThat(loadedMetadata.projectMetadata.hasIndex("test1"), equalTo(true));
+        assertThat(loadedMetadata.projectMetadata.index("test1"), equalTo(indexMetadata));
     }
 
     public void testLoadEmptyStateNoManifest() throws IOException {
@@ -137,8 +137,8 @@ public class MetaStateServiceTests extends ESTestCase {
         assertThat(manifestAndMetadata.v1(), equalTo(manifest));
         Metadata loadedMetadata = manifestAndMetadata.v2();
         assertTrue(Metadata.isGlobalStateEquals(loadedMetadata, Metadata.EMPTY_METADATA));
-        assertThat(loadedMetadata.hasIndex("test1"), equalTo(true));
-        assertThat(loadedMetadata.index("test1"), equalTo(index));
+        assertThat(loadedMetadata.projectMetadata.hasIndex("test1"), equalTo(true));
+        assertThat(loadedMetadata.projectMetadata.index("test1"), equalTo(index));
     }
 
     public void testLoadFullStateAndUpdateAndClean() throws IOException {
@@ -169,8 +169,8 @@ public class MetaStateServiceTests extends ESTestCase {
 
         Metadata loadedMetadata = manifestAndMetadata.v2();
         assertThat(loadedMetadata.persistentSettings(), equalTo(metadata.persistentSettings()));
-        assertThat(loadedMetadata.hasIndex("test1"), equalTo(true));
-        assertThat(loadedMetadata.index("test1"), equalTo(index));
+        assertThat(loadedMetadata.projectMetadata.hasIndex("test1"), equalTo(true));
+        assertThat(loadedMetadata.projectMetadata.index("test1"), equalTo(index));
 
         manifest = new Manifest(randomNonNegativeLong(), randomNonNegativeLong(), globalGeneration, new HashMap<Index, Long>() {
             {
@@ -187,8 +187,8 @@ public class MetaStateServiceTests extends ESTestCase {
 
         loadedMetadata = manifestAndMetadata.v2();
         assertThat(loadedMetadata.persistentSettings(), equalTo(newMetadata.persistentSettings()));
-        assertThat(loadedMetadata.hasIndex("test1"), equalTo(true));
-        assertThat(loadedMetadata.index("test1"), equalTo(index));
+        assertThat(loadedMetadata.projectMetadata.hasIndex("test1"), equalTo(true));
+        assertThat(loadedMetadata.projectMetadata.index("test1"), equalTo(index));
 
         if (randomBoolean()) {
             metaStateService.unreferenceAll();

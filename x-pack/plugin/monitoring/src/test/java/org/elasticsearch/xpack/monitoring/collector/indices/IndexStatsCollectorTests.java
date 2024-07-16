@@ -17,7 +17,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.util.Maps;
@@ -102,7 +101,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
             }
             if (i >= createdIndices) {
                 indicesMetadata.put(index, indexMetadata);
-                when(metadata.index(index)).thenReturn(indexMetadata);
+                when(projectMetadata.index(index)).thenReturn(indexMetadata);
 
                 indicesRoutingTable.put(index, indexRoutingTable);
                 when(routingTable.index(index)).thenReturn(indexRoutingTable);
@@ -115,9 +114,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         when(indicesStatsResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[0]);
 
         final String[] indexNames = indicesMetadata.keySet().toArray(new String[0]);
-        ProjectMetadata project = mock(ProjectMetadata.class);
-        when(metadata.getProject()).thenReturn(project);
-        when(project.getConcreteAllIndices()).thenReturn(indexNames);
+        when(projectMetadata.getConcreteAllIndices()).thenReturn(indexNames);
 
         final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class)));
         doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();
@@ -141,7 +138,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         verify(indicesStatsRequestBuilder).setTimeout(timeout);
 
         verify(indicesStatsResponse, times(existingIndices + deletedIndices)).getIndex(anyString());
-        verify(metadata, times(existingIndices)).index(anyString());
+        verify(projectMetadata, times(existingIndices)).index(anyString());
         verify(routingTable, times(existingIndices)).index(anyString());
         verify(metadata).clusterUUID();
 

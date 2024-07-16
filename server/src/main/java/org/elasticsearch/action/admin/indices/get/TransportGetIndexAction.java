@@ -115,7 +115,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                         Map<String, Settings> defaultSettingsMapBuilder = new HashMap<>();
                         for (String index : concreteIndices) {
                             checkCancellation(task);
-                            Settings indexSettings = state.metadata().index(index).getSettings();
+                            Settings indexSettings = state.metadata().projectMetadata.index(index).getSettings();
                             if (request.humanReadable()) {
                                 indexSettings = IndexMetadata.addHumanReadableSettings(indexSettings);
                             }

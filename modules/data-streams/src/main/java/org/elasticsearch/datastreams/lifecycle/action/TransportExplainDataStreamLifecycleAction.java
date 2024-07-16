@@ -87,13 +87,13 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             if (indexAbstraction == null) {
                 continue;
             }
-            IndexMetadata idxMetadata = metadata.index(index);
+            IndexMetadata idxMetadata = metadata.projectMetadata.index(index);
             if (idxMetadata == null) {
                 continue;
             }
             DataStream parentDataStream = indexAbstraction.getParentDataStream();
             if (parentDataStream == null
-                || parentDataStream.isIndexManagedByDataStreamLifecycle(idxMetadata.getIndex(), metadata::index) == false) {
+                || parentDataStream.isIndexManagedByDataStreamLifecycle(idxMetadata.getIndex(), metadata.getProject()::index) == false) {
                 explainIndices.add(new ExplainIndexDataStreamLifecycle(index, false, false, null, null, null, null, null));
                 continue;
             }

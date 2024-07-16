@@ -250,7 +250,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     ) {
         return feature.getIndexDescriptors()
             .stream()
-            .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream().map(metadata::index).filter(imd -> {
+            .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream().map(metadata.getProject()::index).filter(imd -> {
                 assert imd != null : "got null IndexMetadata for index in system index descriptor [" + descriptor.getIndexPattern() + "]";
                 return Objects.nonNull(imd);
             }).map(imd -> SystemIndexMigrationInfo.build(imd, descriptor, feature, indexScopedSettings)));
@@ -264,7 +264,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     ) {
         SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(taskState.getCurrentIndex());
         SystemIndices.Feature feature = systemIndices.getFeature(taskState.getCurrentFeature());
-        IndexMetadata imd = metadata.index(taskState.getCurrentIndex());
+        IndexMetadata imd = metadata.projectMetadata.index(taskState.getCurrentIndex());
 
         // It's possible for one or both of these to happen if the executing node fails during execution and:
         // 1. The task gets assigned to a node with a different set of plugins installed.

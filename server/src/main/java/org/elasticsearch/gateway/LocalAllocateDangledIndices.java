@@ -150,7 +150,7 @@ public class LocalAllocateDangledIndices {
                             );
                             continue;
                         }
-                        if (currentState.metadata().hasIndex(indexMetadata.getIndex().getName())) {
+                        if (currentState.metadata().projectMetadata.hasIndex(indexMetadata.getIndex().getName())) {
                             continue;
                         }
                         if (currentState.metadata().hasAlias(indexMetadata.getIndex().getName())) {

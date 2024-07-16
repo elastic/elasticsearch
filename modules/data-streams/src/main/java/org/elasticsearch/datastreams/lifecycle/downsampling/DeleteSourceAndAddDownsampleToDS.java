@@ -63,7 +63,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
             downsampleIndex,
             dataStreamName
         );
-        IndexMetadata downsampleIndexMeta = state.metadata().index(downsampleIndex);
+        IndexMetadata downsampleIndexMeta = state.metadata().projectMetadata.index(downsampleIndex);
         if (downsampleIndexMeta == null) {
             // the downsample index doesn't exist anymore so nothing to replace here
             LOGGER.trace(
@@ -106,7 +106,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
                 throw new IllegalStateException(errorMessage);
             }
 
-            IndexMetadata sourceIndexMeta = state.metadata().index(sourceBackingIndex);
+            IndexMetadata sourceIndexMeta = state.metadata().projectMetadata.index(sourceBackingIndex);
             assert sourceIndexMeta != null
                 : "the source index abstraction exists in the indices lookup, so the index metadata must "
                     + "exist in the same cluster state metadata";

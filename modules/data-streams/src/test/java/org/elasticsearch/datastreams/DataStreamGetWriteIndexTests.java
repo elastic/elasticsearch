@@ -84,7 +84,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
 
         var state = createInitialState();
         state = createDataStream(state, "logs-myapp", time);
-        IndexMetadata backingIndex = state.getMetadata().index(".ds-logs-myapp-2022.03.15-000001");
+        IndexMetadata backingIndex = state.getMetadata().projectMetadata.index(".ds-logs-myapp-2022.03.15-000001");
         assertThat(backingIndex, notNullValue());
         // Ensure truncate to seconds:
         assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T06:29:36.000Z"));
@@ -96,7 +96,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         state = result.clusterState();
 
         DataStream dataStream = state.getMetadata().dataStreams().get("logs-myapp");
-        backingIndex = state.getMetadata().index(dataStream.getIndices().get(1));
+        backingIndex = state.getMetadata().projectMetadata.index(dataStream.getIndices().get(1));
         assertThat(backingIndex, notNullValue());
         assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T08:59:36.000Z"));
         assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T09:29:36.000Z"));
@@ -155,7 +155,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
 
         var state = createInitialState();
         state = createDataStream(state, "logs-myapp", time);
-        IndexMetadata backingIndex = state.getMetadata().index(".ds-logs-myapp-2022.03.15-000001");
+        IndexMetadata backingIndex = state.getMetadata().projectMetadata.index(".ds-logs-myapp-2022.03.15-000001");
         assertThat(backingIndex, notNullValue());
         // Ensure truncate to seconds and millis format:
         assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T06:29:36.000Z"));
@@ -167,7 +167,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         state = result.clusterState();
 
         DataStream dataStream = state.getMetadata().dataStreams().get("logs-myapp");
-        backingIndex = state.getMetadata().index(dataStream.getIndices().get(1));
+        backingIndex = state.getMetadata().projectMetadata.index(dataStream.getIndices().get(1));
         assertThat(backingIndex, notNullValue());
         assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T08:59:36.000Z"));
         assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T09:29:36.000Z"));

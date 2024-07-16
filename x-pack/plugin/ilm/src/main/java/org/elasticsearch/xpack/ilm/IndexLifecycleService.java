@@ -153,7 +153,12 @@ public class IndexLifecycleService
         // when moving to an arbitrary step key (to avoid race conditions between the
         // check-and-set). moveClusterStateToStep also does its own validation, but doesn't take
         // the user-input for the current step (which is why we validate here for a passed in step)
-        IndexLifecycleTransition.validateTransition(currentState.getMetadata().index(index), currentStepKey, newStepKey, policyRegistry);
+        IndexLifecycleTransition.validateTransition(
+            currentState.getMetadata().projectMetadata.index(index),
+            currentStepKey,
+            newStepKey,
+            policyRegistry
+        );
         return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, newStepKey, nowSupplier, policyRegistry, true);
     }
 

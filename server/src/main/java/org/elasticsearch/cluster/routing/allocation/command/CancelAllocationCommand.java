@@ -121,7 +121,7 @@ public class CancelAllocationCommand implements AllocationCommand {
         RoutingNode routingNode = routingNodes.node(discoNode.getId());
         IndexMetadata indexMetadata = null;
         if (routingNode != null) {
-            indexMetadata = allocation.metadata().index(index());
+            indexMetadata = allocation.metadata().projectMetadata.index(index());
             if (indexMetadata == null) {
                 throw new IndexNotFoundException(index());
             }

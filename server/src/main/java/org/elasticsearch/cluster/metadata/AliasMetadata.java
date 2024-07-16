@@ -241,7 +241,7 @@ public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentF
             throw new IllegalArgumentException("unexpected type: [" + ia.getType() + "]");
         }
 
-        IndexMetadata firstIndex = metadata.index(ia.getIndices().get(0));
+        IndexMetadata firstIndex = metadata.projectMetadata.index(ia.getIndices().get(0));
         return firstIndex.getAliases().get(ia.getName());
     }
 

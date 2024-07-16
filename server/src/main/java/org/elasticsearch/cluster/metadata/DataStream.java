@@ -286,7 +286,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public Index selectTimeSeriesWriteIndex(Instant timestamp, Metadata metadata) {
         for (int i = backingIndices.indices.size() - 1; i >= 0; i--) {
             Index index = backingIndices.indices.get(i);
-            IndexMetadata im = metadata.index(index);
+            IndexMetadata im = metadata.projectMetadata.index(index);
 
             // TODO: make index_mode, start and end time fields in IndexMetadata class.
             // (this to avoid the overhead that occurs when reading a setting)
@@ -738,7 +738,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     private void ensureNoAliasesOnIndex(Metadata clusterMetadata, Index index) {
-        IndexMetadata im = clusterMetadata.index(clusterMetadata.getIndicesLookup().get(index.getName()).getWriteIndex());
+        IndexMetadata im = clusterMetadata.projectMetadata.index(clusterMetadata.getIndicesLookup().get(index.getName()).getWriteIndex());
         if (im.getAliases().size() > 0) {
             throw new IllegalArgumentException(
                 String.format(
@@ -1273,7 +1273,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (result == null) {
             String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
             String writeableIndicesString = getIndices().stream()
-                .map(metadata::index)
+                .map(metadata.getProject()::index)
                 .map(IndexMetadata::getSettings)
                 .map(
                     settings -> "["

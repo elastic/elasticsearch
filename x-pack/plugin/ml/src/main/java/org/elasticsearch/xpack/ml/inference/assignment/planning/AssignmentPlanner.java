@@ -118,6 +118,7 @@ public class AssignmentPlanner {
                     // don't rely on the current allocation
                     new HashMap<>(),
                     m.maxAssignedAllocations(),
+                    m.getAdaptiveAllocationsSettings(),
                     m.perDeploymentMemoryBytes(),
                     m.perAllocationMemoryBytes()
                 )
@@ -149,6 +150,7 @@ public class AssignmentPlanner {
                 m.threadsPerAllocation(),
                 currentAllocationsByNodeId,
                 m.maxAssignedAllocations(),
+                m.getAdaptiveAllocationsSettings(),
                 m.perDeploymentMemoryBytes(),
                 m.perAllocationMemoryBytes()
             );

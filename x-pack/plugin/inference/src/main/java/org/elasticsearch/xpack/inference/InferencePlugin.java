@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
@@ -82,6 +84,8 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.telemetry.InferenceAPMStats;
+import org.elasticsearch.xpack.inference.telemetry.StatsMap;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -117,6 +121,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
+    private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
@@ -170,6 +175,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var httpRequestSenderFactory = new HttpRequestSender.Factory(serviceComponents.get(), httpClientManager, services.clusterService());
         httpFactory.set(httpRequestSenderFactory);
 
+        var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
+        amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
+
         ModelRegistry modelRegistry = new ModelRegistry(services.client());
 
         if (inferenceServiceExtensions == null) {
@@ -188,7 +196,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
         shardBulkInferenceActionFilter.set(actionFilter);
 
-        return List.of(modelRegistry, registry, httpClientManager);
+        var statsFactory = new InferenceAPMStats.Factory(services.telemetryProvider().getMeterRegistry());
+        var statsMap = new StatsMap<>(InferenceAPMStats::key, statsFactory::newInferenceRequestAPMCounter);
+
+        return List.of(modelRegistry, registry, httpClientManager, statsMap);
     }
 
     @Override
@@ -209,6 +220,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get()),
             context -> new MistralService(httpFactory.get(), serviceComponents.get()),
             context -> new AnthropicService(httpFactory.get(), serviceComponents.get()),
+            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }

@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -80,6 +80,8 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -215,26 +217,55 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * Creates a page based on a list of lists, where each list represents a column.
+     * Creates a list of pages based on a list of multi-row fields.
      */
-    protected final Page rows(List<List<Object>> values) {
-        if (values.isEmpty()) {
-            return new Page(0, BlockUtils.NO_BLOCKS);
+    protected final List<Page> rows(List<TestCaseSupplier.TypedData> multirowFields) {
+        if (multirowFields.isEmpty()) {
+            return List.of();
         }
 
-        var rowsCount = values.get(0).size();
+        var rowsCount = multirowFields.get(0).multiRowData().size();
 
-        values.stream().skip(1).forEach(l -> assertThat("All multi-row fields must have the same number of rows", l, hasSize(rowsCount)));
+        multirowFields.stream()
+            .skip(1)
+            .forEach(
+                field -> assertThat("All multi-row fields must have the same number of rows", field.multiRowData(), hasSize(rowsCount))
+            );
 
-        var rows = new ArrayList<List<Object>>();
-        for (int i = 0; i < rowsCount; i++) {
-            final int index = i;
-            rows.add(values.stream().map(l -> l.get(index)).toList());
+        List<Page> pages = new ArrayList<>();
+
+        int pageSize = randomIntBetween(1, 100);
+        for (int initialRow = 0; initialRow < rowsCount;) {
+            if (pageSize > rowsCount - initialRow) {
+                pageSize = rowsCount - initialRow;
+            }
+
+            var blocks = new Block[multirowFields.size()];
+
+            for (int i = 0; i < multirowFields.size(); i++) {
+                var field = multirowFields.get(i);
+                try (
+                    var wrapper = BlockUtils.wrapperFor(
+                        TestBlockFactory.getNonBreakingInstance(),
+                        PlannerUtils.toElementType(field.type()),
+                        pageSize
+                    )
+                ) {
+                    var multiRowData = field.multiRowData();
+                    for (int row = initialRow; row < initialRow + pageSize; row++) {
+                        wrapper.accept(multiRowData.get(row));
+                    }
+
+                    blocks[i] = wrapper.builder().build();
+                }
+            }
+
+            pages.add(new Page(pageSize, blocks));
+            initialRow += pageSize;
+            pageSize = randomIntBetween(1, 100);
         }
 
-        var blocks = BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows);
-
-        return new Page(rowsCount, blocks);
+        return pages;
     }
 
     /**
@@ -320,6 +351,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<EsqlFunctionRegistry.ArgSignature> args = description.args();
 
         assertTrue("expect description to be defined", description.description() != null && false == description.description().isEmpty());
+        assertThat(
+            "descriptions should be complete sentences",
+            description.description(),
+            either(endsWith(".")) // A full sentence
+                .or(endsWith("∅")) // Math
+        );
 
         List<Set<String>> typesFromSignature = new ArrayList<>();
         Set<String> returnFromSignature = new HashSet<>();

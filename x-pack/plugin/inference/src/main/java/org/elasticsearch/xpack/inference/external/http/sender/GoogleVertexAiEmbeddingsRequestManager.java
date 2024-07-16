@@ -46,23 +46,23 @@ public class GoogleVertexAiEmbeddingsRequestManager extends GoogleVertexAiReques
         this.truncator = Objects.requireNonNull(truncator);
     }
 
-    record RateLimitGrouping(int modelIdHash) {
+    record RateLimitGrouping(int projectIdHash) {
         public static RateLimitGrouping of(GoogleVertexAiEmbeddingsModel model) {
             Objects.requireNonNull(model);
 
-            return new RateLimitGrouping(model.rateLimitServiceSettings().modelId().hashCode());
+            return new RateLimitGrouping(model.rateLimitServiceSettings().projectId().hashCode());
         }
     }
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
         var request = new GoogleVertexAiEmbeddingsRequest(truncator, truncatedInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

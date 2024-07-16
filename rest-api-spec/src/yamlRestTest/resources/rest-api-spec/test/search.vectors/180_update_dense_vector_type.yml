@@ -232,6 +232,112 @@ setup:
               type: dense_vector
               dims: 4
               index_options:
+                type: int4_flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int4_flat }
+
+  - do:
+      index:
+        index: test_index
+        id: "41"
+        body:
+          embedding: [ 1, 4, 1, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "42"
+        body:
+          embedding: [ 3, 4, 1, 2 ]
+  - do:
+      index:
+        index: test_index
+        id: "43"
+        body:
+          embedding: [ 4, 4, 1, 3 ]
+  - do:
+      index:
+        index: test_index
+        id: "44"
+        body:
+          embedding: [ 5, 4, 1, 4 ]
+  - do:
+      index:
+        index: test_index
+        id: "45"
+        body:
+          embedding: [ 6, 4, 1, 5 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      index:
+        index: test_index
+        id: "46"
+        body:
+          embedding: [ 7, 4, 1, 6 ]
+  - do:
+      index:
+        index: test_index
+        id: "47"
+        body:
+          embedding: [ 8, 4, 1, 7 ]
+  - do:
+      index:
+        index: test_index
+        id: "48"
+        body:
+          embedding: [ 9, 4, 1, 8 ]
+  - do:
+      index:
+        index: test_index
+        id: "49"
+        body:
+          embedding: [ 10, 4, 1, 9 ]
+  - do:
+      index:
+        index: test_index
+        id: "50"
+        body:
+          embedding: [ 1, 15, 1, 10 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 30
+
+  - match: { hits.total.value: 30 }
+  - length: { hits.hits: 3 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
                 type: hnsw
                 m: 3
 
@@ -322,9 +428,9 @@ setup:
             knn:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
-              num_candidates: 30
+              num_candidates: 40
 
-  - match: { hits.total.value: 30 }
+  - match: { hits.total.value: 40 }
   - length: { hits.hits: 4 }
   - contains: {hits.hits: {_id: "1"}}
   - contains: {hits.hits: {_id: "11"}}
@@ -430,15 +536,125 @@ setup:
             knn:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
-              num_candidates: 40
+              num_candidates: 50
 
-  - match: { hits.total.value: 40 }
+  - match: { hits.total.value: 50 }
   - length: { hits.hits: 5 }
   - contains: {hits.hits: {_id: "1"}}
   - contains: {hits.hits: {_id: "11"}}
   - contains: {hits.hits: {_id: "2"}}
   - contains: {hits.hits: {_id: "21"}}
   - contains: {hits.hits: {_id: "31"}}
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_hnsw
+                ef_construction: 200
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int4_hnsw }
+
+  - do:
+      index:
+        index: test_index
+        id: "51"
+        body:
+          embedding: [ 1, 1, 1, 2 ]
+  - do:
+      index:
+        index: test_index
+        id: "52"
+        body:
+          embedding: [ 1, 1, 1, 3 ]
+  - do:
+      index:
+        index: test_index
+        id: "53"
+        body:
+          embedding: [ 1, 1, 1, 4 ]
+  - do:
+      index:
+        index: test_index
+        id: "54"
+        body:
+          embedding: [ 1, 1, 1, 5 ]
+  - do:
+      index:
+        index: test_index
+        id: "55"
+        body:
+          embedding: [ 1, 1, 1, 6 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      index:
+        index: test_index
+        id: "56"
+        body:
+          embedding: [ 1, 1, 1, 7 ]
+  - do:
+      index:
+        index: test_index
+        id: "57"
+        body:
+          embedding: [ 1, 1, 1, 8 ]
+  - do:
+      index:
+        index: test_index
+        id: "58"
+        body:
+          embedding: [ 1, 1, 1, 9 ]
+  - do:
+      index:
+        index: test_index
+        id: "59"
+        body:
+          embedding: [ 1, 1, 1, 10 ]
+  - do:
+      index:
+        index: test_index
+        id: "60"
+        body:
+          embedding: [ 1, 1, 1, 11 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 6
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 60
+
+  - match: { hits.total.value: 60 }
+  - length: { hits.hits: 6 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "21" } }
+  - contains: { hits.hits: { _id: "31" } }
+  - contains: { hits.hits: { _id: "51" } }
 
 ---
 "Test create and update dense vector mapping with bulk indexing":

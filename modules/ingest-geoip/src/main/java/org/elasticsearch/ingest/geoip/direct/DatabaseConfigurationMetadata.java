@@ -39,6 +39,7 @@ public record DatabaseConfigurationMetadata(DatabaseConfiguration database, long
 
     public static final ConstructingObjectParser<DatabaseConfigurationMetadata, String> PARSER = new ConstructingObjectParser<>(
         "database_metadata",
+        true,
         a -> {
             DatabaseConfiguration database = (DatabaseConfiguration) a[0];
             return new DatabaseConfigurationMetadata(database, (long) a[1], (long) a[2]);

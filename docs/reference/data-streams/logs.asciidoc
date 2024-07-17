@@ -1,9 +1,10 @@
 [[logs-data-stream]]
 == Logs data stream
 
-You can use a logs data stream to store log data more efficiently. In our benchmarks,
-log data stored in a logs data stream used ~2.5 times less disk space than a regular data
-stream. The exact impact will vary per data set. The main benefit from using a logs data stream is reduced storage.
+A logs data stream is a data stream type that stores log data more efficiently.
+
+In benchmarks, log data stored in a logs data stream used ~2.5 times less disk space than a regular data
+stream. The exact impact will vary depending on your data set.
 
 The following features are enabled in a logs data stream:
 

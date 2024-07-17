@@ -351,12 +351,19 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
         // hence metrics above might not be emitted if all needed files were already fetched
         // note that this metrics tracks copied bytes both for RCO and non-RCO environments
         {
-            var metric = getSingleRecordedMetric(
-                plugin::getLongCounterMeasurement,
+            final List<Measurement> measurements = plugin.getLongCounterMeasurement(
                 SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
             );
-            assertThat(metric.getLong(), greaterThan(0L));
-            assertMetricAttributes(metric, indexName, 0, true);
+            // One from IndexShardCacheWarmer and the other from StatelessIndexEventListener
+            assertThat(measurements.size(), equalTo(2));
+            long totalBytesWarmed = 0;
+            for (final Measurement metric : measurements) {
+                final long bytesWarmed = metric.getLong();
+                assertThat(bytesWarmed, greaterThanOrEqualTo(0L));
+                totalBytesWarmed += bytesWarmed;
+                assertMetricAttributes(metric, indexName, 0, true);
+            }
+            assertThat(totalBytesWarmed, greaterThan(0L));
         }
     }
 

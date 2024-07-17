@@ -78,15 +78,18 @@ public abstract class BaseRestHandler implements RestHandler {
 
     private static final Set<String> ALWAYS_SUPPORTED = Set.of("format", "filter_path", "pretty", "human");
 
+    // TODO not clear this belongs here
+    private static final Set<String> INTERNAL_REQUEST_PARAM = Set.of(RestRequest.OPERATOR_REQUEST, RestRequest.SERVERLESS_REQUEST);
+
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // check if the query has any parameters that are not in the supported set (if declared)
         Set<String> supported = allSupportedParameters();
         if (supported != null) {
-            var allSupported = Sets.union(RestResponse.RESPONSE_PARAMS, ALWAYS_SUPPORTED, supported);
+            var allSupported = Sets.union(RestResponse.RESPONSE_PARAMS, ALWAYS_SUPPORTED, INTERNAL_REQUEST_PARAM, supported);
             if (allSupported.containsAll(request.params().keySet()) == false) {
                 Set<String> unsupported = Sets.difference(request.params().keySet(), allSupported);
-                throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter"));
+                throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter parameter"));
             }
         }
 

@@ -6,7 +6,7 @@ dependencies {
   testImplementation "org.javassist:javassist:3.30.2-GA"
 
   //while it is possible to place a dependency on all x-pack plugins and modules,
-  //we will end up with dependency convergence issues as well as jar hell since the test uses a single classpath
+  //we will end up with dependency convergence / jar hell issues
   //the set here is a best attempt to include all the relevant modules and x-pack plugins
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:ingest-common')
@@ -34,4 +34,8 @@ dependencies {
 tasks.named("test").configure {
   //test uses reflections to find classes, so we need to disable the security manager
   systemProperty 'tests.security.manager', 'false'
+}
+tasks.named("forbiddenApisTest") {
+  //this test intentionally uses reflection to violate java access control
+  it.enabled = false
 }

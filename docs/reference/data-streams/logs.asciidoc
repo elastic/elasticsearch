@@ -1,6 +1,8 @@
 [[logs-data-stream]]
 == Logs data stream
 
+preview::["Logs data streams and the logs index mode are in tech preview and may be changed or removed in the future. Don't use logs data streams or logs index mode in production.]
+
 A logs data stream is a data stream type that stores log data more efficiently.
 
 In benchmarks, log data stored in a logs data stream used ~2.5 times less disk space than a regular data
@@ -13,6 +15,8 @@ The following features are enabled in a logs data stream:
 * Index sorting. By default indices are sorted by `host.name` and `@timestamp` fields at index time, which can be overwritten.
 
 * More space efficient compression for fields with <<doc-values,`doc_values`>> enabled.
+
+The new logs data stream should be used for all data streams that store logs, because of the storage benefits that comes with it.
 
 [discrete]
 [[how-to-use-logsds]]

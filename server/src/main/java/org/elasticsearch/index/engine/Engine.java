@@ -39,7 +39,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -2041,14 +2040,7 @@ public abstract class Engine implements Closeable {
 
     @Override
     public void close() throws IOException {
-        final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC) {
-            @Override
-            protected boolean blockingAllowed() {
-                // TODO remove this blocking, or at least do it elsewhere, see https://github.com/elastic/elasticsearch/issues/89821
-                return Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
-                    || super.blockingAllowed();
-            }
-        };
+        final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC);
         close(future);
         FutureUtils.get(future);
     }

@@ -54,18 +54,20 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
     @ParametersFactory(shuffle = true)
     public static Iterable<Object[]> parameterizedTestCases() {
         List<TestCase> testCases = List.of(
-            // WhenStartTrainedModelDeployment_ThenScaleUp_GivenNoExistingDeployments(1),
-            // TODO
-            // WhenStartTrainedModelDeployment_ThenScaleUp_GivenExistingDeployments(2)
-            WhenStartTrainedModelDeployment_ThenNoScale_GivenExistingDeployments(3)
-        //
-        // WhenUpdateTrainedModelDeployment_ThenScaleUp_GivenDeploymentGetsLarger(),
-        // WhenUpdateTrainedModelDeployment_ThenNoScale_GivenDeploymentGetsLargerAndNodesAreSufficient(),
-        // WhenUpdateTrainedModelDeployment_ThenNoScale_GivenDeploymentGetsSmallerButAllNodesAreStillRequired(),
-        // WhenUpdateTrainedModelDeployment_ThenScaleDown_GivenDeploymentGetsSmaller(),
-        //
-        // WhenStopTrainedModelDeployment_ThenNoScale_GivenAllNodesAreStillRequired(),
-        // WhenStopTrainedModelDeployment_ThenScaledown_GivenDeploymentRequiredAWholeNode()
+            WhenStartTrainedModelDeployment_ThenScaleUp_GivenNoExistingDeployments(1),
+            WhenStartTrainedModelDeployment_ThenScaleUp_GivenExistingDeployments(2),
+            WhenStartTrainedModelDeployment_ThenNoScale_GivenExistingDeployments(3),
+
+            WhenUpdateTrainedModelDeployment_ThenScaleUp_GivenDeploymentGetsLarger(4),
+            WhenUpdateTrainedModelDeployment_ThenNoScale_GivenDeploymentGetsLargerAndNodesAreSufficient(5),
+            WhenUpdateTrainedModelDeployment_ThenNoScale_GivenDeploymentGetsSmallerButAllNodesAreStillRequired(6),
+            // WhenUpdateTrainedModelDeployment_ThenScaleDown_GivenDeploymentGetsSmaller(7) TODO we don't currently support shrinking nodes
+
+            // Some of the below test cases test for states in between the Stop request being made and being completed
+            WhenStoppingTrainedModelDeployment_ThenNoScale_GivenAllNodesAreStillRequired(8),
+            WhenStopTrainedModelDeployment_ThenNoScale_GivenAllNodesAreStillRequired(9),
+            WhenStoppedTrainedModelDeployment_ThenNoScale_GivenAllNodesAreStillRequired(10),
+            WhenStopTrainedModelDeployment_ThenScaledown_GivenDeploymentRequiredAWholeNode(11)
         );
 
         return testCases.stream().map(MlAutoscalingResourceTrackerParameterizedTests.TestCase::toArray).collect(toList());
@@ -271,16 +273,18 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         return Long.parseLong(clusterState.nodes().getAllNodes().stream().findFirst().get().getAttributes().get(MACHINE_MEMORY_NODE_ATTR));
     }
 
-    private static DiscoveryNodes createDiscoveryNodes(int minMemoryGb, int numAllocationsRequestedPerviously) {
-        ByteSizeValue minMemoryPerNode = ByteSizeValue.ofGb(minMemoryGb);
-        int totalProcessors = numAllocationsRequestedPerviously;
+    private static DiscoveryNodes createDiscoveryNode(int memoryGb, int processors) {
+        ByteSizeValue minMemoryPerNode = ByteSizeValue.ofGb(memoryGb);
+        int totalProcessors = processors;
         ByteSizeValue totalMemory = ByteSizeValue.ofBytes(minMemoryPerNode.getBytes());
-        DiscoveryNodes nodes = createMlNodesOfUniformSize(
-            numAllocationsRequestedPerviously,
-            minMemoryPerNode,
-            totalProcessors,
-            totalMemory
-        );
+        DiscoveryNodes nodes = createMlNodesOfUniformSize(processors, minMemoryPerNode, totalProcessors, totalMemory);
+        return nodes;
+    }
+
+    private static DiscoveryNodes createSmallDiscoveryNodes(int memoryGb, int totalProcessors) {
+        ByteSizeValue minMemoryPerNode = ByteSizeValue.ofGb(memoryGb);
+        ByteSizeValue totalMemory = ByteSizeValue.ofBytes(minMemoryPerNode.getBytes());
+        DiscoveryNodes nodes = createMlNodesOfUniformSize(2, minMemoryPerNode, totalProcessors, totalMemory);
         return nodes;
     }
 
@@ -288,20 +292,22 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         return assignments.values().stream().findFirst().get().getTaskParams().estimateMemoryUsageBytes();
     }
 
-    private static int calculateTotalExistingProcessors(ClusterState clusterState) {
-        return clusterState.nodes()
-            .getAllNodes()
-            .stream()
-            .mapToInt(n -> (int) Double.parseDouble(n.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR)))
-            .sum();
+    private static int calculateTotalExistingAndUsedProcessors(Map<String, TrainedModelAssignment> assignments) {
+        return assignments.values().stream().mapToInt(TrainedModelAssignment::totalTargetAllocations).sum();
     }
 
     private static long calculateExistingTotalModelMemoryBytes(Map<String, TrainedModelAssignment> assignments) {
-        return assignments.values()
-            .stream()
-            .filter(tma -> tma.getAssignmentState() == AssignmentState.STARTED)
-            .mapToLong(tma -> tma.getTaskParams().estimateMemoryUsageBytes())
-            .sum();
+        return assignments.values().stream().filter(tma -> {
+            if (tma.getAssignmentState() == AssignmentState.STARTED) {
+                return true;
+            } else if (tma.getAssignmentState() == AssignmentState.STARTING && tma.getNodeRoutingTable().isEmpty() == false) {
+                return true;
+            } else if (tma.getAssignmentState() == AssignmentState.STOPPING && tma.getNodeRoutingTable().isEmpty() == false) {
+                return true;
+            } else {
+                return false;
+            }
+        }).mapToLong(tma -> tma.getTaskParams().estimateMemoryUsageBytes()).sum();
     }
 
     /**
@@ -395,7 +401,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
 
         // TrainedModelAssignments
         int numAllocationsRequestedPerviously = seed;
-        DiscoveryNodes nodes = createDiscoveryNodes(seed, numAllocationsRequestedPerviously);
+        DiscoveryNodes nodes = createDiscoveryNode(seed, numAllocationsRequestedPerviously);
         int numAssignments = 2;
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - already deployed
@@ -426,7 +432,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         int existingNodes = clusterState.nodes().getSize();
         long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
         long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
-        int totalExistingProcessors = calculateTotalExistingProcessors(clusterState);
+        int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
         int minNodes = 2; // TODO understand why this value
         long extraPerNodeModelMemoryBytes = calculateExtraPerNodeModelMemoryBytes(assignments);
         int extraPerNodeProcessors = calculateThreadsPerAllocation(assignments);
@@ -463,7 +469,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
 
         // TrainedModelAssignments
         int numAllocationsRequestedPerviously = seed;
-        DiscoveryNodes nodes = createDiscoveryNodes(16, numAllocationsRequestedPerviously);
+        DiscoveryNodes nodes = createDiscoveryNode(16, numAllocationsRequestedPerviously);
         int numAssignments = 2;
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - already deployed
@@ -497,7 +503,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         int existingNodes = clusterState.nodes().getSize();
         long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
         long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
-        int totalExistingProcessors = calculateTotalExistingProcessors(clusterState);
+        int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
         int minNodes = 3; // TODO understand why this value
         long extraPerNodeModelMemoryBytes = 0;
         int extraPerNodeProcessors = 0;
@@ -524,69 +530,490 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
     }
 
-    // private static TestCase WhenUpdateTrainedModelDeployment_ThenScaleUp_GivenDeploymentGetsLarger(int seed) {
-    // String testDescription = "test scaling up when updating existing deployment to be larger";
-    //
-    // // Generic settings
-    // ClusterSettings clusterSettings = createClusterSettings();
-    // MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
-    // Settings settings = createSettings();
-    //
-    // ClusterState clusterState = createClusterState();
-    //
-    // ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(expectedStats);
-    // return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
-    // }
-    //
-    // private static TestCase WhenUpdateTrainedModelDeployment_ThenNoScale_GivenDeploymentGetsLargerAndNodesAreSufficient() {
-    // String testDescription = "test scaling when updating existing deployment to be larger but still fits in existing nodes";
-    // ClusterState clusterState = createClusterState();
-    // ClusterSettings clusterSettings = createClusterSettings();
-    // MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
-    // Settings settings = createSettings();
-    // ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(expectedStats);
-    // return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
-    // }
-    //
-    // private static TestCase WhenUpdateTrainedModelDeployment_ThenNoScale_GivenDeploymentGetsSmallerButAllNodesAreStillRequired() {
-    // String testDescription = "test scaling up when updating existing deployment to be smaller but all nodes are still required";
-    // ClusterState clusterState = createClusterState();
-    // ClusterSettings clusterSettings = createClusterSettings();
-    // MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
-    // Settings settings = createSettings();
-    // ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(expectedStats);
-    // return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
-    // }
-    //
-    // private static TestCase WhenUpdateTrainedModelDeployment_ThenScaleDown_GivenDeploymentGetsSmaller() {
-    // String testDescription = "test scaling down when updating existing deployment to be smaller";
-    // ClusterState clusterState = createClusterState();
-    // ClusterSettings clusterSettings = createClusterSettings();
-    // MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
-    // Settings settings = createSettings();
-    // ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(expectedStats);
-    // return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
-    // }
-    //
-    //
-    // private static TestCase WhenStopTrainedModelDeployment_ThenNoScale_GivenAllNodesAreStillRequired() {
-    // String testDescription = "test scaling when the existing deployments require the same nodes after a small deployment is removed";
-    // ClusterState clusterState = createClusterState();
-    // ClusterSettings clusterSettings = createClusterSettings();
-    // MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
-    // Settings settings = createSettings();
-    // ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(expectedStats);
-    // return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
-    // }
-    //
-    // private static TestCase WhenStopTrainedModelDeployment_ThenScaledown_GivenDeploymentRequiredAWholeNode() {
-    // String testDescription = "test scaling down when the removed deployment required a whole node";
-    // ClusterState clusterState = createClusterState();
-    // ClusterSettings clusterSettings = createClusterSettings();
-    // MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
-    // Settings settings = createSettings();
-    // ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(expectedStats);
-    // return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
-    // }
+    private static TestCase WhenUpdateTrainedModelDeployment_ThenScaleUp_GivenDeploymentGetsLarger(int seed) {
+        String testDescription = "test scaling up when updating existing deployment to be larger";
+
+        // Generic settings
+        ClusterSettings clusterSettings = createClusterSettings();
+        MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
+        Settings settings = createSettings();
+
+        // TrainedModelAssignments
+        int numAllocationsRequestedPerviously = 4;
+        int updatedNumAllocations = 8;
+        DiscoveryNodes nodes = createDiscoveryNode(8, numAllocationsRequestedPerviously);
+        int numAssignments = 1;
+        Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
+        // assignment 1 - already deployed - just updated to be larger
+        {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(updatedNumAllocations, seed);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STARTED);
+            tmaBuilder.addRoutingEntry(
+                NODE_NAME_PREFIX + 0,
+                new RoutingInfo(numAllocationsRequestedPerviously, numAllocationsRequestedPerviously, RoutingState.STARTED, null)
+            );
+            assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
+        }
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
+
+        // Cluster state
+        ClusterState clusterState = createClusterState(trainedModelAssignmentMetadata, nodes);
+
+        // expected stats:
+        int existingNodes = clusterState.nodes().getSize();
+        long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
+        long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
+        int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
+        int minNodes = 3; // TODO understand why this value
+        long extraPerNodeModelMemoryBytes = assignments.values().stream().findFirst().get().getTaskParams().estimateMemoryUsageBytes();
+        int extraPerNodeProcessors = 1;
+        long extraModelMemoryBytes = extraPerNodeModelMemoryBytes;
+        int extraProcessors = updatedNumAllocations - numAllocationsRequestedPerviously;
+        long removeNodeMemoryInBytes = 0;
+        long perNodeMemoryOverheadInBytes = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+
+        MlAutoscalingStats expectedStats = new MlAutoscalingStats(
+            existingNodes,
+            existingPerNodeMemoryBytes,
+            existingTotalModelMemoryBytes,
+            totalExistingProcessors,
+            minNodes,
+            extraPerNodeModelMemoryBytes,
+            extraPerNodeProcessors,
+            extraModelMemoryBytes,
+            extraProcessors,
+            removeNodeMemoryInBytes,
+            perNodeMemoryOverheadInBytes
+        );
+
+        ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(testDescription, expectedStats);
+        return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
+    }
+
+    private static TestCase WhenUpdateTrainedModelDeployment_ThenNoScale_GivenDeploymentGetsLargerAndNodesAreSufficient(int seed) {
+        String testDescription = "test scaling when updating existing deployment to be larger but still fits in existing nodes";
+
+        // Generic settings
+        ClusterSettings clusterSettings = createClusterSettings();
+        MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
+        Settings settings = createSettings();
+
+        // TrainedModelAssignments
+        int numAllocationsRequestedPreviously = 4;
+        int updatedNumAllocations = 8;
+        DiscoveryNodes nodes = createDiscoveryNode(16, numAllocationsRequestedPreviously);
+        int numAssignments = 1;
+        Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
+        // assignment 1 - already deployed - just updated to be larger
+        {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(updatedNumAllocations, seed);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STARTED);
+            tmaBuilder.addRoutingEntry(
+                NODE_NAME_PREFIX + 0,
+                new RoutingInfo(numAllocationsRequestedPreviously, numAllocationsRequestedPreviously, RoutingState.STARTED, null)
+            );
+            assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
+        }
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
+
+        // Cluster state
+        ClusterState clusterState = createClusterState(trainedModelAssignmentMetadata, nodes);
+
+        // expected stats:
+        int existingNodes = clusterState.nodes().getSize();
+        long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
+        long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
+        int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
+        int minNodes = 3; // TODO understand why this value
+        long extraPerNodeModelMemoryBytes = 0;
+        int extraPerNodeProcessors = 0;
+        long extraModelMemoryBytes = 0;
+        int extraProcessors = 0;
+        long removeNodeMemoryInBytes = 0;
+        long perNodeMemoryOverheadInBytes = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+
+        MlAutoscalingStats expectedStats = new MlAutoscalingStats(
+            existingNodes,
+            existingPerNodeMemoryBytes,
+            existingTotalModelMemoryBytes,
+            totalExistingProcessors,
+            minNodes,
+            extraPerNodeModelMemoryBytes,
+            extraPerNodeProcessors,
+            extraModelMemoryBytes,
+            extraProcessors,
+            removeNodeMemoryInBytes,
+            perNodeMemoryOverheadInBytes
+        );
+
+        ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(testDescription, expectedStats);
+        return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
+    }
+
+    private static TestCase WhenUpdateTrainedModelDeployment_ThenNoScale_GivenDeploymentGetsSmallerButAllNodesAreStillRequired(int seed) {
+        String testDescription = "test scaling up when updating existing deployment to be smaller but all nodes are still required";
+
+        // Generic settings
+        ClusterSettings clusterSettings = createClusterSettings();
+        MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
+        Settings settings = createSettings();
+
+        // TrainedModelAssignments
+        int numAllocationsRequestedPreviously = 4;
+        int updatedNumAllocations = 3;
+        DiscoveryNodes nodes = createDiscoveryNode(8, numAllocationsRequestedPreviously);
+        int numAssignments = 1;
+        Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
+        // assignment 1 - already deployed - just updated to be smaller
+        {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(updatedNumAllocations, seed);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STARTED);
+            tmaBuilder.addRoutingEntry(
+                NODE_NAME_PREFIX + 0,
+                new RoutingInfo(numAllocationsRequestedPreviously, numAllocationsRequestedPreviously, RoutingState.STARTED, null)
+            );
+            assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
+        }
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
+
+        // Cluster state
+        ClusterState clusterState = createClusterState(trainedModelAssignmentMetadata, nodes);
+
+        // expected stats:
+        int existingNodes = clusterState.nodes().getSize();
+        long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
+        long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
+        int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
+        int minNodes = 3; // TODO understand why this value
+        long extraPerNodeModelMemoryBytes = 0;
+        int extraPerNodeProcessors = 0;
+        long extraModelMemoryBytes = 0;
+        int extraProcessors = 0;
+        long removeNodeMemoryInBytes = 0;
+        long perNodeMemoryOverheadInBytes = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+
+        MlAutoscalingStats expectedStats = new MlAutoscalingStats(
+            existingNodes,
+            existingPerNodeMemoryBytes,
+            existingTotalModelMemoryBytes,
+            totalExistingProcessors,
+            minNodes,
+            extraPerNodeModelMemoryBytes,
+            extraPerNodeProcessors,
+            extraModelMemoryBytes,
+            extraProcessors,
+            removeNodeMemoryInBytes,
+            perNodeMemoryOverheadInBytes
+        );
+
+        ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(testDescription, expectedStats);
+        return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
+    }
+
+    private static TestCase WhenUpdateTrainedModelDeployment_ThenScaleDown_GivenDeploymentGetsSmaller(int seed) {
+        String testDescription = "test scaling down when updating existing deployment to be smaller";
+        // TODO change this test to use threadsPerAllocation to accurately require a larger node size which then needs to be scaled down
+        // when
+        // threadsPerAllocation gets updated to a smaller number
+
+        // Generic settings
+        ClusterSettings clusterSettings = createClusterSettings();
+        MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
+        Settings settings = createSettings();
+
+        // TrainedModelAssignments
+        int numAllocationsRequestedPreviously = 8;
+        int updatedNumAllocations = 2;
+        DiscoveryNodes nodes = createDiscoveryNode(16, numAllocationsRequestedPreviously);
+        int numAssignments = 1;
+        Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
+        // assignment 1
+        {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(updatedNumAllocations, seed);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STARTED);
+            tmaBuilder.addRoutingEntry(
+                NODE_NAME_PREFIX + 0,
+                new RoutingInfo(updatedNumAllocations, updatedNumAllocations, RoutingState.STARTED, null)
+            );
+            assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
+        }
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
+
+        // Cluster state
+        ClusterState clusterState = createClusterState(trainedModelAssignmentMetadata, nodes);
+
+        // expected stats:
+        int existingNodes = clusterState.nodes().getSize();
+        long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
+        long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
+        int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
+        int minNodes = 3; // TODO understand why this value
+        long extraPerNodeModelMemoryBytes = 0;
+        int extraPerNodeProcessors = 0;
+        long extraModelMemoryBytes = 0;
+        int extraProcessors = 0;
+        long removeNodeMemoryInBytes = 1;
+        long perNodeMemoryOverheadInBytes = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+
+        MlAutoscalingStats expectedStats = new MlAutoscalingStats(
+            existingNodes,
+            existingPerNodeMemoryBytes,
+            existingTotalModelMemoryBytes,
+            totalExistingProcessors,
+            minNodes,
+            extraPerNodeModelMemoryBytes,
+            extraPerNodeProcessors,
+            extraModelMemoryBytes,
+            extraProcessors,
+            removeNodeMemoryInBytes,
+            perNodeMemoryOverheadInBytes
+        );
+
+        ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(testDescription, expectedStats);
+        return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
+    }
+
+    private static TestCase WhenStoppingTrainedModelDeployment_ThenNoScale_GivenAllNodesAreStillRequired(int seed) {
+        String testDescription = "test scaling when the existing deployments require the same nodes when as small deployment is stopping";
+
+        // Generic settings
+        ClusterSettings clusterSettings = createClusterSettings();
+        MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
+        Settings settings = createSettings();
+
+        // TrainedModelAssignments;
+        DiscoveryNodes nodes = createDiscoveryNode(8, 4);
+        int numAssignments = 2;
+        Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
+        // assignment 1 - has 3 allocations
+        {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(3, seed);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STARTED);
+            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(3, 3, RoutingState.STARTED, null));
+            assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
+        }
+        // assignment 2 - is stopping, has 1 allocation
+        {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(1, seed);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STOPPING);
+            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(1, 1, RoutingState.STOPPING, "stopping deployment"));
+            assignments.put("TrainedModelAssignment-" + seed + "-" + 2, tmaBuilder.build());
+        }
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
+
+        // Cluster state
+        ClusterState clusterState = createClusterState(trainedModelAssignmentMetadata, nodes);
+
+        // expected stats:
+        int existingNodes = clusterState.nodes().getSize();
+        long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
+        long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
+        int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
+        int minNodes = 3; // TODO understand why this value
+        long extraPerNodeModelMemoryBytes = 0;
+        int extraPerNodeProcessors = 0;
+        long extraModelMemoryBytes = 0;
+        int extraProcessors = 0;
+        long removeNodeMemoryInBytes = 0;
+        long perNodeMemoryOverheadInBytes = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+
+        MlAutoscalingStats expectedStats = new MlAutoscalingStats(
+            existingNodes,
+            existingPerNodeMemoryBytes,
+            existingTotalModelMemoryBytes,
+            totalExistingProcessors,
+            minNodes,
+            extraPerNodeModelMemoryBytes,
+            extraPerNodeProcessors,
+            extraModelMemoryBytes,
+            extraProcessors,
+            removeNodeMemoryInBytes,
+            perNodeMemoryOverheadInBytes
+        );
+
+        ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(testDescription, expectedStats);
+        return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
+    }
+
+    private static TestCase WhenStoppedTrainedModelDeployment_ThenNoScale_GivenAllNodesAreStillRequired(int seed) {
+        String testDescription = "test scaling when the existing deployments require the same nodes when as small deployment is stopped";
+
+        // Generic settings
+        ClusterSettings clusterSettings = createClusterSettings();
+        MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
+        Settings settings = createSettings();
+
+        // TrainedModelAssignments;
+        DiscoveryNodes nodes = createDiscoveryNode(8, 4);
+        int numAssignments = 2;
+        Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
+        // assignment 1 - has 3 allocations
+        {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(3, seed);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STARTED);
+            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(3, 3, RoutingState.STARTED, null));
+            assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
+        }
+        // assignment 2 - is stopping, has 1 allocation
+        {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(1, seed);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STOPPING);
+            tmaBuilder.clearNodeRoutingTable();
+        }
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
+
+        // Cluster state
+        ClusterState clusterState = createClusterState(trainedModelAssignmentMetadata, nodes);
+
+        // expected stats:
+        int existingNodes = clusterState.nodes().getSize();
+        long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
+        long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
+        int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
+        int minNodes = 3; // TODO understand why this value
+        long extraPerNodeModelMemoryBytes = 0;
+        int extraPerNodeProcessors = 0;
+        long extraModelMemoryBytes = 0;
+        int extraProcessors = 0;
+        long removeNodeMemoryInBytes = 0;
+        long perNodeMemoryOverheadInBytes = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+
+        MlAutoscalingStats expectedStats = new MlAutoscalingStats(
+            existingNodes,
+            existingPerNodeMemoryBytes,
+            existingTotalModelMemoryBytes,
+            totalExistingProcessors,
+            minNodes,
+            extraPerNodeModelMemoryBytes,
+            extraPerNodeProcessors,
+            extraModelMemoryBytes,
+            extraProcessors,
+            removeNodeMemoryInBytes,
+            perNodeMemoryOverheadInBytes
+        );
+
+        ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(testDescription, expectedStats);
+        return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
+    }
+
+    private static TestCase WhenStopTrainedModelDeployment_ThenNoScale_GivenAllNodesAreStillRequired(int seed) {
+        String testDescription = "test scaling when the existing deployments require the same nodes after a small deployment was removed";
+
+        // Generic settings
+        ClusterSettings clusterSettings = createClusterSettings();
+        MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
+        Settings settings = createSettings();
+
+        // TrainedModelAssignments;
+        DiscoveryNodes nodes = createDiscoveryNode(8, 4);
+        int numAssignments = 1;
+        Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
+        // assignment 1 - has 3 allocations
+        {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(3, seed);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STARTED);
+            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(3, 3, RoutingState.STARTED, null));
+            assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
+        }
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
+
+        // Cluster state
+        ClusterState clusterState = createClusterState(trainedModelAssignmentMetadata, nodes);
+
+        // expected stats:
+        int existingNodes = clusterState.nodes().getSize();
+        long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
+        long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
+        int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
+        int minNodes = 3; // TODO understand why this value
+        long extraPerNodeModelMemoryBytes = 0;
+        int extraPerNodeProcessors = 0;
+        long extraModelMemoryBytes = 0;
+        int extraProcessors = 0;
+        long removeNodeMemoryInBytes = 0;
+        long perNodeMemoryOverheadInBytes = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+
+        MlAutoscalingStats expectedStats = new MlAutoscalingStats(
+            existingNodes,
+            existingPerNodeMemoryBytes,
+            existingTotalModelMemoryBytes,
+            totalExistingProcessors,
+            minNodes,
+            extraPerNodeModelMemoryBytes,
+            extraPerNodeProcessors,
+            extraModelMemoryBytes,
+            extraProcessors,
+            removeNodeMemoryInBytes,
+            perNodeMemoryOverheadInBytes
+        );
+
+        ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(testDescription, expectedStats);
+        return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
+    }
+
+    private static TestCase WhenStopTrainedModelDeployment_ThenScaledown_GivenDeploymentRequiredAWholeNode(int seed) {
+        String testDescription = "test scaling down when the removed deployment required a whole node";
+        // Generic settings
+        ClusterSettings clusterSettings = createClusterSettings();
+        MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
+        Settings settings = createSettings();
+
+        // TrainedModelAssignments;
+        DiscoveryNodes nodes = createSmallDiscoveryNodes(4, 16); // 16 allocations were required, but
+        // the existing assignments now only require 12 allocations, so 2 nodes should be removed, but only 1 node will be removed at a time
+        int numAssignments = 2;
+        Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
+        // assignment 1 - has 12 allocations
+        {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(12, seed);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STARTED);
+            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(12, 12, RoutingState.STARTED, null));
+            assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
+        }
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
+
+        // Cluster state
+        ClusterState clusterState = createClusterState(trainedModelAssignmentMetadata, nodes);
+
+        // expected stats:
+        int existingNodes = clusterState.nodes().getSize();
+        long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
+        long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
+        int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
+        int minNodes = 3; // TODO understand why this value
+        long extraPerNodeModelMemoryBytes = 0;
+        int extraPerNodeProcessors = 0;
+        long extraModelMemoryBytes = 0;
+        int extraProcessors = 0;
+        long removeNodeMemoryInBytes = calculateExistingPerNodeMemoryBytes(clusterState); // we need to remove a whole node
+        long perNodeMemoryOverheadInBytes = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+
+        MlAutoscalingStats expectedStats = new MlAutoscalingStats(
+            existingNodes,
+            existingPerNodeMemoryBytes,
+            existingTotalModelMemoryBytes,
+            totalExistingProcessors,
+            minNodes,
+            extraPerNodeModelMemoryBytes,
+            extraPerNodeProcessors,
+            extraModelMemoryBytes,
+            extraProcessors,
+            removeNodeMemoryInBytes,
+            perNodeMemoryOverheadInBytes
+        );
+
+        ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(testDescription, expectedStats);
+        return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
+    }
 
 }

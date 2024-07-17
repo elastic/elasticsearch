@@ -713,7 +713,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.unregister(testHarness.shardId);
 
             testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false);
-            testHarness.commitService.markRecoveredBcc(testHarness.shardId, indexingShardState.v1(), indexingShardState.v2());
+            testHarness.commitService.markRecoveredBcc(
+                testHarness.shardId,
+                indexingShardState.latestCommit(),
+                indexingShardState.unreferencedBlobs()
+            );
 
             testHarness.commitService.onCommitCreation(commitRef);
             PlainActionFuture<Void> future2 = new PlainActionFuture<>();
@@ -1295,13 +1299,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.unregister(testHarness.shardId);
 
             testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false);
-            testHarness.commitService.markRecoveredBcc(testHarness.shardId, indexingShardState.v1(), indexingShardState.v2());
+            testHarness.commitService.markRecoveredBcc(
+                testHarness.shardId,
+                indexingShardState.latestCommit(),
+                indexingShardState.unreferencedBlobs()
+            );
 
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
             StatelessCommitRef recoveryCommit = initialCommits.get(initialCommits.size() - 1);
-            assert recoveryCommit.getGeneration() == indexingShardState.v1().last().generation();
+            assert recoveryCommit.getGeneration() == indexingShardState.latestCommit().last().generation();
             commitService.markCommitDeleted(shardId, recoveryCommit.getGeneration());
             commitService.getIndexEngineLocalReaderListenerForShard(shardId)
                 .onLocalReaderClosed(recoveryCommit.getGeneration(), Set.of(getPrimaryTermAndGenerationForCommit(mergedCommit)));
@@ -1416,10 +1424,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
 
             testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false);
-            testHarness.commitService.markRecoveredBcc(testHarness.shardId, indexingShardState.v1(), indexingShardState.v2());
+            testHarness.commitService.markRecoveredBcc(
+                testHarness.shardId,
+                indexingShardState.latestCommit(),
+                indexingShardState.unreferencedBlobs()
+            );
 
             StatelessCommitRef recoveryCommit = mergedCommit;
-            assert recoveryCommit.getGeneration() == indexingShardState.v1().last().generation();
+            assert recoveryCommit.getGeneration() == indexingShardState.latestCommit().last().generation();
 
             // The search node is still using commit 9, that contains references to all previous commits;
             // therefore we should retain all commits.

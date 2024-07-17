@@ -21,7 +21,6 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -51,7 +50,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 
@@ -148,25 +146,22 @@ class StatelessIndexEventListener implements IndexEventListener {
 
     private void beforeRecoveryIndexShard(IndexShard indexShard, BlobContainer existingBlobContainer, ActionListener<Void> listener)
         throws IOException {
-        final Set<BlobFile> unreferencedFiles;
-        final BatchedCompoundCommit batchedCompoundCommit;
+        final ObjectStoreService.IndexingShardState indexingShardState;
         if (existingBlobContainer != null) {
-            var state = ObjectStoreService.readIndexingShardState(existingBlobContainer, indexShard.getOperationPrimaryTerm());
-            batchedCompoundCommit = state.v1();
-            unreferencedFiles = state.v2();
+            indexingShardState = ObjectStoreService.readIndexingShardState(existingBlobContainer, indexShard.getOperationPrimaryTerm());
         } else {
-            batchedCompoundCommit = null;
-            unreferencedFiles = null;
+            indexingShardState = ObjectStoreService.IndexingShardState.EMPTY;
         }
-        logBootstrapping(indexShard, batchedCompoundCommit);
+        logBootstrapping(indexShard, indexingShardState.latestCommit());
 
         assert indexShard.routingEntry().isPromotableToPrimary();
         ActionListener.completeWith(listener, () -> {
             final Store store = indexShard.store();
             final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
-            if (batchedCompoundCommit != null) {
-                indexDirectory.updateCommit(batchedCompoundCommit.last(), null);
-                warmingService.warmCacheForShardRecovery(indexShard, batchedCompoundCommit.last());
+            if (indexingShardState.latestCommit() != null) {
+                StatelessCompoundCommit lastCommit = indexingShardState.latestCommit().last();
+                indexDirectory.updateCommit(lastCommit, null);
+                warmingService.warmCacheForShardRecovery("indexing", indexShard, lastCommit);
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
@@ -184,8 +179,12 @@ class StatelessIndexEventListener implements IndexEventListener {
                 bootstrap(indexShard, store);
             }
 
-            if (batchedCompoundCommit != null) {
-                statelessCommitService.markRecoveredBcc(indexShard.shardId(), batchedCompoundCommit, unreferencedFiles);
+            if (indexingShardState.latestCommit() != null) {
+                statelessCommitService.markRecoveredBcc(
+                    indexShard.shardId(),
+                    indexingShardState.latestCommit(),
+                    indexingShardState.unreferencedBlobs()
+                );
             }
             statelessCommitService.addConsumerForNewUploadedBcc(indexShard.shardId(), info -> {
                 for (var compoundCommit : info.uploadedBcc().compoundCommits()) {
@@ -257,7 +256,7 @@ class StatelessIndexEventListener implements IndexEventListener {
 
                     searchDirectory.updateLatestUploadInfo(lastUploaded, compoundCommit.primaryTermAndGeneration(), nodeId);
                     searchDirectory.updateCommit(compoundCommit);
-                    warmingService.warmCacheForShardRecovery(indexShard, compoundCommit);
+                    warmingService.warmCacheForShardRecovery("search", indexShard, compoundCommit);
                     return null;
                 })), storeDecRef)
             );

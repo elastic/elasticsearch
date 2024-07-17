@@ -13,16 +13,11 @@ import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class KeywordFieldDataGenerator implements FieldDataGenerator {
-    public KeywordFieldDataGenerator() {
-    }
+    public KeywordFieldDataGenerator() {}
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {

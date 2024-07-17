@@ -8,10 +8,6 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
-
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -34,10 +30,7 @@ public class DataGeneratorTests extends ESTestCase {
         }
     }
 
-    // 924DC4A930E27829:43487D354D73E31C
     public void testDataGeneratorProducesValidMappingAndDocument() throws IOException {
-        System.out.println(RandomizedContext.current().getRunnerSeedAsString());
-
         // Let's keep number of fields under 1000 field limit
         var dataGenerator = new DataGenerator(new DataGeneratorSpecification(10, 3));
 

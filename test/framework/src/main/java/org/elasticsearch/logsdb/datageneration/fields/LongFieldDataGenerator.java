@@ -17,8 +17,7 @@ import java.io.IOException;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 
 public class LongFieldDataGenerator implements FieldDataGenerator {
-    public LongFieldDataGenerator() {
-    }
+    public LongFieldDataGenerator() {}
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {

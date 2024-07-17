@@ -8,22 +8,10 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.logsdb.datageneration.fields.KeywordFieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.LongFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.ObjectFieldDataGenerator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
-import static org.elasticsearch.test.ESTestCase.randomDouble;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 /**
  * Entry point of data generation logic.

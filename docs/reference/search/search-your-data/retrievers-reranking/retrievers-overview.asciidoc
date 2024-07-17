@@ -34,7 +34,7 @@ propagated to its sub retrievers.
 +
 Sub retrievers may not use elements that are restricted by having a compound retriever as part of the retriever tree.
 See the <<rrf-using-multiple-standard-retrievers,RRF documentation>> for detailed examples and information on how to use the RRF retriever.
-* *`text_similarity_reranker` Retriever*. Used for <<semantic-reranking,semantic reranking>>.
+* <<text-similarity-reranker-retriever,*Text Similarity Re-ranker Retriever*>>. Used for <<semantic-reranking,semantic reranking>>.
 Requires first creating a `rerank` task using the <<put-inference-api,{es} Inference API>>.
 
 [discrete]

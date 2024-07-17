@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,11 +31,14 @@ public class RuleParams implements ToXContentObject, Writeable {
         ConstructingObjectParser<RuleParams, Void> parser = new ConstructingObjectParser<>(
             RULE_PARAMS_FIELD.getPreferredName(),
             ignoreUnknownFields,
-            a -> new RuleParams((RuleParamsForForceTimeShift) a[0]));
+            a -> new RuleParams((RuleParamsForForceTimeShift) a[0])
+        );
 
-        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                                RuleParamsForForceTimeShift.LENIENT_PARSER,
-                                FORCE_TIME_SHIFT_FIELD);
+        parser.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            RuleParamsForForceTimeShift.LENIENT_PARSER,
+            FORCE_TIME_SHIFT_FIELD
+        );
         return parser;
     }
 
@@ -45,6 +47,7 @@ public class RuleParams implements ToXContentObject, Writeable {
     public RuleParams() {
         this.forceTimeShift = null;
     }
+
     public RuleParams(RuleParamsForForceTimeShift forceTimeShift) {
         this.forceTimeShift = forceTimeShift;
     }
@@ -53,7 +56,6 @@ public class RuleParams implements ToXContentObject, Writeable {
         // initialize optional forceTimeShift from in
         forceTimeShift = in.readOptionalWriteable(RuleParamsForForceTimeShift::new);
     }
-
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

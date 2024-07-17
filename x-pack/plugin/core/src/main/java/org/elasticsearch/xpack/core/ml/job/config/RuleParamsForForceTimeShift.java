@@ -28,7 +28,8 @@ public class RuleParamsForForceTimeShift implements ToXContentObject, Writeable 
         ConstructingObjectParser<RuleParamsForForceTimeShift, Void> parser = new ConstructingObjectParser<>(
             TYPE_FIELD.getPreferredName(),
             ignoreUnknownFields,
-            a -> new RuleParamsForForceTimeShift((Long) a[0]));
+            a -> new RuleParamsForForceTimeShift((Long) a[0])
+        );
         parser.declareString(ConstructingObjectParser.constructorArg(), TIME_SHIFT_AMOUNT_FIELD);
         return parser;
     }

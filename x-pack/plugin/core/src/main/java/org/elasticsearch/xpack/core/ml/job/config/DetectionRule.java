@@ -47,9 +47,7 @@ public class DetectionRule implements ToXContentObject, Writeable {
             ignoreUnknownFields ? RuleCondition.LENIENT_PARSER : RuleCondition.STRICT_PARSER,
             CONDITIONS_FIELD
         );
-        parser.declareObject(Builder::setParams,
-            ignoreUnknownFields ? RuleParams.LENIENT_PARSER : RuleParams.STRICT_PARSER,
-            PARAMS_FIELD);
+        parser.declareObject(Builder::setParams, ignoreUnknownFields ? RuleParams.LENIENT_PARSER : RuleParams.STRICT_PARSER, PARAMS_FIELD);
 
         return parser;
     }

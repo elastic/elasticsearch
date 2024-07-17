@@ -8,88 +8,88 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
+import com.carrotsearch.randomizedtesting.RandomizedContext;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
-
-@SuppressForbidden(
-    reason = "There is a lot of randomness in the code we are testing here. "
-        + "We want one static snapshot test so that we can write strong asserts."
-)
-@Seed("CC050EBD3CB4D353")
 public class DataGeneratorSnapshotTests extends ESTestCase {
-    public void testSnapshot() throws IOException {
-        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(5, 3));
+    public void testSnapshot() throws Exception {
+        // This is a workaround to have a test with static random seed.
+        // There is a lot of randomness in the code we are testing here.
+        // We want one static snapshot test so that we can write strong asserts
+        // and see the result that code produces.
+        RandomizedContext.current().runWithPrivateRandomness(-2692230890836950060L, () -> {
+            var dataGenerator = new DataGenerator(new DataGeneratorSpecification(5, 3));
 
-        var mapping = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
-        dataGenerator.writeMapping(mapping);
+            var mapping = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
+            dataGenerator.writeMapping(mapping);
 
-        var document = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
-        dataGenerator.generateDocument(document);
+            var document = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
+            dataGenerator.generateDocument(document);
 
-        var expectedMapping = """
-            {
-              "_doc" : {
-                "properties" : {
-                  "WUUOoFnpLDUIryHzkHuVAqqnTkBopIdzZuloVPpbjL" : {
-                    "type" : "keyword"
-                  },
-                  "XHCheCPhJCPhGaqXSrkURPhlfEMDDfftkFnWb" : {
-                    "type" : "keyword"
-                  },
-                  "QHcrBsDwzJzAnBXVbWdn" : {
-                    "type" : "long"
-                  },
-                  "jdBjxWEfbUOwfymlroNoTyFuRDzpUjnBL" : {
+            var expectedMapping = """
+                {
+                  "_doc" : {
                     "properties" : {
-                      "cVglqwvNgCF" : {
+                      "WUUOoFnpLDUIryHzkHuVAqqnTkBopIdzZuloVPpbjL" : {
                         "type" : "keyword"
                       },
-                      "ukXrhVCBqnmxxhodYCyCEcRfgHpJgfz" : {
+                      "XHCheCPhJCPhGaqXSrkURPhlfEMDDfftkFnWb" : {
+                        "type" : "keyword"
+                      },
+                      "QHcrBsDwzJzAnBXVbWdn" : {
                         "type" : "long"
                       },
-                      "dkUCNNHoIDGtEFBzwgSQruICTjSWBsLEMoNR" : {
-                        "type" : "long"
-                      },
-                      "rdNKpBHzdvwMcWxMNAUgfyirPXzNNyIaKkV" : {
+                      "jdBjxWEfbUOwfymlroNoTyFuRDzpUjnBL" : {
                         "properties" : {
-                          "cvlZWMzfBefQqdVeXtxJcONamiDIMRciTkctr" : {
+                          "cVglqwvNgCF" : {
+                            "type" : "keyword"
+                          },
+                          "ukXrhVCBqnmxxhodYCyCEcRfgHpJgfz" : {
                             "type" : "long"
+                          },
+                          "dkUCNNHoIDGtEFBzwgSQruICTjSWBsLEMoNR" : {
+                            "type" : "long"
+                          },
+                          "rdNKpBHzdvwMcWxMNAUgfyirPXzNNyIaKkV" : {
+                            "properties" : {
+                              "cvlZWMzfBefQqdVeXtxJcONamiDIMRciTkctr" : {
+                                "type" : "long"
+                              }
+                            }
                           }
                         }
+                      },
+                      "KLlJwqHjLYSu" : {
+                        "type" : "keyword"
                       }
                     }
-                  },
-                  "KLlJwqHjLYSu" : {
-                    "type" : "keyword"
                   }
-                }
-              }
-            }""";
+                }""";
 
-        var expectedDocument = """
-            {
-              "WUUOoFnpLDUIryHzkHuVAqqnTkBopIdzZuloVPpbjL" : "kwaGeKdalYbOE",
-              "XHCheCPhJCPhGaqXSrkURPhlfEMDDfftkFnWb" : "iASNe",
-              "QHcrBsDwzJzAnBXVbWdn" : -2703143610541897792,
-              "jdBjxWEfbUOwfymlroNoTyFuRDzpUjnBL" : {
-                "cVglqwvNgCF" : "LWE",
-                "ukXrhVCBqnmxxhodYCyCEcRfgHpJgfz" : 7100672347108481398,
-                "dkUCNNHoIDGtEFBzwgSQruICTjSWBsLEMoNR" : -2819217416523838608,
-                "rdNKpBHzdvwMcWxMNAUgfyirPXzNNyIaKkV" : {
-                  "cvlZWMzfBefQqdVeXtxJcONamiDIMRciTkctr" : -7590118516953240854
-                }
-              },
-              "KLlJwqHjLYSu" : "imc"
-            }""";
+            var expectedDocument = """
+                {
+                  "WUUOoFnpLDUIryHzkHuVAqqnTkBopIdzZuloVPpbjL" : "kwaGeKdalYbOE",
+                  "XHCheCPhJCPhGaqXSrkURPhlfEMDDfftkFnWb" : "iASNe",
+                  "QHcrBsDwzJzAnBXVbWdn" : -2703143610541897792,
+                  "jdBjxWEfbUOwfymlroNoTyFuRDzpUjnBL" : {
+                    "cVglqwvNgCF" : "LWE",
+                    "ukXrhVCBqnmxxhodYCyCEcRfgHpJgfz" : 7100672347108481398,
+                    "dkUCNNHoIDGtEFBzwgSQruICTjSWBsLEMoNR" : -2819217416523838608,
+                    "rdNKpBHzdvwMcWxMNAUgfyirPXzNNyIaKkV" : {
+                      "cvlZWMzfBefQqdVeXtxJcONamiDIMRciTkctr" : -7590118516953240854
+                    }
+                  },
+                  "KLlJwqHjLYSu" : "imc"
+                }""";
 
-        assertEquals(expectedMapping, Strings.toString(mapping));
-        assertEquals(expectedDocument, Strings.toString(document));
+            assertEquals(expectedMapping, Strings.toString(mapping));
+            assertEquals(expectedDocument, Strings.toString(document));
+
+            return null;
+        });
     }
 }

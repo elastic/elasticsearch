@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -160,12 +161,15 @@ public class SingleValueQuery extends Query {
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field + "]");
             }
+            SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH), new Warnings(source));
+            org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
+            if (rewrite instanceof MatchAllDocsQuery) {
+                // nothing to filter
+                return next.toQuery(context);
+            }
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(next.toQuery(context), BooleanClause.Occur.FILTER);
-            builder.add(
-                new SingleValueMatchQuery(context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH), new Warnings(source)),
-                BooleanClause.Occur.FILTER
-            );
+            builder.add(rewrite, BooleanClause.Occur.FILTER);
             return builder.build();
         }
 

@@ -121,9 +121,10 @@ class SumDoubleAggregator {
                 if (state.hasValue(si) && si < state.values.size()) {
                     var value = state.values.get(si);
                     if (Double.isFinite(value) == false) {
-                        return driverContext.blockFactory().newConstantNullBlock(1);
+                        builder.appendNull();
+                    } else {
+                        builder.appendDouble(state.values.get(si));
                     }
-                    builder.appendDouble(state.values.get(si));
                 } else {
                     builder.appendNull();
                 }

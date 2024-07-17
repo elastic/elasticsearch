@@ -40,7 +40,7 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
 
     @Override
     public ClusterState performAction(Index index, ClusterState currentState) {
-        IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+        IndexMetadata indexMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
 
         long newIndexTime;
 

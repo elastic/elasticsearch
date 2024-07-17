@@ -2199,7 +2199,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
-        final IndexMetadata currentWriteIndexMetadata = clusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
+        final IndexMetadata currentWriteIndexMetadata = clusterState.metadata().projectMetadata.getIndexSafe(dataStream.getWriteIndex());
 
         // When all shard stats request fail, we cannot forecast the shard size
         assertThat(currentWriteIndexMetadata.getForecastedShardSizeInBytes().isEmpty(), is(equalTo(true)));

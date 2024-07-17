@@ -35,7 +35,7 @@ public class ResizeAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.unassignedInfo() != null && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             // we only make decisions here if we have an unassigned info and we have to recover from another index ie. split / shrink
-            final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+            final IndexMetadata indexMetadata = allocation.metadata().projectMetadata.getIndexSafe(shardRouting.index());
             final Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
             assert resizeSourceIndex != null;
             final IndexMetadata sourceIndexMetadata = allocation.metadata().projectMetadata.index(resizeSourceIndex);
@@ -81,7 +81,7 @@ public class ResizeAllocationDecider extends AllocationDecider {
     @Override
     public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.unassignedInfo() != null && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-            var targetIndexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+            var targetIndexMetadata = allocation.metadata().projectMetadata.getIndexSafe(shardRouting.index());
             var sourceIndexMetadata = allocation.metadata().projectMetadata.index(targetIndexMetadata.getResizeSourceIndex());
             if (sourceIndexMetadata == null) {
                 return Optional.of(Set.of());// source index not found

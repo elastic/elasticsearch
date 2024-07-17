@@ -61,7 +61,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         assertSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
         for (IndexMetadata indexMetadata : upgrade.getProject()) {
-            assertTrue(metadata.hasIndexMetadata(indexMetadata));
+            assertTrue(metadata.getProject().hasIndexMetadata(indexMetadata));
         }
     }
 
@@ -82,7 +82,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         assertNotSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
         for (IndexMetadata indexMetadata : upgrade.getProject()) {
-            assertFalse(metadata.hasIndexMetadata(indexMetadata));
+            assertFalse(metadata.getProject().hasIndexMetadata(indexMetadata));
         }
     }
 
@@ -93,7 +93,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         assertSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
         for (IndexMetadata indexMetadata : upgrade.getProject()) {
-            assertTrue(metadata.hasIndexMetadata(indexMetadata));
+            assertTrue(metadata.getProject().hasIndexMetadata(indexMetadata));
         }
     }
 
@@ -151,7 +151,7 @@ public class GatewayMetaStateTests extends ESTestCase {
             equalTo(10)
         );
         for (IndexMetadata indexMetadata : upgrade.getProject()) {
-            assertTrue(metadata.hasIndexMetadata(indexMetadata));
+            assertTrue(metadata.getProject().hasIndexMetadata(indexMetadata));
         }
     }
 

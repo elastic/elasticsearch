@@ -305,7 +305,7 @@ public class MetadataIndexStateService {
     ) {
         final Set<Index> indicesToClose = new HashSet<>();
         for (Index index : indices) {
-            final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+            final IndexMetadata indexMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
             if (indexMetadata.getState() != IndexMetadata.State.CLOSE) {
                 indicesToClose.add(index);
             } else {
@@ -1092,7 +1092,7 @@ public class MetadataIndexStateService {
         private ClusterState openIndices(final Index[] indices, final ClusterState currentState) {
             final List<IndexMetadata> indicesToOpen = new ArrayList<>(indices.length);
             for (Index index : indices) {
-                final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+                final IndexMetadata indexMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
                 if (indexMetadata.getState() != IndexMetadata.State.OPEN) {
                     indicesToOpen.add(indexMetadata);
                 } else if (currentState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID)) {
@@ -1159,7 +1159,9 @@ public class MetadataIndexStateService {
             );
             for (IndexMetadata previousIndexMetadata : indicesToOpen) {
                 if (previousIndexMetadata.getState() != IndexMetadata.State.OPEN) {
-                    routingTable.addAsFromCloseToOpen(updatedState.metadata().getIndexSafe(previousIndexMetadata.getIndex()));
+                    routingTable.addAsFromCloseToOpen(
+                        updatedState.metadata().projectMetadata.getIndexSafe(previousIndexMetadata.getIndex())
+                    );
                 }
             }
             return ClusterState.builder(updatedState).routingTable(routingTable).build();

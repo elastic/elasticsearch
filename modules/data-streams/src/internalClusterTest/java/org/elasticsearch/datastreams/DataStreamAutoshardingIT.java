@@ -154,7 +154,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
 
             ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
             DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
-            IndexMetadata secondGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+            IndexMetadata secondGenerationMeta = clusterStateAfterRollover.metadata().projectMetadata.getIndexSafe(
+                dataStream.getWriteIndex()
+            );
 
             // we auto sharded up to 5 shards
             assertThat(secondGenerationMeta.getNumberOfShards(), is(5));
@@ -209,7 +211,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
 
             ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
             DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
-            IndexMetadata thirdGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+            IndexMetadata thirdGenerationMeta = clusterStateAfterRollover.metadata().projectMetadata.getIndexSafe(
+                dataStream.getWriteIndex()
+            );
 
             // we remained on 5 shards due to the increase shards cooldown
             assertThat(thirdGenerationMeta.getNumberOfShards(), is(5));
@@ -264,7 +268,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
 
                 ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
                 DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
-                IndexMetadata fourthGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+                IndexMetadata fourthGenerationMeta = clusterStateAfterRollover.metadata().projectMetadata.getIndexSafe(
+                    dataStream.getWriteIndex()
+                );
 
                 // we auto-sharded up to 7 shards as there was no cooldown period
                 assertThat(fourthGenerationMeta.getNumberOfShards(), is(7));
@@ -316,7 +322,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
 
             ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
             DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
-            IndexMetadata secondGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+            IndexMetadata secondGenerationMeta = clusterStateAfterRollover.metadata().projectMetadata.getIndexSafe(
+                dataStream.getWriteIndex()
+            );
 
             // we kept the number of shards to 3 as the reduce shards cooldown prevented us reducing the number of shards
             assertThat(secondGenerationMeta.getNumberOfShards(), is(3));
@@ -378,7 +386,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
 
                 ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
                 DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
-                IndexMetadata thirdGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+                IndexMetadata thirdGenerationMeta = clusterStateAfterRollover.metadata().projectMetadata.getIndexSafe(
+                    dataStream.getWriteIndex()
+                );
 
                 assertThat(thirdGenerationMeta.getNumberOfShards(), is(2));
             } finally {
@@ -437,7 +447,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
 
             ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
             DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
-            IndexMetadata secondGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+            IndexMetadata secondGenerationMeta = clusterStateAfterRollover.metadata().projectMetadata.getIndexSafe(
+                dataStream.getWriteIndex()
+            );
 
             // we auto sharded up to 5 shards
             assertThat(secondGenerationMeta.getNumberOfShards(), is(5));
@@ -483,7 +495,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                 indexDocs(dataStreamName, 10);
                 ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
                 DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
-                IndexMetadata thirdGenerationIndex = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+                IndexMetadata thirdGenerationIndex = clusterStateAfterRollover.metadata().projectMetadata.getIndexSafe(
+                    dataStream.getWriteIndex()
+                );
 
                 // we kept the number of shards to 5 as we did a lazy rollover
                 assertThat(thirdGenerationIndex.getNumberOfShards(), is(5));

@@ -258,7 +258,7 @@ public class DataStreamAutoShardingService {
      */
     private TimeValue getRemainingDecreaseShardsCooldown(Metadata metadata, DataStream dataStream) {
         Index oldestBackingIndex = dataStream.getIndices().get(0);
-        IndexMetadata oldestIndexMeta = metadata.getIndexSafe(oldestBackingIndex);
+        IndexMetadata oldestIndexMeta = metadata.projectMetadata.getIndexSafe(oldestBackingIndex);
 
         return dataStream.getAutoShardingEvent() == null
             // without a pre-existing auto sharding event we wait until the oldest index has been created longer than the decrease_shards
@@ -366,7 +366,7 @@ public class DataStreamAutoShardingService {
         // for reducing the number of shards we look at more than just the write index
         List<IndexWriteLoad> writeLoadsWithinCoolingPeriod = DataStream.getIndicesWithinMaxAgeRange(
             dataStream,
-            metadata::getIndexSafe,
+            metadata.getProject()::getIndexSafe,
             coolingPeriod,
             nowSupplier
         )

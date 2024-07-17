@@ -105,7 +105,7 @@ public class MetadataMappingService {
                     final PutMappingClusterStateUpdateRequest request = task.request;
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         for (Index index : request.indices()) {
-                            final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+                            final IndexMetadata indexMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
                                 MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
                                 indexMapperServices.put(index, mapperService);
@@ -139,7 +139,7 @@ public class MetadataMappingService {
                 MapperService mapperService = indexMapperServices.get(index);
                 // IMPORTANT: always get the metadata from the state since it get's batched
                 // and if we pull it from the indexService we might miss an update etc.
-                final IndexMetadata indexMetadata = currentState.getMetadata().getIndexSafe(index);
+                final IndexMetadata indexMetadata = currentState.getMetadata().projectMetadata.getIndexSafe(index);
                 DocumentMapper existingMapper = mapperService.documentMapper();
                 if (existingMapper != null && existingMapper.mappingSource().equals(mappingUpdateSource)) {
                     continue;

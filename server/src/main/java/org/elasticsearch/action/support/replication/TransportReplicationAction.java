@@ -426,7 +426,9 @@ public abstract class TransportReplicationAction<
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
             try {
                 final ClusterState clusterState = clusterService.state();
-                final IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(primaryShardReference.routingEntry().index());
+                final IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.getIndexSafe(
+                    primaryShardReference.routingEntry().index()
+                );
 
                 final ClusterBlockException blockException = blockExceptions(clusterState, indexMetadata.getIndex().getName());
                 if (blockException != null) {

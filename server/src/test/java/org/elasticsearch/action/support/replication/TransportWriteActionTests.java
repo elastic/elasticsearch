@@ -521,14 +521,14 @@ public class TransportWriteActionTests extends ESTestCase {
         when(indicesService.indexServiceSafe(any(Index.class))).then(invocation -> {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
-            final IndexMetadata indexSafe = state.metadata().getIndexSafe(index);
+            final IndexMetadata indexSafe = state.metadata().projectMetadata.getIndexSafe(index);
             return mockIndexService(indexSafe, clusterService);
         });
         when(indicesService.indexService(any(Index.class))).then(invocation -> {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
             if (state.metadata().projectMetadata.hasIndex(index.getName())) {
-                return mockIndexService(clusterService.state().metadata().getIndexSafe(index), clusterService);
+                return mockIndexService(clusterService.state().metadata().projectMetadata.getIndexSafe(index), clusterService);
             } else {
                 return null;
             }
@@ -575,7 +575,7 @@ public class TransportWriteActionTests extends ESTestCase {
         when(indexShard.isRelocatedPrimary()).thenAnswer(invocationOnMock -> isRelocated.get());
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));
         when(indexShard.getPendingPrimaryTerm()).thenAnswer(
-            i -> clusterService.state().metadata().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id())
+            i -> clusterService.state().metadata().projectMetadata.getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id())
         );
         return indexShard;
     }

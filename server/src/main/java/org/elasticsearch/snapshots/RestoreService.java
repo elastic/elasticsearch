@@ -1790,7 +1790,7 @@ public final class RestoreService implements ClusterStateApplier {
     ) {
         final Metadata metadata = currentState.metadata();
         for (Index index : indices) {
-            final Settings indexSettings = metadata.getIndexSafe(index).getSettings();
+            final Settings indexSettings = metadata.projectMetadata.getIndexSafe(index).getSettings();
             assert "snapshot".equals(INDEX_STORE_TYPE_SETTING.get(indexSettings)) : "not a snapshot backed index: " + index;
 
             final String repositoryUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);

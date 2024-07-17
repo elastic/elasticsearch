@@ -858,7 +858,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
 
         decision = decider.canRemain(
-            metadata.getIndexSafe(test_0.index()),
+            metadata.projectMetadata.getIndexSafe(test_0.index()),
             test_0.initialize(node_0.getId(), null, 0L).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
             routingNode,
             allocation

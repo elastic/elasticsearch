@@ -1321,7 +1321,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         Metadata metadata = clusterState.metadata();
         assertNotNull(metadata);
 
-        IndexMetadata indexMetadata = metadata.getIndexSafe(index);
+        IndexMetadata indexMetadata = metadata.projectMetadata.getIndexSafe(index);
         assertNotNull(indexMetadata);
 
         assertNull(indexMetadata.getLifecyclePolicyName());
@@ -1344,7 +1344,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState, newClusterState);
         Metadata newMetadata = newClusterState.metadata();
         assertNotSame(oldClusterState.metadata(), newMetadata);
-        IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
+        IndexMetadata newIndexMetadata = newMetadata.projectMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().projectMetadata.index(index), newIndexMetadata);
         LifecycleExecutionState newLifecycleState = newClusterState.metadata().projectMetadata.index(index).getLifecycleExecutionState();
         LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().projectMetadata.index(index).getLifecycleExecutionState();
@@ -1395,7 +1395,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState, newClusterState);
         Metadata newMetadata = newClusterState.metadata();
         assertNotSame(oldClusterState.metadata(), newMetadata);
-        IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
+        IndexMetadata newIndexMetadata = newMetadata.projectMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().projectMetadata.index(index), newIndexMetadata);
         LifecycleExecutionState newLifecycleState = newClusterState.metadata().projectMetadata.index(index).getLifecycleExecutionState();
         LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().projectMetadata.index(index).getLifecycleExecutionState();
@@ -1423,7 +1423,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState, newClusterState);
         Metadata newMetadata = newClusterState.metadata();
         assertNotSame(oldClusterState.metadata(), newMetadata);
-        IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
+        IndexMetadata newIndexMetadata = newMetadata.projectMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().projectMetadata.index(index), newIndexMetadata);
         LifecycleExecutionState newLifecycleState = newClusterState.metadata().projectMetadata.index(index).getLifecycleExecutionState();
         LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().projectMetadata.index(index).getLifecycleExecutionState();

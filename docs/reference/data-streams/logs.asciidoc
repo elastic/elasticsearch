@@ -39,7 +39,7 @@ PUT _index_template/my-index-template
 <1> The index mode setting.
 <2> Defining a priority to avoid other index templates with overlapping index patterns potentially overriding the settings.
 
-After this data can be indexed like in any other data stream.
+After the index template is created, you can start indexing data and <<use-a-data-stream,using the data stream>>.
 
 ////
 [source,console]

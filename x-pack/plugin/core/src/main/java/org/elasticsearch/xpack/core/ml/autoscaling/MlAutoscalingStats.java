@@ -14,13 +14,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 
 public record MlAutoscalingStats(
-    int nodes,
-    long perNodeMemoryInBytes,
-    long modelMemoryInBytesSum,
-    int processorsSum,
+    int existingTotalNodes,
+    long existingPerNodeMemoryBytes,
+    long existingTotalModelMemoryBytes,
+    int existingTotalProcessors,
     int minNodes,
-    long extraSingleNodeModelMemoryInBytes,
-    int extraSingleNodeProcessors,
+    long extraPerNodeMemoryBytes,
+    int extraPerNodeNodeProcessors,
     long extraModelMemoryInBytes,
     int extraProcessors,
     long removeNodeMemoryInBytes,
@@ -29,13 +29,13 @@ public record MlAutoscalingStats(
 
     public MlAutoscalingStats(StreamInput in) throws IOException {
         this(
-            in.readVInt(), // nodes
-            in.readVLong(),  // perNodeMemoryInBytes
+            in.readVInt(), // existingTotalNodes
+            in.readVLong(),  // existingPerNodeMemoryBytes
             in.readVLong(), // modelMemoryInBytes
-            in.readVInt(), // processorsSum
+            in.readVInt(), // existingTotalProcessors
             in.readVInt(), // minNodes
-            in.readVLong(), // extraSingleNodeModelMemoryInBytes
-            in.readVInt(), // extraSingleNodeProcessors
+            in.readVLong(), // extraPerNodeMemoryBytes
+            in.readVInt(), // extraPerNodeNodeProcessors
             in.readVLong(), // extraModelMemoryInBytes
             in.readVInt(), // extraProcessors
             in.readVLong(), // removeNodeMemoryInBytes
@@ -45,13 +45,13 @@ public record MlAutoscalingStats(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(nodes);
-        out.writeVLong(perNodeMemoryInBytes);
-        out.writeVLong(modelMemoryInBytesSum);
-        out.writeVLong(processorsSum);
+        out.writeVInt(existingTotalNodes);
+        out.writeVLong(existingPerNodeMemoryBytes);
+        out.writeVLong(existingTotalModelMemoryBytes);
+        out.writeVLong(existingTotalProcessors);
         out.writeVInt(minNodes);
-        out.writeVLong(extraSingleNodeModelMemoryInBytes);
-        out.writeVInt(extraSingleNodeProcessors);
+        out.writeVLong(extraPerNodeMemoryBytes);
+        out.writeVInt(extraPerNodeNodeProcessors);
         out.writeVLong(extraModelMemoryInBytes);
         out.writeVInt(extraProcessors);
         out.writeVLong(removeNodeMemoryInBytes);

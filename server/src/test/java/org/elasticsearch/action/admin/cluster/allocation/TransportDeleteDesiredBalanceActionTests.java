@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -48,7 +49,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
@@ -131,11 +131,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            f -> allocationService.reroute(clusterState, "inital-allocate", f),
-            10,
-            TimeUnit.SECONDS
-        );
+        safeAwait((ActionListener<Void> listener) -> allocationService.reroute(clusterState, "inital-allocate", listener));
 
         var balanceBeforeReset = allocator.getDesiredBalance();
         assertThat(balanceBeforeReset.lastConvergedIndex(), greaterThan(DesiredBalance.INITIAL.lastConvergedIndex()));

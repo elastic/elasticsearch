@@ -35,13 +35,13 @@ PUT _index_template/my-index-template
         "index.mode": "logs" <1>
      }
   },
-  "priority": 500 <2>
+  "priority": 101 <2>
 }
 ----
 // TEST
 
 <1> The index mode setting.
-<2> Defining a priority to avoid other index templates with overlapping index patterns potentially overriding the settings.
+<2> Defining a priority to avoid other index templates with overlapping index patterns potentially overriding the settings. Elasticserch by default ships with an index template with a `logs-*` pattern with a priority of 100. Defining a priority higher than 100 ensures that this index template gets selected over the default index template for `logs-*` pattern.
 
 After the index template is created, you can start indexing data and <<use-a-data-stream,using the data stream>>.
 

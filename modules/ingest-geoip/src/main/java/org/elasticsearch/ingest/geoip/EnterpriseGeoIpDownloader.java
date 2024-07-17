@@ -167,13 +167,11 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         // else, just download everything
         boolean addedSomething = false;
         {
-            EnterpriseGeoIpTaskState _state = state;
-            Set<String> metas = Set.copyOf(_state.getDatabases().keySet());
+            Set<String> existingDatabaseNames = state.getDatabases().keySet();
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
-
                 final String id = entry.getKey();
                 DatabaseConfiguration database = entry.getValue().database();
-                if (metas.contains(database.name() + ".mmdb") == false) {
+                if (existingDatabaseNames.contains(database.name() + ".mmdb") == false) {
                     logger.debug("A new database appeared [{}]", database.name());
 
                     final String accountId = database.maxmind().accountId();

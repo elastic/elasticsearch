@@ -182,10 +182,9 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                             logger.warn("No credentials found to download database [{}], skipping download...", id);
                         } else {
                             processDatabase(holder.get(), database);
+                            addedSomething = true;
                         }
                     }
-
-                    addedSomething = true;
                 }
             }
         }

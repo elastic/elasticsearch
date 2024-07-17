@@ -1737,7 +1737,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     @Override
                     protected void doRun() throws Exception {
-                        var cleanUpAndClose = ActionListener.runBefore(closeListener, this::cleanUp);
+                        var cleanUpAndClose = ActionListener.runBefore(closeListener, () -> {
+                            // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                            // Also closing refreshListeners to prevent us from accumulating any more listeners
+                            // TODO Consider closing the engine asynchronously, but since it should be already be closed,
+                            // a sync call should complete immediately
+                            IOUtils.close(
+                                () -> closeEngine(engine),
+                                globalCheckpointListeners,
+                                refreshListeners,
+                                pendingReplicationActions,
+                                indexShardOperationPermits
+                            );
+                        });
                         if (engine != null && flushEngine) {
                             engine.flushAndClose(cleanUpAndClose);
                         } else {
@@ -1745,22 +1757,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         }
                     }
 
-                    private void cleanUp() throws IOException {
-                        // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                        // Also closing refreshListeners to prevent us from accumulating any more listeners
-                        IOUtils.close(
-                            () -> closeEngine(engine),
-                            globalCheckpointListeners,
-                            refreshListeners,
-                            pendingReplicationActions,
-                            indexShardOperationPermits
-                        );
-                    }
-
                     @Override
                     public void onFailure(Exception e) {
                         closeListener.onFailure(e);
                     }
+
+                    @Override
+                    public String toString() {
+                        return "IndexShard#close[" + shardId + "]";
+                    }
+
                 });
             }
         }

@@ -1303,7 +1303,7 @@ public abstract class Engine implements Closeable {
         future.actionGet();
     }
 
-    /**cl
+    /**
      * checks and removes translog files that no longer need to be retained. See
      * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
      */
@@ -2038,7 +2038,9 @@ public abstract class Engine implements Closeable {
 
     @Override
     public void close() throws IOException {
-        // Called indirectly via try-with-resources or `IOUtils.close` from tests
+        // TODO Called indirectly via try-with-resources or `IOUtils.close` from tests, Ideally, we would remove this method,
+        // and replace it with a blocking `EngineTestCase.close()` call, but it's used in a ton of tests and require
+        // refactoring, so we just check that the method is called from a test thread
         final var threadName = Thread.currentThread().getName();
         assert threadName.startsWith("TEST-") || threadName.startsWith("LuceneTestCase")
             : "Engine#closed was called from Thread[" + threadName + "] which is not a test thread";

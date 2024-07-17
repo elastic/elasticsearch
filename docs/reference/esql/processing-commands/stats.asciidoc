@@ -18,12 +18,15 @@ STATS [column1 =] expression1[, ..., [columnN =] expressionN]
 `columnX`::
 The name by which the aggregated value is returned. If omitted, the name is
 equal to the corresponding expression (`expressionX`).
+If multiple columns have the same name, all but the rightmost column with this
+name will be ignored.
 
 `expressionX`::
 An expression that computes an aggregated value.
 
 `grouping_expressionX`::
 An expression that outputs the values to group by.
+If its name coincides with one of the computed columns, that column will be ignored.
 
 NOTE: Individual `null` values are skipped when computing aggregations.
 

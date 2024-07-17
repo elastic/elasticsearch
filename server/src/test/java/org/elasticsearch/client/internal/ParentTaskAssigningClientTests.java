@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -95,10 +94,11 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
             );
             assertEquals(
                 "fake remote-cluster client",
-                expectThrows(
+                asInstanceOf(
                     UnsupportedOperationException.class,
-                    () -> PlainActionFuture.<ClusterStateResponse, Exception>get(
-                        fut -> remoteClusterClient.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), fut)
+                    safeAwaitFailure(
+                        ClusterStateResponse.class,
+                        listener -> remoteClusterClient.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), listener)
                     )
                 ).getMessage()
             );

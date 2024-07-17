@@ -68,7 +68,6 @@ dependencies {
 
   // access to native functions
   implementation project(':libs:elasticsearch-native')
-  api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"

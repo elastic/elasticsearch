@@ -1757,17 +1757,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return new DenseVectorQuery.Floats(queryVector, name());
         }
 
-        Query createKnnQuery(
-            float[] queryVector,
-            Integer k,
-            int numCands,
-            Query filter,
-            Float similarityThreshold,
-            BitSetProducer parentFilter
-        ) {
-            return createKnnQuery(VectorData.fromFloats(queryVector), k, numCands, filter, similarityThreshold, parentFilter);
-        }
-
         public Query createKnnQuery(
             VectorData queryVector,
             Integer k,

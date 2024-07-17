@@ -49,7 +49,7 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 public class RestRequest implements ToXContent.Params, Traceable {
 
     public static final String SERVERLESS_REQUEST = "serverlessRequest";
-    public static final String OPERATOR_REQUEST = "operatorRequest";
+    static final String OPERATOR_REQUEST = "operatorRequest";
 
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
@@ -635,6 +635,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     private void setParamTrueOnceAndConsume(String param) {
+        // TODO race-conditions?
         if (params.containsKey(param)) {
             throw new IllegalArgumentException("The parameter [" + param + "] is already defined.");
         }

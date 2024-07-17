@@ -13,9 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
@@ -58,12 +60,23 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
     private DefaultOperatorOnlyRegistry operatorOnlyRegistry;
     private OperatorPrivilegesService operatorPrivilegesService;
 
+    private ClusterService clusterService;
+    private FeatureService featureService;
+
     @Before
     public void init() {
         xPackLicenseState = mock(MockLicenseState.class);
         fileOperatorUsersStore = mock(FileOperatorUsersStore.class);
         operatorOnlyRegistry = mock(DefaultOperatorOnlyRegistry.class);
-        operatorPrivilegesService = new DefaultOperatorPrivilegesService(xPackLicenseState, fileOperatorUsersStore, operatorOnlyRegistry);
+        clusterService = mock(ClusterService.class);
+        featureService = mock(FeatureService.class);
+        operatorPrivilegesService = new DefaultOperatorPrivilegesService(
+            xPackLicenseState,
+            fileOperatorUsersStore,
+            operatorOnlyRegistry,
+            clusterService,
+            featureService
+        );
     }
 
     public void testWillMarkThreadContextForAllLicenses() {

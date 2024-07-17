@@ -1082,7 +1082,9 @@ public class Security extends Plugin
                 new OperatorPrivileges.DefaultOperatorPrivilegesService(
                     getLicenseState(),
                     new FileOperatorUsersStore(environment, resourceWatcherService),
-                    operatorOnlyRegistry.get()
+                    operatorOnlyRegistry.get(),
+                    clusterService,
+                    featureService
                 )
             );
         } else {

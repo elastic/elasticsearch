@@ -12,8 +12,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
@@ -26,6 +29,8 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 
 public class OperatorPrivileges {
+
+    public static final NodeFeature SECURITY_OPERATOR_REQUEST_MARKER = new NodeFeature("security.operator_request_marker");
 
     private static final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
 
@@ -87,15 +92,21 @@ public class OperatorPrivileges {
         private final FileOperatorUsersStore fileOperatorUsersStore;
         private final OperatorOnlyRegistry operatorOnlyRegistry;
         private final XPackLicenseState licenseState;
+        private final FeatureService featureService;
+        private final ClusterService clusterService;
 
         public DefaultOperatorPrivilegesService(
             XPackLicenseState licenseState,
             FileOperatorUsersStore fileOperatorUsersStore,
-            OperatorOnlyRegistry operatorOnlyRegistry
+            OperatorOnlyRegistry operatorOnlyRegistry,
+            ClusterService clusterService,
+            FeatureService featureService
         ) {
             this.fileOperatorUsersStore = fileOperatorUsersStore;
             this.operatorOnlyRegistry = operatorOnlyRegistry;
             this.licenseState = licenseState;
+            this.clusterService = clusterService;
+            this.featureService = featureService;
         }
 
         public void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext) {
@@ -182,7 +193,7 @@ public class OperatorPrivileges {
                     );
                     throw e;
                 }
-            } else {
+            } else if (featureService.clusterHasFeature(clusterService.state(), SECURITY_OPERATOR_REQUEST_MARKER)) {
                 restRequest.markAsOperatorRequest();
                 logger.trace("Marked request for uri [{}] as operator request", restRequest.uri());
             }

@@ -100,12 +100,13 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
+
     public static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.INTEGER);
     public static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.INTEGER);
     public static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.INTEGER);
     public static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
     public static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
-    private static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
+    public static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
 
     public static Equals equalsOf(Expression left, Expression right) {
         return new Equals(EMPTY, left, right, null);

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -25,8 +24,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import java.util.ArrayList;
 import java.util.List;
 
-public final class CombineBinaryComparisons extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
-    BinaryLogic> {
+public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpressionRule<BinaryLogic> {
 
     public CombineBinaryComparisons() {
         super(OptimizerRules.TransformDirection.DOWN);
@@ -34,10 +32,10 @@ public final class CombineBinaryComparisons extends org.elasticsearch.xpack.esql
 
     @Override
     public Expression rule(BinaryLogic e) {
-        if (e instanceof And) {
-            return combine((And) e);
-        } else if (e instanceof Or) {
-            return combine((Or) e);
+        if (e instanceof And and) {
+            return combine(and);
+        } else if (e instanceof Or or) {
+            return combine(or);
         }
         return e;
     }

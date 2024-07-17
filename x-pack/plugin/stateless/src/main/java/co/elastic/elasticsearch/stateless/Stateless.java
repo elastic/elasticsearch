@@ -448,6 +448,8 @@ public class Stateless extends Plugin
         components.add(commitCleaner);
         var cacheWarmingService = createSharedBlobCacheWarmingService(cacheService, threadPool, services.telemetryProvider(), settings);
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
+        var indexShardCacheWarmer = new IndexShardCacheWarmer(objectStoreService, cacheWarmingService, threadPool);
+        components.add(indexShardCacheWarmer);
         var commitService = createStatelessCommitService(
             settings,
             objectStoreService,

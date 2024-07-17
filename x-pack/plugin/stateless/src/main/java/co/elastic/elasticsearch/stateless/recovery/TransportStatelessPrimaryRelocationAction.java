@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.recovery;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
+import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
@@ -114,6 +115,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final Executor recoveryExecutor;
     private final ThreadContext threadContext;
     private final ThreadPool threadPool;
+    private final IndexShardCacheWarmer indexShardCacheWarmer;
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
@@ -122,7 +124,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         ActionFilters actionFilters,
         IndicesService indicesService,
         PeerRecoveryTargetService peerRecoveryTargetService,
-        StatelessCommitService statelessCommitService
+        StatelessCommitService statelessCommitService,
+        IndexShardCacheWarmer indexShardCacheWarmer
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager());
         this.transportService = transportService;
@@ -130,6 +133,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         this.indicesService = indicesService;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
         this.statelessCommitService = statelessCommitService;
+        this.indexShardCacheWarmer = indexShardCacheWarmer;
 
         this.threadPool = transportService.getThreadPool();
         this.recoveryExecutor = threadPool.generic();
@@ -173,6 +177,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             final var indexShard = indexService.getShard(request.shardId().id());
             indexShard.prepareForIndexRecovery();
+
+            // Begin warming the cache immediately
+            indexShardCacheWarmer.preWarmIndexShardCache("indexing early", indexShard, ActionListener.noop());
             transportService.sendChildRequest(
                 recoveryRef.target().sourceNode(),
                 START_RELOCATION_ACTION_NAME,

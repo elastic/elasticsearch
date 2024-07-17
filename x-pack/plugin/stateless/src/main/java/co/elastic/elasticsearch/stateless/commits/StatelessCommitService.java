@@ -67,6 +67,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -165,6 +167,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_bytes.histogram";
+    public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
+    public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
+
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
     private final Supplier<String> ephemeralNodeIdSupplier;
@@ -191,6 +197,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
     private final boolean generationalFilesTrackingEnabled;
+    private final LongHistogram bccSizeInBytesHistogram;
+    private final LongHistogram bccNumberCommitsHistogram;
+    private final LongHistogram bccAgeHistogram;
 
     public StatelessCommitService(
         Settings settings,
@@ -198,7 +207,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ClusterService clusterService,
         Client client,
         StatelessCommitCleaner commitCleaner,
-        SharedBlobCacheWarmingService cacheWarmingService
+        SharedBlobCacheWarmingService cacheWarmingService,
+        TelemetryProvider telemetryProvider
     ) {
         this(
             settings,
@@ -209,7 +219,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             clusterService.threadPool(),
             client,
             commitCleaner,
-            cacheWarmingService
+            cacheWarmingService,
+            telemetryProvider
         );
     }
 
@@ -222,7 +233,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ThreadPool threadPool,
         Client client,
         StatelessCommitCleaner commitCleaner,
-        SharedBlobCacheWarmingService cacheWarmingService
+        SharedBlobCacheWarmingService cacheWarmingService,
+        TelemetryProvider telemetryProvider
     ) {
         this.clusterService = clusterService;
         this.objectStoreService = objectStoreService;
@@ -254,6 +266,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(),
             this.generationalFilesTrackingEnabled ? "enabled" : "disabled"
         );
+        this.bccSizeInBytesHistogram = telemetryProvider.getMeterRegistry()
+            .registerLongHistogram(
+                BCC_TOTAL_SIZE_HISTOGRAM_METRIC,
+                "Histogram for total size in bytes of batched compound commits",
+                "bytes"
+            );
+        this.bccNumberCommitsHistogram = telemetryProvider.getMeterRegistry()
+            .registerLongHistogram(
+                BCC_NUMBER_COMMITS_HISTOGRAM_METRIC,
+                "Histogram for number of commits per batched compound commit",
+                "unit"
+            );
+        this.bccAgeHistogram = telemetryProvider.getMeterRegistry()
+            .registerLongHistogram(
+                BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC,
+                "Histogram for elapsed time in milliseconds of batched compound commits before freezing",
+                "ms"
+            );
     }
 
     private static Optional<IndexShardRoutingTable> shardRoutingTableFunction(ClusterService clusterService, ShardId shardId) {
@@ -611,6 +641,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.startNanos = threadPool.relativeTimeInNanos();
             assert virtualBcc.isFrozen();
             assert assertBccSizeAndDelayedSettingConsistency(virtualBcc.size());
+            final Map<String, Object> attributes = Map.of("index_name", shardId.getIndexName(), "shard_id", shardId.id());
+            bccSizeInBytesHistogram.record(virtualBcc.getTotalSizeInBytes(), attributes);
+            bccNumberCommitsHistogram.record(virtualBcc.size(), attributes);
+            bccAgeHistogram.record(threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(), attributes);
         }
 
         @Override

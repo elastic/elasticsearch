@@ -415,7 +415,8 @@ public class FakeStatelessNode implements Closeable {
             clusterService.threadPool(),
             client,
             commitCleaner,
-            warmingService
+            warmingService,
+            telemetryProvider
         );
     }
 

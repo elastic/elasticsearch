@@ -1905,7 +1905,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     clusterService.threadPool(),
                     client,
                     getCommitCleaner(),
-                    new SharedBlobCacheWarmingService(sharedCacheService, threadPool, TelemetryProvider.NOOP, nodeSettings)
+                    new SharedBlobCacheWarmingService(sharedCacheService, threadPool, TelemetryProvider.NOOP, nodeSettings),
+                    telemetryProvider
                 ) {
                     @Override
                     protected ShardCommitState createShardCommitState(

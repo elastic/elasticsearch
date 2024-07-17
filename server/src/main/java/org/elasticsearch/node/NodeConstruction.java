@@ -76,7 +76,6 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -219,7 +218,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -1173,13 +1171,6 @@ class NodeConstruction {
             taskManager
         );
         resourcesToClose.add(clusterService);
-
-        Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
-        if (consistentSettings.isEmpty() == false) {
-            clusterService.addLocalNodeMasterListener(
-                new ConsistentSettingsService(settingsModule.getSettings(), clusterService, consistentSettings).newHashPublisher()
-            );
-        }
         return clusterService;
     }
 

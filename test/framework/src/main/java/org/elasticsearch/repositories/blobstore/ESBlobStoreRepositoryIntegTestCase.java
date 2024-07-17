@@ -11,7 +11,6 @@ import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
@@ -292,12 +291,10 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     protected BlobStore newBlobStore(String repository) {
-        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) internalCluster().getAnyMasterNodeInstance(
-            RepositoriesService.class
-        ).repository(repository);
-        return PlainActionFuture.get(
-            f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.supply(f, blobStoreRepository::blobStore))
-        );
+        return asInstanceOf(
+            BlobStoreRepository.class,
+            internalCluster().getAnyMasterNodeInstance(RepositoriesService.class).repository(repository)
+        ).blobStore();
     }
 
     public void testSnapshotAndRestore() throws Exception {

@@ -439,14 +439,15 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     }
 
     private void cleanDatabases() {
-        List<Map.Entry<String, Metadata>> expiredDatabases = state.getDatabases()
+        List<Tuple<String, Metadata>> expiredDatabases = state.getDatabases()
             .entrySet()
             .stream()
             .filter(e -> e.getValue().isNewEnough(clusterService.state().metadata().settings()) == false)
+            .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
             .toList();
         expiredDatabases.forEach(e -> {
-            String name = e.getKey();
-            Metadata meta = e.getValue();
+            String name = e.v1();
+            Metadata meta = e.v2();
             deleteOldChunks(name, meta.lastChunk() + 1);
             state = state.put(name, new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1));
             updateTaskState();

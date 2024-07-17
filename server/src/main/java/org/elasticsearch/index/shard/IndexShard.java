@@ -4386,8 +4386,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
+    /**
+     * Synchronously closes the provided engine
+     */
     private static void closeEngine(Engine engine) throws IOException {
         if (engine != null) {
+            // TODO Ideally we would convert `closeEngine` calls to async `close` calls and remove UnsafePlainActionFuture
             final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC);
             engine.close(future);
             FutureUtils.get(future);

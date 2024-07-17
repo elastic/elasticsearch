@@ -152,9 +152,20 @@ public class EsqlCapabilities {
         FIX_COUNT_DISTINCT_SOURCE_ERROR,
 
         /**
-        * Use RangeQuery for BinaryComparison on DateTime fields.
-        * */
+         * Use RangeQuery for BinaryComparison on DateTime fields.
+         */
         RANGEQUERY_FOR_DATETIME,
+
+        /**
+         * Add tests for #105383, STATS BY constant.
+         */
+        STATS_BY_CONSTANT,
+
+        /**
+         * Fix for non-unique attribute names in ROW and logical plans.
+         * https://github.com/elastic/elasticsearch/issues/110541
+         */
+        UNIQUE_NAMES,
 
         /**
          * Support for nanosecond dates as a data type

@@ -306,7 +306,7 @@ public class IpBucketedSort implements Releasable {
      */
     private void setNextGatherOffsets(long startingAt) {
         int nextOffset = bucketSize - 1;
-        for (long bucketRoot = startingAt; bucketRoot < values.size() / IP_LENGTH; bucketRoot += bucketSize ) {
+        for (long bucketRoot = startingAt; bucketRoot < values.size() / IP_LENGTH; bucketRoot += bucketSize) {
             setNextGatherOffset(bucketRoot, nextOffset);
         }
     }

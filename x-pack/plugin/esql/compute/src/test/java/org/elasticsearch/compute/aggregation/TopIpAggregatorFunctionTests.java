@@ -25,7 +25,10 @@ public class TopIpAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceBytesRefBlockSourceOperator(blockFactory, IntStream.range(0, size).mapToObj(l -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())))));
+        return new SequenceBytesRefBlockSourceOperator(
+            blockFactory,
+            IntStream.range(0, size).mapToObj(l -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean()))))
+        );
     }
 
     @Override

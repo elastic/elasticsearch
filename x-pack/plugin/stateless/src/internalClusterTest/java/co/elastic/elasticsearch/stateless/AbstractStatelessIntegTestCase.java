@@ -72,6 +72,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -783,5 +784,12 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             primaryTerms[i] = indexMetadata.primaryTerm(i);
         }
         return primaryTerms;
+    }
+
+    protected static <T> T findPlugin(String nodeName, Class<T> pluginType) {
+        return internalCluster().getInstance(PluginsService.class, nodeName)
+            .filterPlugins(pluginType)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Plugin not found: " + pluginType.getName()));
     }
 }

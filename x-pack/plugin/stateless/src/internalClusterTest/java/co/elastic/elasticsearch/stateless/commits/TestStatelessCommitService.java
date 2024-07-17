@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 
 import java.util.function.Supplier;
 
@@ -38,9 +39,10 @@ public class TestStatelessCommitService extends StatelessCommitService {
         ClusterService clusterService,
         Client client,
         StatelessCommitCleaner commitCleaner,
-        SharedBlobCacheWarmingService cacheWarmingService
+        SharedBlobCacheWarmingService cacheWarmingService,
+        TelemetryProvider telemetryProvider
     ) {
-        super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
+        super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService, telemetryProvider);
     }
 
     public Strategy getStrategy() {

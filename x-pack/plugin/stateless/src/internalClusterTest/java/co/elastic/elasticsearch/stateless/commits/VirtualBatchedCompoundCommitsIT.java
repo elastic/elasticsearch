@@ -83,18 +83,23 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CHUNK_REQUESTS_REJECTED_METRIC;
 import static co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CURRENT_CHUNKS_BYTES_METRIC;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
 import static co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils.getCacheService;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.action.search.SearchTransportService.QUERY_ACTION_NAME;
@@ -112,7 +117,9 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -187,9 +194,18 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             ClusterService clusterService,
             Client client,
             StatelessCommitCleaner commitCleaner,
-            SharedBlobCacheWarmingService cacheWarmingService
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
         ) {
-            return new TestStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
+            return new TestStatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                client,
+                commitCleaner,
+                cacheWarmingService,
+                telemetryProvider
+            );
         }
 
         @Override
@@ -205,15 +221,18 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
 
     public static class TestStatelessCommitService extends StatelessCommitService {
 
+        private final AtomicReference<Consumer<VirtualBatchedCompoundCommit>> uploadingVbccConsumerRef = new AtomicReference<>();
+
         public TestStatelessCommitService(
             Settings settings,
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
             Client client,
             StatelessCommitCleaner commitCleaner,
-            SharedBlobCacheWarmingService cacheWarmingService
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
         ) {
-            super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
+            super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService, telemetryProvider);
         }
 
         @Override
@@ -1189,10 +1208,66 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         assertRejectionMeasurement(measurements.get(1), PAGE_SIZE, indexName2, index2shardId);
     }
 
+    public void testVirtualBatchedCompoundCommitUploadMetrics() throws Exception {
+        final var indexNode = startMasterAndIndexNode(
+            Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), -1)
+                .build()
+        );
+
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+
+        var shardId = findIndexShard(indexName).shardId();
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
+        final var metricsPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
+        metricsPlugin.resetMeter();
+
+        final int numberCommits = between(5, 10);
+        for (int i = 0; i < numberCommits; i++) {
+            indexDocsAndRefresh(indexName);
+            if (randomBoolean() || i == numberCommits - 1) {
+                final VirtualBatchedCompoundCommit virtualBcc = statelessCommitService.getCurrentVirtualBcc(shardId);
+                final long minAge = threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis();
+                // Trigger upload
+                flush(indexName);
+
+                final List<Measurement> sizeMeasurements = metricsPlugin.getLongHistogramMeasurement(BCC_TOTAL_SIZE_HISTOGRAM_METRIC);
+                assertThat(sizeMeasurements, hasSize(1));
+                assertMeasurement2(sizeMeasurements.get(0), virtualBcc.getTotalSizeInBytes(), indexName, shardId);
+
+                final List<Measurement> nCommitsMeasurements = metricsPlugin.getLongHistogramMeasurement(
+                    BCC_NUMBER_COMMITS_HISTOGRAM_METRIC
+                );
+                assertThat(nCommitsMeasurements, hasSize(1));
+                assertMeasurement2(nCommitsMeasurements.get(0), virtualBcc.size(), indexName, shardId);
+
+                final List<Measurement> ageMeasurements = metricsPlugin.getLongHistogramMeasurement(
+                    BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC
+                );
+                assertThat(ageMeasurements, hasSize(1));
+                assertThat(ageMeasurements.get(0).attributes(), equalTo(Map.of("index_name", indexName, "shard_id", shardId.id())));
+                // The exact value of age is not important as long as it is greater or equal than the minimum age
+                // that is measured before creating the upload task
+                assertThat(ageMeasurements.get(0).getLong(), greaterThanOrEqualTo(minAge));
+                metricsPlugin.resetMeter();
+            }
+        }
+    }
+
+    // TODO: merge the following two methods once we change all attribute names to be snake_case
     private void assertMeasurement(Measurement measurement, long value, String indexName, ShardId shardId) {
         assertThat(measurement.getLong(), equalTo(value));
         assertThat(measurement.attributes().get("indexName"), equalTo(indexName));
         assertThat(measurement.attributes().get("shardId"), equalTo(shardId.id()));
+    }
+
+    private void assertMeasurement2(Measurement measurement, long value, String indexName, ShardId shardId) {
+        assertThat(measurement.getLong(), equalTo(value));
+        assertThat(measurement.attributes().get("index_name"), equalTo(indexName));
+        assertThat(measurement.attributes().get("shard_id"), equalTo(shardId.id()));
     }
 
     private void assertRejectionMeasurement(Measurement measurement, int bytes, String indexName, ShardId shardId) {

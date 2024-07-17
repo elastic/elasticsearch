@@ -71,6 +71,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -150,7 +151,8 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             ClusterService clusterService,
             Client client,
             StatelessCommitCleaner commitCleaner,
-            SharedBlobCacheWarmingService cacheWarmingService
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
         ) {
             return new GenerationalFilesTrackingStatelessCommitService(
                 settings,
@@ -158,7 +160,8 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                 clusterService,
                 client,
                 commitCleaner,
-                cacheWarmingService
+                cacheWarmingService,
+                telemetryProvider
             );
         }
 
@@ -245,7 +248,8 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         ClusterService clusterService,
         Client client,
         StatelessCommitCleaner commitCleaner,
-        SharedBlobCacheWarmingService cacheWarmingService
+        SharedBlobCacheWarmingService cacheWarmingService,
+        TelemetryProvider telemetryProvider
     ) {
         return new GenerationalFilesTrackingStatelessCommitService(
             settings,
@@ -253,7 +257,8 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             clusterService,
             client,
             commitCleaner,
-            cacheWarmingService
+            cacheWarmingService,
+            telemetryProvider
         );
     }
 
@@ -267,9 +272,10 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             ClusterService clusterService,
             Client client,
             StatelessCommitCleaner commitCleaner,
-            SharedBlobCacheWarmingService cacheWarmingService
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
         ) {
-            super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
+            super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService, telemetryProvider);
         }
 
         @Override

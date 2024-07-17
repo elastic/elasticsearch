@@ -103,24 +103,12 @@ public interface EstimatesRowSize {
 
     static int estimateSize(DataType dataType) {
         ElementType elementType = PlannerUtils.toElementType(dataType);
-        return switch (elementType) {
-            case BOOLEAN -> 1;
-            case BYTES_REF -> switch (dataType.typeName()) {
-                case "ip" -> 16;      // IP addresses, both IPv4 and IPv6, are encoded using 16 bytes.
-                case "version" -> 15; // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
-                case "geo_point", "cartesian_point" -> 21;  // WKB for points is typically 21 bytes.
-                case "geo_shape", "cartesian_shape" -> 200; // wild estimate, based on some test data (airport_city_boundaries)
-                default -> 50; // wild estimate for the size of a string.
-            };
-            case DOC -> throw new EsqlIllegalArgumentException("can't load a [doc] with field extraction");
-            case FLOAT -> Float.BYTES;
-            case DOUBLE -> Double.BYTES;
-            case INT -> Integer.BYTES;
-            case LONG -> Long.BYTES;
-            case NULL -> 0;
-            // TODO: provide a specific estimate for aggregated_metrics_double
-            case COMPOSITE -> 50;
-            case UNKNOWN -> throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
-        };
+        if (elementType == ElementType.DOC) {
+            throw new EsqlIllegalArgumentException("can't load a [doc] with field extraction");
+        }
+        if (elementType == ElementType.UNKNOWN) {
+            throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
+        }
+        return dataType.estimatedSize().orElse(50);
     }
 }

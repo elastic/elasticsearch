@@ -40,6 +40,7 @@ import java.util.Map;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -271,6 +272,47 @@ public class RestEsqlIT extends RestEsqlTestCase {
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(re.getMessage(), containsString("[6:10] Duplicate field 'a'"));
+    }
+
+    /**
+     * INLINESTATS <strong>can</strong> group on {@code NOW()}. It's a little silly, but
+     * doing something like {@code DATE_TRUNC(1 YEAR, NOW() - 1970-01-01T00:00:00Z)} is
+     * much more sensible. But just grouping on {@code NOW()} is enough to test this.
+     * <p>
+     *     This works because {@code NOW()} locks it's value at the start of the entire
+     *     query. It's part of the "configuration" of the query.
+     * </p>
+     */
+    public void testInlineStatsNow() throws IOException {
+        indexTestData();
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(
+            fromIndex() + " | EVAL now=NOW() | INLINESTATS AVG(value) BY now | SORT value ASC"
+        );
+        Map<String, Object> result = runEsql(builder);
+        ListMatcher values = matchesList();
+        for (int i = 0; i < 1000; i++) {
+            values = values.item(
+                matchesList().item("2020-12-12T00:00:00.000Z")
+                    .item("value" + i)
+                    .item("value" + i)
+                    .item(i)
+                    .item(any(String.class))
+                    .item(499.5)
+            );
+        }
+        assertMap(
+            result,
+            matchesMap().entry(
+                "columns",
+                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                    .item(matchesMap().entry("name", "test").entry("type", "text"))
+                    .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
+                    .item(matchesMap().entry("name", "value").entry("type", "long"))
+                    .item(matchesMap().entry("name", "now").entry("type", "date"))
+                    .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
+            ).entry("values", values)
+        );
     }
 
     public void testProfile() throws IOException {

@@ -8,11 +8,9 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -33,6 +31,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -78,8 +77,14 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         } else {
             currentShardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
         }
-        final ShardSnapshotResult shardSnapshotResult = PlainActionFuture.get(
-            f -> repository.cloneShardSnapshot(sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, currentShardGen, f)
+        final ShardSnapshotResult shardSnapshotResult = safeAwait(
+            listener -> repository.cloneShardSnapshot(
+                sourceSnapshotInfo.snapshotId(),
+                targetSnapshotId,
+                repositoryShardId,
+                currentShardGen,
+                listener
+            )
         );
         final ShardGeneration newShardGeneration = shardSnapshotResult.getGeneration();
 
@@ -107,8 +112,14 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(snapshotFiles.get(0).isSame(snapshotFiles.get(1)));
 
         // verify that repeated cloning is idempotent
-        final ShardSnapshotResult shardSnapshotResult2 = PlainActionFuture.get(
-            f -> repository.cloneShardSnapshot(sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, newShardGeneration, f)
+        final ShardSnapshotResult shardSnapshotResult2 = safeAwait(
+            listener -> repository.cloneShardSnapshot(
+                sourceSnapshotInfo.snapshotId(),
+                targetSnapshotId,
+                repositoryShardId,
+                newShardGeneration,
+                listener
+            )
         );
         assertEquals(newShardGeneration, shardSnapshotResult2.getGeneration());
         assertEquals(shardSnapshotResult.getSegmentCount(), shardSnapshotResult2.getSegmentCount());
@@ -880,21 +891,12 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         BlobStoreRepository repository,
         RepositoryShardId repositoryShardId,
         ShardGeneration generation
-    ) {
-        return PlainActionFuture.get(
-            f -> repository.threadPool()
-                .generic()
-                .execute(
-                    ActionRunnable.supply(
-                        f,
-                        () -> BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(
-                            repository.getMetadata().name(),
-                            repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
-                            generation.toBlobNamePart(),
-                            NamedXContentRegistry.EMPTY
-                        )
-                    )
-                )
+    ) throws IOException {
+        return BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(
+            repository.getMetadata().name(),
+            repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
+            generation.toBlobNamePart(),
+            NamedXContentRegistry.EMPTY
         );
     }
 
@@ -903,18 +905,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         RepositoryShardId repositoryShardId,
         SnapshotId snapshotId
     ) {
-        return PlainActionFuture.get(
-            f -> repository.threadPool()
-                .generic()
-                .execute(
-                    ActionRunnable.supply(
-                        f,
-                        () -> repository.loadShardSnapshot(
-                            repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
-                            snapshotId
-                        )
-                    )
-                )
-        );
+        return repository.loadShardSnapshot(repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()), snapshotId);
     }
 }

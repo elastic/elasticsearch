@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -125,7 +124,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
                         ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
                     )
                 )
@@ -161,7 +160,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(
                 model -> fail("Model parsing should have failed"),
-                e -> assertThat(e, instanceOf(IllegalArgumentException.class))
+                e -> assertThat(e, instanceOf(ElasticsearchStatusException.class))
             );
 
             service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
@@ -179,7 +178,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
                         ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID, // we can't directly test the eland case until we mock
                                                                                      // the threadpool within the client
                         "not_a_valid_service_setting",
@@ -208,7 +207,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
                         ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID, // we can't directly test the eland case until we mock
                                                                                      // the threadpool within the client
                         "extra_setting_that_should_not_be_here",
@@ -237,7 +236,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
                         ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID // we can't directly test the eland case until we mock
                         // the threadpool within the client
                     )
@@ -279,7 +278,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
                         "foo"
                     )
                 )
@@ -326,7 +325,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
                         "foo"
                     )
                 )
@@ -390,7 +389,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
                         "invalid"
                     )
                 )
@@ -420,7 +419,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
                         ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
                         ServiceFields.DIMENSIONS,
                         1
@@ -641,12 +640,12 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
                         "foo"
                     )
                 )
             );
-            settings.put(InternalServiceSettings.MODEL_ID, "foo");
+            settings.put(ElasticsearchInternalServiceSettings.MODEL_ID, "foo");
             var returnDocs = randomBoolean();
             settings.put(
                 ModelConfigurations.TASK_SETTINGS,
@@ -670,12 +669,12 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
                         "foo"
                     )
                 )
             );
-            settings.put(InternalServiceSettings.MODEL_ID, "foo");
+            settings.put(ElasticsearchInternalServiceSettings.MODEL_ID, "foo");
 
             var model = service.parsePersistedConfig(randomInferenceEntityId, TaskType.RERANK, settings);
             assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
@@ -706,7 +705,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                     1,
                     ElasticsearchInternalServiceSettings.NUM_THREADS,
                     4,
-                    InternalServiceSettings.MODEL_ID,
+                    ElasticsearchInternalServiceSettings.MODEL_ID,
                     "custom-model"
                 )
             )

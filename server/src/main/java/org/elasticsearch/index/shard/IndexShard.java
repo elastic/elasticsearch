@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -54,6 +55,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
@@ -1747,7 +1749,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                         // Also closing refreshListeners to prevent us from accumulating any more listeners
                         IOUtils.close(
-                            engine,
+                            () -> closeEngine(engine),
                             globalCheckpointListeners,
                             refreshListeners,
                             pendingReplicationActions,
@@ -1889,7 +1891,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .<Void>newForked(l -> ActionListener.runWithResource(ActionListener.assertOnce(l), () -> () -> {
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
                 synchronized (engineMutex) {
-                    IOUtils.close(currentEngineReference.getAndSet(null));
+                    closeEngine(currentEngineReference.getAndSet(null));
                 }
             }, (recoveryCompleteListener, ignoredRef) -> {
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
@@ -2197,7 +2199,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert Thread.holdsLock(mutex) == false : "restart recovery under mutex";
         synchronized (engineMutex) {
             assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
-            IOUtils.close(currentEngineReference.getAndSet(null));
+            closeEngine(currentEngineReference.getAndSet(null));
             resetRecoveryStage();
         }
     }
@@ -4248,7 +4250,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 @Override
-                public void close() throws IOException {
+                public void close(ActionListener<Void> listener) throws IOException {
                     Engine newEngine;
                     synchronized (engineMutex) {
                         newEngine = newEngineReference.get();
@@ -4257,10 +4259,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             newEngine = null;
                         }
                     }
-                    IOUtils.close(super::close, newEngine);
+                    Engine finalNewEngine = newEngine;
+                    SubscribableListener.<Void>newForked(this::superClose).<Void>andThen((l, unused) -> {
+                        if (finalNewEngine != null) {
+                            finalNewEngine.close(l);
+                        } else {
+                            l.onResponse(null);
+                        }
+                    }).addListener(listener);
+                }
+
+                private void superClose(ActionListener<Void> l) throws IOException {
+                    super.close(l);
                 }
             };
-            IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
+            closeEngine(currentEngineReference.getAndSet(readOnlyEngine));
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }
@@ -4276,7 +4289,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         newEngineReference.get().refresh("reset_engine");
         synchronized (engineMutex) {
             verifyNotClosed();
-            IOUtils.close(currentEngineReference.getAndSet(newEngineReference.get()));
+            closeEngine(currentEngineReference.getAndSet(newEngineReference.get()));
             // We set active because we are now writing operations to the engine; this way,
             // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
             active.set(true);
@@ -4370,6 +4383,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 (l, ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l)
             )
         );
+    }
+
+    private static void closeEngine(Engine engine) throws IOException {
+        if (engine != null) {
+            final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC);
+            engine.close(future);
+            FutureUtils.get(future);
+        }
     }
 
 }

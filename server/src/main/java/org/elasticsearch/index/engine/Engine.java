@@ -47,6 +47,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
@@ -108,6 +109,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -2040,6 +2042,16 @@ public abstract class Engine implements Closeable {
 
     @Override
     public void close() throws IOException {
+        final var executorName = EsExecutors.executorName(Thread.currentThread().getName());
+        if (executorName != null) {
+            logger.info(
+                "close is called from a {} pool. Stack trace: ",
+                executorName + Arrays.stream(Thread.currentThread().getStackTrace())
+                    .limit(10)
+                    .map(StackTraceElement::toString)
+                    .collect(Collectors.joining("\n"))
+            );
+        }
         final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC);
         close(future);
         FutureUtils.get(future);

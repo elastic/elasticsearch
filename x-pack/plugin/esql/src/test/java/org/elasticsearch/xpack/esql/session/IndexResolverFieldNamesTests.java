@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
@@ -1225,6 +1226,21 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | enrich languages_policy"""), Set.of("language_name"));
         assertThat(fieldNames, equalTo(ALL_FIELDS));
+    }
+
+    public void testLargeNumberOfFields() {
+        String query = "from test | keep f1";
+        Set<String> expected = new LinkedHashSet<>();
+        expected.add("f1");
+        expected.add("f1*.*");
+        for (int i = 2; i <= 12500; i++) {
+            query += ", f" + i;
+            expected.add("f" + i);
+            if (i < 10) {
+                expected.add("f" + i + "*.*");
+            }
+        }
+        assertFieldNames(query, expected);
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

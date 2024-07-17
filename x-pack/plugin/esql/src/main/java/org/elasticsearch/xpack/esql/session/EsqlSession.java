@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.planner.Mapper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -287,20 +288,40 @@ public class EsqlSession {
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
         references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.qualifiedName()));
         Set<String> fieldNames = references.names();
+        Set<String> subFieldNames = new LinkedHashSet<>();
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return IndexResolver.INDEX_METADATA_FIELD;
         } else {
-            fieldNames.addAll(subfields(fieldNames));
+            subFieldNames.addAll(subfields(fieldNames));
             fieldNames.addAll(enrichPolicyMatchFields);
-            fieldNames.addAll(subfields(enrichPolicyMatchFields));
-            if (fieldNames.size() >= Operations.DEFAULT_DETERMINIZE_WORK_LIMIT) {
-                return IndexResolver.ALL_FIELDS;
+            subFieldNames.addAll(subfields(enrichPolicyMatchFields));
+            if (fieldNames.size() + subFieldNames.size() >= Operations.DEFAULT_DETERMINIZE_WORK_LIMIT * 2) {
+                Set<String> subfieldNamePrefixes = subfieldNamePrefixes(subFieldNames, 2);
+                if (fieldNames.size() + subfieldNamePrefixes.size() >= Operations.DEFAULT_DETERMINIZE_WORK_LIMIT * 2) {
+                    return IndexResolver.ALL_FIELDS;
+                } else {
+                    fieldNames.addAll(subfieldNamePrefixes);
+                }
             } else {
-                return fieldNames;
+                fieldNames.addAll(subFieldNames);
             }
+            return fieldNames;
         }
+    }
+
+    private static Set<String> subfieldNamePrefixes(Set<String> original, int prefix) {
+        Set<String> prefixes = new LinkedHashSet<>();
+        original.forEach((subfield) -> {
+            assert subfield.length() >= 3;
+            if (subfield.length() == 3) {
+                prefixes.add(subfield);
+            } else {
+                prefixes.add(subfield.substring(0, prefix) + "*.*");
+            }
+        });
+        return prefixes;
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {

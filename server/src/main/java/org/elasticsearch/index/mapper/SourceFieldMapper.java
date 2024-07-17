@@ -17,7 +17,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
@@ -46,13 +45,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_source";
 
     public static final String LOSSY_PARAMETERS_ALLOWED_SETTING_NAME = "index.lossy.source-mapping-parameters";
-
-    public static final Setting<Boolean> LOSSY_PARAMETERS_ALLOWED_SETTING = Setting.boolSetting(
-        LOSSY_PARAMETERS_ALLOWED_SETTING_NAME,
-        true,
-        Setting.Property.IndexScope,
-        Setting.Property.InternalIndex
-    );
 
     /** The source mode */
     private enum Mode {

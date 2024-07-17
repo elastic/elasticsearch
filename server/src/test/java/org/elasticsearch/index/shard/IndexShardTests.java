@@ -2098,9 +2098,17 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting relocationRouting = ShardRoutingHelper.relocate(originalRouting, "other_node");
         IndexShardTestCase.updateRoutingEntry(shard, relocationRouting);
         IndexShardTestCase.updateRoutingEntry(shard, originalRouting);
-        expectThrows(
+        asInstanceOf(
             IllegalIndexShardStateException.class,
-            () -> blockingCallRelocated(shard, relocationRouting, (primaryContext, listener) -> fail("should not be called"))
+            safeAwaitFailure(
+                Void.class,
+                listener -> shard.relocated(
+                    relocationRouting.relocatingNodeId(),
+                    relocationRouting.getTargetRelocatingShard().allocationId().getId(),
+                    (primaryContext, l) -> fail("should not be called"),
+                    listener
+                )
+            )
         );
         closeShards(shard);
     }
@@ -2121,7 +2129,14 @@ public class IndexShardTests extends IndexShardTestCase {
             @Override
             protected void doRun() throws Exception {
                 cyclicBarrier.await();
-                blockingCallRelocated(shard, relocationRouting, (primaryContext, listener) -> listener.onResponse(null));
+                final var relocatedCompleteLatch = new CountDownLatch(1);
+                shard.relocated(
+                    relocationRouting.relocatingNodeId(),
+                    relocationRouting.getTargetRelocatingShard().allocationId().getId(),
+                    (primaryContext, listener) -> listener.onResponse(null),
+                    ActionListener.releaseAfter(ActionListener.wrap(r -> {}, relocationException::set), relocatedCompleteLatch::countDown)
+                );
+                safeAwait(relocatedCompleteLatch);
             }
         });
         relocationThread.start();
@@ -2177,9 +2192,17 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final AtomicBoolean relocated = new AtomicBoolean();
 
-        final IllegalIndexShardStateException wrongNodeException = expectThrows(
+        final IllegalIndexShardStateException wrongNodeException = asInstanceOf(
             IllegalIndexShardStateException.class,
-            () -> blockingCallRelocated(shard, wrongTargetNodeShardRouting, (ctx, listener) -> relocated.set(true))
+            safeAwaitFailure(
+                Void.class,
+                listener -> shard.relocated(
+                    wrongTargetNodeShardRouting.relocatingNodeId(),
+                    wrongTargetNodeShardRouting.getTargetRelocatingShard().allocationId().getId(),
+                    (ctx, l) -> relocated.set(true),
+                    listener
+                )
+            )
         );
         assertThat(
             wrongNodeException.getMessage(),
@@ -2187,9 +2210,17 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         assertFalse(relocated.get());
 
-        final IllegalStateException wrongTargetIdException = expectThrows(
+        final IllegalStateException wrongTargetIdException = asInstanceOf(
             IllegalStateException.class,
-            () -> blockingCallRelocated(shard, wrongTargetAllocationIdShardRouting, (ctx, listener) -> relocated.set(true))
+            safeAwaitFailure(
+                Void.class,
+                listener -> shard.relocated(
+                    wrongTargetAllocationIdShardRouting.relocatingNodeId(),
+                    wrongTargetAllocationIdShardRouting.getTargetRelocatingShard().allocationId().getId(),
+                    (ctx, l) -> relocated.set(true),
+                    listener
+                )
+            )
         );
         assertThat(
             wrongTargetIdException.getMessage(),
@@ -5023,8 +5054,13 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardRouting routing,
         BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer
     ) {
-        PlainActionFuture.<Void, RuntimeException>get(
-            f -> indexShard.relocated(routing.relocatingNodeId(), routing.getTargetRelocatingShard().allocationId().getId(), consumer, f)
+        safeAwait(
+            (ActionListener<Void> listener) -> indexShard.relocated(
+                routing.relocatingNodeId(),
+                routing.getTargetRelocatingShard().allocationId().getId(),
+                consumer,
+                listener
+            )
         );
     }
 }

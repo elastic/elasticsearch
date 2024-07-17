@@ -13,13 +13,13 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import java.util.List;
 
 /**
- * STATS-like operations. List {@link Aggregate} and {@link InlineStats}.
+ * STATS-like operations. Like {@link Aggregate} and {@link InlineStats}.
  */
 public interface Stats {
     /**
      * Rebuild this plan with new groupings and new aggregates.
      */
-    Stats resolve(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates);
+    Stats with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates);
 
     /**
      * Have all the expressions in this plan been resolved?

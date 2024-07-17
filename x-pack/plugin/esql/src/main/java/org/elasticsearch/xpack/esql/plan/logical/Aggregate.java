@@ -97,7 +97,7 @@ public class Aggregate extends UnaryPlan implements Stats {
     }
 
     @Override
-    public Aggregate resolve(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+    public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
         return new Aggregate(source(), child(), aggregateType(), newGroupings, newAggregates);
     }
 

@@ -96,7 +96,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     }
 
     @Override
-    public InlineStats resolve(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+    public InlineStats with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
         return new InlineStats(source(), child(), newGroupings, newAggregates);
     }
 

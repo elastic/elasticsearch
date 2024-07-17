@@ -109,6 +109,6 @@ public interface EstimatesRowSize {
         if (elementType == ElementType.UNKNOWN) {
             throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
         }
-        return dataType.size().orElse(50);
+        return dataType.estimatedSize().orElse(50);
     }
 }

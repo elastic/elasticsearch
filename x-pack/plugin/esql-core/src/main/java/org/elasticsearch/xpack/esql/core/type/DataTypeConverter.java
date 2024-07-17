@@ -77,8 +77,8 @@ public final class DataTypeConverter {
             return right;
         }
         if (left.isNumeric() && right.isNumeric()) {
-            int lsize = left.size().orElseThrow();
-            int rsize = right.size().orElseThrow();
+            int lsize = left.estimatedSize().orElseThrow();
+            int rsize = right.estimatedSize().orElseThrow();
             // if one is int
             if (left.isWholeNumber()) {
                 // promote the highest int

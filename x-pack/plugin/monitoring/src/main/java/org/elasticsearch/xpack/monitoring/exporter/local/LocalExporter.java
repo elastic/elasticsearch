@@ -468,7 +468,7 @@ public final class LocalExporter extends Exporter implements ClusterStateListene
     }
 
     private static boolean hasTemplate(final ClusterState clusterState, final String templateName) {
-        final IndexTemplateMetadata template = clusterState.getMetadata().getTemplates().get(templateName);
+        final IndexTemplateMetadata template = clusterState.getMetadata().projectMetadata.templates().get(templateName);
 
         return template != null && hasValidVersion(template.getVersion(), MonitoringTemplateRegistry.REGISTRY_VERSION);
     }

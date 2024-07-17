@@ -922,7 +922,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 Map<String, List<String>> autoFollowPatternNameToFollowedIndexUUIDs = new HashMap<>(
                     currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs()
                 );
-                Set<String> remoteIndexUUIDS = remoteMetadata.getIndices()
+                Set<String> remoteIndexUUIDS = remoteMetadata.projectMetadata.indices()
                     .values()
                     .stream()
                     .map(IndexMetadata::getIndexUUID)

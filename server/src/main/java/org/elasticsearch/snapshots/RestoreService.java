@@ -702,7 +702,7 @@ public final class RestoreService implements ClusterStateApplier {
             .map(indexName -> {
                 assert currentState.metadata().projectMetadata.hasIndex(indexName)
                     : "index [" + indexName + "] not found in metadata but must be present";
-                return currentState.metadata().getIndices().get(indexName).getIndex();
+                return currentState.metadata().projectMetadata.indices().get(indexName).getIndex();
             })
             .collect(Collectors.toUnmodifiableSet());
     }

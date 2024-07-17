@@ -1070,10 +1070,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return getIndicesLookup().containsKey(index);
     }
 
-    public Map<String, IndexMetadata> getIndices() {
-        return projectMetadata.indices();
-    }
-
     /**
      * Returns whether an alias exists with provided alias name.
      *
@@ -1102,10 +1098,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      */
     public Set<String> aliasedIndices() {
         return projectMetadata.aliasedIndices.keySet();
-    }
-
-    public Map<String, IndexTemplateMetadata> getTemplates() {
-        return projectMetadata.templates();
     }
 
     public Map<String, ComponentTemplate> componentTemplates() {

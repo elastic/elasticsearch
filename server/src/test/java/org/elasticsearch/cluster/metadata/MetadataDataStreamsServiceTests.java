@@ -125,7 +125,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .toList();
         assertThat(expectedBackingIndices, containsInAnyOrder(ds.getIndices().toArray()));
 
-        IndexMetadata removedIndex = newState.metadata().getIndices().get(indexToRemove.getIndex().getName());
+        IndexMetadata removedIndex = newState.metadata().projectMetadata.indices().get(indexToRemove.getIndex().getName());
         assertThat(removedIndex, notNullValue());
         assertThat(removedIndex.getSettings().get("index.hidden"), equalTo("false"));
         assertNull(newState.metadata().getIndicesLookup().get(indexToRemove.getIndex().getName()).getParentDataStream());

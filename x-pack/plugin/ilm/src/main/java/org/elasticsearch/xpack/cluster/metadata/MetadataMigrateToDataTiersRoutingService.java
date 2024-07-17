@@ -208,7 +208,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         String removedIndexTemplateName = null;
         if (Strings.hasText(indexTemplateToDelete)) {
-            if (currentState.metadata().getTemplates().containsKey(indexTemplateToDelete)) {
+            if (currentState.metadata().projectMetadata.templates().containsKey(indexTemplateToDelete)) {
                 mb.removeTemplate(indexTemplateToDelete);
                 logger.debug("removing legacy template [{}]", indexTemplateToDelete);
                 removedIndexTemplateName = indexTemplateToDelete;

@@ -332,7 +332,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 final Map<String, SnapshotId> copiedSnapshotIds = Maps.newMapWithExpectedSize(concreteAllIndices.length);
                 final Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(concreteAllIndices.length);
                 final Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(concreteAllIndices.length);
-                final Map<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
+                final Map<String, IndexMetadata> remoteIndices = remoteMetadata.projectMetadata.indices();
                 for (String indexName : concreteAllIndices) {
                     // Both the Snapshot name and UUID are set to _latest_
                     final SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);

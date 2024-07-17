@@ -182,7 +182,7 @@ public abstract class TransportBroadcastReplicationAction<
         List<ShardId> shardIds = new ArrayList<>();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         for (String index : concreteIndices) {
-            IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(index);
+            IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.indices().get(index);
             if (indexMetadata != null) {
                 final IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().indicesRouting().get(index);
                 for (int i = 0; i < indexRoutingTable.size(); i++) {

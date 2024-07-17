@@ -210,6 +210,6 @@ public class MetadataNodesIT extends ESIntegTestCase {
 
     private Map<String, IndexMetadata> getIndicesMetadataOnNode(String nodeName) {
         final Coordinator coordinator = internalCluster().getInstance(Coordinator.class, nodeName);
-        return coordinator.getApplierState().getMetadata().getIndices();
+        return coordinator.getApplierState().getMetadata().projectMetadata.indices();
     }
 }

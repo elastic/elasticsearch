@@ -273,7 +273,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final String templateName = newTemplate.getTemplateName();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                IndexTemplateMetadata currentTemplate = state.metadata().getTemplates().get(templateName);
+                IndexTemplateMetadata currentTemplate = state.metadata().projectMetadata.templates().get(templateName);
                 if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding legacy template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
                     putLegacyTemplate(newTemplate, creationCheck);

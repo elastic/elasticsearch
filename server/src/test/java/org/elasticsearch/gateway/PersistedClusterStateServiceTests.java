@@ -1751,7 +1751,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     );
                 } else {
                     // change an existing index to a different mapping
-                    String index = randomFrom(previousState.metadata().getIndices().keySet());
+                    String index = randomFrom(previousState.metadata().projectMetadata.indices().keySet());
                     metadata.put(IndexMetadata.builder(metadata.get(index)).putMapping(mapping2));
                 }
                 clusterState = ClusterState.builder(previousState).metadata(metadata).build();
@@ -1767,7 +1767,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 metadata = Metadata.builder(previousState.metadata());
 
                 // update all indices to use the second mapping
-                for (String index : previousState.metadata().getIndices().keySet()) {
+                for (String index : previousState.metadata().projectMetadata.indices().keySet()) {
                     metadata.put(IndexMetadata.builder(metadata.get(index)).putMapping(mapping2));
                 }
                 clusterState = ClusterState.builder(previousState).metadata(metadata).build();

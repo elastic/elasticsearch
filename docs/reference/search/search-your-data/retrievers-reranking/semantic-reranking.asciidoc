@@ -85,7 +85,7 @@ Note that similarity scores from bi-encoders/embedding similarities are _query-d
 [[semantic-reranking-in-es]]
 ==== Semantic reranking in {es}
 
-In {es}, semantic rerankers are implemented using the {es} *Inference API* and a <<retriever,retriever>>.
+In {es}, semantic rerankers are implemented using the {es} <<inference-apis,*Inference API*>> and a <<retriever,retriever>>.
 
 To use semantic reranking in {es}, you need to:
 

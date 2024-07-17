@@ -137,7 +137,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             memory,
-            randomIntBetween(10, 80),
+            2,
             1,
             randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(0, memory)),
@@ -150,7 +150,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             memory,
-            randomIntBetween(10, 80),
+            randomIntBetween(3, 80),
             1,
             randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(0, memory)),
@@ -161,22 +161,28 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
         var randomAssignment1 = TrainedModelAssignmentTests.randomInstanceBuilder(taskParams1, AssignmentState.STARTED)
             .clearNodeRoutingTable()
-            .addRoutingEntry("ml-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
-            .addRoutingEntry("ml-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            .addRoutingEntry("ml-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
             .build();
 
         var randomAssignment2 = TrainedModelAssignmentTests.randomInstanceBuilder(taskParams2, AssignmentState.STARTED)
             .clearNodeRoutingTable()
-            .addRoutingEntry("ml-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
-            .addRoutingEntry("ml-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            .addRoutingEntry("ml-2", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
             .build();
 
-        List<DiscoveryNode> nodes = Stream.of(randomAssignment1.getNodeRoutingTable().values())
-            .map(r -> mock(DiscoveryNode.class))
-            .peek(n -> when(n.getRoles()).thenReturn(Set.of(DiscoveryNodeRole.ML_ROLE)))
-            .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "2.0")))
-            .toList();
-
+        List<DiscoveryNode> nodes = new java.util.ArrayList<>(
+            Stream.of(randomAssignment1.getNodeRoutingTable().values())
+                .map(r -> mock(DiscoveryNode.class))
+                .peek(n -> when(n.getRoles()).thenReturn(Set.of(DiscoveryNodeRole.ML_ROLE)))
+                .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "2.0")))
+                .toList()
+        );
+        nodes.addAll(
+            Stream.of(randomAssignment2.getNodeRoutingTable().values())
+                .map(r -> mock(DiscoveryNode.class))
+                .peek(n -> when(n.getRoles()).thenReturn(Set.of(DiscoveryNodeRole.ML_ROLE)))
+                .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "2.0")))
+                .toList()
+        );
         MlAutoscalingContext scaleUpContext = new MlAutoscalingContext(
             List.of(),
             List.of(),
@@ -200,7 +206,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         int existantProccessors = scaleUpContext.modelAssignments.values()
             .stream()
             .map(TrainedModelAssignment::getNodeRoutingTable)
-            .mapToInt(m -> m.values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum())
+            .mapToInt(m -> m.values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum()) // threads == 1
             .sum();
         int extraProcessors = expectedTotalProccessors - existantProccessors;
 
@@ -221,8 +227,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(2, stats.existingTotalNodes());
                 assertEquals(extraProcessors, stats.extraProcessors());
                 assertEquals(expectedProcessorsPerNode, stats.extraPerNodeNodeProcessors());
-                assertEquals(0, stats.extraModelMemoryInBytes());
-                assertEquals(0, stats.extraPerNodeMemoryBytes());
+                assertEquals(randomAssignment2.getTaskParams().estimateMemoryUsageBytes(), stats.extraModelMemoryInBytes());
+                assertEquals(randomAssignment2.getTaskParams().estimateMemoryUsageBytes(), stats.extraPerNodeMemoryBytes());
                 assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
             }
         );

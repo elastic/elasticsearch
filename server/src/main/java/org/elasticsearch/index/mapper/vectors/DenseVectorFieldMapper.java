@@ -1584,7 +1584,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     || int8HnswIndexOptions.confidenceInterval != null
                         && confidenceInterval.equals(int8HnswIndexOptions.confidenceInterval);
             } else {
-                updatable = update.type.equals(VectorIndexType.INT4_HNSW.name);
+                updatable = update.type.equals(VectorIndexType.INT4_HNSW.name) && ((Int4HnswIndexOptions) update).m >= this.m;
             }
             return updatable;
         }

@@ -2,9 +2,8 @@ setup:
   - requires:
       cluster_features: "gte_v8.15.0"
       reason: 'updatable dense vector field types was added in 8.15'
-  - skip:
-      reason: "contains is a newly added assertion"
-      features: contains
+  - requires:
+      test_runner_features: [ contains ]
 ---
 "Test create and update dense vector mapping with per-doc indexing and flush":
   - do:
@@ -1475,9 +1474,8 @@ setup:
   - requires:
       cluster_features: "gte_v8.16.0"
       reason: 'updatable dense vector field type for int4 was added in 8.16'
-  - skip:
-      reason: "contains is a newly added assertion"
-      features: contains
+  - requires:
+      test_runner_features: [ contains ]
   - do:
       indices.create:
         index: test_index
@@ -1617,9 +1615,8 @@ setup:
   - requires:
       cluster_features: "gte_v8.16.0"
       reason: 'updatable dense vector field type for int4 was added in 8.16'
-  - skip:
-      reason: "contains is a newly added assertion"
-      features: contains
+  - requires:
+      test_runner_features: [ contains ]
   - do:
       indices.create:
         index: test_index
@@ -1667,9 +1664,8 @@ setup:
   - requires:
       cluster_features: "gte_v8.16.0"
       reason: 'updatable dense vector field type for int4 was added in 8.16'
-  - skip:
-      reason: "contains is a newly added assertion"
-      features: contains
+  - requires:
+      test_runner_features: [ contains ]
   - do:
       indices.create:
         index: test_index

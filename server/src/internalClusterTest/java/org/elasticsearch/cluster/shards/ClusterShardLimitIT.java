@@ -153,8 +153,9 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 + firstShardCount
                 + "]/["
                 + dataNodes * shardsPerNode
-                + "] maximum normal shards open; for more information see "
-                + ReferenceDocs.MAX_SHARDS_PER_NODE;
+                + "] maximum normal shards open; for more information, see "
+                + ReferenceDocs.MAX_SHARDS_PER_NODE
+                + ";";
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = clusterAdmin().prepareState().get().getState().metadata();
@@ -213,7 +214,9 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 + totalShardsBefore
                 + "]/["
                 + dataNodes * shardsPerNode
-                + "] maximum normal shards open;";
+                + "] maximum normal shards open; for more information, see "
+                + ReferenceDocs.MAX_SHARDS_PER_NODE
+                + ";";
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = clusterAdmin().prepareState().get().getState().metadata();
@@ -405,7 +408,9 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             + currentShards
             + "]/["
             + maxShards
-            + "] maximum normal shards open;";
+            + "] maximum normal shards open; for more information, see "
+            + ReferenceDocs.MAX_SHARDS_PER_NODE
+            +";";
         assertEquals(expectedError, e.getMessage());
     }
 

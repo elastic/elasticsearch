@@ -33,7 +33,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
-        () -> assumeTrue("Only valid when upgrading from pre-file settings", getOldClusterTestVersion().before(new Version(8, 4, 0))));
+        () -> assumeTrue("Only valid when upgrading from pre-file settings", getOldClusterTestVersion().before(new Version(8, 4, 0)))
+    );
 
     private static final String settingsJSON = """
         {
@@ -50,7 +51,8 @@ public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
-    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local().distribution(DistributionType.DEFAULT)
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
         .version(getOldClusterTestVersion())
         .nodes(NODE_NUM)
         .setting("path.repo", new Supplier<>() {

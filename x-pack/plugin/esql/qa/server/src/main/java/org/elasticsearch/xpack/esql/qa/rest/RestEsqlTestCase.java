@@ -740,7 +740,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return Collections.unmodifiableMap(copy);
     }
 
-    static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {
+    protected static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {
         try (InputStream content = entity.getContent()) {
             XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
             assertEquals(expectedContentType, xContentType);

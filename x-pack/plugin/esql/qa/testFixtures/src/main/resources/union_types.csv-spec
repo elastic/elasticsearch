@@ -988,11 +988,11 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 4
 ;
 
-client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword | count:long
-  172.21.0.5 |             1232382 | Disconnected          |            1698068 | 1
-  172.21.0.5 |             1232382 | Disconnected          |            2023-10 | 7
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            1698064 | 1
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
+client_ip:ip | event_duration:long |    message:keyword    | count:long | @timestamp:keyword
+  172.21.0.5 |             1232382 | Disconnected          |          1 | 1698068
+  172.21.0.5 |             1232382 | Disconnected          |          7 | 2023-10
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |          1 | 1698064
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |          7 | 2023-10
 ;
 
 # Once INLINESTATS supports expressions in agg functions and groups, convert the group in the inlinestats

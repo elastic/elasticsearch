@@ -216,6 +216,16 @@ public class TransportVersions {
     public static final TransportVersion ENRICH_CACHE_STATS_SIZE_ADDED = def(8_707_00_0);
 
     /*
+     * WARNING: DO NOT MERGE INTO MAIN!
+     * This is the transport version used for all multi-project changes.
+     * This is above any possible transport version that could exist on main during multi-project branch development.
+     * We don't care about BwC during initial development. Before this code is merged into main,
+     * this variable needs to be changed to a regular transport version following the same rules as above.
+     */
+    @UpdateForV9    // change to a v9 version number when bumping to 9.0
+    public static final TransportVersion MULTI_PROJECT = def(8_999_999);
+
+    /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
      *       / ___|_   _/ _ \|  _ \| |      |  _ \| ____|  / \  |  _ \  |_   _| | | |_ _/ ___|  |  ___|_ _|  _ \/ ___|_   _| |

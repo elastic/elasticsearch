@@ -1,5 +1,5 @@
 pr: 110997
-summary: Inference API validating query field for other task types
+summary: Improve validation for the query field and task types in the Inference API
 area: Machine Learning
 type: bug
-issues: []
+issues: [ ]

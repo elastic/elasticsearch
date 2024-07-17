@@ -44,8 +44,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
@@ -2287,7 +2287,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code listener} was completed.
      */
     public static <T> T safeAwait(SubscribableListener<T> listener) {
-        final var future = new PlainActionFuture<T>();
+        final var future = new TestPlainActionFuture<T>();
         listener.addListener(future);
         return safeGet(future);
     }

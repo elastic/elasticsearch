@@ -247,6 +247,11 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
      * file into the .geoip_databases Elasticsearch index, deleting any old versions of the database tar.gz from the index if they exist.
      * If the computed sha256 does not match the expected sha256, an error will be logged and the database will not be put into the
      * Elasticsearch index.
+     * <p>
+     * As an implementation detail, this method retrieves the sha256 checksum of the database to download and then invokes
+     * {@link EnterpriseGeoIpDownloader#processDatabase(PasswordAuthentication, String, String, String)} with that checksum, deferring to
+     * that method to actually download and process the tar.gz itself.
+     *
      * @param auth The credentials to use to download from the Maxmind endpoint
      * @param database The database to be downloaded from Maxmind and indexed into an Elasticsearch index
      * @throws IOException If there is an error fetching the sha256 file
@@ -273,6 +278,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     /**
      * This method fetches the tar.gz file for the given database from the Maxmind endpoint, then indexes that tar.gz
      * file into the .geoip_databases Elasticsearch index, deleting any old versions of the database tar.gz from the index if they exist.
+     *
      * @param auth The credentials to use to download from the Maxmind endpoint
      * The name of the database to be downloaded from Maxmind and indexed into an Elasticsearch index
      * @param sha256 The sha256 to compare to the computed sha256 of the downloaded tar.gz file

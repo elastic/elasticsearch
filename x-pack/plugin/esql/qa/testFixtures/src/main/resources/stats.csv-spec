@@ -1886,6 +1886,39 @@ w_avg:double
 null
 ;
 
+shadowingInternal
+FROM employees
+| STATS x = MAX(emp_no), x = MIN(emp_no)
+;
+
+x:integer
+10001
+;
+
+shadowingInternalWithGroup
+FROM employees
+| STATS x = MAX(emp_no), x = MIN(emp_no) BY x = gender
+| SORT x ASC
+;
+
+x:keyword
+F
+M
+null
+;
+
+shadowingTheGroup
+FROM employees
+| STATS gender = MAX(emp_no), gender = MIN(emp_no) BY gender
+| SORT gender ASC
+;
+
+gender:keyword
+F
+M
+null
+;
+
 docsStatsMvGroup
 // tag::mv-group[]
 ROW i=1, a=["a", "b"] | STATS MIN(i) BY a | SORT a ASC

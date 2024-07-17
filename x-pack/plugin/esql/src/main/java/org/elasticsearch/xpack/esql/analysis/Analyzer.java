@@ -1068,13 +1068,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
      * (See UnresolveUnionTypes below).
      */
-    private static class ResolveUnionTypes extends BaseAnalyzerRule {
+    private static class ResolveUnionTypes extends Rule<LogicalPlan, LogicalPlan> {
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
 
+        private List<FieldAttribute> unionFieldAttributes;
+
         @Override
-        protected LogicalPlan doRule(LogicalPlan plan) {
-            List<FieldAttribute> unionFieldAttributes = new ArrayList<>();
+        public LogicalPlan apply(LogicalPlan plan) {
+            unionFieldAttributes = new ArrayList<>();
+            // Collect field attributes from previous runs
+            plan.forEachUp(EsRelation.class, rel -> {
+                for (Attribute attr : rel.output()) {
+                    if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField) {
+                        unionFieldAttributes.add(fa);
+                    }
+                }
+            });
+
+            return plan.transformUp(LogicalPlan.class, p -> p.resolved() || p.childrenResolved() == false ? p : doRule(p));
+        }
+
+        private LogicalPlan doRule(LogicalPlan plan) {
+            int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
             // See if the eval function has an unresolved MultiTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(
@@ -1082,7 +1098,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 convert -> resolveConvertFunction(convert, unionFieldAttributes)
             );
             // If no union fields were generated, return the plan as is
-            if (unionFieldAttributes.isEmpty()) {
+            if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
                 return plan;
             }
 

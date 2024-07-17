@@ -1,7 +1,7 @@
 [[logs-data-stream]]
 == Logs data stream
 
-preview::["Logs data streams and the logs index mode are in tech preview and may be changed or removed in the future. Don't use logs data streams or logs index mode in production.]
+preview::[Logs data streams and the logs index mode are in tech preview and may be changed or removed in the future. Don't use logs data streams or logs index mode in production.]
 
 A logs data stream is a data stream type that stores log data more efficiently.
 

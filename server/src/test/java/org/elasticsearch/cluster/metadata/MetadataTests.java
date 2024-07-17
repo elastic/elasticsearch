@@ -1345,7 +1345,7 @@ public class MetadataTests extends ESTestCase {
     public void testValidateDataStreamsNoConflicts() {
         Metadata metadata = createIndices(5, 10, "foo-datastream").metadata;
         // don't expect any exception when validating a system without indices that would conflict with future backing indices
-        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(metadata.projectMetadata.indices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsIgnoresIndicesWithoutCounter() {
@@ -1371,7 +1371,7 @@ public class MetadataTests extends ESTestCase {
             .build();
         // don't expect any exception when validating against non-backing indices that don't conform to the backing indices naming
         // convention
-        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(metadata.projectMetadata.indices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsAllowsNamesThatStartsWithPrefix() {
@@ -1385,7 +1385,7 @@ public class MetadataTests extends ESTestCase {
             .build();
         // don't expect any exception when validating against (potentially backing) indices that can't create conflict because of
         // additional text before number
-        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(metadata.projectMetadata.indices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsForNullDataStreamMetadata() {
@@ -1394,7 +1394,7 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         try {
-            assertDataStreams(metadata.getIndices(), DataStreamMetadata.EMPTY);
+            assertDataStreams(metadata.projectMetadata.indices(), DataStreamMetadata.EMPTY);
         } catch (Exception e) {
             fail("did not expect exception when validating a system without any data streams but got " + e.getMessage());
         }

@@ -313,7 +313,7 @@ public class GatewayMetaState implements Closeable {
         }
         // upgrade current templates
         if (applyPluginUpgraders(
-            metadata.getTemplates(),
+            metadata.projectMetadata.templates(),
             metadataUpgrader.indexTemplateMetadataUpgraders,
             upgradedMetadata::removeTemplate,
             (s, indexTemplateMetadata) -> upgradedMetadata.put(indexTemplateMetadata)

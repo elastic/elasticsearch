@@ -1087,9 +1087,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(migratedEntities.migratedIndices, hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
 
             ClusterState newState = migratedEntitiesTuple.v1();
-            assertThat(newState.metadata().getTemplates().size(), is(1));
-            assertThat(newState.metadata().getTemplates().get("catch-all"), nullValue());
-            assertThat(newState.metadata().getTemplates().get("other-template"), notNullValue());
+            assertThat(newState.metadata().projectMetadata.templates().size(), is(1));
+            assertThat(newState.metadata().projectMetadata.templates().get("catch-all"), nullValue());
+            assertThat(newState.metadata().projectMetadata.templates().get("other-template"), notNullValue());
         }
 
         {
@@ -1112,9 +1112,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(migratedEntities.migratedIndices, hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
 
             ClusterState newState = migratedEntitiesTuple.v1();
-            assertThat(newState.metadata().getTemplates().size(), is(2));
-            assertThat(newState.metadata().getTemplates().get("catch-all"), notNullValue());
-            assertThat(newState.metadata().getTemplates().get("other-template"), notNullValue());
+            assertThat(newState.metadata().projectMetadata.templates().size(), is(2));
+            assertThat(newState.metadata().projectMetadata.templates().get("catch-all"), notNullValue());
+            assertThat(newState.metadata().projectMetadata.templates().get("other-template"), notNullValue());
         }
 
         {

@@ -809,7 +809,7 @@ public class IndexNameExpressionResolver {
             return null;
         }
 
-        final IndexMetadata indexMetadata = state.metadata().getIndices().get(index);
+        final IndexMetadata indexMetadata = state.metadata().projectMetadata.indices().get(index);
         if (indexMetadata == null) {
             // Shouldn't happen
             throw new IndexNotFoundException(index);

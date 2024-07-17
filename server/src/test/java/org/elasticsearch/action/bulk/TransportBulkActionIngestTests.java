@@ -779,7 +779,6 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
         when(metadata.getProject()).thenReturn(projectMetadata);
         when(projectMetadata.templates()).thenReturn(templateMetadata);
-        when(metadata.getTemplates()).thenReturn(templateMetadata);
         when(projectMetadata.indices()).thenReturn(Map.of());
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");

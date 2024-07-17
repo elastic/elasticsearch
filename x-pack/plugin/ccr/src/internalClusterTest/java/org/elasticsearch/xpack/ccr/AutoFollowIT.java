@@ -492,8 +492,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                     .setMetadata(true)
                     .get()
                     .getState()
-                    .getMetadata()
-                    .getIndices()
+                    .getMetadata().projectMetadata.indices()
                     .size(),
                 equalTo(1 + nbIndicesCreatedWhilePaused)
             );

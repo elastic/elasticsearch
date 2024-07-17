@@ -101,7 +101,7 @@ public class MetadataIndexAliasesService {
             Set<Index> indicesToDelete = new HashSet<>();
             for (AliasAction action : actions) {
                 if (action.removeIndex()) {
-                    IndexMetadata index = currentState.metadata().getIndices().get(action.getIndex());
+                    IndexMetadata index = currentState.metadata().projectMetadata.indices().get(action.getIndex());
                     if (index == null) {
                         throw new IndexNotFoundException(action.getIndex());
                     }

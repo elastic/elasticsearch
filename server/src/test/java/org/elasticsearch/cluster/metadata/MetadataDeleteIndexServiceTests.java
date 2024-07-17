@@ -105,7 +105,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             SnapshotInProgressException.class,
             () -> MetadataDeleteIndexService.deleteIndices(
                 state,
-                Set.of(state.metadata().getIndices().get(index).getIndex()),
+                Set.of(state.metadata().projectMetadata.indices().get(index).getIndex()),
                 Settings.EMPTY
             )
         );
@@ -132,13 +132,13 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             service.executor,
             List.of(
                 new DeleteIndexClusterStateUpdateRequest(ActionListener.noop()).indices(
-                    new Index[] { before.metadata().getIndices().get(index).getIndex() }
+                    new Index[] { before.metadata().projectMetadata.indices().get(index).getIndex() }
                 )
             )
         );
 
         // It is gone
-        assertNull(after.metadata().getIndices().get(index));
+        assertNull(after.metadata().projectMetadata.indices().get(index));
         assertNull(after.routingTable().index(index));
         assertNull(after.blocks().indices().get(index));
 
@@ -164,11 +164,11 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         ClusterState after = MetadataDeleteIndexService.deleteIndices(
             before,
-            Set.of(before.metadata().getIndices().get(index).getIndex()),
+            Set.of(before.metadata().projectMetadata.indices().get(index).getIndex()),
             Settings.EMPTY
         );
 
-        assertNull(after.metadata().getIndices().get(index));
+        assertNull(after.metadata().projectMetadata.indices().get(index));
         assertNull(after.routingTable().index(index));
         assertNull(after.blocks().indices().get(index));
         assertNull(after.metadata().getIndicesLookup().get(alias));
@@ -190,9 +190,12 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ).getIndex();
         ClusterState after = MetadataDeleteIndexService.deleteIndices(before, Set.of(indexToDelete), Settings.EMPTY);
 
-        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), nullValue());
-        assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
-        assertThat(after.metadata().getIndices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), nullValue());
+        assertThat(after.metadata().projectMetadata.indices().get(indexToDelete.getName()), nullValue());
+        assertThat(after.metadata().projectMetadata.indices().size(), equalTo(numBackingIndices - 1));
+        assertThat(
+            after.metadata().projectMetadata.indices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)),
+            nullValue()
+        );
     }
 
     public void testDeleteFailureIndexForDataStream() {
@@ -216,10 +219,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ).getIndex();
         ClusterState after = MetadataDeleteIndexService.deleteIndices(before, Set.of(indexToDelete), Settings.EMPTY);
 
-        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), nullValue());
-        assertThat(after.metadata().getIndices().size(), equalTo(2 * numBackingIndices - 1));
+        assertThat(after.metadata().projectMetadata.indices().get(indexToDelete.getName()), nullValue());
+        assertThat(after.metadata().projectMetadata.indices().size(), equalTo(2 * numBackingIndices - 1));
         assertThat(
-            after.metadata().getIndices().get(DataStream.getDefaultFailureStoreName(dataStreamName, numIndexToDelete, now)),
+            after.metadata().projectMetadata.indices().get(DataStream.getDefaultFailureStoreName(dataStreamName, numIndexToDelete, now)),
             nullValue()
         );
     }
@@ -250,10 +253,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertThat(dataStream, notNullValue());
         assertThat(dataStream.getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
         for (Index i : indicesToDelete) {
-            assertThat(after.metadata().getIndices().get(i.getName()), nullValue());
+            assertThat(after.metadata().projectMetadata.indices().get(i.getName()), nullValue());
             assertFalse(dataStream.getIndices().contains(i));
         }
-        assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
+        assertThat(after.metadata().projectMetadata.indices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
     }
 
     public void testDeleteCurrentWriteIndexForDataStream() {
@@ -312,10 +315,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertThat(dataStream, notNullValue());
         assertThat(dataStream.getFailureIndices().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
         for (Index i : indicesToDelete) {
-            assertThat(after.metadata().getIndices().get(i.getName()), nullValue());
+            assertThat(after.metadata().projectMetadata.indices().get(i.getName()), nullValue());
             assertFalse(dataStream.getFailureIndices().getIndices().contains(i));
         }
-        assertThat(after.metadata().getIndices().size(), equalTo((2 * numBackingIndices) - indexNumbersToDelete.size()));
+        assertThat(after.metadata().projectMetadata.indices().size(), equalTo((2 * numBackingIndices) - indexNumbersToDelete.size()));
     }
 
     public void testDeleteCurrentWriteFailureIndexForDataStream() {

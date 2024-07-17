@@ -297,7 +297,7 @@ public class IndexRequestTests extends ESTestCase {
         }
         {
             // Target is a regular index => resolve to this index only
-            String indexName = metadata.getIndices().keySet().iterator().next();
+            String indexName = metadata.projectMetadata.indices().keySet().iterator().next();
             IndexRequest request = new IndexRequest(indexName);
             request.source(renderSource(source, randomFrom(start1, end1, start2, end2)), XContentType.JSON);
 

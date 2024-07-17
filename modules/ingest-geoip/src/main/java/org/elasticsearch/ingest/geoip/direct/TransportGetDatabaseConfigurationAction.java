@@ -69,6 +69,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
             if (request.getDatabaseIds().length == 0) {
                 // you asked for all, and there are none, we return the none that there are
                 listener.onResponse(new GetDatabaseConfigurationAction.Response(List.of()));
+                return;
             } else {
                 // you asked for *something*, and there are none, we 404
                 listener.onFailure(
@@ -77,6 +78,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
                         Arrays.toString(request.getDatabaseIds())
                     )
                 );
+                return;
             }
         }
 

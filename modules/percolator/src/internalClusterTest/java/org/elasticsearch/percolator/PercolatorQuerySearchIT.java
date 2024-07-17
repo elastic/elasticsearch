@@ -9,7 +9,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -22,7 +21,6 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -37,6 +35,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -1339,12 +1338,18 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         );
     }
 
-    public void testKnnQueryNotSupportedInPercolator() throws IOException {
+    public void testKnnQueryInPercolator() throws IOException {
         String mappings = org.elasticsearch.common.Strings.format("""
             {
               "properties": {
                 "my_query" : {
-                  "type" : "percolator"
+                  "type" : "percolator",
+                  "dense_vector_index_options": {
+                    "element_type": "float",
+                    "type": "flat",
+                    "dims" : 5,
+                    "similarity" : "l2_norm"
+                  }
                 },
                 "my_vector" : {
                   "type" : "dense_vector",
@@ -1352,19 +1357,37 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                   "index" : true,
                   "similarity" : "l2_norm"
                 }
-
               }
             }
             """);
         indicesAdmin().prepareCreate("index1").setMapping(mappings).get();
         ensureGreen();
-        QueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder("my_vector", new float[] { 1, 1, 1, 1, 1 }, 10, 10, null);
+        prepareIndex("index1").setId("knn_query1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("my_query", new KnnVectorQueryBuilder("my_vector", new float[] { 1, 1, 1, 1, 1 }, 1, 1, null))
+                    .endObject()
+            )
+            .get();
 
-        IndexRequestBuilder indexRequestBuilder = prepareIndex("index1").setId("knn_query1")
-            .setSource(jsonBuilder().startObject().field("my_query", knnVectorQueryBuilder).endObject());
+        prepareIndex("index1").setId("knn_query5")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("my_query", new KnnVectorQueryBuilder("my_vector", new float[] { 5, 5, 5, 5, 5 }, 1, 1, null))
+                    .endObject()
+            )
+            .get();
+        indicesAdmin().prepareRefresh().get();
 
-        DocumentParsingException exception = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get());
-        assertThat(exception.getMessage(), containsString("the [knn] query is unsupported inside a percolator"));
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("my_vector", List.of(1, 1, 1, 1, 1)).endObject());
+        assertResponse(
+            prepareSearch().setQuery(new PercolateQueryBuilder("my_query", source, XContentType.JSON)).setIndices("index1"),
+            response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("knn_query1"));
+                assertThat(response.getHits().getAt(0).getIndex(), equalTo("index1"));
+            }
+        );
+
     }
-
 }

@@ -16,6 +16,8 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.KnnByteVectorQuery;
+import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -180,6 +182,22 @@ final class QueryAnalyzer {
                 terms.add(Result.MATCH_NONE);
             } else if (query instanceof PointRangeQuery) {
                 terms.add(pointRangeQuery((PointRangeQuery) query));
+            } else if (query instanceof KnnFloatVectorQuery knnQuery) {
+                terms.add(
+                    new Result(
+                        false,
+                        Collections.singleton(new QueryExtraction(new FloatVector(knnQuery.getField(), knnQuery.getTargetCopy()))),
+                        1
+                    )
+                );
+            } else if (query instanceof KnnByteVectorQuery knnQuery) {
+                terms.add(
+                    new Result(
+                        false,
+                        Collections.singleton(new QueryExtraction(new ByteVector(knnQuery.getField(), knnQuery.getTargetCopy()))),
+                        1
+                    )
+                );
             } else {
                 terms.add(Result.UNKNOWN);
             }
@@ -484,15 +502,35 @@ final class QueryAnalyzer {
 
         final Term term;
         final Range range;
+        final FloatVector floatVector;
+        final ByteVector byteVector;
 
         QueryExtraction(Term term) {
             this.term = term;
             this.range = null;
+            this.floatVector = null;
+            this.byteVector = null;
         }
 
         QueryExtraction(Range range) {
             this.term = null;
+            this.floatVector = null;
+            this.byteVector = null;
             this.range = range;
+        }
+
+        QueryExtraction(FloatVector floatVector) {
+            this.term = null;
+            this.range = null;
+            this.floatVector = floatVector;
+            this.byteVector = null;
+        }
+
+        QueryExtraction(ByteVector byteVector) {
+            this.term = null;
+            this.range = null;
+            this.floatVector = null;
+            this.byteVector = byteVector;
         }
 
         String field() {
@@ -525,6 +563,10 @@ final class QueryAnalyzer {
             return "QueryExtraction{" + "term=" + term + ",range=" + range + '}';
         }
     }
+
+    record ByteVector(String fieldName, byte[] vector) {}
+
+    record FloatVector(String fieldName, float[] vector) {}
 
     static class Range {
 

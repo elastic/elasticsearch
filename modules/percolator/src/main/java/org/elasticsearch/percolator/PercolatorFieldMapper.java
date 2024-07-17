@@ -8,18 +8,24 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KnnByteVectorField;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -37,6 +43,7 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -48,20 +55,22 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.FilteredSearchExecutionContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
+import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
@@ -76,6 +85,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.namesToElementType;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class PercolatorFieldMapper extends FieldMapper {
@@ -91,11 +101,13 @@ public class PercolatorFieldMapper extends FieldMapper {
     static final String EXTRACTION_COMPLETE = "complete";
     static final String EXTRACTION_PARTIAL = "partial";
     static final String EXTRACTION_FAILED = "failed";
+    static final String DENSE_VECTOR_OPTIONS = "dense_vector_index_options";
 
     static final String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
     static final String EXTRACTION_RESULT_FIELD_NAME = "extraction_result";
     static final String QUERY_BUILDER_FIELD_NAME = "query_builder_field";
     static final String RANGE_FIELD_NAME = "range_field";
+    static final String DENSE_VECTOR_FIELD_NAME = "dense_vector_field";
     static final String MINIMUM_SHOULD_MATCH_FIELD_NAME = "minimum_should_match_field";
 
     @Override
@@ -108,6 +120,24 @@ public class PercolatorFieldMapper extends FieldMapper {
     static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        private final Parameter<DenseVectorIndexOptions> denseVectorIndexOptionsParam = new Parameter<>(
+            DENSE_VECTOR_OPTIONS,
+            false,
+            () -> null,
+            (n, c, o) -> o == null ? null : DenseVectorIndexOptions.parseDenseVectorIndexOptions(n, o),
+            m -> ((PercolatorFieldMapper) m).denseVectorIndexOptions,
+            (b, n, v) -> {
+                if (v != null) {
+                    b.field(n, v);
+                }
+            },
+            Objects::toString
+        ).setSerializerCheck((id, ic, v) -> v != null).addValidator(v -> {
+            if (v != null) {
+                v.validate();
+            }
+        });
 
         private final Supplier<SearchExecutionContext> searchExecutionContext;
         private final boolean mapUnmappedFieldsAsText;
@@ -131,7 +161,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta };
+            return new Parameter<?>[] { meta, denseVectorIndexOptionsParam };
         }
 
         @Override
@@ -161,7 +191,15 @@ public class PercolatorFieldMapper extends FieldMapper {
             NumberFieldMapper minimumShouldMatchFieldMapper = createMinimumShouldMatchField(context, indexCreatedVersion);
             fieldType.minimumShouldMatchField = minimumShouldMatchFieldMapper.fieldType();
             fieldType.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
-
+            DenseVectorFieldMapper denseVectorFieldMapper = null;
+            if (denseVectorIndexOptionsParam.isConfigured() && denseVectorIndexOptionsParam.getValue() != null) {
+                denseVectorFieldMapper = createDenseVectorFieldBuilder(
+                    indexCreatedVersion,
+                    denseVectorIndexOptionsParam.getValue(),
+                    context
+                );
+                fieldType.denseVectorField = denseVectorFieldMapper.fieldType();
+            }
             return new PercolatorFieldMapper(
                 leafName(),
                 fieldType,
@@ -173,10 +211,30 @@ public class PercolatorFieldMapper extends FieldMapper {
                 queryBuilderField,
                 rangeFieldMapper,
                 minimumShouldMatchFieldMapper,
+                denseVectorFieldMapper,
+                denseVectorIndexOptionsParam.getValue(),
                 mapUnmappedFieldsAsText,
                 indexCreatedVersion,
                 clusterTransportVersion
             );
+        }
+
+        static DenseVectorFieldMapper createDenseVectorFieldBuilder(
+            IndexVersion version,
+            DenseVectorIndexOptions indexOptions,
+            MapperBuilderContext context
+        ) {
+            DenseVectorFieldMapper.IndexOptions vectorIndexOptions = indexOptions.indexType.parseIndexOptions(
+                DENSE_VECTOR_FIELD_NAME,
+                Map.of()
+            );
+            DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(DENSE_VECTOR_FIELD_NAME, version);
+            builder.elementType(indexOptions.elementType);
+            builder.similarity(indexOptions.similarity);
+            builder.dimensions(indexOptions.dimensions);
+            builder.indexOptions(vectorIndexOptions);
+            builder.indexed(true);
+            return builder.build(context);
         }
 
         static KeywordFieldMapper createExtractQueryFieldBuilder(
@@ -213,19 +271,15 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     }
 
-    static class TypeParser implements Mapper.TypeParser {
-
-        @Override
-        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
-            return new Builder(
-                name,
-                parserContext.searchExecutionContext(),
-                getMapUnmappedFieldAsText(parserContext.getSettings()),
-                parserContext.indexVersionCreated(),
-                parserContext.clusterTransportVersion()
-            );
-        }
-    }
+    public static final TypeParser PARSER = new FieldMapper.TypeParser(
+        (n, c) -> new Builder(
+            n,
+            c.searchExecutionContext(),
+            getMapUnmappedFieldAsText(c.getSettings()),
+            c.indexVersionCreated(),
+            c.clusterTransportVersion()
+        )
+    );
 
     private static boolean getMapUnmappedFieldAsText(Settings indexSettings) {
         return INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.get(indexSettings);
@@ -237,6 +291,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         MappedFieldType extractionResultField;
         MappedFieldType queryBuilderField;
         MappedFieldType minimumShouldMatchField;
+        MappedFieldType denseVectorField;
 
         RangeFieldMapper.RangeFieldType rangeField;
         boolean mapUnmappedFieldsAsText;
@@ -293,11 +348,14 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         Tuple<BooleanQuery, Boolean> createCandidateQuery(IndexReader indexReader) throws IOException {
             Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = extractTermsAndRanges(indexReader);
+            Tuple<Map<String, List<float[]>>, Map<String, List<byte[]>>> vectors = extractVectors(indexReader);
             List<BytesRef> extractedTerms = t.v1();
             Map<String, List<byte[]>> encodedPointValuesByField = t.v2();
+            Map<String, List<float[]>> floatVectors = vectors.v1();
+            Map<String, List<byte[]>> byteVectors = vectors.v2();
             // `1 + ` is needed to take into account the EXTRACTION_FAILED should clause
-            boolean canUseMinimumShouldMatchField = 1 + extractedTerms.size() + encodedPointValuesByField.size() <= BooleanQuery
-                .getMaxClauseCount();
+            boolean canUseMinimumShouldMatchField = 1 + extractedTerms.size() + encodedPointValuesByField.size() + floatVectors.size()
+                + byteVectors.size() <= BooleanQuery.getMaxClauseCount();
 
             List<Query> subQueries = new ArrayList<>();
             for (Map.Entry<String, List<byte[]>> entry : encodedPointValuesByField.entrySet()) {
@@ -307,6 +365,20 @@ public class PercolatorFieldMapper extends FieldMapper {
                 byte[] max = encodedPointValues.get(1);
                 Query query = BinaryRange.newIntersectsQuery(rangeField.name(), encodeRange(rangeFieldName, min, max));
                 subQueries.add(query);
+            }
+            for (Map.Entry<String, List<byte[]>> entry : byteVectors.entrySet()) {
+                String vectorFieldName = entry.getKey();
+                List<byte[]> vectorsList = entry.getValue();
+                for (byte[] vector : vectorsList) {
+                    subQueries.add(new ESKnnByteVectorQuery(denseVectorField.name(), vector, 10, 100, null));
+                }
+            }
+            for (Map.Entry<String, List<float[]>> entry : floatVectors.entrySet()) {
+                String vectorFieldName = entry.getKey();
+                List<float[]> vectorsList = entry.getValue();
+                for (float[] vector : vectorsList) {
+                    subQueries.add(new ESKnnFloatVectorQuery(denseVectorField.name(), vector, 10, 100, null));
+                }
             }
 
             BooleanQuery.Builder candidateQuery = new BooleanQuery.Builder();
@@ -360,6 +432,38 @@ public class PercolatorFieldMapper extends FieldMapper {
             return new Tuple<>(extractedTerms, encodedPointValuesByField);
         }
 
+        static Tuple<Map<String, List<float[]>>, Map<String, List<byte[]>>> extractVectors(IndexReader indexReader) throws IOException {
+            LeafReader reader = indexReader.leaves().get(0).reader();
+            Map<String, List<float[]>> floatVectors = new HashMap<>();
+            Map<String, List<byte[]>> byteVectors = new HashMap<>();
+            for (FieldInfo info : reader.getFieldInfos()) {
+                if (info.getVectorDimension() != 0) {
+                    if (info.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
+                        FloatVectorValues floatVectorValues = reader.getFloatVectorValues(info.name);
+                        if (floatVectorValues != null) {
+                            while (floatVectorValues.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                                for (int i = 0; i < floatVectorValues.size(); i++) {
+                                    floatVectors.computeIfAbsent(info.name, k -> new ArrayList<>())
+                                        .add(Arrays.copyOf(floatVectorValues.vectorValue(), info.getVectorDimension()));
+                                }
+                            }
+                        }
+                    }
+                    if (info.getVectorEncoding().equals(VectorEncoding.BYTE)) {
+                        ByteVectorValues values = reader.getByteVectorValues(info.name);
+                        if (values != null) {
+                            while (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                                for (int i = 0; i < values.size(); i++) {
+                                    byteVectors.computeIfAbsent(info.name, k -> new ArrayList<>())
+                                        .add(Arrays.copyOf(values.vectorValue(), info.getVectorDimension()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return Tuple.tuple(floatVectors, byteVectors);
+        }
     }
 
     private final Supplier<SearchExecutionContext> searchExecutionContext;
@@ -368,6 +472,8 @@ public class PercolatorFieldMapper extends FieldMapper {
     private final BinaryFieldMapper queryBuilderField;
     private final NumberFieldMapper minimumShouldMatchFieldMapper;
     private final RangeFieldMapper rangeFieldMapper;
+    private final DenseVectorFieldMapper denseVectorFieldMapper;
+    private final DenseVectorIndexOptions denseVectorIndexOptions;
     private final boolean mapUnmappedFieldsAsText;
     private final IndexVersion indexCreatedVersion;
     private final Supplier<TransportVersion> clusterTransportVersion;
@@ -383,6 +489,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         BinaryFieldMapper queryBuilderField,
         RangeFieldMapper rangeFieldMapper,
         NumberFieldMapper minimumShouldMatchFieldMapper,
+        DenseVectorFieldMapper denseVectorFieldMapper,
+        DenseVectorIndexOptions denseVectorIndexOptions,
         boolean mapUnmappedFieldsAsText,
         IndexVersion indexCreatedVersion,
         Supplier<TransportVersion> clusterTransportVersion
@@ -397,6 +505,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         this.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
         this.indexCreatedVersion = indexCreatedVersion;
         this.clusterTransportVersion = clusterTransportVersion;
+        this.denseVectorFieldMapper = denseVectorFieldMapper;
+        this.denseVectorIndexOptions = denseVectorIndexOptions;
     }
 
     @Override
@@ -441,8 +551,6 @@ public class PercolatorFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
                 } else if (queryName.equals("has_parent")) {
                     throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
-                } else if (queryName.equals(KnnVectorQueryBuilder.NAME)) {
-                    throw new IllegalArgumentException("the [knn] query is unsupported inside a percolator query");
                 }
             });
         } catch (IOException e) {
@@ -498,6 +606,58 @@ public class PercolatorFieldMapper extends FieldMapper {
                 byte[] min = extraction.range.lowerPoint;
                 byte[] max = extraction.range.upperPoint;
                 doc.add(new BinaryRange(rangeFieldMapper.fullPath(), encodeRange(extraction.range.fieldName, min, max)));
+            } else if (extraction.byteVector != null) {
+                if (denseVectorFieldMapper == null) {
+                    throw new IllegalArgumentException(
+                        DENSE_VECTOR_OPTIONS + " field is not configured, unable to percolate dense vectors"
+                    );
+                }
+                if (denseVectorIndexOptions.elementType == DenseVectorFieldMapper.ElementType.FLOAT) {
+                    throw new IllegalArgumentException(
+                        "dense vector index options element type [" + denseVectorIndexOptions.elementType + "] is not supported"
+                    );
+                }
+                if (denseVectorIndexOptions.dimensions != extraction.byteVector.vector().length) {
+                    throw new IllegalArgumentException(
+                        "dense vector index options dimensions ["
+                            + denseVectorIndexOptions.dimensions
+                            + "] does not match vector length ["
+                            + extraction.byteVector.vector().length
+                            + "]"
+                    );
+                }
+                doc.add(
+                    new KnnByteVectorField(
+                        denseVectorFieldMapper.fullPath(),
+                        extraction.byteVector.vector(),
+                        denseVectorIndexOptions.similarity.vectorSimilarityFunction(
+                            indexCreatedVersion,
+                            denseVectorIndexOptions.elementType
+                        )
+                    )
+                );
+            } else if (extraction.floatVector != null) {
+                if (denseVectorFieldMapper == null) {
+                    throw new IllegalArgumentException(
+                        DENSE_VECTOR_OPTIONS + " field is not configured, unable to percolate dense vectors"
+                    );
+                }
+                if (denseVectorIndexOptions.elementType != DenseVectorFieldMapper.ElementType.FLOAT) {
+                    throw new IllegalArgumentException(
+                        "dense vector index options element type [" + denseVectorIndexOptions.elementType + "] is not supported"
+                    );
+                }
+                denseVectorIndexOptions.elementType.checkVectorBounds(extraction.floatVector.vector());
+                doc.add(
+                    new KnnFloatVectorField(
+                        denseVectorFieldMapper.fullPath(),
+                        extraction.floatVector.vector(),
+                        denseVectorIndexOptions.similarity.vectorSimilarityFunction(
+                            indexCreatedVersion,
+                            denseVectorIndexOptions.elementType
+                        )
+                    )
+                );
             }
         }
 
@@ -593,5 +753,100 @@ public class PercolatorFieldMapper extends FieldMapper {
                 return true;
             }
         };
+    }
+
+    record DenseVectorIndexOptions(
+        int dimensions,
+        DenseVectorFieldMapper.ElementType elementType,
+        DenseVectorFieldMapper.VectorSimilarity similarity,
+        DenseVectorFieldMapper.VectorIndexType indexType
+    ) implements ToXContent {
+        static DenseVectorIndexOptions parseDenseVectorIndexOptions(String fieldName, Object propNode) {
+            @SuppressWarnings("unchecked")
+            Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
+            Object dimType = indexOptionsMap.remove("dims");
+            if (dimType == null) {
+                throw new IllegalArgumentException("dims is required for [ " + DENSE_VECTOR_OPTIONS + "] in field [" + fieldName + "]");
+            }
+            int dims = XContentMapValues.nodeIntegerValue(dimType);
+            Object elementType = indexOptionsMap.remove("element_type");
+            if (elementType == null) {
+                throw new IllegalArgumentException(
+                    "element_type is required for [ " + DENSE_VECTOR_OPTIONS + "] in field [" + fieldName + "]"
+                );
+            }
+            String elementTypeName = XContentMapValues.nodeStringValue(elementType);
+            DenseVectorFieldMapper.ElementType elementTypeEnum = namesToElementType.get(elementTypeName);
+            if (elementTypeEnum == null) {
+                throw new IllegalArgumentException(
+                    "element_type ["
+                        + elementTypeName
+                        + "] is not supported for [ "
+                        + DENSE_VECTOR_OPTIONS
+                        + "] in field ["
+                        + fieldName
+                        + "]"
+                );
+            }
+            Object similarity = indexOptionsMap.remove("similarity");
+            if (similarity == null) {
+                throw new IllegalArgumentException(
+                    "similarity is required for [ " + DENSE_VECTOR_OPTIONS + "] in field [" + fieldName + "]"
+                );
+            }
+            String similarityName = XContentMapValues.nodeStringValue(similarity);
+            DenseVectorFieldMapper.VectorSimilarity similarityEnum = DenseVectorFieldMapper.VectorSimilarity.fromString(similarityName)
+                .orElseThrow(
+                    () -> new IllegalArgumentException(
+                        "similarity ["
+                            + similarityName
+                            + "] is not supported for [ "
+                            + DENSE_VECTOR_OPTIONS
+                            + "] in field ["
+                            + fieldName
+                            + "]"
+                    )
+                );
+            Object indexType = indexOptionsMap.remove("type");
+            if (indexType == null) {
+                throw new IllegalArgumentException("type is required for [ " + DENSE_VECTOR_OPTIONS + "] in field [" + fieldName + "]");
+            }
+            DenseVectorFieldMapper.VectorIndexType indexTypeName = DenseVectorFieldMapper.VectorIndexType.fromString(
+                XContentMapValues.nodeStringValue(indexType)
+            )
+                .orElseThrow(
+                    () -> new IllegalArgumentException(
+                        "type [" + indexType + "] is not supported for [ " + DENSE_VECTOR_OPTIONS + "] in field [" + fieldName + "]"
+                    )
+                );
+            return new DenseVectorIndexOptions(dims, elementTypeEnum, similarityEnum, indexTypeName);
+        }
+
+        void validate() {
+            if (dimensions <= 0) {
+                throw new IllegalArgumentException("dims must be greater than 0");
+            }
+            if (indexType.supportsDimension(dimensions) == false) {
+                throw new IllegalArgumentException(
+                    "dense vector index type [" + indexType.name() + "] does not support dims [" + dimensions + "]"
+                );
+            }
+            if (indexType.supportsElementType(elementType) == false) {
+                throw new IllegalArgumentException(
+                    "dense vector index type [" + indexType.name() + "] does not support element type [" + elementType.name() + "]"
+                );
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("dims", dimensions);
+            builder.field("element_type", elementType);
+            builder.field("similarity", similarity);
+            builder.field("type", indexType);
+            builder.endObject();
+            return builder;
+        }
     }
 }

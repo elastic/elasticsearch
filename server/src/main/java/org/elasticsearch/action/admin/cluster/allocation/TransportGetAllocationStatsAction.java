@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -37,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAction<
     TransportGetAllocationStatsAction.Request,
@@ -88,10 +90,11 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         listener.onResponse(
             new Response(
-                allocationStatsService.stats(),
-                featureService.clusterHasFeature(clusterService.state(), AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)
-                    ? diskThresholdSettings
-                    : null
+                NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(request.metrics()) ? allocationStatsService.stats() : Map.of(),
+                NodesStatsRequestParameters.Metric.FS.containedIn(request.metrics())
+                    && featureService.clusterHasFeature(clusterService.state(), AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)
+                        ? diskThresholdSettings
+                        : null
             )
         );
     }
@@ -103,19 +106,32 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        public Request(TimeValue masterNodeTimeout, TaskId parentTaskId) {
+        private final Set<String> metrics;
+
+        public Request(TimeValue masterNodeTimeout, TaskId parentTaskId, Set<String> metrics) {
             super(masterNodeTimeout);
             setParentTask(parentTaskId);
+            this.metrics = metrics;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            this.metrics = in.getTransportVersion().onOrAfter(TransportVersions.MASTER_NODE_METRICS)
+                ? in.readCollectionAsImmutableSet(StreamInput::readString)
+                : Set.of(NodesStatsRequestParameters.Metric.ALLOCATIONS.metricName(), NodesStatsRequestParameters.Metric.FS.metricName());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert out.getTransportVersion().onOrAfter(TransportVersions.ALLOCATION_STATS);
             super.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.MASTER_NODE_METRICS)) {
+                out.writeCollection(metrics, StreamOutput::writeString);
+            }
+        }
+
+        public Set<String> metrics() {
+            return metrics;
         }
 
         @Override

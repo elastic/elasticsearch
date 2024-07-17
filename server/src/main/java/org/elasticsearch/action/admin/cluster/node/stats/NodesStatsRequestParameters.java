@@ -102,7 +102,7 @@ public class NodesStatsRequestParameters implements Writeable {
             return this.metricName;
         }
 
-        boolean containedIn(Set<String> metricNames) {
+        public boolean containedIn(Set<String> metricNames) {
             return metricNames.contains(this.metricName());
         }
 

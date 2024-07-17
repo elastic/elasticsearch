@@ -214,6 +214,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN = def(8_705_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_UNUSED_RERANK_SETTINGS_REMOVED = def(8_706_00_0);
     public static final TransportVersion ENRICH_CACHE_STATS_SIZE_ADDED = def(8_707_00_0);
+    public static final TransportVersion MASTER_NODE_METRICS = def(8_708_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

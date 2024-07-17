@@ -90,7 +90,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
         builder.field("subobjects", false);
-        //NOTE: without mappings the `host.name` filed will be automatically injected as a keyword for LogsDB
+        // NOTE: without mappings the `host.name` filed will be automatically injected as a keyword for LogsDB
         if (randomBoolean()) {
             builder.startObject("properties")
 

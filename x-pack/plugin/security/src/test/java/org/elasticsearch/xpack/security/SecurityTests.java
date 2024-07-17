@@ -52,6 +52,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -230,7 +231,8 @@ public class SecurityTests extends ESTestCase {
             env,
             nodeMetadata,
             TestIndexNameExpressionResolver.newInstance(threadContext),
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            mock(PersistentTasksService.class)
         );
     }
 

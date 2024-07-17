@@ -8,21 +8,16 @@
 package org.elasticsearch.xpack.esql.core.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
-import java.util.Locale;
 import java.util.Objects;
 
-import static java.lang.String.format;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStringAndExact;
-import static org.elasticsearch.xpack.esql.core.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public abstract class BinaryComparisonCaseInsensitiveFunction extends CaseInsensitiveScalarFunction {
 
@@ -64,35 +59,6 @@ public abstract class BinaryComparisonCaseInsensitiveFunction extends CaseInsens
     @Override
     public boolean foldable() {
         return left.foldable() && right.foldable();
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        ScriptTemplate leftScript = asScript(left);
-        ScriptTemplate rightScript = asScript(right);
-
-        return asScriptFrom(leftScript, rightScript);
-    }
-
-    protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        return new ScriptTemplate(
-            format(
-                Locale.ROOT,
-                formatTemplate("%s.%s(%s,%s,%s)"),
-                Scripts.classPackageAsPrefix(getClass()),
-                scriptMethodName(),
-                leftScript.template(),
-                rightScript.template(),
-                "{}"
-            ),
-            paramsBuilder().script(leftScript.params()).script(rightScript.params()).variable(isCaseInsensitive()).build(),
-            dataType()
-        );
-    }
-
-    protected String scriptMethodName() {
-        String simpleName = getClass().getSimpleName();
-        return Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
     }
 
     @Override

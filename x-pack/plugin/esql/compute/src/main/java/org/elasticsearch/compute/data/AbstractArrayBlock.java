@@ -113,8 +113,7 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
         return nullsMask != null;
     }
 
-    @Override
-    public final int nullValuesCount() {
+    final int nullValuesCount() {
         return mayHaveNulls() ? nullsMask.cardinality() : 0;
     }
 

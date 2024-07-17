@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -140,5 +141,16 @@ public final class Utils {
                 TestDenseInferenceServiceExtension.TestInferenceService::new
             );
         }
+    }
+
+    public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
+        var mockConfigs = mock(ModelConfigurations.class);
+        when(mockConfigs.getInferenceEntityId()).thenReturn(inferenceEntityId);
+        when(mockConfigs.getService()).thenReturn(serviceName);
+
+        var mockModel = mock(Model.class);
+        when(mockModel.getConfigurations()).thenReturn(mockConfigs);
+
+        return mockModel;
     }
 }

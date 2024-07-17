@@ -1,0 +1,5 @@
+pr: 108931
+summary: Guard systemd library lookup from unreadable directories
+area: Infra/Core
+type: bug
+issues: []

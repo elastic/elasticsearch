@@ -7,13 +7,10 @@
 package org.elasticsearch.xpack.esql.core.expression.function.scalar;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 public abstract class BinaryScalarFunction extends ScalarFunction {
 
@@ -46,21 +43,5 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
     @Override
     public boolean foldable() {
         return left.foldable() && right.foldable();
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        ScriptTemplate leftScript = asScript(left());
-        ScriptTemplate rightScript = asScript(right());
-
-        return asScriptFrom(leftScript, rightScript);
-    }
-
-    protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        return Scripts.binaryMethod(Scripts.classPackageAsPrefix(getClass()), scriptMethodName(), leftScript, rightScript, dataType());
-    }
-
-    protected String scriptMethodName() {
-        return getClass().getSimpleName().toLowerCase(Locale.ROOT);
     }
 }

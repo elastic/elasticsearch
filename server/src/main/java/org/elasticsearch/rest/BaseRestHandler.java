@@ -81,7 +81,7 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // check if the query has any parameters that are not in the supported set (if declared)
-        Set<String> supported = supportedQueryParameters();
+        Set<String> supported = allSupportedParameters();
         if (supported != null) {
             var allSupported = Sets.union(ALWAYS_SUPPORTED, supported);
             if (allSupported.containsAll(request.params().keySet()) == false) {

@@ -74,7 +74,7 @@ final class RequestXContent {
     }
 
     private static void objectParserCommon(ObjectParser<EsqlQueryRequest, ?> parser) {
-        parser.declareString(EsqlQueryRequest::esqlVersion, ESQL_VERSION_FIELD);
+        parser.declareString((str, consumer) -> {}, ESQL_VERSION_FIELD);
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);

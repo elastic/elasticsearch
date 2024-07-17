@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
@@ -40,11 +39,6 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
 
     public ZoneId zoneId() {
         return zoneId;
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

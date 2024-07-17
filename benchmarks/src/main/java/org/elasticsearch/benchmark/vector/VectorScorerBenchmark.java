@@ -8,16 +8,19 @@
 
 package org.elasticsearch.benchmark.vector;
 
+import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.ScalarQuantizedRandomVectorScorer;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.vec.VectorScorer;
 import org.elasticsearch.vec.VectorScorerFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -71,10 +74,10 @@ public class VectorScorerBenchmark {
     float vec2Offset;
     float scoreCorrectionConstant;
 
-    ScalarQuantizedVectorSimilarity luceneDotScorer;
-    ScalarQuantizedVectorSimilarity luceneSqrScorer;
-    VectorScorer nativeDotScorer;
-    VectorScorer nativeSqrScorer;
+    RandomVectorScorer luceneDotScorer;
+    RandomVectorScorer luceneSqrScorer;
+    RandomVectorScorer nativeDotScorer;
+    RandomVectorScorer nativeSqrScorer;
 
     @Setup
     public void setup() throws IOException {
@@ -107,14 +110,22 @@ public class VectorScorerBenchmark {
             out.writeInt(Float.floatToIntBits(vec2Offset));
         }
         in = dir.openInput("vector.data", IOContext.DEFAULT);
+        var values = vectorValues(dims, 2, in);
 
-        luceneDotScorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(
-            VectorSimilarityFunction.DOT_PRODUCT,
-            scoreCorrectionConstant
+        luceneDotScorer = new ScalarQuantizedRandomVectorScorer(
+            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.DOT_PRODUCT, scoreCorrectionConstant),
+            values.copy(),
+            vec1,
+            vec1Offset
         );
-        luceneSqrScorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant);
-        nativeDotScorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, DOT_PRODUCT, in).get();
-        nativeSqrScorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, EUCLIDEAN, in).get();
+        luceneSqrScorer = new ScalarQuantizedRandomVectorScorer(
+            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant),
+            values.copy(),
+            vec1,
+            vec1Offset
+        );
+        nativeDotScorer = factory.getInt7ScalarQuantizedVectorScorer(DOT_PRODUCT, in, values, scoreCorrectionConstant).get().scorer(0);
+        nativeSqrScorer = factory.getInt7ScalarQuantizedVectorScorer(EUCLIDEAN, in, values, scoreCorrectionConstant).get().scorer(0);
 
         // sanity
         var f1 = dotProductLucene();
@@ -144,13 +155,13 @@ public class VectorScorerBenchmark {
     }
 
     @Benchmark
-    public float dotProductLucene() {
-        return luceneDotScorer.score(vec1, vec1Offset, vec2, vec2Offset);
+    public float dotProductLucene() throws IOException {
+        return luceneDotScorer.score(1);
     }
 
     @Benchmark
     public float dotProductNative() throws IOException {
-        return nativeDotScorer.score(0, 1);
+        return nativeDotScorer.score(1);
     }
 
     @Benchmark
@@ -166,13 +177,13 @@ public class VectorScorerBenchmark {
     // -- square distance
 
     @Benchmark
-    public float squareDistanceLucene() {
-        return luceneSqrScorer.score(vec1, vec1Offset, vec2, vec2Offset);
+    public float squareDistanceLucene() throws IOException {
+        return luceneSqrScorer.score(1);
     }
 
     @Benchmark
     public float squareDistanceNative() throws IOException {
-        return nativeSqrScorer.score(0, 1);
+        return nativeSqrScorer.score(1);
     }
 
     @Benchmark
@@ -184,6 +195,10 @@ public class VectorScorerBenchmark {
         }
         float adjustedDistance = squareDistance * scoreCorrectionConstant;
         return 1 / (1f + adjustedDistance);
+    }
+
+    RandomAccessQuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in) throws IOException {
+        return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, in.slice("values", 0, in.length()));
     }
 
     // Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).

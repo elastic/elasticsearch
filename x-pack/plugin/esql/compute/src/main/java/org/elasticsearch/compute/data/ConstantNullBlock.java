@@ -53,11 +53,6 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public int nullValuesCount() {
-        return getPositionCount();
-    }
-
-    @Override
     public boolean areAllValuesNull() {
         return true;
     }

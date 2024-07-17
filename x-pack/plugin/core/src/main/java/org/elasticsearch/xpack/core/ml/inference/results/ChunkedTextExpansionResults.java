@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -23,13 +24,10 @@ import java.util.stream.Collectors;
 public class ChunkedTextExpansionResults extends ChunkedNlpInferenceResults {
     public static final String NAME = "chunked_text_expansion_result";
 
-    public record ChunkedResult(String matchedText, List<TextExpansionResults.WeightedToken> weightedTokens)
-        implements
-            Writeable,
-            ToXContentObject {
+    public record ChunkedResult(String matchedText, List<WeightedToken> weightedTokens) implements Writeable, ToXContentObject {
 
         public ChunkedResult(StreamInput in) throws IOException {
-            this(in.readString(), in.readCollectionAsList(TextExpansionResults.WeightedToken::new));
+            this(in.readString(), in.readCollectionAsList(WeightedToken::new));
         }
 
         @Override
@@ -54,11 +52,7 @@ public class ChunkedTextExpansionResults extends ChunkedNlpInferenceResults {
         public Map<String, Object> asMap() {
             var map = new HashMap<String, Object>();
             map.put(TEXT, matchedText);
-            map.put(
-                INFERENCE,
-                weightedTokens.stream()
-                    .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight))
-            );
+            map.put(INFERENCE, weightedTokens.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight)));
             return map;
         }
     }

@@ -8,16 +8,11 @@
 package org.elasticsearch.xpack.esql.core.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.esql.core.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public abstract class CaseInsensitiveScalarFunction extends ScalarFunction {
 
@@ -30,15 +25,6 @@ public abstract class CaseInsensitiveScalarFunction extends ScalarFunction {
 
     public boolean isCaseInsensitive() {
         return caseInsensitive;
-    }
-
-    @Override
-    public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(
-            processScript(Scripts.DOC_VALUE),
-            paramsBuilder().variable(field.exactAttribute().name()).build(),
-            dataType()
-        );
     }
 
     @Override

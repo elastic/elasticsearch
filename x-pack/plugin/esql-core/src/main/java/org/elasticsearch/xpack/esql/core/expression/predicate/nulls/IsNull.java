@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -42,11 +41,6 @@ public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalar
     @Override
     protected Processor makeProcessor() {
         return new CheckNullProcessor(CheckNullOperation.IS_NULL);
-    }
-
-    @Override
-    public String processScript(String script) {
-        return Scripts.formatTemplate(Scripts.QL_SCRIPTS + ".isNull(" + script + ")");
     }
 
     @Override

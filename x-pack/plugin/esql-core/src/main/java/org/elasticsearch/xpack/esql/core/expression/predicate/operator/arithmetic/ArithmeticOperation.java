@@ -7,9 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,10 +39,5 @@ public abstract class ArithmeticOperation extends BinaryOperator<Object, Object,
             dataType = DataTypeConverter.commonType(left().dataType(), right().dataType());
         }
         return dataType;
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        return new BinaryArithmeticPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 }

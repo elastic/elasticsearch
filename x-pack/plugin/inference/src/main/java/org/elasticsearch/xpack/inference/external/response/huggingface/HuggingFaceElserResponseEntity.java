@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -82,14 +83,14 @@ public class HuggingFaceElserResponseEntity {
         XContentParser.Token token = parser.currentToken();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
-        List<SparseEmbeddingResults.WeightedToken> weightedTokens = new ArrayList<>();
+        List<WeightedToken> weightedTokens = new ArrayList<>();
         token = parser.nextToken();
         while (token != null && token != XContentParser.Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             var floatToken = parser.nextToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, floatToken, parser);
 
-            weightedTokens.add(new SparseEmbeddingResults.WeightedToken(parser.currentName(), parser.floatValue()));
+            weightedTokens.add(new WeightedToken(parser.currentName(), parser.floatValue()));
 
             token = parser.nextToken();
         }

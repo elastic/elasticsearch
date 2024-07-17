@@ -177,11 +177,6 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
-    public int nullValuesCount() {
-        return ordinals.nullValuesCount();
-    }
-
-    @Override
     public boolean mayHaveNulls() {
         return ordinals.mayHaveNulls();
     }

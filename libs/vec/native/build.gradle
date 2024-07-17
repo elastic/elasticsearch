@@ -62,6 +62,10 @@ model {
       }
     }
     clang(Clang) {
+      target("aarch64") {
+        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=armv8-a"]) }
+      }
+
       target("amd64") {
         cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2"]) }
       }

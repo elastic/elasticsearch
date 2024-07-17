@@ -328,7 +328,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProfile() {
-        EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.pragmas(randomPragmas());
         request.query("from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist");
         request.profile(true);

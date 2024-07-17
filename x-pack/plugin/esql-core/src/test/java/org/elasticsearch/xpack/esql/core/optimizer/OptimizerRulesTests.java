@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
@@ -52,11 +50,9 @@ import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ConstantFoldin
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.FoldNull;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateEquals;
-import org.elasticsearch.xpack.esql.core.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.core.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.Project;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -68,7 +64,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.TestUtils.equalsOf;
 import static org.elasticsearch.xpack.esql.core.TestUtils.fieldAttribute;
@@ -86,7 +81,6 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable;
-import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ReplaceRegexMatch;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
@@ -1722,50 +1716,6 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(and, new PropagateNullable().rule(and));
     }
 
-    public void testCombineFilters() throws Exception {
-        EsRelation relation = relation();
-        GreaterThan conditionA = greaterThanOf(TestUtils.getFieldAttribute("a"), ONE);
-        LessThan conditionB = lessThanOf(TestUtils.getFieldAttribute("b"), TWO);
-
-        Filter fa = new Filter(EMPTY, relation, conditionA);
-        Filter fb = new Filter(EMPTY, fa, conditionB);
-
-        assertEquals(new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)), new PushDownAndCombineFilters().apply(fb));
-    }
-
-    public void testPushDownFilter() throws Exception {
-        EsRelation relation = relation();
-        GreaterThan conditionA = greaterThanOf(TestUtils.getFieldAttribute("a"), ONE);
-        LessThan conditionB = lessThanOf(TestUtils.getFieldAttribute("b"), TWO);
-
-        Filter fa = new Filter(EMPTY, relation, conditionA);
-        List<FieldAttribute> projections = singletonList(TestUtils.getFieldAttribute("b"));
-        Project project = new Project(EMPTY, fa, projections);
-        Filter fb = new Filter(EMPTY, project, conditionB);
-
-        Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
-        assertEquals(new Project(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb));
-    }
-
-    public void testPushDownFilterThroughAgg() throws Exception {
-        EsRelation relation = relation();
-        GreaterThan conditionA = greaterThanOf(TestUtils.getFieldAttribute("a"), ONE);
-        LessThan conditionB = lessThanOf(TestUtils.getFieldAttribute("b"), TWO);
-        GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(EMPTY, ONE, false), THREE);
-
-        Filter fa = new Filter(EMPTY, relation, conditionA);
-        List<FieldAttribute> projections = singletonList(TestUtils.getFieldAttribute("b"));
-        // invalid aggregate but that's fine cause its properties are not used by this rule
-        Aggregate aggregate = new Aggregate(EMPTY, fa, emptyList(), emptyList());
-        Filter fb = new Filter(EMPTY, aggregate, new And(EMPTY, aggregateCondition, conditionB));
-
-        Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
-
-        // expected
-        Filter expected = new Filter(EMPTY, new Aggregate(EMPTY, combinedFilter, emptyList(), emptyList()), aggregateCondition);
-        assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
-    }
-
     public void testIsNotNullOnIsNullField() {
         EsRelation relation = relation();
         var fieldA = TestUtils.getFieldAttribute("a");
@@ -1794,50 +1744,6 @@ public class OptimizerRulesTests extends ESTestCase {
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
 
         assertEquals(expected, new OptimizerRules.InferIsNotNull().apply(f));
-    }
-
-    public void testIsNotNullOnFunctionWithOneField() {
-        EsRelation relation = relation();
-        var fieldA = TestUtils.getFieldAttribute("a");
-        var pattern = L("abc");
-        Expression inn = isNotNull(
-            new And(EMPTY, new TestStartsWith(EMPTY, fieldA, pattern, false), greaterThanOf(new Add(EMPTY, ONE, TWO), THREE))
-        );
-
-        Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
-
-        assertEquals(expected, new OptimizerRules.InferIsNotNull().apply(f));
-    }
-
-    public void testIsNotNullOnFunctionWithTwoFields() {
-        EsRelation relation = relation();
-        var fieldA = TestUtils.getFieldAttribute("a");
-        var fieldB = TestUtils.getFieldAttribute("b");
-        var pattern = L("abc");
-        Expression inn = isNotNull(new TestStartsWith(EMPTY, fieldA, fieldB, false));
-
-        Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
-
-        assertEquals(expected, new OptimizerRules.InferIsNotNull().apply(f));
-    }
-
-    public static class TestStartsWith extends StartsWith {
-
-        public TestStartsWith(Source source, Expression input, Expression pattern, boolean caseInsensitive) {
-            super(source, input, pattern, caseInsensitive);
-        }
-
-        @Override
-        public Expression replaceChildren(List<Expression> newChildren) {
-            return new TestStartsWith(source(), newChildren.get(0), newChildren.get(1), isCaseInsensitive());
-        }
-
-        @Override
-        protected NodeInfo<TestStartsWith> info() {
-            return NodeInfo.create(this, TestStartsWith::new, input(), pattern(), isCaseInsensitive());
-        }
     }
 
     public void testIsNotNullOnFunctionWithTwoField() {}

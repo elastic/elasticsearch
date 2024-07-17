@@ -287,6 +287,20 @@ public final class DocumentParser {
         }
 
         if (context.parent().isNested()) {
+            // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
+            if (context.mappingLookup().isSourceSynthetic() && context.getClonedSource() == false) {
+                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
+                context.addIgnoredField(
+                    new IgnoredSourceFieldMapper.NameValue(
+                        context.parent().name(),
+                        context.parent().fullPath().indexOf(context.parent().simpleName()),
+                        XContentDataHelper.encodeXContentBuilder(tuple.v2())
+                    )
+                );
+                context = tuple.v1();
+                token = context.parser().currentToken();
+                parser = context.parser();
+            }
             context = context.createNestedContext((NestedObjectMapper) context.parent());
         }
 
@@ -610,20 +624,31 @@ public final class DocumentParser {
         String arrayFieldName
     ) throws IOException {
         // Check if we need to record the array source. This only applies to synthetic source.
-        if (context.mappingLookup().isSourceSynthetic()
-            && (mapper instanceof ObjectMapper objectMapper && objectMapper.storeArraySource())
-            && context.getClonedSource() == false) {
-            // Clone the DocumentParserContext to parse its subtree twice.
-            Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
-            boolean isRoot = context.parent() instanceof RootObjectMapper;
-            context.addIgnoredField(
-                new IgnoredSourceFieldMapper.NameValue(
-                    isRoot ? arrayFieldName : context.parent().name() + "." + arrayFieldName,
-                    isRoot ? 0 : context.parent().fullPath().length() + 1,
-                    XContentDataHelper.encodeXContentBuilder(tuple.v2())
-                )
-            );
-            context = tuple.v1();
+        if (context.mappingLookup().isSourceSynthetic() && context.getClonedSource() == false) {
+            boolean storeArraySourceEnabled = mapper instanceof ObjectMapper objectMapper && objectMapper.storeArraySource();
+            boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
+                && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
+            if (storeArraySourceEnabled || fieldWithFallbackSyntheticSource || mapper instanceof NestedObjectMapper) {
+                // Clone the DocumentParserContext to parse its subtree twice.
+                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
+                context.addIgnoredField(
+                    IgnoredSourceFieldMapper.NameValue.fromContext(
+                        context,
+                        context.path().pathAsText(arrayFieldName),
+                        XContentDataHelper.encodeXContentBuilder(tuple.v2())
+                    )
+                );
+                context = tuple.v1();
+            } else if (mapper instanceof ObjectMapper objectMapper && objectMapper.isEnabled() == false) {
+                context.addIgnoredField(
+                    IgnoredSourceFieldMapper.NameValue.fromContext(
+                        context,
+                        context.path().pathAsText(arrayFieldName),
+                        XContentDataHelper.encodeToken(context.parser())
+                    )
+                );
+                return;
+            }
         }
 
         XContentParser parser = context.parser();

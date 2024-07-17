@@ -153,10 +153,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        if (failureStoreOptions.includeFailureIndices() && lazy) {
-            validationException = addValidationError("lazily rolling over a failure store is currently not supported", validationException);
-        }
-
         return validationException;
     }
 

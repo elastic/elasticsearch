@@ -321,7 +321,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public void close() {
         if (transformServices.get() != null) {
-            transformServices.get().getScheduler().stop();
+            transformServices.get().scheduler().stop();
         }
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -491,6 +492,7 @@ public final class PlanNamedTypes {
         return new EsQueryExec(
             in.readSource(),
             readEsIndex(in),
+            readIndexMode(in),
             readAttributes(in),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             in.readOptionalNamed(Expression.class),
@@ -503,6 +505,7 @@ public final class PlanNamedTypes {
         assert esQueryExec.children().size() == 0;
         out.writeNoSource();
         writeEsIndex(out, esQueryExec.index());
+        writeIndexMode(out, esQueryExec.indexMode());
         writeAttributes(out, esQueryExec.output());
         out.writeOptionalNamedWriteable(esQueryExec.query());
         out.writeOptionalExpression(esQueryExec.limit());
@@ -511,7 +514,13 @@ public final class PlanNamedTypes {
     }
 
     static EsSourceExec readEsSourceExec(PlanStreamInput in) throws IOException {
-        return new EsSourceExec(in.readSource(), readEsIndex(in), readAttributes(in), in.readOptionalNamedWriteable(QueryBuilder.class));
+        return new EsSourceExec(
+            in.readSource(),
+            readEsIndex(in),
+            readAttributes(in),
+            in.readOptionalNamedWriteable(QueryBuilder.class),
+            readIndexMode(in)
+        );
     }
 
     static void writeEsSourceExec(PlanStreamOutput out, EsSourceExec esSourceExec) throws IOException {
@@ -519,6 +528,23 @@ public final class PlanNamedTypes {
         writeEsIndex(out, esSourceExec.index());
         writeAttributes(out, esSourceExec.output());
         out.writeOptionalNamedWriteable(esSourceExec.query());
+        writeIndexMode(out, esSourceExec.indexMode());
+    }
+
+    static IndexMode readIndexMode(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
+            return IndexMode.fromString(in.readString());
+        } else {
+            return IndexMode.STANDARD;
+        }
+    }
+
+    static void writeIndexMode(StreamOutput out, IndexMode indexMode) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
+            out.writeString(indexMode.getName());
+        } else if (indexMode != IndexMode.STANDARD) {
+            throw new IllegalStateException("not ready to support index mode [" + indexMode + "]");
+        }
     }
 
     static EvalExec readEvalExec(PlanStreamInput in) throws IOException {
@@ -799,8 +825,9 @@ public final class PlanNamedTypes {
         if (supportingEsSourceOptions(in.getTransportVersion())) {
             readEsSourceOptions(in); // consume optional strings sent by remote
         }
+        final IndexMode indexMode = readIndexMode(in);
         boolean frozen = in.readBoolean();
-        return new EsRelation(source, esIndex, attributes, frozen);
+        return new EsRelation(source, esIndex, attributes, indexMode, frozen);
     }
 
     static void writeEsRelation(PlanStreamOutput out, EsRelation relation) throws IOException {
@@ -811,6 +838,7 @@ public final class PlanNamedTypes {
         if (supportingEsSourceOptions(out.getTransportVersion())) {
             writeEsSourceOptions(out); // write (null) string fillers expected by remote
         }
+        writeIndexMode(out, relation.indexMode());
         out.writeBoolean(relation.frozen());
     }
 

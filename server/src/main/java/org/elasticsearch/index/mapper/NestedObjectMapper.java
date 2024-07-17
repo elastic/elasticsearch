@@ -294,6 +294,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        throw new IllegalArgumentException("field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source");
+        // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects.
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

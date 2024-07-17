@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.junit.Before;
@@ -248,9 +249,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     private InferenceAction.Response generateSparseEmbeddingInferenceResponse(String query) {
-        List<TextExpansionResults.WeightedToken> weightedTokens = Arrays.stream(query.split("\\s+"))
-            .map(s -> new TextExpansionResults.WeightedToken(s, TOKEN_WEIGHT))
-            .toList();
+        List<WeightedToken> weightedTokens = Arrays.stream(query.split("\\s+")).map(s -> new WeightedToken(s, TOKEN_WEIGHT)).toList();
         TextExpansionResults textExpansionResults = new TextExpansionResults(DEFAULT_RESULTS_FIELD, weightedTokens, false);
 
         return new InferenceAction.Response(SparseEmbeddingResults.of(List.of(textExpansionResults)));

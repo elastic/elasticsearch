@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,10 +23,10 @@ public class ChunkedTextExpansionResultsTests extends AbstractWireSerializingTes
         int numChunks = randomIntBetween(1, 5);
 
         for (int i = 0; i < numChunks; i++) {
-            var tokenWeights = new ArrayList<TextExpansionResults.WeightedToken>();
+            var tokenWeights = new ArrayList<WeightedToken>();
             int numTokens = randomIntBetween(1, 8);
             for (int j = 0; j < numTokens; j++) {
-                tokenWeights.add(new TextExpansionResults.WeightedToken(Integer.toString(j), (float) randomDoubleBetween(0.0, 5.0, false)));
+                tokenWeights.add(new WeightedToken(Integer.toString(j), (float) randomDoubleBetween(0.0, 5.0, false)));
             }
             chunks.add(new ChunkedTextExpansionResults.ChunkedResult(randomAlphaOfLength(6), tokenWeights));
         }

@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,11 +25,9 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
 
 public class In extends ScalarFunction {
@@ -105,20 +101,6 @@ public class In extends ScalarFunction {
         return new In(source(), value, canonicalValues, zoneId);
     }
 
-    @Override
-    public ScriptTemplate asScript() {
-        ScriptTemplate leftScript = asScript(value);
-
-        // fold & remove duplicates
-        List<Object> values = new ArrayList<>(new LinkedHashSet<>(foldAndConvertListOfValues(list, value.dataType())));
-
-        return new ScriptTemplate(
-            formatTemplate(format("{ql}.", "in({}, {})", leftScript.template())),
-            paramsBuilder().script(leftScript.params()).variable(values).build(),
-            dataType()
-        );
-    }
-
     protected List<Object> foldAndConvertListOfValues(List<Expression> expressions, DataType dataType) {
         List<Object> values = new ArrayList<>(expressions.size());
         for (Expression e : expressions) {
@@ -129,11 +111,6 @@ public class In extends ScalarFunction {
 
     protected boolean areCompatible(DataType left, DataType right) {
         return DataTypes.areCompatible(left, right);
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        return new InPipe(source(), this, children().stream().map(Expressions::pipe).collect(Collectors.toList()));
     }
 
     @Override

@@ -20,6 +20,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -28,7 +30,7 @@ import static org.elasticsearch.action.support.IndicesOptions.strictSingleIndexN
 /**
  * A request that is broadcast to the unpromotable assigned replicas of a primary.
  */
-public class BroadcastUnpromotableRequest extends ActionRequest implements IndicesRequest {
+public class BroadcastUnpromotableRequest extends ActionRequest implements IndicesRequest.RemoteClusterShardRequest {
 
     /**
      * Holds the index shard routing table that will be used by {@link TransportBroadcastUnpromotableAction} to broadcast the requests to
@@ -104,5 +106,10 @@ public class BroadcastUnpromotableRequest extends ActionRequest implements Indic
     @Override
     public IndicesOptions indicesOptions() {
         return strictSingleIndexNoExpandForbidClosed();
+    }
+
+    @Override
+    public Collection<ShardId> shards() {
+        return List.of(shardId);
     }
 }

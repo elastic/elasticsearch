@@ -25,11 +25,12 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesRequest {
+class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesRequest.RemoteClusterShardRequest {
 
     private final List<ShardId> shardIds;
     private final String[] fields;
@@ -214,5 +215,10 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         result = 31 * result + Arrays.hashCode(filters);
         result = 31 * result + Arrays.hashCode(allowedTypes);
         return result;
+    }
+
+    @Override
+    public Collection<ShardId> shards() {
+        return shardIds();
     }
 }

@@ -47,6 +47,8 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -280,7 +282,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         }
     }
 
-    private static final class ShardOpenReaderRequest extends TransportRequest implements IndicesRequest {
+    private static final class ShardOpenReaderRequest extends TransportRequest implements IndicesRequest.RemoteClusterShardRequest {
         final ShardId shardId;
         final OriginalIndices originalIndices;
         final TimeValue keepAlive;
@@ -318,6 +320,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         @Override
         public IndicesOptions indicesOptions() {
             return originalIndices.indicesOptions();
+        }
+
+        @Override
+        public Collection<ShardId> shards() {
+            return List.of(getShardId());
         }
     }
 

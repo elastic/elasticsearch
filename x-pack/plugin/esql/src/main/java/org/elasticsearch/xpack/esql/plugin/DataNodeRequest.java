@@ -32,11 +32,12 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-final class DataNodeRequest extends TransportRequest implements IndicesRequest {
+final class DataNodeRequest extends TransportRequest implements IndicesRequest.RemoteClusterShardRequest {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String sessionId;
     private final EsqlConfiguration configuration;
@@ -140,6 +141,11 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         return shardIds;
     }
 
+    @Override
+    public Collection<ShardId> shards() {
+        return shardIds();
+    }
+
     /**
      * Returns a map from index UUID to alias filters
      */
@@ -179,4 +185,5 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
     public int hashCode() {
         return Objects.hash(sessionId, configuration, clusterAlias, shardIds, aliasFilters, plan);
     }
+
 }

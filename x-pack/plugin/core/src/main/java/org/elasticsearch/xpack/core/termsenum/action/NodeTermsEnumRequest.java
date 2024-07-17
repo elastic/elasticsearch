@@ -19,6 +19,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
@@ -26,7 +27,7 @@ import java.util.Set;
  * Internal terms enum request executed directly against a specific node, querying potentially many
  * shards in one request
  */
-public class NodeTermsEnumRequest extends TransportRequest implements IndicesRequest {
+public class NodeTermsEnumRequest extends TransportRequest implements IndicesRequest.RemoteClusterShardRequest {
 
     private final String field;
     private final String string;
@@ -180,5 +181,10 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
 
     public boolean remove(ShardId shardId) {
         return shardIds.remove(shardId);
+    }
+
+    @Override
+    public Collection<ShardId> shards() {
+        return shardIds();
     }
 }

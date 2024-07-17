@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -177,7 +178,8 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         try {
             this.cachedSecureSettings = extractSecureSettings(settings, List.of(MAXMIND_LICENSE_KEY_SETTING));
         } catch (GeneralSecurityException e) {
-            logger.error("Keystore exception while reloading enterprise geoip download task executor", e);
+            // rethrow as a runtime exception, there's logging higher up the call chain around ReloadablePlugin
+            throw new ElasticsearchException("Exception while reloading enterprise geoip download task executor", e);
         }
     }
 

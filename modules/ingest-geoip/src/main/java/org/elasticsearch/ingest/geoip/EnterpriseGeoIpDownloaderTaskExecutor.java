@@ -228,7 +228,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
 
             @Override
             public InputStream getFile(String setting) {
-                throw new IllegalStateException("A NotificationService setting cannot be File.");
+                throw new UnsupportedOperationException("A cached SecureSetting cannot be a file");
             }
 
             @Override
@@ -241,7 +241,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                throw new IllegalStateException("Unsupported operation");
+                throw new UnsupportedOperationException("A cached SecureSetting cannot be serialized");
             }
         };
     }

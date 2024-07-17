@@ -71,6 +71,11 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         builder.setSecureSettings(secureSettings)
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
+        if (getEndpoint() != null) {
+            // note: this is using the enterprise fixture for the regular downloader, too, as
+            // a slightly hacky way of making the regular downloader not actually download any files
+            builder.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), getEndpoint());
+        }
         return builder.build();
     }
 

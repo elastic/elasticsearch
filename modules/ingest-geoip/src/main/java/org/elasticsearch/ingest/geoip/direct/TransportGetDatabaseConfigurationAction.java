@@ -27,7 +27,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,30 +64,12 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
         final ClusterState state,
         final ActionListener<GetDatabaseConfigurationAction.Response> listener
     ) {
-        IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
-        if (geoIpMeta.getDatabases().isEmpty()) {
-            if (request.getDatabaseIds().length == 0) {
-                // you asked for all, and there are none, we return the none that there are
-                listener.onResponse(new GetDatabaseConfigurationAction.Response(List.of()));
-                return;
-            } else {
-                // you asked for *something*, and there are none, we 404
-                listener.onFailure(
-                    new ResourceNotFoundException(
-                        "database configuration or configurations {} not found, no database configurations are configured",
-                        Arrays.toString(request.getDatabaseIds())
-                    )
-                );
-                return;
-            }
-        }
-
         final Set<String> ids;
         if (request.getDatabaseIds().length == 0) {
             // if we did not ask for a specific name, then return all databases
             ids = Set.of("*");
         } else {
-            ids = new HashSet<>(Arrays.asList(request.getDatabaseIds()));
+            ids = new LinkedHashSet<>(Arrays.asList(request.getDatabaseIds()));
         }
 
         if (ids.size() > 1 && ids.stream().anyMatch(Regex::isSimpleMatchPattern)) {
@@ -96,6 +78,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
             );
         }
 
+        final IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         List<DatabaseConfigurationMetadata> results = new ArrayList<>();
 
         for (String id : ids) {

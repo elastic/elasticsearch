@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -197,14 +196,17 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         // get the secure settings out
         final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
         // filter and cache them...
-        final Map<String, Tuple<SecureString, byte[]>> innerMap = new HashMap<>();
+        final Map<String, SecureSettingValue> innerMap = new HashMap<>();
         if (sourceSecureSettings != null && securePluginSettings != null) {
             for (final String settingKey : sourceSecureSettings.getSettingNames()) {
                 for (final Setting<?> secureSetting : securePluginSettings) {
                     if (secureSetting.match(settingKey)) {
                         innerMap.put(
                             settingKey,
-                            new Tuple<>(sourceSecureSettings.getString(settingKey), sourceSecureSettings.getSHA256Digest(settingKey))
+                            new SecureSettingValue(
+                                sourceSecureSettings.getString(settingKey),
+                                sourceSecureSettings.getSHA256Digest(settingKey)
+                            )
                         );
                     }
                 }
@@ -218,7 +220,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
 
             @Override
             public SecureString getString(String setting) {
-                return innerMap.get(setting).v1();
+                return innerMap.get(setting).value();
             }
 
             @Override
@@ -233,7 +235,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
 
             @Override
             public byte[] getSHA256Digest(String setting) {
-                return innerMap.get(setting).v2();
+                return innerMap.get(setting).sha256Digest();
             }
 
             @Override
@@ -245,4 +247,9 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
             }
         };
     }
+
+    /**
+     * A single-purpose record for the internal implementation of extractSecureSettings
+     */
+    private record SecureSettingValue(SecureString value, byte[] sha256Digest) {}
 }

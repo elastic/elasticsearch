@@ -1886,6 +1886,39 @@ w_avg:double
 null
 ;
 
+shadowingInternal
+FROM employees
+| STATS x = MAX(emp_no), x = MIN(emp_no)
+;
+
+x:integer
+10001
+;
+
+shadowingInternalWithGroup
+FROM employees
+| STATS x = MAX(emp_no), x = MIN(emp_no) BY x = gender
+| SORT x ASC
+;
+
+x:keyword
+F
+M
+null
+;
+
+shadowingTheGroup
+FROM employees
+| STATS gender = MAX(emp_no), gender = MIN(emp_no) BY gender
+| SORT gender ASC
+;
+
+gender:keyword
+F
+M
+null
+;
+
 docsStatsMvGroup
 // tag::mv-group[]
 ROW i=1, a=["a", "b"] | STATS MIN(i) BY a | SORT a ASC
@@ -1912,4 +1945,36 @@ MIN(i):integer | a:keyword | b:integer
              1 | b         | 2
              1 | b         | 3
 // end::multi-mv-group-result[]
+;
+
+statsByConstant
+required_capability: stats_by_constant
+from employees
+| stats m = max(salary), a = round(avg(salary)) by 0
+;
+
+m:integer |a:double |0:integer
+74999     |48249.0  |0
+;
+
+statsByConstantFromStats
+required_capability: stats_by_constant
+from employees
+| stats c = count(languages)
+| stats a = count(*) by c
+;
+
+a:long |c:long
+1      |90
+;
+
+statsByConstantFromEval
+required_capability: stats_by_constant
+from employees
+| eval x = 0
+| stats m = max(salary), a = round(avg(salary)) by x
+;
+
+m:integer |a:double |x:integer
+74999     |48249.0  |0
 ;

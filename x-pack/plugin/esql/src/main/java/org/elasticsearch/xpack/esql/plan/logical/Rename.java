@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -33,8 +36,10 @@ public class Rename extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
-        // Rename is mapped to a Project during analysis; we do not compute the output here.
-        throw new IllegalStateException("Should never reach here.");
+        // Normally shouldn't reach here, as Rename only exists before resolution.
+        List<NamedExpression> projectionsAfterResolution = ResolveRefs.projectionsForRename(this, this.child().output(), null);
+
+        return Expressions.asAttributes(projectionsAfterResolution);
     }
 
     @Override

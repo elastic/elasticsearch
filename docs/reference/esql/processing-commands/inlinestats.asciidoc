@@ -39,17 +39,6 @@ All of the <<esql-agg-functions,aggregation functions>> are supported.
 
 *Examples*
 
-Add the maximum :
-
-[source.merge.styled,esql]
-----
-include::{esql-specs}/inlinestats.csv-spec[tag=max-languages]
-----
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-include::{esql-specs}/inlinestats.csv-spec[tag=max-languages-result]
-|===
-
 Find the employees that speak the most languages (it's a tie!):
 
 [source.merge.styled,esql]

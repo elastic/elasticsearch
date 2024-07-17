@@ -181,7 +181,7 @@ FROM airports
 abbrev:keyword | type:keyword | scalerank:integer | min_scalerank:integer
            GWL |          mid | 9                 | 2
            GWL |     military | 9                 | 4
-// tag::mv-expand-result[]
+// end::mv-expand-result[]
 ;
 
 byMvExpand

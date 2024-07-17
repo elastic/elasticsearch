@@ -22,8 +22,6 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -121,22 +119,13 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         return settings.build();
     }
 
-    public void testDeleteSingleItem() {
+    public void testDeleteSingleItem() throws IOException {
         final String repoName = createRepository(randomRepositoryName());
         final RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
-        PlainActionFuture.get(
-            f -> repository.threadPool()
-                .generic()
-                .execute(
-                    ActionRunnable.run(
-                        f,
-                        () -> repository.blobStore()
-                            .blobContainer(repository.basePath())
-                            .deleteBlobsIgnoringIfNotExists(randomPurpose(), Iterators.single("foo"))
-                    )
-                )
-        );
+        repository.blobStore()
+            .blobContainer(repository.basePath())
+            .deleteBlobsIgnoringIfNotExists(randomPurpose(), Iterators.single("foo"));
     }
 
     public void testChunkSize() {

@@ -1496,7 +1496,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         boolean updatableTo(IndexOptions update) {
             // TODO: add support for updating from flat, hnsw, and int8_hnsw and updating params
-            return Objects.equals(this, update)
+            return update.type.equals(this.type)
                 || update.type.equals(VectorIndexType.HNSW.name)
                 || update.type.equals(VectorIndexType.INT8_HNSW.name)
                 || update.type.equals(VectorIndexType.INT4_HNSW.name);

@@ -356,7 +356,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         SnapshotLifecyclePolicyMetadata newSlmPolicyMetadata = newSlmMetadata.getSnapshotConfigurations().get(policyId);
 
-        // completed snapshotId is removed from preRegisteredSnapshots
+        // completed snapshotId is removed from preRegisteredSnapshots but still contains currently running
         assertEquals(Set.of(currentSnap1), newSlmPolicyMetadata.getPreRegisteredSnapshots());
     }
 
@@ -388,10 +388,9 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final SnapshotId currentSnap2 = new SnapshotId(randomAlphaOfLength(10), randomUUID());
         final String repo1 = randomAlphaOfLength(10);
         final String repo2 = randomAlphaOfLength(10);
-        final var snapshotsInProgress = SnapshotsInProgress.EMPTY.withUpdatedEntriesForRepo(
-            repo1,
-            List.of(makeSnapshotInProgress(repo1, policyId, currentSnap1))
-        ).withUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, policyId, currentSnap2)));
+        final var snapshotsInProgress = SnapshotsInProgress.EMPTY
+            .withUpdatedEntriesForRepo(repo1, List.of(makeSnapshotInProgress(repo1, policyId, currentSnap1)))
+            .withUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, policyId, currentSnap2)));
 
         Set<SnapshotId> alreadyPreRegistered = Set.of(currentSnap1, currentSnap2, previousFailedSnapshot);
         SnapshotLifecycleMetadata slmMetadata = makeSnapshotLifecycleMetadata(policyId, alreadyPreRegistered);
@@ -402,15 +401,14 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             .build();
 
         ClusterState newClusterState = preRegisterSLMRun.execute(clusterState);
-        SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
 
-        // stats are 0 for policy
+        // previous failure is now recorded in stats and metadata
+        SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         SnapshotLifecycleStats newStats = newSlmMetadata.getStats();
         SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newStats.getMetrics().get(policyId);
         assertEquals(1, snapshotPolicyStats.getSnapshotFailedCount());
         assertEquals(0, snapshotPolicyStats.getSnapshotTakenCount());
 
-        // previous failure is now recorded
         SnapshotLifecyclePolicyMetadata newSlmPolicyMetadata = newSlmMetadata.getSnapshotConfigurations().get(policyId);
         assertEquals(previousFailedSnapshot.getName(), newSlmPolicyMetadata.getLastFailure().getSnapshotName());
         assertNull(newSlmPolicyMetadata.getLastSuccess());
@@ -419,11 +417,12 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         // failed snapshot no longer in preRegisteredSnapshot set
         assertEquals(Set.of(snapshotId, currentSnap1, currentSnap2), newSlmPolicyMetadata.getPreRegisteredSnapshots());
 
+        // confirm listener which will call SnapshotService is called serially
         preRegisterSLMRun.clusterStateProcessed(clusterState, newClusterState);
         assertBusy(() -> assertTrue(listenerCalled.get()));
     }
 
-    public void testCurrentlyRunningSnapshots() {
+    public void testGetCurrentlyRunningSnapshots() {
         final SnapshotId snapshot1 = new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10));
         final SnapshotId snapshot2 = new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10));
         final SnapshotId snapshot3 = new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10));

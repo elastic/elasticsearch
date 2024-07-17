@@ -57,12 +57,10 @@ import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -140,6 +138,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             return Map.of(
                 TestDelayedRepo.TYPE,
                 metadata -> new TestDelayedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, () -> {
+                    // Only delay the first request
                     if (doDelay.getAndSet(false)) {
                         try {
                             assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
@@ -177,7 +176,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * Test if there is a currently running snapshot it is not inferred to be a failure
+     * Test that if there is a currently running snapshot it is not inferred to be a failure
      */
     public void testCurrentlyRunningSnapshotNotRecordedAsFailure() throws Exception {
         final String idxName = "test-idx";
@@ -216,13 +215,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             assertSnapshotSuccess(repoName, snapshotA);
             assertSnapshotSuccess(repoName, snapshotB);
-            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
-            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
-            assertStats(snapshotLifecycleMetadata, policyName, 2, 0);
-            assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
-            assertNotNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
-            assertPreRegistered(Set.of(), policyName);
+            assertMetadata(policyName, 2, 0, 0, Set.of());
+
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -252,17 +246,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             assertSnapshotSuccess(repoName, snapshotName);
-            logger.info("Verified that snapshot was not successful");
-        }, 1, TimeUnit.MINUTES);
-
-        assertBusy(() -> {
-            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
-            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
-            assertStats(snapshotLifecycleMetadata, policyName, 1, 0);
-            assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
-            assertNotNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
-            assertEquals(Set.of(), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+            assertMetadata(policyName, 1, 0, 0, Set.of());
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -306,29 +290,15 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
-            logger.info("Verified that snapshot was not successful");
-        }, 1, TimeUnit.MINUTES);
-
-        assertBusy(() -> {
-            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
-            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
-            assertStats(snapshotLifecycleMetadata, policyName, 0, 0);
-            assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
-            assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
-
-            List<SnapshotId> preRegistered = new ArrayList<>(snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
-            assertEquals(1, preRegistered.size());
-            assertEquals(snapshotName, preRegistered.get(0).getName());
+            assertMetadata(policyName, 0, 0, 0, Set.of(snapshotName));
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
         ensureGreen();
 
-        //
-        // Now execute again, but don't fail the stat upload. The failure from the previous run will now be recorded.
-        //
-
+        /*
+         * Now execute again, and succeed. The failure from the previous run will now be recorded.
+         */
         final String snapshotName2 = executePolicy(masterNode, policyName);
         assertNotEquals(snapshotName, snapshotName2);
         logger.info("Created snapshot: " + snapshotName2);
@@ -337,20 +307,11 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             assertSnapshotSuccess(repoName, snapshotName2);
-            logger.info("Verified that snapshot was successful");
-        }, 1, TimeUnit.MINUTES);
-
-        // Check stats, this time past failure should be accounted for
-        assertBusy(() -> {
-            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
-            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
-            assertStats(snapshotLifecycleMetadata, policyName, 1, 1);
-            assertNotNull(snapshotLifecyclePolicyMetadata.getLastFailure());
-            assertNotNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
-            assertEquals(Set.of(), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+            // Check stats, this time past failure should be accounted for
+            assertMetadata(policyName, 1, 1, 0, Set.of());
         }, 1, TimeUnit.MINUTES);
     }
+
 
     /**
      * Test that after a failure then a failure that successfully sets stats
@@ -394,28 +355,15 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
-            logger.info("--> Verified that snapshot was not successful");
-        }, 1, TimeUnit.MINUTES);
-
-        assertBusy(() -> {
-            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
-            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
-            assertStats(snapshotLifecycleMetadata, policyName, 0, 0);
-            assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
-            assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
-
-            List<SnapshotId> preRegistered = new ArrayList<>(snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
-            assertEquals(1, preRegistered.size());
-            assertEquals(snapshotName, preRegistered.get(0).getName());
+            assertMetadata(policyName, 0, 0, 0, Set.of(snapshotName));
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
         ensureGreen();
 
-        //
-        // Now execute again, but don't fail the stat upload. The failure from the previous run will now be recorded.
-        //
+        /*
+         * Now execute again, but don't fail the stat upload. The failure from the previous run will now be recorded.
+         */
         CountDownLatch latch2 = new CountDownLatch(1);
         internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch2));
 
@@ -429,18 +377,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName2);
-            logger.info("Verified that snapshot was not successful");
-        }, 1, TimeUnit.MINUTES);
-
-        // Check stats, this time past failure should be accounted for
-        assertBusy(() -> {
-            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
-            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
-            assertStats(snapshotLifecycleMetadata, policyName, 0, 2);
-            assertNotNull(snapshotLifecyclePolicyMetadata.getLastFailure());
-            assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(2, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
-            assertEquals(Set.of(), snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots());
+            // Check metadata, this time past failure should be accounted for
+            assertMetadata(policyName, 0, 2, 2, Set.of());
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -478,19 +416,9 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         // restart master so failure stat is lost
         internalCluster().restartNode(masterNode);
 
-        logger.info("--> verify that snapshot was not successful");
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
-            logger.info("--> Verified that snapshot was not successful");
-        }, 1, TimeUnit.MINUTES);
-
-        assertBusy(() -> {
-            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
-            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
-            assertStats(snapshotLifecycleMetadata, policyName, 0, 0);
-            assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
-            assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(0, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
+            assertMetadata(policyName, 0, 0, 0, null);
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -531,13 +459,29 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }, 1, TimeUnit.MINUTES);
 
         assertBusy(() -> {
-            var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
-            var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
-            assertStats(snapshotLifecycleMetadata, policyName, 0, 1);
-            assertNotNull(snapshotLifecyclePolicyMetadata.getLastFailure());
-            assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
-            assertEquals(1, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
+            assertMetadata(policyName, 0, 1, 1, Set.of());
         }, 1, TimeUnit.MINUTES);
+    }
+
+    private void assertMetadata(String policyName, long taken, long failure, long invocationsSinceLastSuccess, Set<String> preRegistered) {
+        var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
+        var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
+        assertStats(snapshotLifecycleMetadata, policyName, taken, failure);
+        if (taken > 0) {
+            assertNotNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
+        } else {
+            assertNull(snapshotLifecyclePolicyMetadata.getLastSuccess());
+        }
+        if (failure > 0) {
+            assertNotNull(snapshotLifecyclePolicyMetadata.getLastFailure());
+        } else {
+            assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
+        }
+        assertEquals(invocationsSinceLastSuccess, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
+
+        if (preRegistered != null) {
+            assertPreRegistered(preRegistered, policyName);
+        }
     }
 
     private SnapshotLifecycleMetadata getSnapshotLifecycleMetadata() {

@@ -602,7 +602,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                 (channel, channelPos, relativePos, length, progressUpdater, completed) -> {
                                     progressUpdater.accept(length);
                                     completed.onResponse(null);
-                                },                                bulkExecutor,
+                                },
+                                bulkExecutor,
                                 listener
                             )
                         );

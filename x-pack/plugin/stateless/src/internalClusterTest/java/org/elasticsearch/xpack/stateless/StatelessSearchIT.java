@@ -90,6 +90,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -204,9 +205,18 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             ClusterService clusterService,
             Client client,
             StatelessCommitCleaner commitCleaner,
-            SharedBlobCacheWarmingService cacheWarmingService
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
         ) {
-            return new TestStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
+            return new TestStatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                client,
+                commitCleaner,
+                cacheWarmingService,
+                telemetryProvider
+            );
         }
 
         private int getCreatedCommits() {
@@ -225,9 +235,10 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             ClusterService clusterService,
             Client client,
             StatelessCommitCleaner commitCleaner,
-            SharedBlobCacheWarmingService cacheWarmingService
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
         ) {
-            super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
+            super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService, telemetryProvider);
         }
 
         @Override

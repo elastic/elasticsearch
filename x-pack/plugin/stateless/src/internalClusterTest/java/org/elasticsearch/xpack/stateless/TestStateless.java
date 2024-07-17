@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.PluginComponentBinding;
+import org.elasticsearch.telemetry.TelemetryProvider;
 
 import java.util.Collection;
 
@@ -59,8 +60,17 @@ public class TestStateless extends Stateless {
         ClusterService clusterService,
         Client client,
         StatelessCommitCleaner commitCleaner,
-        SharedBlobCacheWarmingService cacheWarmingService
+        SharedBlobCacheWarmingService cacheWarmingService,
+        TelemetryProvider telemetryProvider
     ) {
-        return new TestStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
+        return new TestStatelessCommitService(
+            settings,
+            objectStoreService,
+            clusterService,
+            client,
+            commitCleaner,
+            cacheWarmingService,
+            telemetryProvider
+        );
     }
 }

@@ -456,7 +456,8 @@ public class Stateless extends Plugin
             clusterService,
             client,
             commitCleaner,
-            cacheWarmingService
+            cacheWarmingService,
+            services.telemetryProvider()
         );
         components.add(commitService);
         final var finalCommitService = commitService;
@@ -767,9 +768,18 @@ public class Stateless extends Plugin
         ClusterService clusterService,
         Client client,
         StatelessCommitCleaner commitCleaner,
-        SharedBlobCacheWarmingService cacheWarmingService
+        SharedBlobCacheWarmingService cacheWarmingService,
+        TelemetryProvider telemetryProvider
     ) {
-        return new StatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
+        return new StatelessCommitService(
+            settings,
+            objectStoreService,
+            clusterService,
+            client,
+            commitCleaner,
+            cacheWarmingService,
+            telemetryProvider
+        );
     }
 
     protected GetVirtualBatchedCompoundCommitChunksPressure createVirtualBatchedCompoundCommitChunksPressure(

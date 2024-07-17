@@ -12,7 +12,7 @@ The following features are enabled in a logs data stream:
 
 * Index sorting. By default indices are sorted by `host.name` and `@timestamp` fields at index time, which can be overwritten.
 
-* Enable more space efficient compression for fields with doc values enabled.
+* More space efficient compression for fields with <<doc-values,`doc_values`>> enabled.
 
 [discrete]
 [[how-to-use-logsds]]

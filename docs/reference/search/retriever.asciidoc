@@ -29,7 +29,7 @@ A <<knn-retriever, retriever>> that replaces the functionality of a <<search-api
 A <<rrf-retriever, retriever>> that produces top documents from <<rrf, reciprocal rank fusion (RRF)>>.
 
 `text_similarity_reranker`::
-A <<text-similarity-reranker, retriever>> that enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
+A <<text-similarity-reranker-retriever, retriever>> that enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
 
 [[standard-retriever]]
 ==== Standard Retriever

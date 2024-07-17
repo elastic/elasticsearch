@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.logsdb.datageneration;
+package org.elasticsearch.logsdb.datageneration;
 
 /**
  * Lists all leaf field types that are supported for data generation.

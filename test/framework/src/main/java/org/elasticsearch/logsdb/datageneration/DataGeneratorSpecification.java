@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.logsdb.datageneration;
+package org.elasticsearch.logsdb.datageneration;
 
 /**
  * Allows configuring behavior of {@link  DataGenerator}.

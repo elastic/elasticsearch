@@ -6,25 +6,25 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.logsdb.datageneration.test;
+package org.elasticsearch.logsdb.datageneration;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.Seed;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.datastreams.logsdb.datageneration.DataGenerator;
-import org.elasticsearch.datastreams.logsdb.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
+@SuppressForbidden(
+    reason = "There is a lot of randomness in the code we are testing here. "
+        + "We want one static snapshot test so that we can write strong asserts."
+)
 @Seed("895AC2F45AD0307B")
-public class DataGeneratorSnapshotTest extends ESTestCase {
+public class DataGeneratorSnapshotTests extends ESTestCase {
     public void testSnapshot() throws IOException {
-        System.out.println(RandomizedContext.current().getRunnerSeedAsString());
-
         var dataGenerator = new DataGenerator(new DataGeneratorSpecification(5));
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();

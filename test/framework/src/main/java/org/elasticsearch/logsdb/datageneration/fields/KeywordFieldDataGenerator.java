@@ -6,30 +6,30 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.logsdb.datageneration.fields;
+package org.elasticsearch.logsdb.datageneration.fields;
 
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.datastreams.logsdb.datageneration.FieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 
-public class LongFieldDataGenerator implements FieldDataGenerator {
+public class KeywordFieldDataGenerator implements FieldDataGenerator {
     private final String fieldName;
 
-    public LongFieldDataGenerator(String fieldName) {
+    public KeywordFieldDataGenerator(String fieldName) {
         this.fieldName = fieldName;
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-        return b -> b.startObject(fieldName).field("type", "long").endObject();
+        return b -> b.startObject(fieldName).field("type", "keyword").endObject();
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-        return b -> b.field(fieldName, randomLong());
+        return b -> b.field(fieldName, randomAlphaOfLengthBetween(0, 50));
     }
 }

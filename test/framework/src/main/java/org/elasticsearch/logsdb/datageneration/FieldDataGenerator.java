@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.logsdb.datageneration;
+package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.xcontent.XContentBuilder;

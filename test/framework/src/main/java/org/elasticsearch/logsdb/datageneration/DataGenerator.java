@@ -6,16 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.logsdb.datageneration;
+package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.datastreams.logsdb.datageneration.fields.KeywordFieldDataGenerator;
-import org.elasticsearch.datastreams.logsdb.datageneration.fields.LongFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.KeywordFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.LongFieldDataGenerator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -34,7 +35,7 @@ public class DataGenerator {
 
     private final DataGeneratorSpecification specification;
 
-    private static final int MAX_OBJECT_DEPTH = 5;
+    private static final int MAX_OBJECT_DEPTH = 4;
 
     public DataGenerator(DataGeneratorSpecification specification) {
         this.specification = specification;
@@ -51,7 +52,6 @@ public class DataGenerator {
         applyAll(documentModifications, document);
     }
 
-
     private void generate() {
         mappingModifications.add(b -> b.startObject().startObject("_doc").startObject("properties"));
         documentModifications.add(b -> b.startObject());
@@ -64,22 +64,29 @@ public class DataGenerator {
     }
 
     private void generateObject(int depth) {
-        // Deeply nested object have fewer and fewer fields
+        // Deeply nested objects have fewer and fewer fields
         var depthLevelChange = specification.maxFieldCountPerLevel() / MAX_OBJECT_DEPTH;
         int maxFieldCount = Math.max(1, specification.maxFieldCountPerLevel() - depthLevelChange * depth);
         int fieldsCount = randomIntBetween(0, maxFieldCount);
 
         boolean hasSubObject = false;
+        var existingFields = new HashSet<>();
         for (int i = 0; i < fieldsCount; i++) {
             var fieldType = randomFrom(FieldType.values());
+            // Don't generate duplicate fields
             var fieldName = randomAlphaOfLengthBetween(1, 50);
+            while (existingFields.contains(fieldName)) {
+                fieldName = randomAlphaOfLengthBetween(1, 50);
+            }
+            existingFields.add(fieldName);
+            var actualFieldName = fieldName;
 
             // Roll separately for subobjects with a 10% change but at least once
             if ((depth == 0 && hasSubObject == false) || (randomDouble() < 0.1 && depth < MAX_OBJECT_DEPTH)) {
                 hasSubObject = true;
 
-                mappingModifications.add(b -> b.startObject(fieldName).startObject("properties"));
-                documentModifications.add(b -> b.startObject(fieldName));
+                mappingModifications.add(b -> b.startObject(actualFieldName).startObject("properties"));
+                documentModifications.add(b -> b.startObject(actualFieldName));
 
                 generateObject(depth + 1);
 

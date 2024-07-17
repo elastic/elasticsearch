@@ -6,11 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.logsdb.datageneration.test;
+package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.datastreams.logsdb.datageneration.DataGenerator;
-import org.elasticsearch.datastreams.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.test.ESTestCase;
@@ -19,7 +17,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-public class DataGeneratorTest extends ESTestCase {
+public class DataGeneratorTests extends ESTestCase {
     public void testDataGeneratorSanity() throws IOException {
         var dataGenerator = new DataGenerator(new DataGeneratorSpecification());
 

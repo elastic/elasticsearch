@@ -41,7 +41,7 @@ public class AzureOpenAiCompletionRequestManager extends AzureOpenAiRequestManag
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -49,7 +49,7 @@ public class AzureOpenAiCompletionRequestManager extends AzureOpenAiRequestManag
     ) {
         List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
         AzureOpenAiCompletionRequest request = new AzureOpenAiCompletionRequest(docsInput, model);
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener);
     }
 
 }

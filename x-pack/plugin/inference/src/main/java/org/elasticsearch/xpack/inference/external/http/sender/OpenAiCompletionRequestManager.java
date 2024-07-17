@@ -41,7 +41,7 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -50,7 +50,7 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
         List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
         OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(docsInput, model);
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener);
     }
 
     private static ResponseHandler createCompletionHandler() {

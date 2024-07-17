@@ -54,7 +54,7 @@ public class HuggingFaceRequestManager extends BaseRequestManager {
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -64,7 +64,7 @@ public class HuggingFaceRequestManager extends BaseRequestManager {
         var truncatedInput = truncate(docsInput, model.getTokenLimit());
         var request = new HuggingFaceInferenceRequest(truncator, truncatedInput, model);
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, responseHandler, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, responseHandler, hasRequestCompletedFunction, listener);
     }
 
     record RateLimitGrouping(int accountHash) {

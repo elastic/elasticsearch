@@ -36,6 +36,16 @@ public class BaseRequestManagerTests extends ESTestCase {
             ) {
 
             }
+
+            @Override
+            protected Runnable createRunnableRequest(
+                InferenceInputs inferenceInputs,
+                RequestSender requestSender,
+                Supplier<Boolean> hasRequestCompletedFunction,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                return null;
+            }
         };
 
         var manager2 = new BaseRequestManager(mock(ThreadPool.class), "id", val2, new RateLimitSettings(1)) {
@@ -47,6 +57,16 @@ public class BaseRequestManagerTests extends ESTestCase {
                 ActionListener<InferenceServiceResults> listener
             ) {
 
+            }
+
+            @Override
+            protected Runnable createRunnableRequest(
+                InferenceInputs inferenceInputs,
+                RequestSender requestSender,
+                Supplier<Boolean> hasRequestCompletedFunction,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                return null;
             }
         };
 
@@ -66,6 +86,16 @@ public class BaseRequestManagerTests extends ESTestCase {
             ) {
 
             }
+
+            @Override
+            protected Runnable createRunnableRequest(
+                InferenceInputs inferenceInputs,
+                RequestSender requestSender,
+                Supplier<Boolean> hasRequestCompletedFunction,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                return null;
+            }
         };
 
         var manager2 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(2)) {
@@ -77,6 +107,16 @@ public class BaseRequestManagerTests extends ESTestCase {
                 ActionListener<InferenceServiceResults> listener
             ) {
 
+            }
+
+            @Override
+            protected Runnable createRunnableRequest(
+                InferenceInputs inferenceInputs,
+                RequestSender requestSender,
+                Supplier<Boolean> hasRequestCompletedFunction,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                return null;
             }
         };
 
@@ -96,6 +136,16 @@ public class BaseRequestManagerTests extends ESTestCase {
             ) {
 
             }
+
+            @Override
+            protected Runnable createRunnableRequest(
+                InferenceInputs inferenceInputs,
+                RequestSender requestSender,
+                Supplier<Boolean> hasRequestCompletedFunction,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                return null;
+            }
         };
 
         var manager2 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(1, TimeUnit.DAYS)) {
@@ -107,6 +157,16 @@ public class BaseRequestManagerTests extends ESTestCase {
                 ActionListener<InferenceServiceResults> listener
             ) {
 
+            }
+
+            @Override
+            protected Runnable createRunnableRequest(
+                InferenceInputs inferenceInputs,
+                RequestSender requestSender,
+                Supplier<Boolean> hasRequestCompletedFunction,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                return null;
             }
         };
 

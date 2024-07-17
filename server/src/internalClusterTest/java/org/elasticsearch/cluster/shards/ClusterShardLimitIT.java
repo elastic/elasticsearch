@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.IndexVersion;
@@ -152,7 +153,8 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 + firstShardCount
                 + "]/["
                 + dataNodes * shardsPerNode
-                + "] maximum normal shards open;";
+                + "] maximum normal shards open; for more information see "
+                + ReferenceDocs.MAX_SHARDS_PER_NODE;
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = clusterAdmin().prepareState().get().getState().metadata();

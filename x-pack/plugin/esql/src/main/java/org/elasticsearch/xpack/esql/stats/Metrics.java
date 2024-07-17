@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.stats;
 
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 
@@ -37,12 +38,14 @@ public class Metrics {
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
-    private final MeterRegistry meterRegistry;
-    protected static String QPREFIX = "queries.";
-    protected static String FPREFIX = "features.";
+    // AMP counter for esql features
+    private final LongCounter featuresCounter;
+    public static String QPREFIX = "queries.";
+    public static String FPREFIX = "features.";
+    public static final String FEATURE_METRICS = "es.esql." + FPREFIX + "total";
+    public static final String FEATURE_NAME = "feature_name";
 
     public Metrics(MeterRegistry meterRegistry) {
-        this.meterRegistry = meterRegistry;
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
         for (QueryMetric metric : QueryMetric.values()) {
             Map<OperationType, CounterMetric> metricsMap = Maps.newLinkedHashMapWithExpectedSize(OperationType.values().length);
@@ -59,6 +62,7 @@ public class Metrics {
             fMap.put(featureMetric, new CounterMetric());
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
+        featuresCounter = meterRegistry.registerLongCounter(FEATURE_METRICS, "ESQL features, total usage", "unit");
     }
 
     /**
@@ -82,6 +86,7 @@ public class Metrics {
 
     public void inc(FeatureMetric metric) {
         this.featuresMetrics.get(metric).inc();
+        this.featuresCounter.incrementBy(1, Map.of(FEATURE_NAME, metric.name().toLowerCase(Locale.ROOT)));
     }
 
     public Counters stats() {

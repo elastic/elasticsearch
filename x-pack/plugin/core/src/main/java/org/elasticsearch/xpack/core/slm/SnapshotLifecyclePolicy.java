@@ -55,7 +55,6 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField SCHEDULE = new ParseField("schedule");
     private static final ParseField INTERVAL = new ParseField("interval");
-    private static final ParseField INTERVAL_START_TIME = new ParseField("interval_start_time");
     private static final ParseField REPOSITORY = new ParseField("repository");
     private static final ParseField CONFIG = new ParseField("config");
     private static final ParseField RETENTION = new ParseField("retention");
@@ -153,7 +152,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     }
 
     public long calculateNextExecution(long modifiedDate) {
-        if (Strings.hasText(this.schedule)) {
+        if (this.schedule != null) {
             final Cron scheduleEvaluator = new Cron(this.schedule);
             return scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
         } else {
@@ -174,7 +173,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
      */
     public TimeValue calculateNextInterval() {
         if (this.interval != null) {
-            TimeValue.parseTimeValue(interval, INTERVAL.getPreferredName());
+            return TimeValue.parseTimeValue(interval, INTERVAL.getPreferredName());
         }
 
         final Cron scheduleEvaluator = new Cron(this.schedule);
@@ -220,19 +219,17 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             err.addValidationError("invalid schedule/interval: one of schedule or interval must not be empty");
         } else if (hasSchedule && hasInterval) {
             err.addValidationError("invalid schedule/interval: only one of schedule or interval can be non-empty");
+        } else if (hasSchedule) {
+            try {
+                new Cron(schedule);
+            } catch (IllegalArgumentException e) {
+                err.addValidationError("invalid schedule: " + ExceptionsHelper.unwrapCause(e).getMessage());
+            }
         } else {
-            if (hasSchedule) {
-                try {
-                    new Cron(schedule);
-                } catch (IllegalArgumentException e) {
-                    err.addValidationError("invalid schedule: " + ExceptionsHelper.unwrapCause(e).getMessage());
-                }
-            } else {
-                try {
-                    TimeValue.parseTimeValue(interval, INTERVAL.getPreferredName());
-                } catch (IllegalArgumentException e) {
-                    err.addValidationError("invalid interval: " + ExceptionsHelper.unwrapCause(e).getMessage());
-                }
+            try {
+                TimeValue.parseTimeValue(interval, INTERVAL.getPreferredName());
+            } catch (IllegalArgumentException e) {
+                err.addValidationError("invalid interval: " + ExceptionsHelper.unwrapCause(e).getMessage());
             }
         }
 
@@ -320,11 +317,12 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(this.id);
         out.writeString(this.name);
-        out.writeString(this.schedule);
         if (out.getTransportVersion().onOrAfter(TransportVersions.SLM_SCHEDULE_BY_INTERVAL)) {
+            out.writeOptionalString(this.schedule);
             out.writeOptionalString(this.interval);
+        } else {
+            out.writeString(this.schedule);
         }
-        out.writeString(this.schedule);
         out.writeString(this.repository);
         out.writeGenericMap(this.configuration);
         out.writeOptionalWriteable(this.retentionPolicy);
@@ -349,7 +347,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy);
+        return Objects.hash(id, name, schedule, interval, repository, configuration, retentionPolicy);
     }
 
     @Override
@@ -365,6 +363,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         return Objects.equals(id, other.id)
             && Objects.equals(name, other.name)
             && Objects.equals(schedule, other.schedule)
+            && Objects.equals(interval, other.interval)
             && Objects.equals(repository, other.repository)
             && Objects.equals(configuration, other.configuration)
             && Objects.equals(retentionPolicy, other.retentionPolicy);

@@ -388,9 +388,10 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final SnapshotId currentSnap2 = new SnapshotId(randomAlphaOfLength(10), randomUUID());
         final String repo1 = randomAlphaOfLength(10);
         final String repo2 = randomAlphaOfLength(10);
-        final var snapshotsInProgress = SnapshotsInProgress.EMPTY
-            .withUpdatedEntriesForRepo(repo1, List.of(makeSnapshotInProgress(repo1, policyId, currentSnap1)))
-            .withUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, policyId, currentSnap2)));
+        final var snapshotsInProgress = SnapshotsInProgress.EMPTY.withUpdatedEntriesForRepo(
+            repo1,
+            List.of(makeSnapshotInProgress(repo1, policyId, currentSnap1))
+        ).withUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, policyId, currentSnap2)));
 
         Set<SnapshotId> alreadyPreRegistered = Set.of(currentSnap1, currentSnap2, previousFailedSnapshot);
         SnapshotLifecycleMetadata slmMetadata = makeSnapshotLifecycleMetadata(policyId, alreadyPreRegistered);

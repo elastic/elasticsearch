@@ -312,7 +312,6 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }, 1, TimeUnit.MINUTES);
     }
 
-
     /**
      * Test that after a failure then a failure that successfully sets stats
      * preRegisteredRuns from failure is added to invocationsSinceLastSuccess.
@@ -458,9 +457,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             logger.info("--> Verified that snapshot was not successful");
         }, 1, TimeUnit.MINUTES);
 
-        assertBusy(() -> {
-            assertMetadata(policyName, 0, 1, 1, Set.of());
-        }, 1, TimeUnit.MINUTES);
+        assertBusy(() -> { assertMetadata(policyName, 0, 1, 1, Set.of()); }, 1, TimeUnit.MINUTES);
     }
 
     private void assertMetadata(String policyName, long taken, long failure, long invocationsSinceLastSuccess, Set<String> preRegistered) {

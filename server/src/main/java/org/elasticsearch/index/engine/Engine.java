@@ -38,7 +38,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -47,7 +46,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
@@ -83,7 +81,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
@@ -109,7 +106,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -1307,7 +1303,7 @@ public abstract class Engine implements Closeable {
         future.actionGet();
     }
 
-    /**
+    /**cl
      * checks and removes translog files that no longer need to be retained. See
      * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
      */
@@ -2042,17 +2038,11 @@ public abstract class Engine implements Closeable {
 
     @Override
     public void close() throws IOException {
-        final var executorName = EsExecutors.executorName(Thread.currentThread().getName());
-        if (executorName != null) {
-            logger.info(
-                "close is called from a {} pool. Stack trace: ",
-                executorName + Arrays.stream(Thread.currentThread().getStackTrace())
-                    .limit(10)
-                    .map(StackTraceElement::toString)
-                    .collect(Collectors.joining("\n"))
-            );
-        }
-        final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC);
+        // Called indirectly via try-with-resources or `IOUtils.close` from tests
+        final var threadName = Thread.currentThread().getName();
+        assert threadName.startsWith("TEST-") || threadName.startsWith("LuceneTestCase")
+            : "Engine#closed was called from Thread[" + threadName + "] which is not a test thread";
+        final var future = new PlainActionFuture<Void>();
         close(future);
         FutureUtils.get(future);
     }

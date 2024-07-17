@@ -43,15 +43,15 @@ public class NoOpEngineTests extends EngineTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     public void testNoopEngine() throws IOException {
-        engine.close();
+        close(engine);
         final NoOpEngine engine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
         assertThat(engine.refreshNeeded(), equalTo(false));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
-        engine.close();
+        close(engine);
     }
 
     public void testTwoNoopEngines() throws IOException {
-        engine.close();
+        close(engine);
         // Ensure that we can't open two noop engines for the same store
         final EngineConfig engineConfig = noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir);
         try (NoOpEngine ignored = new NoOpEngine(engineConfig)) {
@@ -77,7 +77,7 @@ public class NoOpEngineTests extends EngineTestCase {
 
         long localCheckpoint = engine.getPersistedLocalCheckpoint();
         long maxSeqNo = engine.getSeqNoStats(100L).getMaxSeqNo();
-        engine.close();
+        close(engine);
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
         assertThat(noOpEngine.getPersistedLocalCheckpoint(), equalTo(localCheckpoint));
@@ -87,7 +87,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 assertThat(reader.numDocs(), equalTo(docs));
             }
         }
-        noOpEngine.close();
+        close(noOpEngine);
     }
 
     public void testNoOpEngineStats() throws Exception {
@@ -180,7 +180,7 @@ public class NoOpEngineTests extends EngineTestCase {
         // prevent translog from trimming so we can test trimUnreferencedFiles in NoOpEngine.
         final Translog.Snapshot snapshot = engine.getTranslog().newSnapshot();
         engine.flush(true, true);
-        engine.close();
+        close(engine);
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
         assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(totalTranslogOps));
@@ -189,6 +189,6 @@ public class NoOpEngineTests extends EngineTestCase {
         assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
         assertThat(noOpEngine.getTranslogStats().getTranslogSizeInBytes(), equalTo((long) Translog.DEFAULT_HEADER_SIZE_IN_BYTES));
         snapshot.close();
-        noOpEngine.close();
+        close(noOpEngine);
     }
 }

@@ -1658,4 +1658,10 @@ public abstract class EngineTestCase extends ESTestCase {
         engine.flushAndClose(listener);
         safeAwait(listener);
     }
+
+    protected static void close(Engine engine) throws IOException {
+        var listener = new SubscribableListener<Void>();
+        engine.close(listener);
+        safeAwait(listener);
+    }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
@@ -4265,18 +4266,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             newEngine = null;
                         }
                     }
-                    Engine finalNewEngine = newEngine;
-                    SubscribableListener.<Void>newForked(this::superClose).<Void>andThen((l, unused) -> {
-                        if (finalNewEngine != null) {
-                            finalNewEngine.close(l);
-                        } else {
-                            l.onResponse(null);
+                    try (var refs = new RefCountingListener(listener)) {
+                        super.close(refs.acquire());
+                        if (newEngine != null) {
+                            newEngine.close(refs.acquire());
                         }
-                    }).addListener(listener);
-                }
-
-                private void superClose(ActionListener<Void> l) throws IOException {
-                    super.close(l);
+                    }
                 }
             };
             closeEngine(currentEngineReference.getAndSet(readOnlyEngine));

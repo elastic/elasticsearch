@@ -86,7 +86,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         /*
          * This test starts the enterprise geoip downloader task, and creates a database configuration. Then it creates an ingest
          * pipeline that references that database, and ingests a single document using that pipeline. It then asserts that the document
-         * was updated with information from the datbase.
+         * was updated with information from the database.
          * Note that the "enterprise database" is actually just a geolite database being loaded by the GeoIpHttpFixture.
          */
         if (getEndpoint() != null) {

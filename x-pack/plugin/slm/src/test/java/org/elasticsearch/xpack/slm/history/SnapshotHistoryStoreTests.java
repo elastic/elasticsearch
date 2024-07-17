@@ -194,11 +194,13 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
             }
         }
+
+        boolean useSchedule = randomBoolean();
         return new SnapshotLifecyclePolicy(
             id,
             randomAlphaOfLength(4),
-            randomSchedule(),
-            randomTimeValue().toString(),
+            useSchedule ? randomSchedule() : null,
+            useSchedule ? null : randomTimeValue().toString(),
             randomAlphaOfLength(4),
             config,
             null

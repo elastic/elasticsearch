@@ -102,11 +102,13 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
         }
+
+        boolean useSchedule = randomBoolean();
         return new SnapshotLifecyclePolicy(
             policyId,
             randomAlphaOfLength(4),
-            randomSchedule(),
-            randomTimeValue().toString(),
+            useSchedule ? randomSchedule() : null,
+            useSchedule ? null : randomTimeValue().toString(),
             randomAlphaOfLength(4),
             config,
             randomRetention()

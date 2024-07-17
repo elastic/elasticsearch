@@ -301,11 +301,12 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         });
 
         try {
+            boolean useSchedule = randomBoolean();
             createSnapshotPolicy(
                 policyName,
                 "snap",
-                "0 0/15 * * * ?",
-                null,
+                useSchedule ? "0 0/15 * * * ?" : null,
+                useSchedule ? null : "30m",
                 repoId,
                 indexName,
                 true,

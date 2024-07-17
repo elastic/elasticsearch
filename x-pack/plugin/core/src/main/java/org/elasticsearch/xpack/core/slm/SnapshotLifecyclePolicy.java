@@ -128,6 +128,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         return this.name;
     }
 
+    @Nullable
     public String getSchedule() {
         return this.schedule;
     }

@@ -63,6 +63,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -145,6 +146,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
         }
+    }
+
+    public record IndexingShardState(BatchedCompoundCommit latestCommit, Set<BlobFile> unreferencedBlobs) {
+        public static IndexingShardState EMPTY = new IndexingShardState(null, Collections.emptySet());
     }
 
     public static final Setting<ObjectStoreType> TYPE_SETTING = Setting.enumSetting(
@@ -530,8 +535,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         throw new FileNotFoundException("Blob [" + blobName + "] not found");
     }
 
-    public static Tuple<BatchedCompoundCommit, Set<BlobFile>> readIndexingShardState(BlobContainer shardContainer, long primaryTerm)
-        throws IOException {
+    public static IndexingShardState readIndexingShardState(BlobContainer shardContainer, long primaryTerm) throws IOException {
         Set<BlobFile> unreferencedBlobs = new HashSet<>();
         BatchedCompoundCommit latestBcc = null;
         List<Tuple<Long, BlobContainer>> containersToSearch = getContainersToSearch(shardContainer, primaryTerm);
@@ -562,7 +566,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
         final var finalUnreferencedBlobs = Set.copyOf(unreferencedBlobs);
         logger.trace(() -> format("found unreferenced blobs in [%s]: %s", shardContainer.path().buildAsString(), finalUnreferencedBlobs));
-        return new Tuple<>(latestBcc, finalUnreferencedBlobs);
+        return new IndexingShardState(latestBcc, finalUnreferencedBlobs);
     }
 
     private static void logLatestBcc(BatchedCompoundCommit latestBcc, BlobContainer blobContainer) {

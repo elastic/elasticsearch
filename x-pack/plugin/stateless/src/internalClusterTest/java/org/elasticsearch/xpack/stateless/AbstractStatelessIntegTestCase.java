@@ -178,7 +178,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         }
 
         @Override
-        protected void warmCache(IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
+        protected void warmCache(String description, IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 

@@ -112,7 +112,7 @@ public class SearchDirectory extends ByteSizeDirectory {
     }
 
     public void setBlobContainer(LongFunction<BlobContainer> blobContainer) {
-        this.blobContainer.set(blobContainer);
+        this.blobContainer.trySet(blobContainer);
     }
 
     public void updateLatestUploadInfo(

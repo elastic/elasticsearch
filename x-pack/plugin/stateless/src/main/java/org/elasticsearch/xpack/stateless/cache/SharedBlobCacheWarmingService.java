@@ -243,20 +243,21 @@ public class SharedBlobCacheWarmingService {
      * one without waiting for the region to be available in cache.
      * </p>
      *
+     * @param description a description of which warming this is (to distinguish between the many that may be performed in log messages)
      * @param indexShard the shard to warm in cache
      * @param commit the commit to be recovered
      */
-    public void warmCacheForShardRecovery(IndexShard indexShard, StatelessCompoundCommit commit) {
-        warmCache(indexShard, commit, ActionListener.noop());
+    public void warmCacheForShardRecovery(String description, IndexShard indexShard, StatelessCompoundCommit commit) {
+        warmCache(description, indexShard, commit, ActionListener.noop());
     }
 
-    protected void warmCache(IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
+    protected void warmCache(String description, IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
         final Store store = indexShard.store();
         if (store.isClosing() || store.tryIncRef() == false) {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache for " + indexShard + ", store is closing"));
             return;
         }
-        try (var warmer = new Warmer(indexShard, commit, ActionListener.runAfter(listener, store::decRef))) {
+        try (var warmer = new Warmer(description, indexShard, commit, ActionListener.runAfter(listener, store::decRef))) {
             warmer.run();
         }
     }
@@ -275,6 +276,7 @@ public class SharedBlobCacheWarmingService {
 
     private class Warmer implements Releasable {
 
+        private final String description;
         private final IndexShard indexShard;
         private final StatelessCompoundCommit commit;
         private final ConcurrentMap<BlobRegion, CacheRegionWarmingTask> tasks;
@@ -284,7 +286,8 @@ public class SharedBlobCacheWarmingService {
         private final AtomicLong tasksCount = new AtomicLong(0L);
         private final AtomicLong totalBytesCopied = new AtomicLong(0L);
 
-        Warmer(IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
+        Warmer(String description, IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
+            this.description = description;
             this.indexShard = indexShard;
             this.commit = commit;
             this.tasks = new ConcurrentHashMap<>();
@@ -294,13 +297,14 @@ public class SharedBlobCacheWarmingService {
 
         private ActionListener<Void> logging(ActionListener<Void> target) {
             final long started = threadPool.rawRelativeTimeInMillis();
-            logger.debug("{} warming", indexShard.shardId());
+            logger.debug("{} {} warming, generation={}", indexShard.shardId(), description, commit.generation());
             return ActionListener.runBefore(target, () -> {
                 final long duration = threadPool.rawRelativeTimeInMillis() - started;
                 logger.log(
                     duration >= 5000 ? Level.WARN : Level.DEBUG,
-                    "{} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
+                    "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
                     indexShard.shardId(),
+                    description,
                     duration,
                     commit.commitFiles()
                         .keySet()
@@ -417,7 +421,7 @@ public class SharedBlobCacheWarmingService {
 
         private void addRegion(BlobRegion region, String fileName, ActionListener<Void> listener) {
             var task = tasks.computeIfAbsent(region, k -> {
-                var t = new CacheRegionWarmingTask(indexShard, region, totalBytesCopied::addAndGet);
+                var t = new CacheRegionWarmingTask(description, indexShard, region, totalBytesCopied::addAndGet);
                 throttledTaskRunner.enqueueTask(t);
                 tasksCount.incrementAndGet();
                 return t;
@@ -489,7 +493,7 @@ public class SharedBlobCacheWarmingService {
             WarmingTask(BlobRangesQueue queue) {
                 this.queue = Objects.requireNonNull(queue);
                 this.blobRegion = queue.blobRegion;
-                logger.trace("{}: scheduled {}", indexShard.shardId(), blobRegion);
+                logger.trace("{} {}: scheduled {}", indexShard.shardId(), description, blobRegion);
             }
 
             @Override
@@ -553,7 +557,7 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> format("%s failed to warm region %s", indexShard.shardId(), blobRegion), e);
+                logger.error(() -> format("%s %s failed to warm region %s", indexShard.shardId(), description, blobRegion), e);
             }
         }
     }
@@ -563,6 +567,7 @@ public class SharedBlobCacheWarmingService {
      */
     private class CacheRegionWarmingTask implements ActionListener<Releasable> {
 
+        private final String description;
         private final IndexShard indexShard;
         private final BlobRegion target;
         private final SubscribableListener<Void> listener = new SubscribableListener<>();
@@ -570,11 +575,12 @@ public class SharedBlobCacheWarmingService {
         private final AtomicLong size = new AtomicLong(0);
         private final LongConsumer totalBytesCopied;
 
-        CacheRegionWarmingTask(IndexShard indexShard, BlobRegion target, LongConsumer totalBytesCopied) {
+        CacheRegionWarmingTask(String description, IndexShard indexShard, BlobRegion target, LongConsumer totalBytesCopied) {
+            this.description = description;
             this.indexShard = indexShard;
             this.target = target;
             this.totalBytesCopied = totalBytesCopied;
-            logger.trace("{}: scheduled {}", indexShard.shardId(), target);
+            logger.trace("{} {}: scheduled {}", indexShard.shardId(), description, target);
         }
 
         private boolean shouldWarmRegion() {
@@ -610,7 +616,7 @@ public class SharedBlobCacheWarmingService {
                         },
                         fetchExecutor,
                         ActionListener.releaseAfter(listener.map(warmed -> {
-                            logger.trace("{}: warmed {} with result {}", indexShard.shardId(), target, warmed);
+                            logger.trace("{} {}: warmed {} with result {}", indexShard.shardId(), description, target, warmed);
                             return null;
                         }), releasable)
                     );

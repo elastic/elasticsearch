@@ -14,23 +14,59 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import java.util.Map;
 
 /**
- * A record APM metrics that concern failure stores.
+ * APM metrics that concern failure stores.
  */
-public record FailureStoreMetrics(LongCounter failureCounter, LongCounter redirectCounter) {
+public class FailureStoreMetrics {
 
     public static final FailureStoreMetrics NOOP = new FailureStoreMetrics(MeterRegistry.NOOP);
 
-    public static final String METRIC_FAILURE_TOTAL = "es.ingest.failures.total";
-    public static final String METRIC_REDIRECT_TOTAL = "es.ingest.failure_redirects.total";
+    public static final String METRIC_TOTAL = "es.data_stream.ingest.documents.total";
+    public static final String METRIC_FAILURE_STORE = "es.data_stream.ingest.documents.failure_store.total";
+    public static final String METRIC_REJECTED = "es.data_stream.ingest.documents.rejected.total";
+
+    private final LongCounter totalCounter;
+    private final LongCounter failureStoreCounter;
+    private final LongCounter rejectedCounter;
 
     public FailureStoreMetrics(MeterRegistry meterRegistry) {
-        this(
-            meterRegistry.registerLongCounter(METRIC_FAILURE_TOTAL, "ingest failure counter", "unit"),
-            meterRegistry.registerLongCounter(METRIC_REDIRECT_TOTAL, "ingest failure redirect counter", "unit")
+        totalCounter = meterRegistry.registerLongCounter(METRIC_TOTAL, "total number of documents that were sent to a data stream", "unit");
+        failureStoreCounter = meterRegistry.registerLongCounter(
+            METRIC_FAILURE_STORE,
+            "number of documents that got redirected to the failure store",
+            "unit"
+        );
+        rejectedCounter = meterRegistry.registerLongCounter(METRIC_REJECTED, "number of documents that were rejected", "unit");
+    }
+
+    public void incrementTotal(String dataStream) {
+        totalCounter.incrementBy(1, Map.of("data_stream", dataStream));
+    }
+
+    public void incrementFailureStore(String dataStream, String errorType, ErrorLocation errorLocation) {
+        failureStoreCounter.incrementBy(
+            1,
+            Map.of("data_stream", dataStream, "error_type", errorType, "error_location", errorLocation.name())
         );
     }
 
-    public static void incrementForIndex(LongCounter counter, String index) {
-        counter.incrementBy(1, Map.of("index", index));
+    public void incrementRejected(String dataStream, String errorType, ErrorLocation errorLocation, boolean failureStore) {
+        rejectedCounter.incrementBy(
+            1,
+            Map.of(
+                "data_stream",
+                dataStream,
+                "error_type",
+                errorType,
+                "error_location",
+                errorLocation.name(),
+                "failure_store",
+                failureStore
+            )
+        );
+    }
+
+    public enum ErrorLocation {
+        PIPELINE,
+        SHARD;
     }
 }

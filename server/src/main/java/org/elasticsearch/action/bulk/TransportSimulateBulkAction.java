@@ -25,6 +25,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Optional;
 import java.util.concurrent.Executor;
 
 /**
@@ -105,8 +106,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     }
 
     @Override
-    protected boolean shouldStoreFailure(String indexName, Metadata metadata, long time) {
+    protected Optional<Boolean> shouldStoreFailure(String indexName, Metadata metadata, long time) {
         // A simulate bulk request should not change any persistent state in the system, so we never write to the failure store
-        return false;
+        return Optional.empty();
     }
 }

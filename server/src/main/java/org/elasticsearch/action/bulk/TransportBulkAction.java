@@ -206,6 +206,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         ActionListener<BulkResponse> listener,
         long relativeStartTime
     ) {
+        trackIndexRequests(bulkRequest);
+
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();
@@ -221,6 +223,25 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             failureStoresToBeRolledOver,
             relativeStartTime
         );
+    }
+
+    /**
+     * Track the number of index requests in our APM metrics. We'll track almost all docs here (pipeline or no pipeline,
+     * failure store or original), but some docs don't reach this place (dropped and rejected docs), so we increment for those docs in
+     * different places.
+     */
+    private void trackIndexRequests(BulkRequest bulkRequest) {
+        for (DocWriteRequest<?> request : bulkRequest.requests) {
+            if (request instanceof IndexRequest == false) {
+                continue;
+            }
+            String resolvedIndexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
+            DataStream dataStream = clusterService.state().metadata().dataStreams().get(resolvedIndexName);
+            // We only track index requests into data streams.
+            if (dataStream != null) {
+                failureStoreMetrics.incrementTotal(dataStream.getName());
+            }
+        }
     }
 
     /**
@@ -553,18 +574,21 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * @param indexName The index name to check.
      * @param metadata Cluster state metadata.
      * @param epochMillis A timestamp to use when resolving date math in the index name.
-     * @return true if the given index name corresponds to a data stream with a failure store,
-     * or if it matches a template that has a data stream failure store enabled.
+     * @return true if the given index name corresponds to a data stream with a failure store, or if it matches a template that has
+     * a data stream failure store enabled. Returns false if the index name corresponds to a data stream, but it doesn't have the
+     * failure store enabled. Returns empty when it doesn't correspond to a data stream.
      */
-    static boolean shouldStoreFailureInternal(String indexName, Metadata metadata, long epochMillis) {
-        return DataStream.isFailureStoreFeatureFlagEnabled()
-            && resolveFailureStoreFromMetadata(indexName, metadata, epochMillis).or(
-                () -> resolveFailureStoreFromTemplate(indexName, metadata)
-            ).orElse(false);
+    static Optional<Boolean> shouldStoreFailureInternal(String indexName, Metadata metadata, long epochMillis) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
+            return Optional.empty();
+        }
+        return resolveFailureStoreFromMetadata(indexName, metadata, epochMillis).or(
+            () -> resolveFailureStoreFromTemplate(indexName, metadata)
+        );
     }
 
     @Override
-    protected boolean shouldStoreFailure(String indexName, Metadata metadata, long time) {
+    protected Optional<Boolean> shouldStoreFailure(String indexName, Metadata metadata, long time) {
         return shouldStoreFailureInternal(indexName, metadata, time);
     }
 

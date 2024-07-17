@@ -27,7 +27,6 @@ import java.util.function.Supplier;
  * A script used for adjusting the score on a per document basis.
  */
 public abstract class ScoreScript extends DocBasedScript {
-
     /** A helper to take in an explanation from a script and turn it into an {@link org.apache.lucene.search.Explanation}  */
     public static class ExplanationHolder {
         private String description;
@@ -83,7 +82,7 @@ public abstract class ScoreScript extends DocBasedScript {
     private int shardId = -1;
     private String indexName = null;
 
-    private final TermStatsReader termStatsReader;
+    private TermStatsReader termStatsReader = null;
 
     public ScoreScript(Map<String, Object> params, SearchLookup searchLookup, DocReader docReader) {
         // searchLookup parameter is ignored but part of the ScriptFactory contract. It is part of that contract because it's required
@@ -101,8 +100,6 @@ public abstract class ScoreScript extends DocBasedScript {
             this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
             LeafReaderContext leafReaderContext = ((DocValuesDocReader) docReader).getLeafReaderContext();
             this.docBase = leafReaderContext.docBase;
-            this.termStatsReader = searchLookup.getTermStatsReader(leafReaderContext, this::_getDocId);
-
         }
     }
 
@@ -195,12 +192,22 @@ public abstract class ScoreScript extends DocBasedScript {
         this.indexName = indexName;
     }
 
+    /**
+     * Starting a name with underscore, so that the user cannot access this function directly through a script.
+     */
+    public void _setTermStats(TermStatsReader termStatsReader) {
+        this.termStatsReader = termStatsReader;
+    }
+
+    /**
+     * Accessed as _termStatistics in the painless script.
+     */
     public TermStatsReader get_termStatistics() {
         if (termStatsReader != null) {
             return termStatsReader;
         }
 
-        throw new IllegalArgumentException("_termStats is not available");
+        throw new IllegalArgumentException("_termStatistics is not available");
     }
 
     /** A factory to construct {@link ScoreScript} instances. */

@@ -12,14 +12,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.script.TermStatsReader;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -54,50 +52,49 @@ public class SearchLookup implements SourceProvider {
         IndexFieldData<?>> fieldDataLookup;
     private final Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider;
 
-    private final BiFunction<LeafReaderContext, Supplier<Integer>, TermStatsReader> termStatsReaderFactory;
-
     /**
      * Create a new SearchLookup, using the default stored fields provider
-     * @param fieldTypeLookup   defines how to look up field types
-     * @param fieldDataLookup   defines how to look up field data
-     * @param sourceProvider    defines how to look up the source
+     *
+     * @param fieldTypeLookup defines how to look up field types
+     * @param fieldDataLookup defines how to look up field data
+     * @param sourceProvider  defines how to look up the source
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         SourceProvider sourceProvider
     ) {
-        this(fieldTypeLookup, fieldDataLookup, sourceProvider, LeafFieldLookupProvider.fromStoredFields(), null);
+        this(fieldTypeLookup, fieldDataLookup, sourceProvider, LeafFieldLookupProvider.fromStoredFields());
     }
 
     /**
      * Create a new SearchLookup, using the default stored fields provider
-     * @param fieldTypeLookup       defines how to look up field types
-     * @param fieldDataLookup       defines how to look up field data
-     * @param sourceProvider        defines how to look up the source
-     * @param fieldLookupProvider   defines how to look up stored fields
+     *
+     * @param fieldTypeLookup     defines how to look up field types
+     * @param fieldDataLookup     defines how to look up field data
+     * @param sourceProvider      defines how to look up the source
+     * @param fieldLookupProvider defines how to look up stored fields
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         SourceProvider sourceProvider,
-        Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider,
-        BiFunction<LeafReaderContext, Supplier<Integer>, TermStatsReader> termStatsReaderFactory
+        Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
         this.sourceProvider = sourceProvider;
         this.fieldDataLookup = fieldDataLookup;
         this.fieldLookupProvider = fieldLookupProvider;
-        this.termStatsReaderFactory = termStatsReaderFactory;
     }
 
     /**
      * Create a new {@link SearchLookup} that looks fields up the same as the one provided as argument,
      * while also tracking field references starting from the provided field name. It detects cycles
      * and prevents resolving fields that depend on more than {@link #MAX_FIELD_CHAIN_DEPTH} fields.
+     *
      * @param searchLookup the existing lookup to create a new one from
-     * @param fieldChain the chain of fields that required the field currently being loaded
+     * @param fieldChain   the chain of fields that required the field currently being loaded
      */
     private SearchLookup(SearchLookup searchLookup, Set<String> fieldChain) {
         this.fieldChain = Collections.unmodifiableSet(fieldChain);
@@ -105,16 +102,16 @@ public class SearchLookup implements SourceProvider {
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
         this.fieldLookupProvider = searchLookup.fieldLookupProvider;
-        this.termStatsReaderFactory = searchLookup.termStatsReaderFactory;
     }
 
     /**
      * Creates a copy of the current {@link SearchLookup} that looks fields up in the same way, but also tracks field references
      * in order to detect cycles and prevent resolving fields that depend on more than {@link #MAX_FIELD_CHAIN_DEPTH} other fields.
+     *
      * @param field the field being referred to, for which fielddata needs to be loaded
      * @return the new lookup
      * @throws IllegalArgumentException if a cycle is detected in the fields required to build doc values, or if the field
-     * being resolved depends on more than {@link #MAX_FIELD_CHAIN_DEPTH}
+     *                                  being resolved depends on more than {@link #MAX_FIELD_CHAIN_DEPTH}
      */
     public final SearchLookup forkAndTrackFieldReferences(String field) {
         Objects.requireNonNull(field, "field cannot be null");
@@ -149,9 +146,5 @@ public class SearchLookup implements SourceProvider {
     @Override
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
         return sourceProvider.getSource(ctx, doc);
-    }
-
-    public TermStatsReader getTermStatsReader(LeafReaderContext leafReaderContext, Supplier<Integer> docIdSupplier) {
-        return termStatsReaderFactory != null ? termStatsReaderFactory.apply(leafReaderContext, docIdSupplier) : null;
     }
 }

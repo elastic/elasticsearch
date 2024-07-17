@@ -52,7 +52,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
-import org.elasticsearch.script.TermStatsReader;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
@@ -525,8 +524,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 )
             ),
             sourceProvider,
-            fieldLookupProvider,
-            (leafReaderContext, docIdSupplier) -> new TermStatsReader(searcher, docIdSupplier, leafReaderContext)
+            fieldLookupProvider
         );
     }
 

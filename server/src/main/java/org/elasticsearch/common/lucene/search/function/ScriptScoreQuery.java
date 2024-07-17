@@ -30,6 +30,7 @@ import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.ExplanationHolder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.TermStatsReader;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -180,7 +181,7 @@ public class ScriptScoreQuery extends Query {
                 scoreScript._setIndexName(indexName);
                 scoreScript._setShard(shardId);
                 if (needsTermStatistics) {
-                    scoreScript.get_termStatistics().setTerms(terms);
+                    scoreScript._setTermStats(new TermStatsReader(searcher, scoreScript::_getDocId, context, terms));
                 }
                 return scoreScript;
             }

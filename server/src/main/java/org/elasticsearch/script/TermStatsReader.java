@@ -31,15 +31,12 @@ public class TermStatsReader {
     private final Supplier<Integer> docIdSupplier;
     private final Map<Term, TermStates> termContexts = new HashMap<>();
     private final Map<Term, PostingsEnum> postings = new HashMap<>();
-    private Set<Term> terms = Set.of();
+    private final Set<Term> terms;
 
-    public TermStatsReader(IndexSearcher searcher, Supplier<Integer> docIdSupplier, LeafReaderContext leafReaderContext) {
+    public TermStatsReader(IndexSearcher searcher, Supplier<Integer> docIdSupplier, LeafReaderContext leafReaderContext, Set<Term> terms) {
         this.searcher = searcher;
         this.docIdSupplier = docIdSupplier;
         this.leafReaderContext = leafReaderContext;
-    }
-
-    public void setTerms(Set<Term> terms) {
         this.terms = terms;
     }
 

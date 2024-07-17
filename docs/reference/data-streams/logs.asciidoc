@@ -18,7 +18,7 @@ The following features are enabled in a logs data stream:
 [[how-to-use-logsds]]
 === Create a logs data stream
 
-Enabling a logs data stream only requires configuring the `index.mode` setting to `logs`. For example like this is done in this template:
+To create a logs data stream, set your index template  `index.mode` to `logs`:
 
 [source,console]
 ----

@@ -197,12 +197,12 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         // get the secure settings out
         final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
         // filter and cache them...
-        final Map<String, Tuple<SecureString, byte[]>> cache = new HashMap<>();
+        final Map<String, Tuple<SecureString, byte[]>> innerMap = new HashMap<>();
         if (sourceSecureSettings != null && securePluginSettings != null) {
             for (final String settingKey : sourceSecureSettings.getSettingNames()) {
                 for (final Setting<?> secureSetting : securePluginSettings) {
                     if (secureSetting.match(settingKey)) {
-                        cache.put(
+                        innerMap.put(
                             settingKey,
                             new Tuple<>(sourceSecureSettings.getString(settingKey), sourceSecureSettings.getSHA256Digest(settingKey))
                         );
@@ -218,12 +218,12 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
 
             @Override
             public SecureString getString(String setting) {
-                return cache.get(setting).v1();
+                return innerMap.get(setting).v1();
             }
 
             @Override
             public Set<String> getSettingNames() {
-                return cache.keySet();
+                return innerMap.keySet();
             }
 
             @Override
@@ -233,7 +233,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
 
             @Override
             public byte[] getSHA256Digest(String setting) {
-                return cache.get(setting).v2();
+                return innerMap.get(setting).v2();
             }
 
             @Override

@@ -55,7 +55,8 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
     public static Iterable<Object[]> parameterizedTestCases() {
         List<TestCase> testCases = List.of(
             WhenStartTrainedModelDeployment_ThenScaleUp_GivenNoExistingDeployments(1),
-            WhenStartTrainedModelDeployment_ThenScaleUp_GivenExistingDeployments(2),
+            WhenStartTrainedModelDeployment_ThenScaleUpDueToProcessors_GivenExistingDeployments(2),
+            WhenStartTrainedModelDeployment_ThenScaleUpDueToMemory_GivenExistingDeployments(12),
             WhenStartTrainedModelDeployment_ThenNoScale_GivenExistingDeployments(3),
 
             WhenUpdateTrainedModelDeployment_ThenScaleUp_GivenDeploymentGetsLarger(4),
@@ -244,6 +245,32 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         );
     }
 
+    private static StartTrainedModelDeploymentAction.TaskParams createTaskParamsWithBigMemory(int numAllocations, int seed) {
+
+        String modelId = "modelId" + seed;
+        String deploymentId = "deploymentId" + seed;
+        long modelBytes = ByteSizeValue.ofGb(32).getBytes();
+        int threadsPerAllocation = 1; // TODO expand to multiple threads per allocation
+        int queueCapacity = 1024;
+        ByteSizeValue cacheSize = null; // TODO expand to include cachesizes
+        Priority priority = Priority.NORMAL;
+        long perDeploymentMemoryBytes = modelBytes;
+        long perAllocationMemoryBytes = 0;
+
+        return new StartTrainedModelDeploymentAction.TaskParams(
+            modelId,
+            deploymentId,
+            modelBytes,
+            numAllocations,
+            threadsPerAllocation,
+            queueCapacity,
+            cacheSize,
+            priority,
+            perDeploymentMemoryBytes,
+            perAllocationMemoryBytes
+        );
+    }
+
     private static Map<String, TrainedModelAssignment> createModelAssignments(
         int numAssignments,
         int[] numAllocationsPerAssignment,
@@ -253,7 +280,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
 
         for (int i = 0; i < numAssignments; i++) {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(numAllocationsPerAssignment[i], seed);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(numAllocationsPerAssignment[i], i);
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTING);
             for (var entry : routingInfo.entrySet()) {
@@ -392,8 +419,9 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
     }
 
-    private static TestCase WhenStartTrainedModelDeployment_ThenScaleUp_GivenExistingDeployments(int seed) {
-        String testDescription = "test scaling up with existing deployment";
+    private static TestCase WhenStartTrainedModelDeployment_ThenScaleUpDueToProcessors_GivenExistingDeployments(int seed) {
+        String testDescription =
+            "test scaling up with existing deployment when the new deployment requires more processors than are available";
         // Generic settings
         ClusterSettings clusterSettings = createClusterSettings();
         MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
@@ -406,7 +434,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - already deployed
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(numAllocationsRequestedPerviously, seed);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(numAllocationsRequestedPerviously, 1);
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTED);
             tmaBuilder.addRoutingEntry(
@@ -417,7 +445,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         }
         // asssignment 2 - not deployed yet
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(numAllocationsRequestedPerviously, seed);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(numAllocationsRequestedPerviously, 2);
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTING);
             tmaBuilder.clearNodeRoutingTable();
@@ -459,6 +487,74 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
     }
 
+    private static TestCase WhenStartTrainedModelDeployment_ThenScaleUpDueToMemory_GivenExistingDeployments(int seed) {
+        String testDescription = "test scaling up with existing deployment when the new deployment requires more memory than is available";
+        // Generic settings
+        ClusterSettings clusterSettings = createClusterSettings();
+        MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
+        Settings settings = createSettings();
+
+        // TrainedModelAssignments
+        int numAllocationsRequestedPreviously = 4;
+        DiscoveryNodes nodes = createDiscoveryNode(8, numAllocationsRequestedPreviously);
+        int numAssignments = 2;
+        Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
+        // assignment 1 - already deployed
+        {
+            int numAllocationsInAssignment1 = numAllocationsRequestedPreviously - 1;
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(numAllocationsInAssignment1, 1);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STARTED);
+            tmaBuilder.addRoutingEntry(
+                NODE_NAME_PREFIX + 0,
+                new RoutingInfo(numAllocationsInAssignment1, numAllocationsInAssignment1, RoutingState.STARTED, null)
+            );
+            assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
+        }
+        // assignment 2 - not deployed yet
+        {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParamsWithBigMemory(1, 2);
+            TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
+            tmaBuilder.setAssignmentState(AssignmentState.STARTING);
+            tmaBuilder.clearNodeRoutingTable();
+            assignments.put("TrainedModelAssignment-" + seed + "-" + 1, tmaBuilder.build());
+        }
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
+
+        // Cluster state
+        ClusterState clusterState = createClusterState(trainedModelAssignmentMetadata, nodes);
+
+        // expected stats:
+        int existingNodes = clusterState.nodes().getSize();
+        long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
+        long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
+        int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
+        int minNodes = 3; // TODO understand why this value
+        long extraPerNodeModelMemoryBytes = calculateExtraPerNodeModelMemoryBytes(assignments);
+        int extraPerNodeProcessors = 0;
+        long extraModelMemoryBytes = calculateExtraPerNodeModelMemoryBytes(assignments);
+        int extraProcessors = 0;
+        long removeNodeMemoryInBytes = 0;
+        long perNodeMemoryOverheadInBytes = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+
+        MlAutoscalingStats expectedStats = new MlAutoscalingStats(
+            existingNodes,
+            existingPerNodeMemoryBytes,
+            existingTotalModelMemoryBytes,
+            totalExistingProcessors,
+            minNodes,
+            extraPerNodeModelMemoryBytes,
+            extraPerNodeProcessors,
+            extraModelMemoryBytes,
+            extraProcessors,
+            removeNodeMemoryInBytes,
+            perNodeMemoryOverheadInBytes
+        );
+
+        ActionListener<MlAutoscalingStats> verificationListener = createVerificationListener(testDescription, expectedStats);
+        return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
+    }
+
     private static TestCase WhenStartTrainedModelDeployment_ThenNoScale_GivenExistingDeployments(int seed) {
         String testDescription = "test scaling when existing nodes have room for the new deployment";
 
@@ -474,7 +570,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - already deployed
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(numAllocationsRequestedPerviously, seed);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(numAllocationsRequestedPerviously, 1);
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTED);
             tmaBuilder.addRoutingEntry(
@@ -485,7 +581,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         }
         // asssignment 2 - not deployed yet
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(numAllocationsRequestedPerviously, seed);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(numAllocationsRequestedPerviously, 2);
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTING);
             tmaBuilder.addRoutingEntry(
@@ -791,7 +887,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - has 3 allocations
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(3, seed);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(3, 1);
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTED);
             tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(3, 3, RoutingState.STARTED, null));
@@ -799,7 +895,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         }
         // assignment 2 - is stopping, has 1 allocation
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(1, seed);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(1, 2);
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STOPPING);
             tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(1, 1, RoutingState.STOPPING, "stopping deployment"));
@@ -855,7 +951,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - has 3 allocations
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(3, seed);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(3, 1);
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTED);
             tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(3, 3, RoutingState.STARTED, null));
@@ -863,7 +959,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         }
         // assignment 2 - is stopping, has 1 allocation
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(1, seed);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(1, 2);
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STOPPING);
             tmaBuilder.clearNodeRoutingTable();

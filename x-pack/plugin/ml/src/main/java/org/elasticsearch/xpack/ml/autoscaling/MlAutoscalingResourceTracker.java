@@ -258,7 +258,12 @@ public final class MlAutoscalingResourceTracker {
                 extraModelMemoryInBytes += estimatedMemoryUsage;
 
                 // if not low priority, check processor requirements
-                if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false) {
+                if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false
+                    && numProcessorsNeeded > numberOfAvailableProcessors(
+                        autoscalingContext,
+                        allocatedProcessorsScale,
+                        processorsNewlyAssignedToTrainedModelsAllocationsThisTime
+                    )) {
                     // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
                     extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
                     extraProcessors += numberOfRequestedAllocations * numberOfThreadsPerAllocation;
@@ -423,7 +428,7 @@ public final class MlAutoscalingResourceTracker {
         int allocatedProcessorsScale,
         int processorsAllocatedThisCycle
     ) {
-        return MlProcessors.getTotalMlNodeProcessors(autoscalingContext.mlNodes, allocatedProcessorsScale).roundDown()
+        return (int) Math.floor(MlProcessors.getTotalMlNodeProcessors(autoscalingContext.mlNodes, allocatedProcessorsScale).count())
             - processorsAllocatedThisCycle - totalAssignedProcessors(autoscalingContext);
     }
 

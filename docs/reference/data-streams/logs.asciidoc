@@ -41,7 +41,7 @@ PUT _index_template/my-index-template
 // TEST
 
 <1> The index mode setting.
-<2> Defining a priority to avoid other index templates with overlapping index patterns potentially overriding the settings. Elasticserch by default ships with an index template with a `logs-*-*` pattern with a priority of 100. Defining a priority higher than 100 ensures that this index template gets selected over the default index template for `logs-*-*` pattern. See the <<avoid-index-pattern-collisions,avoid index pattern collision section>> for more information.
+<2> The index template priority. By default, Elasticsearch ships with an index template with a `logs-*-*` pattern with a priority of 100. You need to define a priority higher than 100 to ensure that this index template gets selected over the default index template for the `logs-*-*` pattern. See the <<avoid-index-pattern-collisions,avoid index pattern collision section>> for more information.
 
 After the index template is created, you can start indexing data and <<use-a-data-stream,using the data stream>>.
 

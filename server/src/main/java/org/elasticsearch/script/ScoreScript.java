@@ -8,7 +8,6 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -20,7 +19,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -198,18 +196,16 @@ public abstract class ScoreScript extends DocBasedScript {
         this.indexName = indexName;
     }
 
-    public void _setTerms(Set<Term> terms) {
-        this.termStatsReader._setTerms(terms);
-    }
-
     public TermStatsReader get_termStatistics() {
-        return termStatsReader;
-    }
+        if (termStatsReader != null) {
+            return termStatsReader;
+        }
 
+        throw new IllegalArgumentException("_termStats is not available");
+    }
 
     /** A factory to construct {@link ScoreScript} instances. */
     public interface LeafFactory {
-
         /**
          * Return {@code true} if the script needs {@code _score} calculated, or {@code false} otherwise.
          */

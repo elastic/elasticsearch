@@ -31,8 +31,7 @@ public class TermStatsReader {
     private final Supplier<Integer> docIdSupplier;
     private final Map<Term, TermStates> termContexts = new HashMap<>();
     private final Map<Term, PostingsEnum> postings = new HashMap<>();
-
-    private Set<Term> terms;
+    private Set<Term> terms = Set.of();
 
     public TermStatsReader(IndexSearcher searcher, Supplier<Integer> docIdSupplier, LeafReaderContext leafReaderContext) {
         this.searcher = searcher;
@@ -40,7 +39,7 @@ public class TermStatsReader {
         this.leafReaderContext = leafReaderContext;
     }
 
-    public void _setTerms(Set<Term> terms) {
+    public void setTerms(Set<Term> terms) {
         this.terms = terms;
     }
 
@@ -55,8 +54,8 @@ public class TermStatsReader {
     public long matchedTermsCount() {
         return terms().stream().filter(term -> {
             try {
-            PostingsEnum postingsEnum = postings(term);
-            int docId = docIdSupplier.get();
+                PostingsEnum postingsEnum = postings(term);
+                int docId = docIdSupplier.get();
                 return postingsEnum != null && postingsEnum.advance(docId) == docId;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -85,7 +84,7 @@ public class TermStatsReader {
     public DoubleSummaryStatistics termFreq() {
         DoubleSummaryStatistics termFreqStatistics = new DoubleSummaryStatistics();
 
-        for (Term term: terms()) {
+        for (Term term : terms()) {
             try {
                 PostingsEnum postingsEnum = postings(term);
                 int docId = docIdSupplier.get();
@@ -112,7 +111,7 @@ public class TermStatsReader {
                 if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
                     continue;
                 }
-                for (int i=0; i < postingsEnum.freq(); i++) {
+                for (int i = 0; i < postingsEnum.freq(); i++) {
                     termPositionsStatistics.accept(postingsEnum.nextPosition() + 1);
                 }
             } catch (IOException e) {

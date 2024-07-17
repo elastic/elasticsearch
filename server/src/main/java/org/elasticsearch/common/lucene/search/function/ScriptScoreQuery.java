@@ -180,7 +180,7 @@ public class ScriptScoreQuery extends Query {
                 scoreScript._setIndexName(indexName);
                 scoreScript._setShard(shardId);
                 if (needsTermStatistics) {
-                    scoreScript._setTerms(terms);
+                    scoreScript.get_termStatistics().setTerms(terms);
                 }
                 return scoreScript;
             }

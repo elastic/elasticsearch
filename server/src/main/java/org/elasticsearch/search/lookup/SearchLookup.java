@@ -82,7 +82,7 @@ public class SearchLookup implements SourceProvider {
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         SourceProvider sourceProvider,
         Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider,
-        BiFunction<LeafReaderContext,  Supplier<Integer>, TermStatsReader> termStatsReaderFactory
+        BiFunction<LeafReaderContext, Supplier<Integer>, TermStatsReader> termStatsReaderFactory
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
@@ -152,6 +152,6 @@ public class SearchLookup implements SourceProvider {
     }
 
     public TermStatsReader getTermStatsReader(LeafReaderContext leafReaderContext, Supplier<Integer> docIdSupplier) {
-        return termStatsReaderFactory.apply(leafReaderContext, docIdSupplier);
+        return termStatsReaderFactory != null ? termStatsReaderFactory.apply(leafReaderContext, docIdSupplier) : null;
     }
 }

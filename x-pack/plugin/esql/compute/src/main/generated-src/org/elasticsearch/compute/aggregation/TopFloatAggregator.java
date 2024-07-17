@@ -23,6 +23,9 @@ import org.elasticsearch.search.sort.SortOrder;
 
 /**
  * Aggregates the top N field values for float.
+ * <p>
+ *     This class is generated. Do not edit it.
+ * </p>
  */
 @Aggregator({ @IntermediateState(name = "top", type = "FLOAT_BLOCK") })
 @GroupingAggregator

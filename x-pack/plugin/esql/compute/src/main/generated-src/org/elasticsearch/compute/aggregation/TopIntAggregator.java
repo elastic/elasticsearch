@@ -23,6 +23,9 @@ import org.elasticsearch.search.sort.SortOrder;
 
 /**
  * Aggregates the top N field values for int.
+ * <p>
+ *     This class is generated. Do not edit it.
+ * </p>
  */
 @Aggregator({ @IntermediateState(name = "top", type = "INT_BLOCK") })
 @GroupingAggregator

@@ -192,10 +192,10 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> serviceSettingsMap,
         ActionListener<Model> modelListener
     ) {
-        var esServiceSettings = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
+        var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
 
-        if (esServiceSettings.getModelId() == null) {
-            esServiceSettings.setModelId(
+        if (esServiceSettingsBuilder.getModelId() == null) {
+            esServiceSettingsBuilder.setModelId(
                 selectDefaultModelVariantBasedOnClusterArchitecture(
                     platformArchitectures,
                     MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86,
@@ -204,10 +204,10 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             );
         }
 
-        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, esServiceSettings.getModelId())) {
+        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, esServiceSettingsBuilder.getModelId())) {
             throw new IllegalArgumentException(
                 "Error parsing request config, model id does not match any models available on this platform. Was ["
-                    + esServiceSettings.getModelId()
+                    + esServiceSettingsBuilder.getModelId()
                     + "]"
             );
         }
@@ -220,7 +220,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 inferenceEntityId,
                 taskType,
                 NAME,
-                new MultilingualE5SmallInternalServiceSettings(esServiceSettings.build())
+                new MultilingualE5SmallInternalServiceSettings(esServiceSettingsBuilder.build())
             )
         );
     }

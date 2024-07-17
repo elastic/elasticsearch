@@ -111,7 +111,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     ) {
         this.numAllocations = numAllocations;
         this.numThreads = numThreads;
-        this.modelId = modelId;
+        this.modelId = Objects.requireNonNull(modelId);
         this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
     }
 

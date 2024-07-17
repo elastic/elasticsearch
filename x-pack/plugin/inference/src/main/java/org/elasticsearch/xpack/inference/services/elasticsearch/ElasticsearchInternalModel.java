@@ -42,10 +42,6 @@ public abstract class ElasticsearchInternalModel extends Model {
         this.internalServiceSettings = internalServiceSettings;
     }
 
-    public String getModelId() {
-        return internalServiceSettings.modelId();
-    }
-
     public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
         var startRequest = new StartTrainedModelDeploymentAction.Request(internalServiceSettings.modelId(), this.getInferenceEntityId());
         startRequest.setNumberOfAllocations(internalServiceSettings.getNumAllocations());
@@ -60,8 +56,4 @@ public abstract class ElasticsearchInternalModel extends Model {
         Model model,
         ActionListener<Boolean> listener
     );
-
-    public ElasticsearchInternalServiceSettings internalServiceSettings() {
-        return this.internalServiceSettings;
-    }
 }

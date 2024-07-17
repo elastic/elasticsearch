@@ -753,7 +753,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
      * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
-     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]<[]>
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      *       \_EsQueryExec[test], indexMode[standard], query[{"match":{"first_name":{"query":"Anna"}}}][_doc{f}#13], limit[1000], sort[]
      *       estimatedRowSize[324]
      */

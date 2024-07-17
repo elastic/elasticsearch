@@ -699,7 +699,7 @@ public class DateFormattersTests extends ESTestCase {
         String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatNanos(Long.MIN_VALUE);
         assertThat(javaFormatted, equalTo("1677-09-21T00:12:43.145Z"));
 
-        // It is deeply unclear to me why the last 6 digits of this aren't 775808, which are the last 6 digits of Long.MIN_VALUE
+        // Note - since this is a negative value, the nanoseconds are being subtracted, which is why we get this value.
         javaFormatted = DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(Long.MIN_VALUE);
         assertThat(javaFormatted, equalTo("1677-09-21T00:12:43.145224192Z"));
     }

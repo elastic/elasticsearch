@@ -213,17 +213,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         @Nullable String model,
         @Nullable CohereEmbeddingType embeddingType
     ) {
-        return new CohereEmbeddingsModel(
-            "id",
-            TaskType.TEXT_EMBEDDING,
-            "service",
-            new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model, null),
-                Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
-            ),
-            taskSettings,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
-        );
+        return createModel(url, apiKey, taskSettings, tokenLimit, dimensions, model, embeddingType, SimilarityMeasure.DOT_PRODUCT);
     }
 
     public static CohereEmbeddingsModel createModel(
@@ -239,7 +229,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         return new CohereEmbeddingsModel(
             "id",
             TaskType.TEXT_EMBEDDING,
-            "service",
+            "cohere",
             new CohereEmbeddingsServiceSettings(
                 new CohereServiceSettings(url, similarityMeasure, dimensions, tokenLimit, model, null),
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)

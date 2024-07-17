@@ -48,7 +48,7 @@ public class CohereEmbeddingsModel extends CohereModel {
 
     // should only be used for testing
     CohereEmbeddingsModel(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         String service,
         CohereEmbeddingsServiceSettings serviceSettings,
@@ -56,7 +56,7 @@ public class CohereEmbeddingsModel extends CohereModel {
         @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings()

@@ -11,6 +11,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -26,7 +27,13 @@ public class InferenceAPMStats extends InferenceStats {
     @Override
     public void increment() {
         super.increment();
-        requestCounter.incrementBy(1, Map.of("service", service, "task_type", taskType.toString(), "model_id", modelId));
+        var attributes = new HashMap<String, Object>(Map.of("service", service, "task_type", taskType.toString()));
+
+        if (modelId != null) {
+            attributes.put("model_id", modelId);
+        }
+
+        requestCounter.incrementBy(1, attributes);
     }
 
     public static final class Factory {

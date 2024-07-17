@@ -410,7 +410,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             + maxShards
             + "] maximum normal shards open; for more information, see "
             + ReferenceDocs.MAX_SHARDS_PER_NODE
-            +";";
+            + ";";
         assertEquals(expectedError, e.getMessage());
     }
 

@@ -57,8 +57,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        NodeService nodeService,
         ActionFilters actionFilters,
+        NodeService nodeService,
         NodeClient client
     ) {
         super(

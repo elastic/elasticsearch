@@ -151,11 +151,6 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                     }
 
                     @Override
-                    public boolean needs_termStatistics() {
-                        return randomBoolean();
-                    }
-
-                    @Override
                     public ScoreScript newInstance(DocReader docReader) {
                         return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override

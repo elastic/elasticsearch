@@ -43,11 +43,6 @@ class ExpressionScoreScript implements ScoreScript.LeafFactory {
     }
 
     @Override
-    public boolean needs_termStatistics() {
-        return false;
-    }
-
-    @Override
     public ScoreScript newInstance(final DocReader reader) throws IOException {
         // Use DocReader to get the leaf context while transitioning to DocReader for Painless. DocReader for expressions should follow.
         if (reader instanceof LeafReaderContextSupplier == false) {

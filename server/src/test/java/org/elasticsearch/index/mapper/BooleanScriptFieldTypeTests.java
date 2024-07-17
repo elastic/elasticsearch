@@ -143,11 +143,6 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                             }
 
                             @Override
-                            public boolean needs_termStatistics() {
-                                return randomBoolean();
-                            }
-
-                            @Override
                             public ScoreScript newInstance(DocReader docReader) {
                                 return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                                     @Override
@@ -168,11 +163,6 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                             @Override
                             public boolean needs_score() {
                                 return false;
-                            }
-
-                            @Override
-                            public boolean needs_termStatistics() {
-                                return randomBoolean();
                             }
 
                             @Override

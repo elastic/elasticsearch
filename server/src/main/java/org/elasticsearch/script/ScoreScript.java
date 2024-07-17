@@ -93,7 +93,6 @@ public abstract class ScoreScript extends DocBasedScript {
         if (docReader == null) {
             assert params == null;
             this.params = null;
-            ;
             this.docBase = 0;
             this.termStatsReader = null;
         } else {
@@ -211,7 +210,12 @@ public abstract class ScoreScript extends DocBasedScript {
          */
         boolean needs_score();
 
-        boolean needs_termStatistics();
+        /**
+         * Return {@code true} if the script needs {@code _termStatistics} calculated, or {@code false} otherwise.
+         */
+        default boolean needs_termStatistics() {
+            return false;
+        }
 
         ScoreScript newInstance(DocReader reader) throws IOException;
     }

@@ -23,35 +23,23 @@ import java.util.stream.Stream;
  * only reads doc-values.
  */
 public interface DocReader {
-    /**
-     * New-style field access
-     */
+    /** New-style field access */
     Field<?> field(String fieldName);
 
-    /**
-     * New-style field iterator
-     */
+    /** New-style field iterator */
     Stream<Field<?>> fields(String fieldGlob);
 
-    /**
-     * Set the underlying docId
-     */
+    /** Set the underlying docId */
     void setDocument(int docID);
 
     // Compatibility APIS
 
-    /**
-     * Old-style doc access for contexts that map some doc contents in params
-     */
+    /** Old-style doc access for contexts that map some doc contents in params */
     Map<String, Object> docAsMap();
 
-    /**
-     * Old-style doc['field'] access
-     */
+    /** Old-style doc['field'] access */
     Map<String, ScriptDocValues<?>> doc();
 
-    /**
-     * Helper for source access
-     */
+    /** Helper for source access */
     Supplier<Source> source();
 }

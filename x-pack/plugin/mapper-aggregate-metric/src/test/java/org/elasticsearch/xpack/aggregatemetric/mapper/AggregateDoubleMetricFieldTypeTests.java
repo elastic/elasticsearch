@@ -137,11 +137,6 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                     }
 
                     @Override
-                    public boolean needs_termStatistics() {
-                        return false;
-                    }
-
-                    @Override
                     public ScoreScript newInstance(DocReader docReader) {
                         return new ScoreScript(Map.of(), searchExecutionContext.lookup(), docReader) {
                             @Override

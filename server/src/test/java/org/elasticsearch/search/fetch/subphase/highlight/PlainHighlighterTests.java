@@ -135,11 +135,6 @@ public class PlainHighlighterTests extends HighlighterTestCase {
                 }
 
                 @Override
-                public boolean needs_termStatistics() {
-                    return randomBoolean();
-                }
-
-                @Override
                 public ScoreScript newInstance(DocReader reader) throws IOException {
                     return new ScoreScript(params, lookup, reader) {
                         @Override

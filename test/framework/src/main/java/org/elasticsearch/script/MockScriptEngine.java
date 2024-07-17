@@ -740,11 +740,6 @@ public class MockScriptEngine implements ScriptEngine {
                 }
 
                 @Override
-                public boolean needs_termStatistics() {
-                    return false;
-                }
-
-                @Override
                 public ScoreScript newInstance(DocReader docReader) throws IOException {
                     Scorable[] scorerHolder = new Scorable[1];
                     return new ScoreScript(params, null, docReader) {

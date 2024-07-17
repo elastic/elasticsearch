@@ -74,11 +74,6 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                         }
 
                         @Override
-                        public boolean needs_termStatistics() {
-                            return false;
-                        }
-
-                        @Override
                         public ScoreScript newInstance(DocReader docReader) {
                             return new MyScript(params1, lookup, ((DocValuesDocReader) docReader).getLeafReaderContext());
                         }

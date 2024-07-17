@@ -35,7 +35,7 @@ public class Rename extends UnaryPlan {
     @Override
     public List<Attribute> output() {
         // Normally shouldn't reach here, as Rename only exists before resolution.
-        List<NamedExpression> projectionsAfterResolution = ResolveRefs.projectionsForRename(this, this.output(), null);
+        List<NamedExpression> projectionsAfterResolution = ResolveRefs.projectionsForRename(this, this.child().output(), null);
 
         return Expressions.asAttributes(projectionsAfterResolution);
     }

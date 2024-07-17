@@ -114,7 +114,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
         this.synonymsSource = SynonymsSource.fromSettings(settings);
         this.expand = settings.getAsBoolean("expand", true);
-        this.lenient = settings.getAsBoolean("lenient", this.synonymsSource == SynonymsSource.INDEX);
+        this.lenient = settings.getAsBoolean("lenient", true);
         this.format = settings.get("format", "");
         boolean updateable = settings.getAsBoolean("updateable", false);
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;

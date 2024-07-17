@@ -26,6 +26,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -88,9 +89,18 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.tokenizer", "whitespace")
             .putList("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym", "my_synonym")
             .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        try {
+
+        {
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
             indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+            match("synonymAnalyzerWithStopSynonymBeforeSynonym", "kimchy is the dude abides", "is the dude man!");
+        }
+
+        try {
+            Settings settingsNoLenient = Settings.builder().loadFromSource(settings.toString(), XContentType.JSON).put(
+                "index.analysis.filter.my_synonym.lenient", false).build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settingsNoLenient);
+            indexAnalyzers = createTestAnalysis(idxSettings, settingsNoLenient, new CommonAnalysisPlugin()).indexAnalyzers;
             fail("fail! due to synonym word deleted by analyzer");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -116,9 +126,18 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.tokenizer", "whitespace")
             .putList("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym", "my_synonym")
             .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        try {
+
+        {
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
             indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+            match("synonymAnalyzerWithStopSynonymBeforeSynonym", "kimchy is the dude abides", "is the dude man!");
+        }
+
+        try {
+            Settings settingsNoLenient = Settings.builder().loadFromSource(settings.toString(), XContentType.JSON).put(
+                "index.analysis.filter.my_synonym.lenient", false).build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settingsNoLenient);
+            indexAnalyzers = createTestAnalysis(idxSettings, settingsNoLenient, new CommonAnalysisPlugin()).indexAnalyzers;
             fail("fail! due to synonym word deleted by analyzer");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -137,9 +156,18 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.tokenizer", "whitespace")
             .putList("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.filter", "stop_within_synonym", "synonym_expand")
             .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        try {
+
+        {
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
             indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+            match("synonymAnalyzerExpandWithStopBeforeSynonym", "kimchy is the dude abides", "is the dude abides man!");
+        }
+
+        try {
+            Settings settingsNoLenient = Settings.builder().loadFromSource(settings.toString(), XContentType.JSON).put(
+                "index.analysis.filter.synonym_expand.lenient", false).build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settingsNoLenient);
+            indexAnalyzers = createTestAnalysis(idxSettings, settingsNoLenient, new CommonAnalysisPlugin()).indexAnalyzers;
             fail("fail! due to synonym word deleted by analyzer");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -370,7 +398,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             sb.append(termAtt.toString()).append(" ");
         }
 
-        MatcherAssert.assertThat(target, equalTo(sb.toString().trim()));
+        MatcherAssert.assertThat(sb.toString().trim(), equalTo(target));
     }
 
 }

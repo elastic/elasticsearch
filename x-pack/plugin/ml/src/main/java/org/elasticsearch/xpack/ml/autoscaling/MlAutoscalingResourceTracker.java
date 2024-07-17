@@ -443,7 +443,7 @@ public final class MlAutoscalingResourceTracker {
      * be accommodated on it.
      * <p>
      * If the calculation returns false then treat the case as for a single trained model job
-     * that is already assigned, i.e. increment modelMemoryBytesSum and existingTotalProcessors appropriately.
+     * that is already assigned, i.e. increment modelMemoryBytesSum and existingTotalProcessorsInUse appropriately.
      *
      * @param perNodeJobRequirements per Node lists of requirements
      * @param perNodeMemoryInBytes   total model memory available on every node

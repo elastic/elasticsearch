@@ -17,14 +17,14 @@ public record MlAutoscalingStats(
     int existingTotalNodes,
     long existingPerNodeMemoryBytes,
     long existingTotalModelMemoryBytes,
-    int existingTotalProcessors,
+    int existingTotalProcessorsInUse,
     int minNodes,
     long extraPerNodeMemoryBytes,
     int extraPerNodeNodeProcessors,
-    long extraModelMemoryInBytes,
+    long extraModelMemoryBytes,
     int extraProcessors,
-    long removeNodeMemoryInBytes,
-    long perNodeMemoryOverheadInBytes
+    long removeNodeMemoryBytes,
+    long perNodeMemoryOverheadBytes
 ) implements Writeable {
 
     public MlAutoscalingStats(StreamInput in) throws IOException {
@@ -32,14 +32,14 @@ public record MlAutoscalingStats(
             in.readVInt(), // existingTotalNodes
             in.readVLong(),  // existingPerNodeMemoryBytes
             in.readVLong(), // modelMemoryInBytes
-            in.readVInt(), // existingTotalProcessors
+            in.readVInt(), // existingTotalProcessorsInUse
             in.readVInt(), // minNodes
             in.readVLong(), // extraPerNodeMemoryBytes
             in.readVInt(), // extraPerNodeNodeProcessors
-            in.readVLong(), // extraModelMemoryInBytes
+            in.readVLong(), // extraModelMemoryBytes
             in.readVInt(), // extraProcessors
-            in.readVLong(), // removeNodeMemoryInBytes
-            in.readVLong() // perNodeMemoryOverheadInBytes
+            in.readVLong(), // removeNodeMemoryBytes
+            in.readVLong() // perNodeMemoryOverheadBytes
         );
     }
 
@@ -48,13 +48,13 @@ public record MlAutoscalingStats(
         out.writeVInt(existingTotalNodes);
         out.writeVLong(existingPerNodeMemoryBytes);
         out.writeVLong(existingTotalModelMemoryBytes);
-        out.writeVLong(existingTotalProcessors);
+        out.writeVLong(existingTotalProcessorsInUse);
         out.writeVInt(minNodes);
         out.writeVLong(extraPerNodeMemoryBytes);
         out.writeVInt(extraPerNodeNodeProcessors);
-        out.writeVLong(extraModelMemoryInBytes);
+        out.writeVLong(extraModelMemoryBytes);
         out.writeVInt(extraProcessors);
-        out.writeVLong(removeNodeMemoryInBytes);
-        out.writeVLong(perNodeMemoryOverheadInBytes);
+        out.writeVLong(removeNodeMemoryBytes);
+        out.writeVLong(perNodeMemoryOverheadBytes);
     }
 }

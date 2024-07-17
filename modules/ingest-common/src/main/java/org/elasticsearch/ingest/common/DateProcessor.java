@@ -26,6 +26,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,7 +46,7 @@ public final class DateProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final List<String> formats;
-    private final List<Function<Map<String, Object>, Function<String, ZonedDateTime>>> dateParsers;
+    private final List<Function<Map<String, String>, Function<String, ZonedDateTime>>> dateParsers;
     private final String outputFormat;
 
     DateProcessor(
@@ -81,8 +82,8 @@ public final class DateProcessor extends AbstractProcessor {
         for (String format : formats) {
             DateFormat dateFormat = DateFormat.fromString(format);
             dateParsers.add((params) -> {
-                var documentTimezone = timezone == null ? null : timezone.newInstance(params).execute();
-                var documentLocale = locale == null ? null : locale.newInstance(params).execute();
+                var documentTimezone = params.get("documentTimezone");
+                var documentLocale = params.get("documentLocale");
                 return Cache.INSTANCE.getOrCompute(
                     new Cache.Key(format, documentTimezone, documentLocale),
                     () -> dateFormat.getFunction(format, newDateTimeZone(documentTimezone), newLocale(documentLocale))
@@ -112,9 +113,15 @@ public final class DateProcessor extends AbstractProcessor {
 
         ZonedDateTime dateTime = null;
         Exception lastException = null;
-        for (Function<Map<String, Object>, Function<String, ZonedDateTime>> dateParser : dateParsers) {
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        var documentTimezone = timezone == null ? null : timezone.newInstance(sourceAndMetadata).execute();
+        var documentLocale = locale == null ? null : locale.newInstance(sourceAndMetadata).execute();
+        Map<String, String> document = new HashMap<>();
+        document.put("documentTimezone", documentTimezone);
+        document.put("documentLocale", documentLocale);
+        for (Function<Map<String, String>, Function<String, ZonedDateTime>> dateParser : dateParsers) {
             try {
-                dateTime = dateParser.apply(ingestDocument.getSourceAndMetadata()).apply(value);
+                dateTime = dateParser.apply(document).apply(value);
                 break;
             } catch (Exception e) {
                 // try the next parser and keep track of the exceptions

@@ -175,6 +175,11 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                     }
 
                     @Override
+                    public boolean needs_termStatistics() {
+                        return false;
+                    }
+
+                    @Override
                     public ScoreScript newInstance(DocReader docReader) {
                         return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override

@@ -16,10 +16,8 @@ KEEP columns
 
 `columns`::
 A comma-separated list of columns to keep. Supports wildcards.
-If a column name without wildcards occurs multiple times, the column is placed at the
-position of the rightmost duplicate. The same is true if a column name matches multiple
-wildcards. If a column name matches both a wildcard and also a column name without wildcards,
-the position of the latter is used.
+See below for the behavior in case an existing column matches multiple
+given wildcards or column names.
 
 *Description*
 

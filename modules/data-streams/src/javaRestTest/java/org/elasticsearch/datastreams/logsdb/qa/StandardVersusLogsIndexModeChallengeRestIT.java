@@ -42,17 +42,84 @@ import java.util.Map;
 public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
-        super("logs-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 99, 99);
+        super("standard-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 101, 101);
     }
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        mappings(builder);
+        if (randomBoolean()) {
+            builder.startObject("properties")
+
+                .startObject("@timestamp")
+                .field("type", "date")
+                .endObject()
+
+                .startObject("host.name")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("message")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("method")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("memory_usage_bytes")
+                .field("type", "long")
+                .field("ignore_malformed", randomBoolean())
+                .endObject()
+
+                .endObject();
+        } else {
+            builder.startObject("properties")
+                // NOTE: dynamic mapping of `host.name` would result in a text field without doc values which prevents running aggregations
+                .startObject("host.name")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .endObject();
+        }
     }
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        mappings(builder);
+        builder.field("subobjects", false);
+        //NOTE: without mappings the `host.name` filed will be automatically injected as a keyword for LogsDB
+        if (randomBoolean()) {
+            builder.startObject("properties")
+
+                .startObject("@timestamp")
+                .field("type", "date")
+                .endObject()
+
+                .startObject("host.name")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("message")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("method")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("memory_usage_bytes")
+                .field("type", "long")
+                .field("ignore_malformed", randomBoolean())
+                .endObject()
+
+                .endObject();
+        }
     }
 
     private static void mappings(final XContentBuilder builder) throws IOException {

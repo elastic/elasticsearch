@@ -101,7 +101,7 @@ setup:
   - is_true: daily-snapshots.stats
 
 ---
-"Test version/modified_date change even when policy is unchanged":
+"Test version/modified_date is unchanged if updated policy is the same":
   - do:
       snapshot.create_repository:
         repository: repo
@@ -161,5 +161,5 @@ setup:
       slm.get_lifecycle:
         policy_id: "daily-snapshots"
   - match: { daily-snapshots.policy.name: "<production-snap-{now/d}>" }
-  - match: { daily-snapshots.version: 2 }
-  - gt: { daily-snapshots.modified_date_millis: $modified }
+  - match: { daily-snapshots.version: 1 }
+  - match: { daily-snapshots.modified_date_millis: $modified }

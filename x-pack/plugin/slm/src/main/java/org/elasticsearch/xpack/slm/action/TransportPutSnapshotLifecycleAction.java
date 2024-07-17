@@ -41,6 +41,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -144,18 +145,26 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
             } else {
                 Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
                 SnapshotLifecyclePolicyMetadata oldLifecycle = snapLifecycles.get(id);
-                SnapshotLifecyclePolicyMetadata newLifecycle = SnapshotLifecyclePolicyMetadata.builder(oldLifecycle)
-                    .setPolicy(request.getLifecycle())
-                    .setHeaders(filteredHeaders)
-                    .setVersion(oldLifecycle == null ? 1L : oldLifecycle.getVersion() + 1)
-                    .setModifiedDate(Instant.now().toEpochMilli())
-                    .build();
-                snapLifecycles.put(id, newLifecycle);
-                lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats());
-                if (oldLifecycle == null) {
-                    logger.info("adding new snapshot lifecycle [{}]", id);
+
+                if (oldLifecycle != null
+                    && Objects.equals(oldLifecycle.getHeaders(), filteredHeaders)
+                    && Objects.equals(oldLifecycle.getPolicy(), request.getLifecycle())) {
+                    logger.info("updating existing snapshot lifecycle [{}], no changes", id);
+                    return currentState;
                 } else {
-                    logger.info("updating existing snapshot lifecycle [{}]", id);
+                    SnapshotLifecyclePolicyMetadata newLifecycle = SnapshotLifecyclePolicyMetadata.builder(oldLifecycle)
+                        .setPolicy(request.getLifecycle())
+                        .setHeaders(filteredHeaders)
+                        .setVersion(oldLifecycle == null ? 1L : oldLifecycle.getVersion() + 1)
+                        .setModifiedDate(Instant.now().toEpochMilli())
+                        .build();
+                    snapLifecycles.put(id, newLifecycle);
+                    lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats());
+                    if (oldLifecycle == null) {
+                        logger.info("adding new snapshot lifecycle [{}]", id);
+                    } else {
+                        logger.info("updating existing snapshot lifecycle [{}]", id);
+                    }
                 }
             }
 

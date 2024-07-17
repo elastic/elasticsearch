@@ -13,8 +13,8 @@ package org.elasticsearch.logsdb.datageneration;
  * @param maxFieldCountPerLevel maximum number of fields that an individual object in mapping has.
  *                              Applies to subobjects.
  */
-public record DataGeneratorSpecification(int maxFieldCountPerLevel) {
+public record DataGeneratorSpecification(int maxFieldCountPerLevel, int maxObjectDepth) {
     public DataGeneratorSpecification() {
-        this(100);
+        this(100, 3);
     }
 }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.Seed;
 
 import org.elasticsearch.common.Strings;
@@ -22,10 +23,10 @@ import java.io.IOException;
     reason = "There is a lot of randomness in the code we are testing here. "
         + "We want one static snapshot test so that we can write strong asserts."
 )
-@Seed("895AC2F45AD0307B")
+@Seed("CBA335BE079C1BB4")
 public class DataGeneratorSnapshotTests extends ESTestCase {
     public void testSnapshot() throws IOException {
-        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(5));
+        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(5, 3));
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
         dataGenerator.writeMapping(mapping);
@@ -37,27 +38,54 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
             {
               "_doc" : {
                 "properties" : {
-                  "svFqiacudYguDdcVgcUpebl" : {
+                  "VDJcDWqhRMInRaGEC" : {
                     "properties" : {
-                      "CatqyILgYGuwUVIEnfqDlpevMflGCMqUajRxqgjyz" : {
-                        "type" : "keyword"
-                      },
-                      "KZdZrzmuekeLQNqvxUFmsmSoWfErw" : {
+                      "VceyNMHkuypgsatswkntOwbolEytbuzxIlwbMmVzc" : {
                         "type" : "long"
                       },
-                      "kcVkFBpEaZSmxf" : {
-                        "type" : "keyword"
-                      },
-                      "SctcN" : {
+                      "suHdsWHVabAJlexlBDYHtrNhzAw" : {
                         "type" : "long"
                       }
                     }
                   },
-                  "tEgIvpoczqUQxhd" : {
+                  "KusUTflTYfXPZ" : {
                     "type" : "long"
                   },
-                  "NzdTGhSwnfmSNmnEevaXafFZtDGwSu" : {
-                    "type" : "keyword"
+                  "wupnzcaMBLYWNiNWrppFCZMKzngSfCaiSmfzOnUhCsN" : {
+                    "properties" : {
+                      "BPwGQoGLfLqoceHpMN" : {
+                        "properties" : {
+                          "imAizcWraQBGGBGC" : {
+                            "type" : "long"
+                          }
+                        }
+                      },
+                      "USYnVcJOzULGRkSaeEXxegWQfYxSKDlHyzdcHAVJYrSkqL" : {
+                        "type" : "keyword"
+                      },
+                      "nPOWflnHpagenXzbkuDiVoDzKrPrwiFCqVNFY" : {
+                        "type" : "long"
+                      },
+                      "ANjouXkcCgiKAYFSAaFifLsRdVErSzEJwknUFNh" : {
+                        "type" : "keyword"
+                      },
+                      "KqYfTcchwWsuPS" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "hGncaCPHdprQLTUm" : {
+                    "properties" : {
+                      "BYjMnZCHbAFJuuGILjwTzzArOXUcizvvsfSxuKdS" : {
+                        "type" : "keyword"
+                      },
+                      "LNUeEThrcwKuXOindX" : {
+                        "type" : "long"
+                      },
+                      "LGabYPznMGl" : {
+                        "type" : "keyword"
+                      }
+                    }
                   }
                 }
               }
@@ -65,14 +93,25 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
 
         var expectedDocument = """
             {
-              "svFqiacudYguDdcVgcUpebl" : {
-                "CatqyILgYGuwUVIEnfqDlpevMflGCMqUajRxqgjyz" : "YfAhZTQCwciz",
-                "KZdZrzmuekeLQNqvxUFmsmSoWfErw" : -3982310058869716458,
-                "kcVkFBpEaZSmxf" : "My",
-                "SctcN" : 8919247631554273185
+              "VDJcDWqhRMInRaGEC" : {
+                "VceyNMHkuypgsatswkntOwbolEytbuzxIlwbMmVzc" : 6599619436245425830,
+                "suHdsWHVabAJlexlBDYHtrNhzAw" : 5400071568447452818
               },
-              "tEgIvpoczqUQxhd" : -4162190923370660906,
-              "NzdTGhSwnfmSNmnEevaXafFZtDGwSu" : "FN"
+              "KusUTflTYfXPZ" : -841868371946563243,
+              "wupnzcaMBLYWNiNWrppFCZMKzngSfCaiSmfzOnUhCsN" : {
+                "BPwGQoGLfLqoceHpMN" : {
+                  "imAizcWraQBGGBGC" : 6120144518695593976
+                },
+                "USYnVcJOzULGRkSaeEXxegWQfYxSKDlHyzdcHAVJYrSkqL" : "QfiG",
+                "nPOWflnHpagenXzbkuDiVoDzKrPrwiFCqVNFY" : -7572306868127563201,
+                "ANjouXkcCgiKAYFSAaFifLsRdVErSzEJwknUFNh" : "sGbtJzQDcLcNRXBVhevoopcrjbUYvWdOWUFjQCtuVRDfQp",
+                "KqYfTcchwWsuPS" : 7897327850725852962
+              },
+              "hGncaCPHdprQLTUm" : {
+                "BYjMnZCHbAFJuuGILjwTzzArOXUcizvvsfSxuKdS" : "EguFyVgbRntxlKObhPaBpMLOLa",
+                "LNUeEThrcwKuXOindX" : -8907455453724983858,
+                "LGabYPznMGl" : "NczMmXRmGOueSrudXPJwSmUZQrUKOjMuXH"
+              }
             }""";
 
         assertEquals(expectedMapping, Strings.toString(mapping));

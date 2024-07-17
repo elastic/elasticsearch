@@ -17,19 +17,16 @@ import java.io.IOException;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 
 public class LongFieldDataGenerator implements FieldDataGenerator {
-    private final String fieldName;
-
-    public LongFieldDataGenerator(String fieldName) {
-        this.fieldName = fieldName;
+    public LongFieldDataGenerator() {
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-        return b -> b.startObject(fieldName).field("type", "long").endObject();
+        return b -> b.startObject().field("type", "long").endObject();
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-        return b -> b.field(fieldName, randomLong());
+        return b -> b.value(randomLong());
     }
 }

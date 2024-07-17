@@ -13,23 +13,24 @@ import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class KeywordFieldDataGenerator implements FieldDataGenerator {
-    private final String fieldName;
-
-    public KeywordFieldDataGenerator(String fieldName) {
-        this.fieldName = fieldName;
+    public KeywordFieldDataGenerator() {
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-        return b -> b.startObject(fieldName).field("type", "keyword").endObject();
+        return b -> b.startObject().field("type", "keyword").endObject();
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-        return b -> b.field(fieldName, randomAlphaOfLengthBetween(0, 50));
+        return b -> b.value(randomAlphaOfLengthBetween(0, 50));
     }
 }

@@ -17,13 +17,11 @@ import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -518,63 +516,56 @@ public class ComputeService {
         String[] originalIndices,
         ActionListener<List<DataNode>> listener
     ) {
-        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        ActionListener<SearchShardsResponse> preservingContextListener = ContextPreservingActionListener.wrapPreservingContext(
-            listener.map(resp -> {
-                Map<String, DiscoveryNode> nodes = new HashMap<>();
-                for (DiscoveryNode node : resp.getNodes()) {
-                    nodes.put(node.getId(), node);
+        ActionListener<SearchShardsResponse> searchShardsListener = listener.map(resp -> {
+            Map<String, DiscoveryNode> nodes = new HashMap<>();
+            for (DiscoveryNode node : resp.getNodes()) {
+                nodes.put(node.getId(), node);
+            }
+            Map<String, List<ShardId>> nodeToShards = new HashMap<>();
+            Map<String, Map<Index, AliasFilter>> nodeToAliasFilters = new HashMap<>();
+            for (SearchShardsGroup group : resp.getGroups()) {
+                var shardId = group.shardId();
+                if (group.skipped()) {
+                    continue;
                 }
-                Map<String, List<ShardId>> nodeToShards = new HashMap<>();
-                Map<String, Map<Index, AliasFilter>> nodeToAliasFilters = new HashMap<>();
-                for (SearchShardsGroup group : resp.getGroups()) {
-                    var shardId = group.shardId();
-                    if (group.skipped()) {
-                        continue;
-                    }
-                    if (group.allocatedNodes().isEmpty()) {
-                        throw new ShardNotFoundException(group.shardId(), "no shard copies found {}", group.shardId());
-                    }
-                    if (concreteIndices.contains(shardId.getIndexName()) == false) {
-                        continue;
-                    }
-                    String targetNode = group.allocatedNodes().get(0);
-                    nodeToShards.computeIfAbsent(targetNode, k -> new ArrayList<>()).add(shardId);
-                    AliasFilter aliasFilter = resp.getAliasFilters().get(shardId.getIndex().getUUID());
-                    if (aliasFilter != null) {
-                        nodeToAliasFilters.computeIfAbsent(targetNode, k -> new HashMap<>()).put(shardId.getIndex(), aliasFilter);
-                    }
+                if (group.allocatedNodes().isEmpty()) {
+                    throw new ShardNotFoundException(group.shardId(), "no shard copies found {}", group.shardId());
                 }
-                List<DataNode> dataNodes = new ArrayList<>(nodeToShards.size());
-                for (Map.Entry<String, List<ShardId>> e : nodeToShards.entrySet()) {
-                    DiscoveryNode node = nodes.get(e.getKey());
-                    Map<Index, AliasFilter> aliasFilters = nodeToAliasFilters.getOrDefault(e.getKey(), Map.of());
-                    dataNodes.add(new DataNode(transportService.getConnection(node), e.getValue(), aliasFilters));
+                if (concreteIndices.contains(shardId.getIndexName()) == false) {
+                    continue;
                 }
-                return dataNodes;
-            }),
-            threadContext
+                String targetNode = group.allocatedNodes().get(0);
+                nodeToShards.computeIfAbsent(targetNode, k -> new ArrayList<>()).add(shardId);
+                AliasFilter aliasFilter = resp.getAliasFilters().get(shardId.getIndex().getUUID());
+                if (aliasFilter != null) {
+                    nodeToAliasFilters.computeIfAbsent(targetNode, k -> new HashMap<>()).put(shardId.getIndex(), aliasFilter);
+                }
+            }
+            List<DataNode> dataNodes = new ArrayList<>(nodeToShards.size());
+            for (Map.Entry<String, List<ShardId>> e : nodeToShards.entrySet()) {
+                DiscoveryNode node = nodes.get(e.getKey());
+                Map<Index, AliasFilter> aliasFilters = nodeToAliasFilters.getOrDefault(e.getKey(), Map.of());
+                dataNodes.add(new DataNode(transportService.getConnection(node), e.getValue(), aliasFilters));
+            }
+            return dataNodes;
+        });
+        SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
+            originalIndices,
+            SearchRequest.DEFAULT_INDICES_OPTIONS,
+            filter,
+            null,
+            null,
+            false,
+            clusterAlias
         );
-        try (ThreadContext.StoredContext ignored = threadContext.newStoredContextPreservingResponseHeaders()) {
-            threadContext.markAsSystemContext();
-            SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
-                originalIndices,
-                SearchRequest.DEFAULT_INDICES_OPTIONS,
-                filter,
-                null,
-                null,
-                false,
-                clusterAlias
-            );
-            transportService.sendChildRequest(
-                transportService.getLocalNode(),
-                TransportSearchShardsAction.TYPE.name(),
-                searchShardsRequest,
-                parentTask,
-                TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(preservingContextListener, SearchShardsResponse::new, esqlExecutor)
-            );
-        }
+        transportService.sendChildRequest(
+            transportService.getLocalNode(),
+            TransportSearchShardsAction.TYPE.name(),
+            searchShardsRequest,
+            parentTask,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(searchShardsListener, SearchShardsResponse::new, esqlExecutor)
+        );
     }
 
     // TODO: Use an internal action here

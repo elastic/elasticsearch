@@ -431,7 +431,7 @@ public class AllocationService {
                 if (unassignedInfo.delayed()) {
                     final long newComputedLeftDelayNanos = unassignedInfo.remainingDelay(
                         allocation.getCurrentNanoTime(),
-                        metadata.getIndexSafe(shardRouting.index()).getSettings(),
+                        metadata.projectMetadata.getIndexSafe(shardRouting.index()).getSettings(),
                         metadata.nodeShutdowns()
                     );
                     if (newComputedLeftDelayNanos == 0) {
@@ -595,7 +595,7 @@ public class AllocationService {
 
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
-                final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+                final IndexMetadata indexMetadata = allocation.metadata().projectMetadata.getIndexSafe(shardRouting.index());
                 boolean delayed = delayedDueToKnownRestart
                     || INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
 
@@ -631,7 +631,7 @@ public class AllocationService {
                     + startedShard
                     + " but was: "
                     + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
-            long expectedShardSize = routingAllocation.metadata().getIndexSafe(startedShard.index()).isSearchableSnapshot()
+            long expectedShardSize = routingAllocation.metadata().projectMetadata.getIndexSafe(startedShard.index()).isSearchableSnapshot()
                 ? startedShard.getExpectedShardSize()
                 : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
             routingNodes.startShard(startedShard, routingAllocation.changes(), expectedShardSize);
@@ -694,7 +694,7 @@ public class AllocationService {
     private ExistingShardsAllocator getAllocatorForShard(ShardRouting shardRouting, RoutingAllocation routingAllocation) {
         assert assertInitialized();
         final String allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            routingAllocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
+            routingAllocation.metadata().projectMetadata.getIndexSafe(shardRouting.index()).getSettings()
         );
         final ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
         return existingShardsAllocator != null ? existingShardsAllocator : new NotFoundAllocator(allocatorName);

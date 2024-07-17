@@ -345,7 +345,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                     new FailedShardEntry(
                         shard.shardId(),
                         shard.allocationId().getId(),
-                        randomBoolean() ? 0L : currentState.metadata().getIndexSafe(shard.index()).primaryTerm(shard.id()),
+                        randomBoolean() ? 0L : currentState.metadata().projectMetadata.getIndexSafe(shard.index()).primaryTerm(shard.id()),
                         message,
                         new CorruptIndexException("simulated", indexUUID),
                         randomBoolean()

@@ -631,7 +631,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         )
                     );
                 } else {
-                    final IndexMetadata leaderIndexMetadata = remoteMetadata.getIndexSafe(indexToFollow);
+                    final IndexMetadata leaderIndexMetadata = remoteMetadata.projectMetadata.getIndexSafe(indexToFollow);
                     // First ensure that the index on the leader that we want to follow has soft-deletes enabled
                     if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetadata.getSettings()) == false) {
                         String message = String.format(

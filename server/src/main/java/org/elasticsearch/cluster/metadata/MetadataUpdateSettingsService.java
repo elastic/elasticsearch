@@ -188,7 +188,7 @@ public class MetadataUpdateSettingsService {
             for (int i = 0; i < request.indices().length; i++) {
                 Index index = request.indices()[i];
                 actualIndices[i] = index.getName();
-                final IndexMetadata metadata = currentState.metadata().getIndexSafe(index);
+                final IndexMetadata metadata = currentState.metadata().projectMetadata.getIndexSafe(index);
 
                 if (metadata.getState() == IndexMetadata.State.OPEN) {
                     openIndices.add(index);
@@ -342,13 +342,13 @@ public class MetadataUpdateSettingsService {
 
             try {
                 for (Index index : openIndices) {
-                    final IndexMetadata currentMetadata = currentState.metadata().getIndexSafe(index);
-                    final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
+                    final IndexMetadata currentMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
+                    final IndexMetadata updatedMetadata = updatedState.metadata().projectMetadata.getIndexSafe(index);
                     indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
                 }
                 for (Index index : closedIndices) {
-                    final IndexMetadata currentMetadata = currentState.metadata().getIndexSafe(index);
-                    final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
+                    final IndexMetadata currentMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
+                    final IndexMetadata updatedMetadata = updatedState.metadata().projectMetadata.getIndexSafe(index);
                     // Verifies that the current index settings can be updated with the updated dynamic settings.
                     indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
                     // Now check that we can create the index with the updated settings (dynamic and non-dynamic).

@@ -589,7 +589,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private static IndexMetadata indexMetadata(ShardRouting shard, RoutingAllocation allocation) {
-            return allocation.metadata().getIndexSafe(shard.index());
+            return allocation.metadata().projectMetadata.getIndexSafe(shard.index());
         }
 
         private static Optional<String> highestPreferenceTier(

@@ -180,7 +180,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                     final Metadata.Builder builder = Metadata.builder(currentState.metadata());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     for (Index index : concreteIndices) {
-                        final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+                        final IndexMetadata indexMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
                         if (indexMetadata.getState() != IndexMetadata.State.CLOSE) {
                             throw new IllegalStateException("index [" + index.getName() + "] is not closed");
                         }

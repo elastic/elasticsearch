@@ -309,7 +309,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         Objects.requireNonNull(index, "index must not be null");
         Objects.requireNonNull(lifecycleState, "lifecycleState must not be null");
 
-        IndexMetadata indexMetadata = getIndexSafe(index);
+        IndexMetadata indexMetadata = projectMetadata.getIndexSafe(index);
         if (lifecycleState.equals(indexMetadata.getLifecycleExecutionState())) {
             return this;
         }
@@ -1068,31 +1068,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      */
     public boolean hasIndexAbstraction(String index) {
         return getIndicesLookup().containsKey(index);
-    }
-
-    /** Returns true iff existing index has the same {@link IndexMetadata} instance */
-    public boolean hasIndexMetadata(final IndexMetadata indexMetadata) {
-        return projectMetadata.indices.get(indexMetadata.getIndex().getName()) == indexMetadata;
-    }
-
-    /**
-     * Returns the {@link IndexMetadata} for this index.
-     * @throws IndexNotFoundException if no metadata for this index is found
-     */
-    public IndexMetadata getIndexSafe(Index index) {
-        IndexMetadata metadata = projectMetadata.index(index.getName());
-        if (metadata != null) {
-            if (metadata.getIndexUUID().equals(index.getUUID())) {
-                return metadata;
-            }
-            throw new IndexNotFoundException(
-                index,
-                new IllegalStateException(
-                    "index uuid doesn't match expected: [" + index.getUUID() + "] but got: [" + metadata.getIndexUUID() + "]"
-                )
-            );
-        }
-        throw new IndexNotFoundException(index);
     }
 
     public Map<String, IndexMetadata> getIndices() {

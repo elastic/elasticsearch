@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 
 import java.util.Iterator;
@@ -94,6 +95,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         return metadata != null && metadata.getIndexUUID().equals(index.getUUID());
     }
 
+    /** Returns true iff existing index has the same {@link IndexMetadata} instance */
+    public boolean hasIndexMetadata(IndexMetadata indexMetadata) {
+        return indices.get(indexMetadata.getIndex().getName()) == indexMetadata;
+    }
+
     public IndexMetadata index(String index) {
         return indices.get(index);
     }
@@ -104,6 +110,26 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
             return metadata;
         }
         return null;
+    }
+
+    /**
+     * Returns the {@link IndexMetadata} for this index.
+     * @throws IndexNotFoundException if no metadata for this index is found
+     */
+    public IndexMetadata getIndexSafe(Index index) {
+        IndexMetadata metadata = index(index.getName());
+        if (metadata != null) {
+            if (metadata.getIndexUUID().equals(index.getUUID())) {
+                return metadata;
+            }
+            throw new IndexNotFoundException(
+                index,
+                new IllegalStateException(
+                    "index uuid doesn't match expected: [" + index.getUUID() + "] but got: [" + metadata.getIndexUUID() + "]"
+                )
+            );
+        }
+        throw new IndexNotFoundException(index);
     }
 
     public Map<String, IndexMetadata> indices() {

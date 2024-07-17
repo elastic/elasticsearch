@@ -84,7 +84,7 @@ public final class CcrRequests {
                 }
             } else {
                 final Metadata metadata = response.getState().metadata();
-                final IndexMetadata indexMetadata = metadata.getIndexSafe(index);
+                final IndexMetadata indexMetadata = metadata.projectMetadata.getIndexSafe(index);
                 if (indexMetadata.getMappingVersion() >= mappingVersion) {
                     delegate.onResponse(indexMetadata);
                     return;

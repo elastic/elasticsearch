@@ -348,7 +348,9 @@ public class MetadataCreateIndexService {
         validate(request, currentState);
 
         final Index recoverFromIndex = request.recoverFrom();
-        final IndexMetadata sourceMetadata = recoverFromIndex == null ? null : currentState.metadata().getIndexSafe(recoverFromIndex);
+        final IndexMetadata sourceMetadata = recoverFromIndex == null
+            ? null
+            : currentState.metadata().projectMetadata.getIndexSafe(recoverFromIndex);
 
         if (sourceMetadata != null) {
             // If source metadata was provided, it means we're recovering from an existing index,

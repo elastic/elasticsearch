@@ -666,7 +666,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private boolean addFailureIfIndexIsClosed(DocWriteRequest<?> request, Index concreteIndex, int idx, final Metadata metadata) {
-        IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
+        IndexMetadata indexMetadata = metadata.projectMetadata.getIndexSafe(concreteIndex);
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
             addFailureAndDiscardRequest(request, idx, request.index(), new IndexClosedException(concreteIndex));
             return true;
@@ -788,7 +788,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexRouting routing(Index index) {
             IndexRouting routing = routings.get(index);
             if (routing == null) {
-                routing = IndexRouting.fromIndexMetadata(state.metadata().getIndexSafe(index));
+                routing = IndexRouting.fromIndexMetadata(state.metadata().projectMetadata.getIndexSafe(index));
                 routings.put(index, routing);
             }
             return routing;

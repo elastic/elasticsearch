@@ -205,8 +205,8 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 final Index followIndex = params.getFollowShardId().getIndex();
 
                 CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
-                    final IndexMetadata leaderIMD = clusterStateResponse.getState().metadata().getIndexSafe(leaderIndex);
-                    final IndexMetadata followerIMD = clusterService.state().metadata().getIndexSafe(followIndex);
+                    final IndexMetadata leaderIMD = clusterStateResponse.getState().metadata().projectMetadata.getIndexSafe(leaderIndex);
+                    final IndexMetadata followerIMD = clusterService.state().metadata().projectMetadata.getIndexSafe(followIndex);
 
                     final Settings existingSettings = TransportResumeFollowAction.filter(followerIMD.getSettings());
                     final Settings settings = TransportResumeFollowAction.filter(leaderIMD.getSettings());
@@ -287,8 +287,8 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 final var followerIndex = params.getFollowShardId().getIndex();
 
                 final CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
-                    final var leaderIndexMetadata = clusterStateResponse.getState().metadata().getIndexSafe(leaderIndex);
-                    final var followerIndexMetadata = clusterService.state().metadata().getIndexSafe(followerIndex);
+                    final var leaderIndexMetadata = clusterStateResponse.getState().metadata().projectMetadata.getIndexSafe(leaderIndex);
+                    final var followerIndexMetadata = clusterService.state().metadata().projectMetadata.getIndexSafe(followerIndex);
 
                     // partition the aliases into the three sets
                     final var aliasesOnLeaderNotOnFollower = new HashSet<String>();

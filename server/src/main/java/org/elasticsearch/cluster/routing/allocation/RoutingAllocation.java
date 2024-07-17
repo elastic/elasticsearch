@@ -174,7 +174,7 @@ public class RoutingAllocation {
                 long totalSize = 0;
                 for (ShardRouting shard : node.started()) {
                     if (shard.getExpectedShardSize() > 0
-                        && clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
+                        && clusterState.metadata().projectMetadata.getIndexSafe(shard.index()).isSearchableSnapshot()
                         && reservedSpace.containsShardId(shard.shardId()) == false
                         && clusterInfo.getShardSize(shard) == null) {
                         totalSize += shard.getExpectedShardSize();

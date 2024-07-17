@@ -97,8 +97,10 @@ public class SynonymsAnalysisTests extends ESTestCase {
         }
 
         try {
-            Settings settingsNoLenient = Settings.builder().loadFromSource(settings.toString(), XContentType.JSON).put(
-                "index.analysis.filter.my_synonym.lenient", false).build();
+            Settings settingsNoLenient = Settings.builder()
+                .loadFromSource(settings.toString(), XContentType.JSON)
+                .put("index.analysis.filter.my_synonym.lenient", false)
+                .build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settingsNoLenient);
             indexAnalyzers = createTestAnalysis(idxSettings, settingsNoLenient, new CommonAnalysisPlugin()).indexAnalyzers;
             fail("fail! due to synonym word deleted by analyzer");
@@ -134,8 +136,10 @@ public class SynonymsAnalysisTests extends ESTestCase {
         }
 
         try {
-            Settings settingsNoLenient = Settings.builder().loadFromSource(settings.toString(), XContentType.JSON).put(
-                "index.analysis.filter.my_synonym.lenient", false).build();
+            Settings settingsNoLenient = Settings.builder()
+                .loadFromSource(settings.toString(), XContentType.JSON)
+                .put("index.analysis.filter.my_synonym.lenient", false)
+                .build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settingsNoLenient);
             indexAnalyzers = createTestAnalysis(idxSettings, settingsNoLenient, new CommonAnalysisPlugin()).indexAnalyzers;
             fail("fail! due to synonym word deleted by analyzer");
@@ -164,8 +168,10 @@ public class SynonymsAnalysisTests extends ESTestCase {
         }
 
         try {
-            Settings settingsNoLenient = Settings.builder().loadFromSource(settings.toString(), XContentType.JSON).put(
-                "index.analysis.filter.synonym_expand.lenient", false).build();
+            Settings settingsNoLenient = Settings.builder()
+                .loadFromSource(settings.toString(), XContentType.JSON)
+                .put("index.analysis.filter.synonym_expand.lenient", false)
+                .build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settingsNoLenient);
             indexAnalyzers = createTestAnalysis(idxSettings, settingsNoLenient, new CommonAnalysisPlugin()).indexAnalyzers;
             fail("fail! due to synonym word deleted by analyzer");

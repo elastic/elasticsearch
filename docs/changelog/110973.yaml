@@ -1,0 +1,5 @@
+pr: 110973
+summary: Make sure we run logs versus standard indexing
+area: Logs
+type: bug
+issues: []

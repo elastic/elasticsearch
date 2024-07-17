@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -28,6 +29,12 @@ public class Rename extends UnaryPlan {
 
     public List<Alias> renamings() {
         return renamings;
+    }
+
+    @Override
+    public List<Attribute> output() {
+        // Rename is mapped to a Project during analysis; we do not compute the output here.
+        throw new IllegalStateException("Should never reach here.");
     }
 
     @Override

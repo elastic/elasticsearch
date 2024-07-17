@@ -236,12 +236,12 @@ public final class MlAutoscalingResourceTracker {
             final int numberOfRequestedAllocations = assignment.getTaskParams().getNumberOfAllocations();
             final int numberOfThreadsPerAllocation = assignment.getTaskParams().getThreadsPerAllocation();
             final long estimatedMemoryUsage = assignment.getTaskParams().estimateMemoryUsageBytes();
-            final int numTargetAllocations = assignment.getNodeRoutingTable()
+            final int numTargetAllocationsOnExistingNodes = assignment.getNodeRoutingTable()
                 .values()
                 .stream()
                 .mapToInt(RoutingInfo::getTargetAllocations)
                 .sum();
-            final int numMissingAllocations = numberOfRequestedAllocations - numTargetAllocations;
+            final int numMissingAllocations = numberOfRequestedAllocations - numTargetAllocationsOnExistingNodes;
             final int numProcessorsNeeded = numMissingAllocations * numberOfThreadsPerAllocation;
 
             if (AssignmentState.STARTING.equals(assignment.getAssignmentState()) && assignment.getNodeRoutingTable().isEmpty()) {
@@ -305,7 +305,7 @@ public final class MlAutoscalingResourceTracker {
                 );
 
                 modelMemoryBytesSum += estimatedMemoryUsage;
-                sumOfCurrentlyExistingProcessors += numTargetAllocations * numberOfThreadsPerAllocation;
+                sumOfCurrentlyExistingProcessors += numTargetAllocationsOnExistingNodes * numberOfThreadsPerAllocation;
 
                 for (String node : modelAssignment.getValue().getNodeRoutingTable().keySet()) {
                     perNodeModelMemoryInBytes.computeIfAbsent(node, k -> new ArrayList<>())
@@ -321,7 +321,7 @@ public final class MlAutoscalingResourceTracker {
             }
 
             // min(3, max(number of allocations over all deployed models)
-            minNodes = Math.min(3, Math.max(minNodes, numberOfRequestedAllocations));
+            minNodes = Math.min(3, Math.max(minNodes, numberOfRequestedAllocations)); // TODO understand why this value is chosen
         }
 
         // dummy autoscaling entity
@@ -405,7 +405,7 @@ public final class MlAutoscalingResourceTracker {
      * be accommodated on it.
      * <p>
      * If the calculation returns false then treat the case as for a single trained model job
-     * that is already assigned, i.e. increment modelMemoryBytesSum and processorsSum appropriately.
+     * that is already assigned, i.e. increment modelMemoryBytesSum and existingTotalProcessors appropriately.
      *
      * @param perNodeJobRequirements per Node lists of requirements
      * @param perNodeMemoryInBytes   total model memory available on every node

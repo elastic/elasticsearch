@@ -20,13 +20,13 @@ public class MvExpandExec extends UnaryExec {
 
     private final NamedExpression target;
     private final Attribute expanded;
-    private List<Attribute> lazyOutput;
+    private final List<Attribute> output;
 
     public MvExpandExec(Source source, PhysicalPlan child, NamedExpression target, Attribute expanded) {
         super(source, child);
         this.target = target;
         this.expanded = expanded;
-        this.lazyOutput = null;
+        this.output = calculateOutput(child.output(), target, expanded);
     }
 
     @Override
@@ -49,10 +49,7 @@ public class MvExpandExec extends UnaryExec {
 
     @Override
     public List<Attribute> output() {
-        if (lazyOutput == null) {
-            lazyOutput = calculateOutput(child().output(), target, expanded);
-        }
-        return lazyOutput;
+        return output;
     }
 
     @Override

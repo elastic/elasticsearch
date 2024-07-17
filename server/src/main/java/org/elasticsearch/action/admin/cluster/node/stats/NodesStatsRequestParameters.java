@@ -106,7 +106,7 @@ public class NodesStatsRequestParameters implements Writeable {
             return metricNames.contains(this.metricName());
         }
 
-        static Set<String> allMetrics() {
+        public static Set<String> allMetrics() {
             return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
         }
     }

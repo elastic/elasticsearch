@@ -161,7 +161,10 @@ public class SingleValueQuery extends Query {
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field + "]");
             }
-            SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH), new Warnings(source));
+            SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
+                context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
+                new Warnings(source)
+            );
             org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
             if (rewrite instanceof MatchAllDocsQuery) {
                 // nothing to filter

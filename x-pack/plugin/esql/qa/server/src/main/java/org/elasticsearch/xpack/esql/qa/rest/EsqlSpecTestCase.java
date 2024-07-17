@@ -82,6 +82,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final String testName;
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
+    protected final String instructions;
     protected final Mode mode;
 
     public enum Mode {
@@ -89,7 +90,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         ASYNC
     }
 
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s %6$s")
+    @ParametersFactory(argumentFormatting = "%2$s.%3$s %7$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
@@ -108,12 +109,21 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return testcases;
     }
 
-    protected EsqlSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
+    protected EsqlSpecTestCase(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
         this.fileName = fileName;
         this.groupName = groupName;
         this.testName = testName;
         this.lineNumber = lineNumber;
         this.testCase = testCase;
+        this.instructions = instructions;
         this.mode = mode;
     }
 
@@ -155,7 +165,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected void shouldSkipTest(String testName) throws IOException {
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
-        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
@@ -204,11 +214,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             builder.tables(tables());
         }
 
-        Map<String, Object> answer = runEsql(
-            builder.query(testCase.query),
-            testCase.expectedWarnings(false),
-            testCase.expectedWarningsRegex()
-        );
+        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(), testCase.expectedWarningsRegex());
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 

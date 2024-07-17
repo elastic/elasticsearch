@@ -139,17 +139,28 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
      * A {@linkplain AggregationReduceContext} to perform a partial reduction.
      */
     public static final class ForPartial extends AggregationReduceContext {
+        private final IntConsumer multiBucketConsumer;
+
         public ForPartial(
             BigArrays bigArrays,
             ScriptService scriptService,
             Supplier<Boolean> isCanceled,
-            AggregatorFactories.Builder builders
+            AggregatorFactories.Builder builders,
+            IntConsumer multiBucketConsumer
         ) {
             super(bigArrays, scriptService, isCanceled, builders);
+            this.multiBucketConsumer = multiBucketConsumer;
         }
 
-        public ForPartial(BigArrays bigArrays, ScriptService scriptService, Supplier<Boolean> isCanceled, AggregationBuilder builder) {
+        public ForPartial(
+            BigArrays bigArrays,
+            ScriptService scriptService,
+            Supplier<Boolean> isCanceled,
+            AggregationBuilder builder,
+            IntConsumer multiBucketConsumer
+        ) {
             super(bigArrays, scriptService, isCanceled, builder);
+            this.multiBucketConsumer = multiBucketConsumer;
         }
 
         @Override
@@ -158,7 +169,9 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
         }
 
         @Override
-        protected void consumeBucketCountAndMaybeBreak(int size) {}
+        protected void consumeBucketCountAndMaybeBreak(int size) {
+            multiBucketConsumer.accept(size);
+        }
 
         @Override
         public PipelineTree pipelineTreeRoot() {
@@ -167,7 +180,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
         @Override
         protected AggregationReduceContext forSubAgg(AggregationBuilder sub) {
-            return new ForPartial(bigArrays(), scriptService(), isCanceled(), sub);
+            return new ForPartial(bigArrays(), scriptService(), isCanceled(), sub, multiBucketConsumer);
         }
     }
 

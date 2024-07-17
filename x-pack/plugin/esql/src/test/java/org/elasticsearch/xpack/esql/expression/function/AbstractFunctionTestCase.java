@@ -80,6 +80,8 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -92,28 +94,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Generate a random value of the appropriate type to fit into blocks of {@code e}.
      */
     public static Literal randomLiteral(DataType type) {
-        return new Literal(Source.EMPTY, switch (type.typeName()) {
-            case "boolean" -> randomBoolean();
-            case "byte" -> randomByte();
-            case "short" -> randomShort();
-            case "integer", "counter_integer" -> randomInt();
-            case "unsigned_long", "long", "counter_long" -> randomLong();
-            case "date_period" -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
-            case "datetime" -> randomMillisUpToYear9999();
-            case "double", "scaled_float", "counter_double" -> randomDouble();
-            case "float" -> randomFloat();
-            case "half_float" -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
-            case "keyword" -> new BytesRef(randomAlphaOfLength(5));
-            case "ip" -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-            case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
-            case "text" -> new BytesRef(randomAlphaOfLength(50));
-            case "version" -> randomVersion().toBytesRef();
-            case "geo_point" -> GEO.asWkb(GeometryTestUtils.randomPoint());
-            case "cartesian_point" -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
-            case "geo_shape" -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
-            case "cartesian_shape" -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
-            case "null" -> null;
-            case "_source" -> {
+        return new Literal(Source.EMPTY, switch (type) {
+            case BOOLEAN -> randomBoolean();
+            case BYTE -> randomByte();
+            case SHORT -> randomShort();
+            case INTEGER, COUNTER_INTEGER -> randomInt();
+            case UNSIGNED_LONG, LONG, COUNTER_LONG -> randomLong();
+            case DATE_PERIOD -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
+            case DATETIME -> randomMillisUpToYear9999();
+            case DOUBLE, SCALED_FLOAT, COUNTER_DOUBLE -> randomDouble();
+            case FLOAT -> randomFloat();
+            case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
+            case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
+            case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+            case TIME_DURATION -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
+            case TEXT -> new BytesRef(randomAlphaOfLength(50));
+            case VERSION -> randomVersion().toBytesRef();
+            case GEO_POINT -> GEO.asWkb(GeometryTestUtils.randomPoint());
+            case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
+            case GEO_SHAPE -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
+            case CARTESIAN_SHAPE -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
+            case NULL -> null;
+            case SOURCE -> {
                 try {
                     yield BytesReference.bytes(
                         JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomAlphaOfLength(10)).endObject()
@@ -122,7 +124,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     throw new UncheckedIOException(e);
                 }
             }
-            default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
+            case UNSUPPORTED, OBJECT, NESTED, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
+                "can't make random values for [" + type.typeName() + "]"
+            );
         }, type);
     }
 
@@ -215,11 +219,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * Creates a page based on a list of multi-row fields.
+     * Creates a list of pages based on a list of multi-row fields.
      */
-    protected final Page rows(List<TestCaseSupplier.TypedData> multirowFields) {
+    protected final List<Page> rows(List<TestCaseSupplier.TypedData> multirowFields) {
         if (multirowFields.isEmpty()) {
-            return new Page(0, BlockUtils.NO_BLOCKS);
+            return List.of();
         }
 
         var rowsCount = multirowFields.get(0).multiRowData().size();
@@ -230,27 +234,40 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 field -> assertThat("All multi-row fields must have the same number of rows", field.multiRowData(), hasSize(rowsCount))
             );
 
-        var blocks = new Block[multirowFields.size()];
+        List<Page> pages = new ArrayList<>();
 
-        for (int i = 0; i < multirowFields.size(); i++) {
-            var field = multirowFields.get(i);
-            try (
-                var wrapper = BlockUtils.wrapperFor(
-                    TestBlockFactory.getNonBreakingInstance(),
-                    PlannerUtils.toElementType(field.type()),
-                    rowsCount
-                )
-            ) {
-
-                for (var row : field.multiRowData()) {
-                    wrapper.accept(row);
-                }
-
-                blocks[i] = wrapper.builder().build();
+        int pageSize = randomIntBetween(1, 100);
+        for (int initialRow = 0; initialRow < rowsCount;) {
+            if (pageSize > rowsCount - initialRow) {
+                pageSize = rowsCount - initialRow;
             }
+
+            var blocks = new Block[multirowFields.size()];
+
+            for (int i = 0; i < multirowFields.size(); i++) {
+                var field = multirowFields.get(i);
+                try (
+                    var wrapper = BlockUtils.wrapperFor(
+                        TestBlockFactory.getNonBreakingInstance(),
+                        PlannerUtils.toElementType(field.type()),
+                        pageSize
+                    )
+                ) {
+                    var multiRowData = field.multiRowData();
+                    for (int row = initialRow; row < initialRow + pageSize; row++) {
+                        wrapper.accept(multiRowData.get(row));
+                    }
+
+                    blocks[i] = wrapper.builder().build();
+                }
+            }
+
+            pages.add(new Page(pageSize, blocks));
+            initialRow += pageSize;
+            pageSize = randomIntBetween(1, 100);
         }
 
-        return new Page(rowsCount, blocks);
+        return pages;
     }
 
     /**
@@ -336,6 +353,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<EsqlFunctionRegistry.ArgSignature> args = description.args();
 
         assertTrue("expect description to be defined", description.description() != null && false == description.description().isEmpty());
+        assertThat(
+            "descriptions should be complete sentences",
+            description.description(),
+            either(endsWith(".")) // A full sentence
+                .or(endsWith("∅")) // Math
+        );
 
         List<Set<String>> typesFromSignature = new ArrayList<>();
         Set<String> returnFromSignature = new HashSet<>();

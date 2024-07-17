@@ -501,7 +501,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void awaitIdle() {
         assert lifecycle.closed();
-        PlainActionFuture.<Void, RuntimeException>get(closedAndIdleListeners::addListener);
+        final var future = new PlainActionFuture<Void>();
+        closedAndIdleListeners.addListener(future);
+        future.actionGet(); // wait for as long as it takes
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -3945,5 +3947,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public int getReadBufferSizeInBytes() {
         return bufferSize;
+    }
+
+    /**
+     * @return extra information to be included in the exception message emitted on failure of a repository analysis.
+     */
+    public String getAnalysisFailureExtraDetail() {
+        return Strings.format(
+            """
+                Elasticsearch observed the storage system underneath this repository behaved incorrectly which indicates it is not \
+                suitable for use with Elasticsearch snapshots. See [%s] for further information.""",
+            ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS
+        );
     }
 }

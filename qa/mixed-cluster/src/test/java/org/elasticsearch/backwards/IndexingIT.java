@@ -59,20 +59,13 @@ public class IndexingIT extends ESRestTestCase {
      */
     private int indexDocWithConcurrentUpdates(String index, final int docId, int nUpdates) throws IOException, InterruptedException {
         indexDocs(index, docId, 1);
-        Thread[] indexThreads = new Thread[nUpdates];
-        for (int i = 0; i < nUpdates; i++) {
-            indexThreads[i] = new Thread(() -> {
-                try {
-                    indexDocs(index, docId, 1);
-                } catch (IOException e) {
-                    throw new AssertionError("failed while indexing [" + e.getMessage() + "]");
-                }
-            });
-            indexThreads[i].start();
-        }
-        for (Thread indexThread : indexThreads) {
-            indexThread.join();
-        }
+        runInParallel(nUpdates, i -> {
+            try {
+                indexDocs(index, docId, 1);
+            } catch (IOException e) {
+                throw new AssertionError("failed while indexing [" + e.getMessage() + "]");
+            }
+        });
         return nUpdates + 1;
     }
 

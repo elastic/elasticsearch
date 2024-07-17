@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
+import static org.elasticsearch.indices.IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -46,6 +47,11 @@ public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
     @AfterClass
     public static void removeDisruptFSyncFS() {
         PathUtilsForTesting.teardown();
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false).build();
     }
 
     public void testFsyncFailureDoesNotAdvanceLocalCheckpoints() {

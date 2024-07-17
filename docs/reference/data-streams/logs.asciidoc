@@ -1,4 +1,4 @@
-[[logsds]]
+[[logs-data-stream]]
 == Logs data stream
 
 You can use a logs data stream to store log data more efficiently. In our benchmarks,

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -28,25 +27,25 @@ public class NodesStatsRequestParametersTests extends ESTestCase {
         return req;
     }
 
-    public void testMetricBwc_writeReadEnumOrString() {
-        var versions = List.of(TransportVersions.ALLOCATION_STATS, TransportVersions.USE_NODES_STATS_REQUEST_METRIC_ENUM);
-        for (int i = 0; i < 20; i++) {
-            for (var version : versions) {
-                var reqOut = randomRequest();
-                try {
-                    var out = new BytesRefStreamOutput();
-                    out.setTransportVersion(version);
-                    reqOut.writeTo(out);
-                    var in = new ByteArrayStreamInput(out.get().bytes);
-                    in.setTransportVersion(version);
-                    var reqIn = new NodesStatsRequestParameters(in);
-                    assertEquals(reqOut.requestedMetrics(), reqIn.requestedMetrics());
-                } catch (IOException e) {
-                    var errMsg = "ver=" + version.toString() + " metrics=" + reqOut.requestedMetrics().toString();
-                    throw new AssertionError(errMsg, e);
-                }
-            }
+    public void testReadWriteMetricSet() {
+        var reqOut = randomRequest();
+        try {
+            var out = new BytesRefStreamOutput();
+            reqOut.writeTo(out);
+            var in = new ByteArrayStreamInput(out.get().bytes);
+            var reqIn = new NodesStatsRequestParameters(in);
+            assertEquals(reqOut.requestedMetrics(), reqIn.requestedMetrics());
+        } catch (IOException e) {
+            var errMsg = "metrics=" + reqOut.requestedMetrics().toString();
+            throw new AssertionError(errMsg, e);
         }
     }
 
+    public void testReadWriteMetricThrowsOnUnknown() throws IOException {
+        var metricsOut = List.of("os", "wrong");
+        var out = new BytesRefStreamOutput();
+        out.writeStringCollection(metricsOut);
+        var in = new ByteArrayStreamInput(out.get().bytes);
+        assertThrows(AssertionError.class, () -> Metric.readSetFrom(in));
+    }
 }

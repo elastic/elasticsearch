@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
@@ -50,12 +52,14 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 
 /**
  * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
@@ -171,6 +175,8 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkForSortOnSpatialTypes(p, failures);
+
+            checkFilterMatchConditions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
 
@@ -389,6 +395,10 @@ public class Verifier {
                         failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                     }
                 });
+                // check no MATCH expressions are used
+                field.forEachDown(MatchQueryPredicate.class, mqp -> {
+                    failures.add(fail(mqp, "EVAL does not support MATCH expressions"));
+                });
             });
         }
     }
@@ -573,5 +583,37 @@ public class Verifier {
                 }
             }
         });
+    }
+
+    private static void checkFilterMatchConditions(LogicalPlan plan, Set<Failure> failures) {
+        if (plan instanceof Filter f) {
+            Expression condition = f.condition();
+
+            AtomicBoolean hasMatch = new AtomicBoolean(false);
+            condition.forEachDown(MatchQueryPredicate.class, mqp -> {
+               hasMatch.set(true);
+               var field = mqp.field();
+               if (field instanceof FieldAttribute == false) {
+                   failures.add(fail(mqp, "MATCH requires a mapped index field, found [" + field.sourceText() + "]"));
+               }
+
+               if (DataType.isString(field.dataType()) == false) {
+                   var message = LoggerMessageFormat.format(
+                       null,
+                       "MATCH requires a text of keyword field, but [{}] has type [{}]",
+                       field.sourceText(),
+                       field.dataType().esType()
+                   );
+                   failures.add(fail(mqp, message));
+                }
+            });
+
+            if (canPushToSource(condition, x -> false)) {
+                return;
+            }
+            if (hasMatch.get()) {
+                failures.add(fail(condition, "Invalid condition using MATCH"));
+            }
+        }
     }
 }

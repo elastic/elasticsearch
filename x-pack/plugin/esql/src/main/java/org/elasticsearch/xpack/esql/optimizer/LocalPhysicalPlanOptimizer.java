@@ -302,7 +302,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             } else if (exp instanceof SpatialRelatesFunction bc) {
                 return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
             } else if (exp instanceof MatchQueryPredicate mqp) {
-                return DataType.isString(mqp.field().dataType());
+                return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
             }
             return false;
         }

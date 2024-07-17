@@ -342,6 +342,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             }
 
             @Override
+            public String modelId() {
+                return null;
+            }
+
+            @Override
             public ToXContentObject getFilteredXContentObject() {
                 return this;
             }

@@ -28,7 +28,9 @@ public class ArrayStateTests extends ESTestCase {
         for (boolean inOrder : new boolean[] { true, false }) {
             params.add(new Object[] { ElementType.INT, 1000, inOrder });
             params.add(new Object[] { ElementType.LONG, 1000, inOrder });
+            params.add(new Object[] { ElementType.FLOAT, 1000, inOrder });
             params.add(new Object[] { ElementType.DOUBLE, 1000, inOrder });
+            params.add(new Object[] { ElementType.BOOLEAN, 1000, inOrder });
         }
         return params;
     }
@@ -158,7 +160,9 @@ public class ArrayStateTests extends ESTestCase {
         return switch (elementType) {
             case INT -> new IntArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
             case LONG -> new LongArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
+            case FLOAT -> new FloatArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
             case DOUBLE -> new DoubleArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
+            case BOOLEAN -> new BooleanArrayState(BigArrays.NON_RECYCLING_INSTANCE, false);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -167,7 +171,9 @@ public class ArrayStateTests extends ESTestCase {
         switch (elementType) {
             case INT -> ((IntArrayState) state).set(groupdId, (Integer) value);
             case LONG -> ((LongArrayState) state).set(groupdId, (Long) value);
+            case FLOAT -> ((FloatArrayState) state).set(groupdId, (Float) value);
             case DOUBLE -> ((DoubleArrayState) state).set(groupdId, (Double) value);
+            case BOOLEAN -> ((BooleanArrayState) state).set(groupdId, (Boolean) value);
             default -> throw new IllegalArgumentException();
         }
     }
@@ -176,7 +182,9 @@ public class ArrayStateTests extends ESTestCase {
         return switch (elementType) {
             case INT -> ((IntArrayState) state).get(index);
             case LONG -> ((LongArrayState) state).get(index);
+            case FLOAT -> ((FloatArrayState) state).get(index);
             case DOUBLE -> ((DoubleArrayState) state).get(index);
+            case BOOLEAN -> ((BooleanArrayState) state).get(index);
             default -> throw new IllegalArgumentException();
         };
     }

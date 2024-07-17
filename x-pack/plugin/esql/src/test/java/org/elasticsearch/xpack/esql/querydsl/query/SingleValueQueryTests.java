@@ -29,9 +29,9 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
-import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -230,8 +230,14 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                 if (rewritesToMatchNone != YesNoSometimes.SOMETIMES) {
                     assertThat(builder.stats().noNextScorer(), equalTo(0));
                 }
+                assertEqualsAndHashcodeStable(query, rewritten.toQuery(ctx));
             }
         }
+    }
+
+    private void assertEqualsAndHashcodeStable(Query query1, Query query2) {
+        assertEquals(query1, query2);
+        assertEquals(query1.hashCode(), query2.hashCode());
     }
 
     private record StandardSetup(String fieldType, boolean multivaluedField, boolean empty, int count) implements Setup {

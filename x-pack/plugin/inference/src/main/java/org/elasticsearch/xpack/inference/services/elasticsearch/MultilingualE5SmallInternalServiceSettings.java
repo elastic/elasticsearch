@@ -7,18 +7,25 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 
 public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
@@ -27,12 +34,24 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     static final int DIMENSIONS = 384;
     static final SimilarityMeasure SIMILARITY = SimilarityMeasure.COSINE;
 
-    public MultilingualE5SmallInternalServiceSettings(int numAllocations, int numThreads, String modelId) {
-        super(numAllocations, numThreads, modelId);
+    public MultilingualE5SmallInternalServiceSettings(
+        Integer numAllocations,
+        int numThreads,
+        String modelId,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings
+    ) {
+        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings);
     }
 
     public MultilingualE5SmallInternalServiceSettings(StreamInput in) throws IOException {
-        super(in.readVInt(), in.readVInt(), in.readString());
+        super(
+            in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS) ? in.readOptionalVInt() : in.readVInt(),
+            in.readVInt(),
+            in.readString(),
+            in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)
+                ? in.readOptionalWriteable(AdaptiveAllocationsSettings::new)
+                : null
+        );
     }
 
     /**
@@ -56,11 +75,26 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     }
 
     private static RequestFields extractRequestFields(Map<String, Object> map, ValidationException validationException) {
-        Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
-        Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
-
-        validateParameters(numAllocations, validationException, numThreads);
-
+        Integer numAllocations = extractOptionalPositiveInteger(
+            map,
+            NUM_ALLOCATIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
+            map,
+            ADAPTIVE_ALLOCATIONS,
+            validationException
+        );
+        if (numAllocations == null && adaptiveAllocationsSettings == null) {
+            validationException.addValidationError(
+                ServiceUtils.missingOneOfSettingsErrorMsg(
+                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
+                    ModelConfigurations.SERVICE_SETTINGS
+                )
+            );
+        }
         String modelId = ServiceUtils.removeAsType(map, MODEL_ID, String.class);
         if (modelId != null) {
             if (ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId) == false) {
@@ -73,23 +107,34 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
             }
         }
 
-        return new RequestFields(numAllocations, numThreads, modelId);
+        return new RequestFields(numAllocations, numThreads, modelId, adaptiveAllocationsSettings);
     }
 
     private static MultilingualE5SmallInternalServiceSettings.Builder createBuilder(RequestFields requestFields) {
         var builder = new InternalServiceSettings.Builder() {
             @Override
             public MultilingualE5SmallInternalServiceSettings build() {
-                return new MultilingualE5SmallInternalServiceSettings(getNumAllocations(), getNumThreads(), getModelId());
+                return new MultilingualE5SmallInternalServiceSettings(
+                    getNumAllocations(),
+                    getNumThreads(),
+                    getModelId(),
+                    getAdaptiveAllocationsSettings()
+                );
             }
         };
         builder.setNumAllocations(requestFields.numAllocations);
         builder.setNumThreads(requestFields.numThreads);
         builder.setModelId(requestFields.modelId);
+        builder.setAdaptiveAllocationsSettings(requestFields.adaptiveAllocationsSettings);
         return builder;
     }
 
-    private record RequestFields(@Nullable Integer numAllocations, @Nullable Integer numThreads, @Nullable String modelId) {}
+    private record RequestFields(
+        @Nullable Integer numAllocations,
+        @Nullable Integer numThreads,
+        @Nullable String modelId,
+        @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings
+    ) {}
 
     @Override
     public boolean isFragment() {

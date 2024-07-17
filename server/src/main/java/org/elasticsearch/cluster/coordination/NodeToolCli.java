@@ -20,6 +20,7 @@ class NodeToolCli extends MultiCommand {
         subcommands.put("detach-cluster", new DetachClusterCommand());
         subcommands.put("override-version", new OverrideNodeVersionCommand());
         subcommands.put("remove-settings", new RemoveSettingsCommand());
+        subcommands.put("remove-index-settings", new RemoveIndexSettingsCommand());
         subcommands.put("remove-customs", new RemoveCustomsCommand());
     }
 }

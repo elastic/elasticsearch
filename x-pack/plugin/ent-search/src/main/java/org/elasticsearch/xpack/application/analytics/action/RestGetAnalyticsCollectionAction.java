@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -44,6 +45,7 @@ public class RestGetAnalyticsCollectionAction extends EnterpriseSearchBaseRestHa
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
         GetAnalyticsCollectionAction.Request request = new GetAnalyticsCollectionAction.Request(
+            RestUtils.getMasterNodeTimeout(restRequest),
             Strings.splitStringByCommaToArray(restRequest.param("collection_name"))
         );
         return channel -> client.execute(GetAnalyticsCollectionAction.INSTANCE, request, new RestToXContentListener<>(channel));

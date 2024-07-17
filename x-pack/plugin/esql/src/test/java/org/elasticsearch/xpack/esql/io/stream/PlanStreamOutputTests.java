@@ -18,9 +18,9 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.util.Map;
@@ -124,7 +124,7 @@ public class PlanStreamOutputTests extends ESTestCase {
             for (int i = 0; i < LEN; i++) {
                 ints.appendInt(randomInt());
             }
-            return new Column(DataTypes.INTEGER, ints.build());
+            return new Column(DataType.INTEGER, ints.build());
         }
     }
 

@@ -189,6 +189,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS = new ParseField(
                 "time_since_last_auto_shard_event_millis"
             );
+            public static final ParseField FAILURE_STORE_ENABLED = new ParseField("enabled");
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
@@ -222,7 +223,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @SuppressWarnings("unchecked")
             DataStreamInfo(StreamInput in) throws IOException {
                 this(
-                    new DataStream(in),
+                    DataStream.read(in),
                     ClusterHealthStatus.readFrom(in),
                     in.readOptionalString(),
                     in.readOptionalString(),
@@ -300,45 +301,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     .field(DataStream.NAME_FIELD.getPreferredName(), DataStream.TIMESTAMP_FIELD_NAME)
                     .endObject();
 
-                builder.field(DataStream.INDICES_FIELD.getPreferredName());
-                if (dataStream.getIndices() == null) {
-                    builder.nullValue();
-                } else {
-                    builder.startArray();
-                    for (Index index : dataStream.getIndices()) {
-                        builder.startObject();
-                        index.toXContentFragment(builder);
-                        IndexProperties indexProperties = indexSettingsValues.get(index);
-                        if (indexProperties != null) {
-                            builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
-                            if (indexProperties.ilmPolicyName() != null) {
-                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
-                            }
-                            builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
-                        }
-                        builder.endObject();
-                    }
-                    builder.endArray();
-                }
+                indicesToXContent(builder, dataStream.getIndices());
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    builder.field(DataStream.FAILURE_INDICES_FIELD.getPreferredName());
-                    builder.startArray();
-                    for (Index failureStore : dataStream.getFailureIndices()) {
-                        builder.startObject();
-                        failureStore.toXContentFragment(builder);
-                        IndexProperties indexProperties = indexSettingsValues.get(failureStore);
-                        if (indexProperties != null) {
-                            builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
-                            if (indexProperties.ilmPolicyName() != null) {
-                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
-                            }
-                            builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
-                        }
-                        builder.endObject();
-                    }
-                    builder.endArray();
-                }
                 if (dataStream.getMetadata() != null) {
                     builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());
                 }
@@ -361,20 +325,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
                 builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStoreEnabled());
-                }
-                if (dataStream.getAutoShardingEvent() != null) {
-                    DataStreamAutoShardingEvent autoShardingEvent = dataStream.getAutoShardingEvent();
-                    builder.startObject(AUTO_SHARDING_FIELD.getPreferredName());
-                    autoShardingEvent.toXContent(builder, params);
-                    builder.humanReadableField(
-                        TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS.getPreferredName(),
-                        TIME_SINCE_LAST_AUTO_SHARD_EVENT.getPreferredName(),
-                        autoShardingEvent.getTimeSinceLastAutoShardingEvent(System::currentTimeMillis)
-                    );
-                    builder.endObject();
-                }
+                addAutoShardingEvent(builder, params, dataStream.getAutoShardingEvent());
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
                     builder.startArray(TEMPORAL_RANGES.getPreferredName());
@@ -389,8 +340,54 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                     builder.endObject();
                 }
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                    builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
+                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), dataStream.isFailureStoreEnabled());
+                    builder.field(
+                        DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
+                        dataStream.getFailureIndices().isRolloverOnWrite()
+                    );
+                    indicesToXContent(builder, dataStream.getFailureIndices().getIndices());
+                    addAutoShardingEvent(builder, params, dataStream.getFailureIndices().getAutoShardingEvent());
+                    builder.endObject();
+                }
                 builder.endObject();
                 return builder;
+            }
+
+            private XContentBuilder indicesToXContent(XContentBuilder builder, List<Index> indices) throws IOException {
+                builder.field(DataStream.INDICES_FIELD.getPreferredName());
+                builder.startArray();
+                for (Index index : indices) {
+                    builder.startObject();
+                    index.toXContentFragment(builder);
+                    IndexProperties indexProperties = indexSettingsValues.get(index);
+                    if (indexProperties != null) {
+                        builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
+                        if (indexProperties.ilmPolicyName() != null) {
+                            builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                        }
+                        builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
+                return builder;
+            }
+
+            private void addAutoShardingEvent(XContentBuilder builder, Params params, DataStreamAutoShardingEvent autoShardingEvent)
+                throws IOException {
+                if (autoShardingEvent == null) {
+                    return;
+                }
+                builder.startObject(AUTO_SHARDING_FIELD.getPreferredName());
+                autoShardingEvent.toXContent(builder, params);
+                builder.humanReadableField(
+                    TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS.getPreferredName(),
+                    TIME_SINCE_LAST_AUTO_SHARD_EVENT.getPreferredName(),
+                    autoShardingEvent.getTimeSinceLastAutoShardingEvent(System::currentTimeMillis)
+                );
+                builder.endObject();
             }
 
             /**

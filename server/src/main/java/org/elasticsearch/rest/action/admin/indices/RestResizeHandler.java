@@ -24,6 +24,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public abstract class RestResizeHandler extends BaseRestHandler {
@@ -50,7 +51,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
         resizeRequest.setResizeType(getResizeType());
         request.applyContentParser(resizeRequest::fromXContent);
-        resizeRequest.ackTimeout(request.paramAsTime("timeout", resizeRequest.ackTimeout()));
+        resizeRequest.ackTimeout(getAckTimeout(request));
         resizeRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         resizeRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().resizeIndex(resizeRequest, new RestToXContentListener<>(channel));

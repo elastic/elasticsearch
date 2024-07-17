@@ -26,12 +26,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -114,11 +114,11 @@ public class TransportRetryAction extends TransportMasterNodeAction<TransportRet
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
-        private String[] indices = Strings.EMPTY_ARRAY;
+        private String[] indices;
         private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-        public Request(String... indices) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String... indices) {
+            super(masterNodeTimeout, ackTimeout);
             this.indices = indices;
         }
 
@@ -126,10 +126,6 @@ public class TransportRetryAction extends TransportMasterNodeAction<TransportRet
             super(in);
             this.indices = in.readStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-        }
-
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         }
 
         @Override

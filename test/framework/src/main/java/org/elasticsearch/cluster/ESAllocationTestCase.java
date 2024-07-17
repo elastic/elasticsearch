@@ -331,7 +331,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     public static ClusterState reroute(AllocationService allocationService, ClusterState clusterState) {
         final var listener = new PlainActionFuture<Void>();
         final var result = allocationService.reroute(clusterState, "test reroute", listener);
-        listener.result(); // ensures it completed successfully
+        safeGet(listener::result); // ensures it completed successfully
         return result;
     }
 
@@ -423,10 +423,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             RoutingAllocation allocation,
             UnassignedAllocationHandler unassignedAllocationHandler
         ) {
-            if (shardRouting.primary() || shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+            if (shardRouting.primary() || shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED) {
                 return;
             }
-            if (shardRouting.unassignedInfo().isDelayed()) {
+            if (shardRouting.unassignedInfo().delayed()) {
                 unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
             }
         }

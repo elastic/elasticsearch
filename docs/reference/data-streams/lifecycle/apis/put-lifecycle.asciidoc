@@ -54,7 +54,7 @@ duration the document could be deleted. When empty, every document in this data 
 
 `enabled`::
 (Optional, boolean)
-If defined, it turns data streqm lifecycle on/off (`true`/`false`) for this data stream.
+If defined, it turns data stream lifecycle on/off (`true`/`false`) for this data stream.
 A data stream lifecycle that's disabled (`enabled: false`) will have no effect on the
 data stream. Defaults to `true`.
 

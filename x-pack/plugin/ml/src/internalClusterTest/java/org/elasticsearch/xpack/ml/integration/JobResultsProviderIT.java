@@ -1100,7 +1100,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             client(),
             ClusterState.EMPTY_STATE,
             TestIndexNameExpressionResolver.newInstance(),
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
             future
         );
         future.actionGet();

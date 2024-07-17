@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
@@ -232,6 +233,27 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
             ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
+
+        assert compatibilityVersions.isEmpty()
+            || blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+            || assertEventIngestedIsUnknownInMixedClusters(metadata, this.minVersions);
+    }
+
+    private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
+        if (compatibilityVersions.transportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
+            && metadata != null
+            && metadata.indices() != null) {
+            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+                assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
+                    : "event.ingested range should be UNKNOWN but is "
+                        + indexMetadata.getEventIngestedRange()
+                        + " for index: "
+                        + indexMetadata.getIndex()
+                        + " minTransportVersion: "
+                        + compatibilityVersions.transportVersion();
+            }
+        }
+        return true;
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -860,6 +882,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         public Map<String, Set<String>> nodeFeatures() {
             return Collections.unmodifiableMap(this.nodeFeatures);
+        }
+
+        public Builder putNodeFeatures(String node, Set<String> features) {
+            this.nodeFeatures.put(node, features);
+            return this;
         }
 
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {

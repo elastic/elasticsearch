@@ -22,6 +22,7 @@ public class GetFlameGraphActionIT extends ProfilingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         GetFlamegraphResponse response = client().execute(GetFlamegraphAction.INSTANCE, request).get();

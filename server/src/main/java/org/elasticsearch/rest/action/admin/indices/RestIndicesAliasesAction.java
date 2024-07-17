@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -40,7 +41,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        indicesAliasesRequest.ackTimeout(request.paramAsTime("timeout", indicesAliasesRequest.ackTimeout()));
+        indicesAliasesRequest.ackTimeout(getAckTimeout(request));
         try (XContentParser parser = request.contentParser()) {
             IndicesAliasesRequest.PARSER.parse(parser, indicesAliasesRequest, null);
         }

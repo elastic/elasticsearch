@@ -52,11 +52,11 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
 
         EnrichPolicy instance1 = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("index"), "key1", List.of("field1"));
         createSourceIndices(client(), instance1);
-        PutEnrichPolicyAction.Request putPolicyRequest = new PutEnrichPolicyAction.Request("my_policy", instance1);
+        PutEnrichPolicyAction.Request putPolicyRequest = new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "my_policy", instance1);
         assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
         assertThat(
             "Execute failed",
-            client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("my_policy"))
+            client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "my_policy"))
                 .actionGet()
                 .getStatus()
                 .isCompleted(),
@@ -74,7 +74,10 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         createSourceIndices(client(), instance2);
         ResourceAlreadyExistsException exc = expectThrows(
             ResourceAlreadyExistsException.class,
-            client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("my_policy", instance2))
+            client().execute(
+                PutEnrichPolicyAction.INSTANCE,
+                new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "my_policy", instance2)
+            )
         );
         assertTrue(exc.getMessage().contains("policy [my_policy] already exists"));
     }

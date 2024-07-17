@@ -128,7 +128,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         bigArrays,
                         scriptService,
                         ((CancellableTask) task)::isCancelled,
-                        request.source().aggregations()
+                        request.source().aggregations(),
+                        b -> {}
                     );
                 }
 

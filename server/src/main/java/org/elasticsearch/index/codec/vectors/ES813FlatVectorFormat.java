@@ -8,13 +8,14 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.FlatVectorsFormat;
-import org.apache.lucene.codecs.FlatVectorsReader;
-import org.apache.lucene.codecs.FlatVectorsWriter;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
@@ -34,7 +35,7 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES813FlatVectorFormat";
 
-    private final FlatVectorsFormat format = new Lucene99FlatVectorsFormat();
+    private final FlatVectorsFormat format = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
 
     /**
      * Sole constructor
@@ -53,11 +54,11 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         return new ES813FlatVectorReader(format.fieldsReader(state));
     }
 
-    public static class ES813FlatVectorWriter extends KnnVectorsWriter {
+    static class ES813FlatVectorWriter extends KnnVectorsWriter {
 
         private final FlatVectorsWriter writer;
 
-        public ES813FlatVectorWriter(FlatVectorsWriter writer) {
+        ES813FlatVectorWriter(FlatVectorsWriter writer) {
             super();
             this.writer = writer;
         }
@@ -93,11 +94,11 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         }
     }
 
-    public static class ES813FlatVectorReader extends KnnVectorsReader {
+    static class ES813FlatVectorReader extends KnnVectorsReader {
 
         private final FlatVectorsReader reader;
 
-        public ES813FlatVectorReader(FlatVectorsReader reader) {
+        ES813FlatVectorReader(FlatVectorsReader reader) {
             super();
             this.reader = reader;
         }

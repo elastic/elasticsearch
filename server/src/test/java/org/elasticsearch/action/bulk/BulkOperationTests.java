@@ -14,6 +14,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -85,6 +88,7 @@ public class BulkOperationTests extends ESTestCase {
     private final String indexName = "my_index";
     private final String dataStreamName = "my_data_stream";
     private final String fsDataStreamName = "my_failure_store_data_stream";
+    private final String fsRolloverDataStreamName = "my_failure_store_to_be_rolled_over_data_stream";
 
     private final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
         .settings(
@@ -107,6 +111,15 @@ public class BulkOperationTests extends ESTestCase {
     private final IndexMetadata ds2FailureStore1 = DataStreamTestHelper.createFailureStore(fsDataStreamName, 1, millis)
         .numberOfShards(1)
         .build();
+    private final IndexMetadata ds3BackingIndex1 = DataStreamTestHelper.createBackingIndex(fsRolloverDataStreamName, 1, millis)
+        .numberOfShards(2)
+        .build();
+    private final IndexMetadata ds3FailureStore1 = DataStreamTestHelper.createFailureStore(fsRolloverDataStreamName, 1, millis)
+        .numberOfShards(1)
+        .build();
+    private final IndexMetadata ds3FailureStore2 = DataStreamTestHelper.createFailureStore(fsRolloverDataStreamName, 2, millis)
+        .numberOfShards(1)
+        .build();
 
     private final DataStream dataStream1 = DataStreamTestHelper.newInstance(
         dataStreamName,
@@ -117,6 +130,13 @@ public class BulkOperationTests extends ESTestCase {
         List.of(ds2BackingIndex1.getIndex()),
         List.of(ds2FailureStore1.getIndex())
     );
+    private final DataStream dataStream3 = DataStream.builder(fsRolloverDataStreamName, List.of(ds3BackingIndex1.getIndex()))
+        .setGeneration(1)
+        .setFailureStoreEnabled(true)
+        .setFailureIndices(
+            DataStream.DataStreamIndices.failureIndicesBuilder(List.of(ds3FailureStore1.getIndex())).setRolloverOnWrite(true).build()
+        )
+        .build();
 
     private final ClusterState DEFAULT_STATE = ClusterState.builder(ClusterName.DEFAULT)
         .metadata(
@@ -131,7 +151,7 @@ public class BulkOperationTests extends ESTestCase {
                             .build(),
                         "ds-template-with-failure-store",
                         ComposableIndexTemplate.builder()
-                            .indexPatterns(List.of(fsDataStreamName))
+                            .indexPatterns(List.of(fsDataStreamName, fsRolloverDataStreamName))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
                             .template(new Template(null, null, null, null))
                             .build()
@@ -148,10 +168,17 @@ public class BulkOperationTests extends ESTestCase {
                         ds2BackingIndex1.getIndex().getName(),
                         ds2BackingIndex1,
                         ds2FailureStore1.getIndex().getName(),
-                        ds2FailureStore1
+                        ds2FailureStore1,
+                        ds3BackingIndex1.getIndex().getName(),
+                        ds3BackingIndex1,
+                        ds3FailureStore1.getIndex().getName(),
+                        ds3FailureStore1
                     )
                 )
-                .dataStreams(Map.of(dataStreamName, dataStream1, fsDataStreamName, dataStream2), Map.of())
+                .dataStreams(
+                    Map.of(dataStreamName, dataStream1, fsDataStreamName, dataStream2, fsRolloverDataStreamName, dataStream3),
+                    Map.of()
+                )
                 .build()
         )
         .build();
@@ -760,6 +787,117 @@ public class BulkOperationTests extends ESTestCase {
     }
 
     /**
+     * When a bulk operation needs to redirect some documents that failed on the shard level, and that failure store is marked for lazy
+     * rollover, it first needs to roll over the failure store and then redirect the failure to the <i>new</i> failure index.
+     */
+    public void testLazilyRollingOverFailureStore() throws Exception {
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
+
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(
+            new IndexRequest(fsRolloverDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE)
+        );
+        bulkRequest.add(
+            new IndexRequest(fsRolloverDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE)
+        );
+
+        NodeClient client = getNodeClient(
+            shardSpecificResponse(
+                Map.of(new ShardId(ds3BackingIndex1.getIndex(), 0), failWithException(() -> new MapperException("test")))
+            ),
+            (rolloverRequest, actionListener) -> actionListener.onResponse(
+                new RolloverResponse(
+                    ds3FailureStore1.getIndex().getName(),
+                    ds3FailureStore2.getIndex().getName(),
+                    Map.of(),
+                    false,
+                    true,
+                    true,
+                    true,
+                    false
+                )
+            )
+        );
+
+        DataStream rolledOverDataStream = dataStream3.copy()
+            .setFailureIndices(
+                dataStream3.getFailureIndices().copy().setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex())).build()
+            )
+            .build();
+        Metadata metadata = Metadata.builder(DEFAULT_STATE.metadata())
+            .indices(Map.of(ds3FailureStore2.getIndex().getName(), ds3FailureStore2))
+            .put(rolledOverDataStream)
+            .build();
+        ClusterState rolledOverState = ClusterState.builder(DEFAULT_STATE).metadata(metadata).build();
+        ClusterStateObserver observer = mockObserver(DEFAULT_STATE, DEFAULT_STATE, rolledOverState);
+
+        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
+        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
+
+        newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, listener).run();
+
+        BulkResponse bulkItemResponses = future.get();
+        BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
+            .filter(item -> item.getIndex().equals(ds3FailureStore2.getIndex().getName()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(failedItem, is(notNullValue()));
+    }
+
+    /**
+     * When a bulk operation faces a failure while trying to roll over a failure store that was marked for lazy rollover, the exception
+     * should be added to the list of suppressed causes in the <code>BulkItemResponse</code>.
+     */
+    public void testFailureWhileRollingOverFailureStore() throws Exception {
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
+
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(
+            new IndexRequest(fsRolloverDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE)
+        );
+        bulkRequest.add(
+            new IndexRequest(fsRolloverDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE)
+        );
+
+        NodeClient client = getNodeClient(
+            shardSpecificResponse(
+                Map.of(new ShardId(ds3BackingIndex1.getIndex(), 0), failWithException(() -> new MapperException("test")))
+            ),
+            ((rolloverRequest, actionListener) -> actionListener.onFailure(new Exception("rollover failed")))
+        );
+
+        DataStream rolledOverDataStream = dataStream3.copy()
+            .setFailureIndices(
+                dataStream3.getFailureIndices().copy().setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex())).build()
+            )
+            .build();
+        Metadata metadata = Metadata.builder(DEFAULT_STATE.metadata())
+            .indices(Map.of(ds3FailureStore2.getIndex().getName(), ds3FailureStore2))
+            .put(rolledOverDataStream)
+            .build();
+        ClusterState rolledOverState = ClusterState.builder(DEFAULT_STATE).metadata(metadata).build();
+        ClusterStateObserver observer = mockObserver(DEFAULT_STATE, DEFAULT_STATE, rolledOverState);
+
+        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
+        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
+
+        newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, listener).run();
+
+        BulkResponse bulkItemResponses = future.get();
+        BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
+            .filter(BulkItemResponse::isFailed)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
+        assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("test")));
+        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
+        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(Exception.class)));
+        assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("rollover failed")));
+    }
+
+    /**
      * Throws an assertion error with the given message if the client operation executes
      */
     private static BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> assertNoClientInteraction() {
@@ -878,6 +1016,18 @@ public class BulkOperationTests extends ESTestCase {
      * @return A node client for the test.
      */
     private NodeClient getNodeClient(BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> onShardAction) {
+        return getNodeClient(onShardAction, null);
+    }
+
+    /**
+     * Create a client that redirects expected actions to the provided function and fails if an unexpected operation happens.
+     * @param onShardAction Called when TransportShardBulkAction is executed.
+     * @return A node client for the test.
+     */
+    private NodeClient getNodeClient(
+        BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> onShardAction,
+        BiConsumer<RolloverRequest, ActionListener<RolloverResponse>> onRolloverAction
+    ) {
         return new NoOpNodeClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
@@ -899,6 +1049,27 @@ public class BulkOperationTests extends ESTestCase {
                     fail("Unexpected client call to " + action.name());
                 }
                 return null;
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (LazyRolloverAction.INSTANCE.equals(action)) {
+                    ActionListener<RolloverResponse> notifyOnceListener = ActionListener.notifyOnce(
+                        (ActionListener<RolloverResponse>) listener
+                    );
+                    try {
+                        onRolloverAction.accept((RolloverRequest) request, notifyOnceListener);
+                    } catch (Exception responseException) {
+                        notifyOnceListener.onFailure(responseException);
+                    }
+                } else {
+                    fail("Unexpected client call to " + action.name());
+                }
             }
         };
     }
@@ -1000,9 +1171,9 @@ public class BulkOperationTests extends ESTestCase {
     /**
      * A default mock cluster state observer that simply returns the state
      */
-    private ClusterStateObserver mockObserver(ClusterState state) {
+    private ClusterStateObserver mockObserver(ClusterState state, ClusterState... states) {
         ClusterStateObserver mockObserver = mock(ClusterStateObserver.class);
-        when(mockObserver.setAndGetObservedState()).thenReturn(state);
+        when(mockObserver.setAndGetObservedState()).thenReturn(state, states);
         when(mockObserver.isTimedOut()).thenReturn(false);
         return mockObserver;
     }

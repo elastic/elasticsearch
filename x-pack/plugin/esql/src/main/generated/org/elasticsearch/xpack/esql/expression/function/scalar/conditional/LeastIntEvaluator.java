@@ -16,8 +16,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Least}.
@@ -32,9 +32,9 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   public LeastIntEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -84,14 +84,14 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getInt(p);
         }
-        result.appendInt(Least.process(valuesValues));
+        result.appendInt(p, Least.process(valuesValues));
       }
       return result.build();
     }

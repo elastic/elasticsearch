@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
@@ -29,7 +30,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(scope = TEST, minNumDataNodes = 2, maxNumDataNodes = 4)
 public class EsqlDisruptionIT extends EsqlActionIT {
@@ -52,7 +52,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         Settings settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DEFAULT_SETTINGS)
-            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(1000, 2000)))
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .build();
         logger.info("settings {}", settings);
         return settings;
@@ -140,7 +140,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         try {
             internalCluster().clearDisruptionScheme(false);
             ensureFullyConnectedCluster();
-            assertBusy(() -> assertAcked(clusterAdmin().prepareReroute().setRetryFailed(true)), 1, TimeUnit.MINUTES);
+            assertBusy(() -> ClusterRerouteUtils.rerouteRetryFailed(client()), 1, TimeUnit.MINUTES);
             ensureYellow();
         } catch (Exception e) {
             throw new AssertionError(e);

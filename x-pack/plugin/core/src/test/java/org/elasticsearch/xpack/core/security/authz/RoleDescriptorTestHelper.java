@@ -201,7 +201,9 @@ public final class RoleDescriptorTestHelper {
                 .privileges(CCS_INDICES_PRIVILEGE_NAMES)
                 .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
                 .allowRestrictedIndices(randomBoolean());
-            randomDlsFls(builder);
+            if (replicationSize == 0) {
+                randomDlsFls(builder);
+            }
             indexPrivileges.add(builder.build());
         }
         for (int i = 0; i < replicationSize; i++) {

@@ -6,8 +6,6 @@
 <titleabbrev>Data stream lifecycle settings</titleabbrev>
 ++++
 
-preview::[]
-
 These are the settings available for configuring <<data-stream-lifecycle, data stream lifecycle>>.
 
 ==== Cluster level settings

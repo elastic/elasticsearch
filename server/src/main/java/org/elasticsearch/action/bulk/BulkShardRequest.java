@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
@@ -34,18 +35,29 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
     private final BulkItemRequest[] items;
+    private final boolean isSimulated;
 
     private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_VALIDATES_MAPPINGS)) {
+            isSimulated = in.readBoolean();
+        } else {
+            isSimulated = false;
+        }
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+        this(shardId, refreshPolicy, items, false);
+    }
+
+    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean isSimulated) {
         super(shardId);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
+        this.isSimulated = isSimulated;
     }
 
     /**
@@ -126,6 +138,9 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
                 o.writeBoolean(false);
             }
         }, items);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_VALIDATES_MAPPINGS)) {
+            out.writeBoolean(isSimulated);
+        }
     }
 
     @Override
@@ -148,6 +163,9 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
                 break;
             case NONE:
                 break;
+        }
+        if (isSimulated) {
+            b.append(", simulated");
         }
         return b.toString();
     }
@@ -185,5 +203,9 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    public boolean isSimulated() {
+        return isSimulated;
     }
 }

@@ -14,17 +14,15 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class DeleteAnalyticsCollectionAction {
 
@@ -43,8 +41,8 @@ public class DeleteAnalyticsCollectionAction {
             this.collectionName = in.readString();
         }
 
-        public Request(String collectionName) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, String collectionName) {
+            super(masterNodeTimeout);
             this.collectionName = collectionName;
         }
 
@@ -88,20 +86,6 @@ public class DeleteAnalyticsCollectionAction {
             builder.field(COLLECTION_NAME_FIELD.getPreferredName(), collectionName);
             builder.endObject();
             return builder;
-        }
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-            "delete_analytics_collection_request",
-            p -> new Request((String) p[0])
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), COLLECTION_NAME_FIELD);
-        }
-
-        public static Request parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
     }
 }

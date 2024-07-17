@@ -14,8 +14,6 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -184,7 +182,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     public void testAbortRequestStats() throws Exception {
-        final String repository = createRepository(randomRepositoryName());
+        final String repository = createRepository(randomRepositoryName(), false);
 
         final String index = "index-no-merges";
         createIndex(index, 1, 0);
@@ -200,8 +198,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         // Intentionally fail snapshot to trigger abortMultipartUpload requests
         shouldFailCompleteMultipartUploadRequest.set(true);
         final String snapshot = "snapshot";
-        clusterAdmin().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index).get();
-        clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true).setIndices(index).get();
+        clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).get();
 
         final RepositoryStats repositoryStats = StreamSupport.stream(
             internalCluster().getInstances(RepositoriesService.class).spliterator(),
@@ -225,9 +223,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/101608", value = "com.amazonaws.request:DEBUG")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101608")
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
-        final String repository = createRepository(randomRepositoryName());
+        final String repository = createRepository(randomRepositoryName(), false);
         final String index = "index-no-merges";
         createIndex(index, 1, 0);
 
@@ -241,12 +240,16 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
         final String snapshot = "snapshot";
-        assertSuccessfulSnapshot(clusterAdmin().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index));
+        assertSuccessfulSnapshot(
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true).setIndices(index)
+        );
         assertAcked(client().admin().indices().prepareDelete(index));
-        assertSuccessfulRestore(clusterAdmin().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        assertSuccessfulRestore(
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true)
+        );
         ensureGreen(index);
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).get());
 
         final Map<S3BlobStore.StatsKey, Long> aggregatedMetrics = new HashMap<>();
         // Compare collected stats and metrics for each node and they should be the same
@@ -388,7 +391,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             true
         );
 
-        final SnapshotId fakeOldSnapshot = clusterAdmin().prepareCreateSnapshot(repoName, "snapshot-old")
+        final SnapshotId fakeOldSnapshot = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-old")
             .setWaitForCompletion(true)
             .setIndices()
             .get()
@@ -413,35 +416,26 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final BytesReference serialized = BytesReference.bytes(
             modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), SnapshotsService.OLD_SNAPSHOT_FORMAT)
         );
-        PlainActionFuture.get(
-            f -> repository.threadPool()
-                .generic()
-                .execute(
-                    ActionRunnable.run(
-                        f,
-                        () -> repository.blobStore()
-                            .blobContainer(repository.basePath())
-                            .writeBlobAtomic(
-                                randomNonDataPurpose(),
-                                BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(),
-                                serialized,
-                                true
-                            )
-                    )
-                )
-        );
+        repository.blobStore()
+            .blobContainer(repository.basePath())
+            .writeBlobAtomic(
+                randomNonDataPurpose(),
+                BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(),
+                serialized,
+                true
+            );
 
         final String newSnapshotName = "snapshot-new";
         final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();
-        clusterAdmin().prepareCreateSnapshot(repoName, newSnapshotName).setWaitForCompletion(true).setIndices().get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, newSnapshotName).setWaitForCompletion(true).setIndices().get();
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledSnapshot, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
 
         final long beforeThrottledDelete = repository.threadPool().relativeTimeInNanos();
-        clusterAdmin().prepareDeleteSnapshot(repoName, newSnapshotName).get();
+        clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, newSnapshotName).get();
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledDelete, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
 
         final long beforeFastDelete = repository.threadPool().relativeTimeInNanos();
-        clusterAdmin().prepareDeleteSnapshot(repoName, fakeOldSnapshot.getName()).get();
+        clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, fakeOldSnapshot.getName()).get();
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeFastDelete, lessThan(TEST_COOLDOWN_PERIOD.getNanos()));
     }
 
@@ -626,6 +620,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 trackRequest("HeadObject");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.HEAD_OBJECT, purpose), k -> new AtomicLong())
                     .incrementAndGet();
+            } else {
+                logger.info("--> rawRequest not tracked [{}] with parsed purpose [{}]", request, purpose.getKey());
             }
         }
 

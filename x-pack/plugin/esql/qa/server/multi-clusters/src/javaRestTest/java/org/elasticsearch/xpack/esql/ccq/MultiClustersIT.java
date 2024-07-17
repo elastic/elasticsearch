@@ -18,7 +18,6 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -63,6 +62,7 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @Before
     public void setUpIndices() throws Exception {
+        assumeTrue("CCS requires its own resolve_fields API", remoteFeaturesService().clusterHasFeature("esql.resolve_fields_api"));
         final String mapping = """
              "properties": {
                "data": { "type": "long" },
@@ -123,9 +123,7 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private Map<String, Object> run(String query) throws IOException {
-        Map<String, Object> resp = runEsql(
-            new RestEsqlTestCase.RequestObjectBuilder().query(query).version(EsqlTestUtils.latestEsqlVersionOrSnapshot()).build()
-        );
+        Map<String, Object> resp = runEsql(new RestEsqlTestCase.RequestObjectBuilder().query(query).build());
         logger.info("--> query {} response {}", query, resp);
         return resp;
     }
@@ -153,34 +151,6 @@ public class MultiClustersIT extends ESRestTestCase {
             Map<String, Object> result = run("FROM *:test-remote-index | STATS c = COUNT(*)");
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(remoteDocs.size()));
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
-        }
-    }
-
-    public void testCountWithOptions() throws Exception {
-        assumeTrue("remote cluster requires FROM OPTIONS support", remoteFeaturesService().clusterHasFeature("esql.from_options"));
-        {
-            Map<String, Object> result = run(
-                "FROM test-local-index,*:test-remote-index,doesnotexist "
-                    + "OPTIONS \"ignore_unavailable\"=\"true\",\"preference\"=\"_local\" | STATS c = COUNT(*)"
-            );
-            var columns = List.of(Map.of("name", "c", "type", "long"));
-            var values = List.of(List.of(localDocs.size() + remoteDocs.size()));
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
-        }
-        {
-            Map<String, Object> result = run(
-                "FROM *:test-remote-index,doesnotexit OPTIONS \"ignore_unavailable\"=\"true\",\"preference\"=\"_local\" "
-                    + "| STATS c = COUNT(*)"
-            );
-            var columns = List.of(Map.of("name", "c", "type", "long"));
-            var values = List.of(List.of(remoteDocs.size()));
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
-        }
-        {
-            Map<String, Object> result = run("FROM *:test-remote-index OPTIONS \"preference\"=\"_shards:999\" | STATS c = COUNT(*)");
-            var columns = List.of(Map.of("name", "c", "type", "long"));
-            var values = List.of(List.of(0)); // shard with id 999 above (non-existent) yields count 0
             assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
         }
     }
@@ -236,16 +206,13 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private TestFeatureService remoteFeaturesService() throws IOException {
         if (remoteFeaturesService == null) {
-            try (var remoteFeaturesServiceClient = remoteClusterClient()) {
-                var remoteNodeVersions = readVersionsFromNodesInfo(remoteFeaturesServiceClient);
+            try (RestClient remoteClient = remoteClusterClient()) {
+                var remoteNodeVersions = readVersionsFromNodesInfo(remoteClient);
                 var semanticNodeVersions = remoteNodeVersions.stream()
                     .map(ESRestTestCase::parseLegacyVersion)
                     .flatMap(Optional::stream)
                     .collect(Collectors.toSet());
-                remoteFeaturesService = createTestFeatureService(
-                    getClusterStateFeatures(remoteFeaturesServiceClient),
-                    semanticNodeVersions
-                );
+                remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteClient), semanticNodeVersions);
             }
         }
         return remoteFeaturesService;

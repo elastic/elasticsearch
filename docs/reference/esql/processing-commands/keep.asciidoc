@@ -2,6 +2,9 @@
 [[esql-keep]]
 === `KEEP`
 
+The `KEEP` processing command enables you to specify what columns are returned
+and the order in which they are returned.
+
 **Syntax**
 
 [source,esql]
@@ -70,7 +73,7 @@ include::{esql-specs}/docs.csv-spec[tag=keepDoubleWildcard]
 include::{esql-specs}/docs.csv-spec[tag=keep-double-wildcard-result]
 |===
 
-The following examples show how precedence rules work when a field name matches multiple expressions.   
+The following examples show how precedence rules work when a field name matches multiple expressions.
 
 Complete field name has precedence over wildcard expressions:
 

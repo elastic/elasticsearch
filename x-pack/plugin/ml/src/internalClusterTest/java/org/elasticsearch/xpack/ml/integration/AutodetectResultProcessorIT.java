@@ -199,7 +199,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             client(),
             ClusterState.EMPTY_STATE,
             TestIndexNameExpressionResolver.newInstance(),
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
             future
         );
         future.get();

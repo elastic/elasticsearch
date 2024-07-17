@@ -93,9 +93,8 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
                 .mappings(request.mappings() == null ? null : new CompressedXContent(request.mappings()))
                 .aliases(request.aliases())
                 .create(request.create())
-                .masterTimeout(request.masterNodeTimeout())
                 .version(request.version()),
-
+            request.masterNodeTimeout(),
             new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {

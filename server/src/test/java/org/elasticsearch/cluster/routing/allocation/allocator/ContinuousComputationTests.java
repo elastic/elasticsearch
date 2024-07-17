@@ -10,14 +10,13 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -60,26 +59,13 @@ public class ContinuousComputationTests extends ESTestCase {
             }
         };
 
-        final Thread[] threads = new Thread[between(1, 5)];
-        final int[] valuePerThread = new int[threads.length];
-        final CountDownLatch startLatch = new CountDownLatch(1);
-        for (int i = 0; i < threads.length; i++) {
-            final int threadIndex = i;
-            valuePerThread[threadIndex] = randomInt();
-            threads[threadIndex] = new Thread(() -> {
-                safeAwait(startLatch);
-                for (int j = 1000; j >= 0; j--) {
-                    computation.onNewInput(valuePerThread[threadIndex] = valuePerThread[threadIndex] + j);
-                }
-            }, "submit-thread-" + threadIndex);
-            threads[threadIndex].start();
-        }
-
-        startLatch.countDown();
-
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        final int threads = between(1, 5);
+        final int[] valuePerThread = new int[threads];
+        startInParallel(threads, threadIndex -> {
+            for (int j = 1000; j >= 0; j--) {
+                computation.onNewInput(valuePerThread[threadIndex] = valuePerThread[threadIndex] + j);
+            }
+        });
 
         assertBusy(() -> assertFalse(computation.isActive()));
 
@@ -167,10 +153,10 @@ public class ContinuousComputationTests extends ESTestCase {
             }
         };
 
-        MockLogAppender.assertThatLogger(
+        MockLog.assertThatLogger(
             () -> computation.onNewInput(input1),
             ContinuousComputation.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "error log",
                 ContinuousComputation.class.getCanonicalName(),
                 Level.ERROR,

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -22,8 +21,8 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .setting("xpack.security.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
         .plugin("inference-service-test")
-        .feature(FeatureFlag.SEMANTIC_TEXT_ENABLED)
         .distribution(DistributionType.DEFAULT)
         .build();
 

@@ -93,13 +93,6 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                         String remoteRepo = remote.get();
                         // for testing only we can override the base remote url
                         String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
-                            .orElse(
-                                providerFactory.provider(
-                                    () -> addRemote.getExtensions().getExtraProperties().has("remote")
-                                        ? addRemote.getExtensions().getExtraProperties().get("remote").toString()
-                                        : null
-                                )
-                            )
                             .getOrElse("https://github.com/" + remoteRepo + "/" + rootProjectName);
                         spec.commandLine("git", "remote", "add", remoteRepo, remoteRepoUrl);
                     });
@@ -213,6 +206,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
 
     private void writeFile(File file, String content) {
         try {
+            file.getParentFile().mkdirs();
             Files.writeString(file.toPath(), content, CREATE, TRUNCATE_EXISTING);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

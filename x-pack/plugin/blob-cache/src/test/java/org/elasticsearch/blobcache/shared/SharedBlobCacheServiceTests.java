@@ -591,19 +591,15 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 threads[i] = new Thread(() -> {
                     for (int j = 0; j < 1000; j++) {
                         final var cacheKey = generateCacheKey();
-                        try {
-                            PlainActionFuture.<Void, Exception>get(
-                                f -> cacheService.maybeFetchFullEntry(
-                                    cacheKey,
-                                    size,
-                                    (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
-                                    bulkExecutor,
-                                    f
-                                )
-                            );
-                        } catch (Exception e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(
+                            (ActionListener<Void> listener) -> cacheService.maybeFetchFullEntry(
+                                cacheKey,
+                                size,
+                                (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
+                                bulkExecutor,
+                                listener
+                            )
+                        );
                     }
                 });
             }

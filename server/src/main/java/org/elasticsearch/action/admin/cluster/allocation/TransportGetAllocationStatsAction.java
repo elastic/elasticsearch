@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -102,8 +103,8 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        public Request(TaskId parentTaskId) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, TaskId parentTaskId) {
+            super(masterNodeTimeout);
             setParentTask(parentTaskId);
         }
 

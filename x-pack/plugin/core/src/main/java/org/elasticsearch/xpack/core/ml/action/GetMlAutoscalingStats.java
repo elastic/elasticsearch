@@ -45,11 +45,6 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
             this.requestTimeout = Objects.requireNonNull(requestTimeout);
         }
 
-        @Deprecated(forRemoval = true) // temporary compatibility shi
-        public Request(TimeValue timeout) {
-            this(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             this.requestTimeout = in.readTimeValue();

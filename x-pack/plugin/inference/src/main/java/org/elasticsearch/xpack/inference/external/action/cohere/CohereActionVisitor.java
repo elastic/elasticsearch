@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.action.cohere;
 
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
@@ -18,4 +19,6 @@ public interface CohereActionVisitor {
     ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType);
 
     ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings);
+
+    ExecutableAction create(CohereCompletionModel model, Map<String, Object> taskSettings);
 }

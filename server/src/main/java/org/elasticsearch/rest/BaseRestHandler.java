@@ -89,7 +89,7 @@ public abstract class BaseRestHandler implements RestHandler {
             var allSupported = Sets.union(RestResponse.RESPONSE_PARAMS, ALWAYS_SUPPORTED, INTERNAL_REQUEST_PARAM, supported);
             if (allSupported.containsAll(request.params().keySet()) == false) {
                 Set<String> unsupported = Sets.difference(request.params().keySet(), allSupported);
-                throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter parameter"));
+                throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter"));
             }
         }
 

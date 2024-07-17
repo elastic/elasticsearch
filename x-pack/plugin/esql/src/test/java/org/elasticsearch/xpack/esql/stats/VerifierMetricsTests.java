@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -199,7 +200,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testTwoQueriesExecuted() {
-        Metrics metrics = new Metrics();
+        Metrics metrics = new Metrics(MeterRegistry.NOOP);
         Verifier verifier = new Verifier(metrics);
         esqlWithVerifier("""
                from employees
@@ -474,7 +475,7 @@ public class VerifierMetricsTests extends ESTestCase {
         Verifier verifier = v;
         Metrics metrics = null;
         if (v == null) {
-            metrics = new Metrics();
+            metrics = new Metrics(MeterRegistry.NOOP);
             verifier = new Verifier(metrics);
         }
         analyzer(verifier).analyze(parser.createStatement(esql));

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -37,12 +38,12 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
 
-    public PlanExecutor(IndexResolver indexResolver) {
+    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper(functionRegistry);
-        this.metrics = new Metrics();
+        this.metrics = new Metrics(meterRegistry);
         this.verifier = new Verifier(metrics);
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.stats;
 
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 
 import java.util.Collections;
@@ -36,10 +37,12 @@ public class Metrics {
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
+    private final MeterRegistry meterRegistry;
     protected static String QPREFIX = "queries.";
     protected static String FPREFIX = "features.";
 
-    public Metrics() {
+    public Metrics(MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
         for (QueryMetric metric : QueryMetric.values()) {
             Map<OperationType, CounterMetric> metricsMap = Maps.newLinkedHashMapWithExpectedSize(OperationType.values().length);

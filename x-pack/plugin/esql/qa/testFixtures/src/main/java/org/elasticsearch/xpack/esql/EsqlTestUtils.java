@@ -23,6 +23,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -234,7 +235,7 @@ public final class EsqlTestUtils {
 
     public static final EsqlConfiguration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
-    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics());
+    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(MeterRegistry.NOOP));
 
     private EsqlTestUtils() {}
 

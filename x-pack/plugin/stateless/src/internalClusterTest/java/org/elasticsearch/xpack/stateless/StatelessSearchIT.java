@@ -134,6 +134,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -1486,6 +1487,74 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         safeAwait(runningSearchingThreadsCount);
     }
 
+    public void testConcurrentReadAfterWrite() {
+        int maxNonUploadedCommits = randomIntBetween(1, 5);
+        startIndexNode(
+            Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
+                .build()
+        );
+        startSearchNode();
+
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        var threads = new ArrayList<Thread>();
+        var numReadWriteTaskPairs = randomIntBetween(1, 5);
+        var threadCounter = new CountDownLatch(2 * numReadWriteTaskPairs);
+
+        for (int i = 0; i < numReadWriteTaskPairs; i++) {
+
+            final int customValue = randomInt();
+            final int docsNum = randomIntBetween(1, 10);
+            final int commitsNum = randomIntBetween(1, 2 * maxNonUploadedCommits);
+            final CountDownLatch latch = new CountDownLatch(1);
+
+            threads.add(new Thread(() -> {
+                for (int c = 0; c < commitsNum; c++) {
+                    // every indexing-search task works on its own set of documents to be able to guarantee doc count checks
+                    indexDocsWithCustomValue(indexName, docsNum, customValue);
+                    refresh(indexName);
+                }
+                latch.countDown();
+                threadCounter.countDown();
+            }));
+
+            threads.add(new Thread(() -> {
+
+                safeAwait(latch);
+
+                if (rarely()) {
+                    evictSearchShardCache(indexName);
+                }
+                long expectedDocsNum = (long) docsNum * commitsNum;
+                var search = prepareSearch(indexName).setQuery(QueryBuilders.termQuery("custom", customValue));
+                if (randomBoolean()) {
+                    // Set a large size to retrieve all documents to force reading all relevant search data
+                    assertHitCount(search.setSize(10_000), expectedDocsNum);
+                } else {
+                    assertScrollResponsesAndHitCount(
+                        client(),
+                        TimeValue.timeValueSeconds(60),
+                        search.setSize(randomIntBetween(1, (int) expectedDocsNum)),
+                        (int) expectedDocsNum,
+                        (respNum, response) -> assertNoFailures(response)
+                    );
+                }
+                threadCounter.countDown();
+            }));
+        }
+
+        Collections.shuffle(threads, random());
+
+        threads.forEach(Thread::start);
+
+        safeAwait(threadCounter);
+    }
+
     private void assertScrollResponses(SearchRequestBuilder searchRequestBuilder) {
         var responses = new ArrayList<SearchResponse>();
         var scrollResponse = searchRequestBuilder.get();
@@ -1576,6 +1645,14 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
     private static void indexDocWithRange(String index, String id, int value) {
         assertThat(client().prepareIndex(index).setId(id).setSource("f", value).get().status(), equalTo(RestStatus.CREATED));
+    }
+
+    private void indexDocsWithCustomValue(String indexName, int numDocs, int customValue) {
+        var bulkRequest = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(new IndexRequest(indexName).source("custom", customValue));
+        }
+        assertNoFailures(bulkRequest.get());
     }
 
     private Set<String> indexDocsWithRefreshAndGetIds(String indexName, int numDocs) throws Exception {

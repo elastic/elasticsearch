@@ -385,7 +385,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this.recoveryRangeSize = BlobCacheUtils.toIntBytes(SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings).getBytes());
 
         this.blobCacheMetrics = blobCacheMetrics;
-        this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
+        this.evictIncrementer = blobCacheMetrics.evictedCountNonZeroFrequency()::increment;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
     }
 
@@ -569,6 +569,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
+            blobCacheMetrics.skippedLoadingDueToNoFreeRegionsCounter().increment();
             listener.onResponse(false);
             return;
         }
@@ -617,6 +618,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
+            blobCacheMetrics.skippedLoadingDueToNoFreeRegionsCounter().increment();
             listener.onResponse(false);
             return;
         }
@@ -1080,8 +1082,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 IntConsumer progressUpdater) -> {
                 writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
                 var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
-                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
-                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissCounter().increment();
+                SharedBlobCacheService.this.blobCacheMetrics.cacheMissLoadTimes().record(elapsedTime);
+                SharedBlobCacheService.this.blobCacheMetrics.cacheMissCounter().increment();
             };
             if (rangeToRead.isEmpty()) {
                 // nothing to read, skip
@@ -1372,7 +1374,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     }
                 }
             }
-            blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
+            blobCacheMetrics.evictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
             return evictedCount;
         }
 

@@ -1344,7 +1344,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testSharedSourceInputStreamFactory() throws IOException {
+    public void testSharedSourceInputStreamFactory() throws Exception {
         final long regionSizeInBytes = size(100);
         final Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -1446,8 +1446,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
             safeGet(future);
             assertThat(invocationCounter.get(), equalTo(numberGaps));
-            assertThat(factoryClosed.get(), is(true));
             assertThat(region.tracker.checkAvailable(regionSizeInBytes), is(true));
+            assertBusy(() -> assertThat(factoryClosed.get(), is(true)));
         } finally {
             threadPool.shutdown();
         }

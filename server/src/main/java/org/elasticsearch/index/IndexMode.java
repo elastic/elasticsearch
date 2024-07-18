@@ -473,8 +473,7 @@ public enum IndexMode {
         return switch (value) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
-            // NOTE: temporarily leave "logs" here just to be on the safe side
-            case "logs", "logsdb" -> IndexMode.LOGSDB;
+            case "logsdb" -> IndexMode.LOGSDB;
             default -> throw new IllegalArgumentException(
                 "["
                     + value

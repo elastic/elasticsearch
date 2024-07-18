@@ -95,7 +95,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
      * tasks above, since it's the pool that loads the SnapshotInfo from the repository in the first place, and we avoid spamming its
      * queue for those tasks with GetSnapshotInfoExecutor.
      *
-     * MANAGEMENT:: Intended for other management-related work. Small, and not used for critical production activites, so it's ok to do
+     * MANAGEMENT:: Intended for other management-related work. Small, and not used for critical production activities, so it's ok to do
      * long-running or CPU-intensive things here. This is used for type-1 and type-3 tasks which both loop over many SnapshotInfo instances
      * at once.
      *

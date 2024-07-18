@@ -43,7 +43,7 @@ public final class MaxIpAggregatorFunction implements AggregatorFunction {
 
   public static MaxIpAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new MaxIpAggregatorFunction(driverContext, channels, MaxIpAggregator.initSingle(driverContext.bigArrays()));
+    return new MaxIpAggregatorFunction(driverContext, channels, MaxIpAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

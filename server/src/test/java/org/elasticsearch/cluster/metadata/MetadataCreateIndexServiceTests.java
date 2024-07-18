@@ -1000,7 +1000,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
 
         Metadata metadata = updatedClusterState.metadata();
-        IndexAbstraction alias = metadata.getIndicesLookup().get("alias1");
+        IndexAbstraction alias = metadata.projectMetadata.getIndicesLookup().get("alias1");
         assertNotNull(alias);
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
         Index index = metadata.projectMetadata.index("test").getIndex();

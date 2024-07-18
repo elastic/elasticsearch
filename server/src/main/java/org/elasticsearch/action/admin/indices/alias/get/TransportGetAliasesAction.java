@@ -120,7 +120,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         Map<String, List<AliasMetadata>> mapBuilder = new HashMap<>(aliases);
         for (String index : concreteIndices) {
-            IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
+            IndexAbstraction ia = state.metadata().projectMetadata.getIndicesLookup().get(index);
             assert ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
             if (ia.getParentDataStream() != null) {
                 // Don't include backing indices of data streams,

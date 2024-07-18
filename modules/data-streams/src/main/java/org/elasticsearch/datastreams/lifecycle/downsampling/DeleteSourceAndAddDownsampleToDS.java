@@ -76,7 +76,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
             );
             return state;
         }
-        IndexAbstraction sourceIndexAbstraction = state.metadata().getIndicesLookup().get(sourceBackingIndex);
+        IndexAbstraction sourceIndexAbstraction = state.metadata().projectMetadata.getIndicesLookup().get(sourceBackingIndex);
         if (sourceIndexAbstraction == null) {
             DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
             // index was deleted in the meantime, so let's check if we can make sure the downsample index ends up in the

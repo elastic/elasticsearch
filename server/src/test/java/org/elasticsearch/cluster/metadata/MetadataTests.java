@@ -1180,7 +1180,7 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.dataStreams().size(), equalTo(numDataStreams));
         for (int i = 0; i < numDataStreams; i++) {
             String name = "data-stream-" + i;
-            IndexAbstraction value = metadata.getIndicesLookup().get(name);
+            IndexAbstraction value = metadata.projectMetadata.getIndicesLookup().get(name);
             assertThat(value, notNullValue());
             DataStream ds = metadata.dataStreams().get(name);
             assertThat(ds, notNullValue());
@@ -1207,31 +1207,31 @@ public class MetadataTests extends ESTestCase {
 
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams(), aMapWithSize(4));
-        IndexAbstraction value = metadata.getIndicesLookup().get("d1");
+        IndexAbstraction value = metadata.projectMetadata.getIndicesLookup().get("d1");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
 
-        value = metadata.getIndicesLookup().get("d2");
+        value = metadata.projectMetadata.getIndicesLookup().get("d2");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
 
-        value = metadata.getIndicesLookup().get("d3");
+        value = metadata.projectMetadata.getIndicesLookup().get("d3");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
 
-        value = metadata.getIndicesLookup().get("d4");
+        value = metadata.projectMetadata.getIndicesLookup().get("d4");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
 
-        value = metadata.getIndicesLookup().get("a1");
+        value = metadata.projectMetadata.getIndicesLookup().get("a1");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
 
-        value = metadata.getIndicesLookup().get("a2");
+        value = metadata.projectMetadata.getIndicesLookup().get("a2");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
 
-        value = metadata.getIndicesLookup().get("a3");
+        value = metadata.projectMetadata.getIndicesLookup().get("a3");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
     }
@@ -1318,7 +1318,7 @@ public class MetadataTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         CreateIndexResult result = createIndices(numIndices, numBackingIndices, dataStreamName);
 
-        SortedMap<String, IndexAbstraction> indicesLookup = result.metadata.getIndicesLookup();
+        SortedMap<String, IndexAbstraction> indicesLookup = result.metadata.projectMetadata.getIndicesLookup();
         assertThat(indicesLookup, aMapWithSize(result.indices.size() + result.backingIndices.size() + 1));
         for (Index index : result.indices) {
             assertThat(indicesLookup, hasKey(index.getName()));
@@ -1667,21 +1667,21 @@ public class MetadataTests extends ESTestCase {
             DataStream dataStream = newInstance(dataStreamName, List.of(idx.getIndex()));
             builder.put(dataStream);
             Metadata metadata = builder.build();
-            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            assertThat(previous.projectMetadata.getIndicesLookup(), not(sameInstance(metadata.projectMetadata.getIndicesLookup())));
             previous = metadata;
         }
         {
             Metadata.Builder builder = Metadata.builder(previous);
             builder.put(dataStreamAliasName, dataStreamName, false, null);
             Metadata metadata = builder.build();
-            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            assertThat(previous.projectMetadata.getIndicesLookup(), not(sameInstance(metadata.projectMetadata.getIndicesLookup())));
             previous = metadata;
         }
         {
             Metadata.Builder builder = Metadata.builder(previous);
             builder.put(dataStreamAliasName, dataStreamName, true, null);
             Metadata metadata = builder.build();
-            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            assertThat(previous.projectMetadata.getIndicesLookup(), not(sameInstance(metadata.projectMetadata.getIndicesLookup())));
             previous = metadata;
         }
         {
@@ -1694,7 +1694,7 @@ public class MetadataTests extends ESTestCase {
                     .numberOfReplicas(0)
             );
             Metadata metadata = builder.build();
-            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            assertThat(previous.projectMetadata.getIndicesLookup(), not(sameInstance(metadata.projectMetadata.getIndicesLookup())));
             previous = metadata;
         }
         {
@@ -1703,7 +1703,7 @@ public class MetadataTests extends ESTestCase {
             imBuilder.putAlias(AliasMetadata.builder(aliasName).build());
             builder.put(imBuilder);
             Metadata metadata = builder.build();
-            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            assertThat(previous.projectMetadata.getIndicesLookup(), not(sameInstance(metadata.projectMetadata.getIndicesLookup())));
             previous = metadata;
         }
         {
@@ -1712,7 +1712,7 @@ public class MetadataTests extends ESTestCase {
             imBuilder.putAlias(AliasMetadata.builder(aliasName).writeIndex(true).build());
             builder.put(imBuilder);
             Metadata metadata = builder.build();
-            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            assertThat(previous.projectMetadata.getIndicesLookup(), not(sameInstance(metadata.projectMetadata.getIndicesLookup())));
             previous = metadata;
         }
         {
@@ -1724,7 +1724,7 @@ public class MetadataTests extends ESTestCase {
             imBuilder.settings(sBuilder.build());
             builder.put(imBuilder);
             Metadata metadata = builder.build();
-            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            assertThat(previous.projectMetadata.getIndicesLookup(), not(sameInstance(metadata.projectMetadata.getIndicesLookup())));
             previous = metadata;
         }
 
@@ -1735,7 +1735,7 @@ public class MetadataTests extends ESTestCase {
             imBuilder.numberOfReplicas(2);
             builder.put(imBuilder);
             Metadata metadata = builder.build();
-            assertThat(previous.getIndicesLookup(), sameInstance(metadata.getIndicesLookup()));
+            assertThat(previous.projectMetadata.getIndicesLookup(), sameInstance(metadata.projectMetadata.getIndicesLookup()));
             previous = metadata;
         }
         {
@@ -1747,7 +1747,7 @@ public class MetadataTests extends ESTestCase {
             imBuilder.settings(sBuilder.build());
             builder.put(imBuilder);
             Metadata metadata = builder.build();
-            assertThat(previous.getIndicesLookup(), sameInstance(metadata.getIndicesLookup()));
+            assertThat(previous.projectMetadata.getIndicesLookup(), sameInstance(metadata.projectMetadata.getIndicesLookup()));
             previous = metadata;
         }
     }
@@ -2211,7 +2211,7 @@ public class MetadataTests extends ESTestCase {
             )
             .build();
         IndexMetadata index1 = metadata1.projectMetadata.index(indexName);
-        assertThat(metadata1.getIndicesLookup(), notNullValue());
+        assertThat(metadata1.projectMetadata.getIndicesLookup(), notNullValue());
         assertThat(index1.getLifecycleExecutionState(), sameInstance(LifecycleExecutionState.EMPTY_STATE));
 
         LifecycleExecutionState state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").build();
@@ -2219,7 +2219,7 @@ public class MetadataTests extends ESTestCase {
         IndexMetadata index2 = metadata2.projectMetadata.index(indexName);
 
         // the indices lookups are the same object
-        assertThat(metadata2.getIndicesLookup(), sameInstance(metadata1.getIndicesLookup()));
+        assertThat(metadata2.projectMetadata.getIndicesLookup(), sameInstance(metadata1.projectMetadata.getIndicesLookup()));
 
         // the lifecycle state and version were changed
         assertThat(index2.getLifecycleExecutionState().asMap(), is(state.asMap()));

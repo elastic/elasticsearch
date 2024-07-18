@@ -221,8 +221,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             }
         }
 
-        final IndexAbstraction rolloverTargetAbstraction = clusterState.metadata()
-            .getIndicesLookup()
+        final IndexAbstraction rolloverTargetAbstraction = clusterState.metadata().projectMetadata.getIndicesLookup()
             .get(rolloverRequest.getRolloverTarget());
         if (rolloverTargetAbstraction.getType() == IndexAbstraction.Type.ALIAS && rolloverTargetAbstraction.isDataStreamRelated()) {
             listener.onFailure(
@@ -264,8 +263,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             listener.delegateFailureAndWrap((delegate, statsResponse) -> {
 
                 AutoShardingResult rolloverAutoSharding = null;
-                final IndexAbstraction indexAbstraction = clusterState.metadata()
-                    .getIndicesLookup()
+                final IndexAbstraction indexAbstraction = clusterState.metadata().projectMetadata.getIndicesLookup()
                     .get(rolloverRequest.getRolloverTarget());
                 if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
                     DataStream dataStream = (DataStream) indexAbstraction;
@@ -528,8 +526,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     .filter(condition -> resultsIncludingDecreaseShards.get(condition.toString()))
                     .toList();
 
-                final IndexAbstraction rolloverTargetAbstraction = currentState.metadata()
-                    .getIndicesLookup()
+                final IndexAbstraction rolloverTargetAbstraction = currentState.metadata().projectMetadata.getIndicesLookup()
                     .get(rolloverRequest.getRolloverTarget());
 
                 final IndexMetadataStats sourceIndexStats = rolloverTargetAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM

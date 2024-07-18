@@ -455,7 +455,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    metadata.getIndicesLookup();
+                    metadata.projectMetadata.getIndicesLookup();
                 }
 
                 @Override

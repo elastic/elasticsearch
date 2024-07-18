@@ -1718,7 +1718,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }
 
         Metadata metadata = state.metadata();
-        IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
+        IndexAbstraction ia = state.metadata().projectMetadata.getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
             String dataStreamName = dataStream.getName();

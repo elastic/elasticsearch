@@ -701,7 +701,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
         when(metadata.getProject()).thenReturn(projectMetadata);
         if (watchIndex == null) {
-            when(metadata.getIndicesLookup()).thenReturn(Collections.emptySortedMap());
+            when(projectMetadata.getIndicesLookup()).thenReturn(Collections.emptySortedMap());
         } else {
             SortedMap<String, IndexAbstraction> indices = new TreeMap<>();
 
@@ -719,7 +719,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 when(projectMetadata.index(any(Index.class))).thenReturn(indexMetadata);
             }
 
-            when(metadata.getIndicesLookup()).thenReturn(indices);
+            when(projectMetadata.getIndicesLookup()).thenReturn(indices);
         }
 
         ClusterState clusterState = mock(ClusterState.class);

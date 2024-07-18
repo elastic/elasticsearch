@@ -514,7 +514,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
             final var previousMetadata = newClusterState.metadata();
             newClusterState = builder.build();
-            assert previousMetadata.sameIndicesLookup(newClusterState.metadata());
+            assert previousMetadata.getProject().sameIndicesLookup(newClusterState.metadata().getProject());
         }
 
         return newClusterState;

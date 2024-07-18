@@ -162,7 +162,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     List<String> writeIndices = new ArrayList<>();
-                    SortedMap<String, IndexAbstraction> lookup = currentState.metadata().getIndicesLookup();
+                    SortedMap<String, IndexAbstraction> lookup = currentState.metadata().projectMetadata.getIndicesLookup();
                     for (Index index : concreteIndices) {
                         IndexAbstraction ia = lookup.get(index.getName());
                         if (ia != null && ia.getParentDataStream() != null && ia.getParentDataStream().getWriteIndex().equals(index)) {

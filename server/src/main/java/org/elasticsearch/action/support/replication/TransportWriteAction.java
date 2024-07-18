@@ -118,7 +118,8 @@ public abstract class TransportWriteAction<
     }
 
     protected boolean isSystemShard(ShardId shardId) {
-        final IndexAbstraction abstraction = clusterService.state().metadata().getIndicesLookup().get(shardId.getIndexName());
+        final IndexAbstraction abstraction = clusterService.state().metadata().projectMetadata.getIndicesLookup()
+            .get(shardId.getIndexName());
         return abstraction != null ? abstraction.isSystem() : systemIndices.isSystemIndex(shardId.getIndexName());
     }
 

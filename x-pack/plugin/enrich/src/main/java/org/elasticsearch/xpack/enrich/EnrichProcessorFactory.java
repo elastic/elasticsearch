@@ -55,7 +55,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (metadata == null) {
             throw new IllegalStateException("enrich processor factory has not yet been initialized with cluster state");
         }
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(policyAlias);
+        IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup().get(policyAlias);
         if (indexAbstraction == null) {
             throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
         }

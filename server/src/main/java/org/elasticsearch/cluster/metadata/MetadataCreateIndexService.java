@@ -1513,7 +1513,7 @@ public class MetadataCreateIndexService {
             throw new IndexNotFoundException(sourceIndex);
         }
 
-        IndexAbstraction source = state.metadata().getIndicesLookup().get(sourceIndex);
+        IndexAbstraction source = state.metadata().projectMetadata.getIndicesLookup().get(sourceIndex);
         assert source != null;
         if (source.getParentDataStream() != null && source.getParentDataStream().getWriteIndex().equals(sourceMetadata.getIndex())) {
             throw new IllegalArgumentException(

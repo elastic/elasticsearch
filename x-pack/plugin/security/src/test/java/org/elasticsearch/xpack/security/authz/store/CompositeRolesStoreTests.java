@@ -911,7 +911,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             )
             .build();
         IndicesAccessControl iac = role.indices()
-            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.getIndicesLookup(), cache);
+            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.projectMetadata.getIndicesLookup(), cache);
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L2.foo"));
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L3.foo"));
@@ -2224,18 +2224,30 @@ public class CompositeRolesStoreTests extends ESTestCase {
             .build();
         final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache)
-                .isGranted(),
+            role.authorize(
+                TransportSearchAction.TYPE.name(),
+                Sets.newHashSet("index1"),
+                indexMetadata.projectMetadata.getIndicesLookup(),
+                emptyCache
+            ).isGranted(),
             is(false == emptyRemoteRole)
         );
         assertThat(
-            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache)
-                .isGranted(),
+            role.authorize(
+                TransportCreateIndexAction.TYPE.name(),
+                Sets.newHashSet("index1"),
+                indexMetadata.projectMetadata.getIndicesLookup(),
+                emptyCache
+            ).isGranted(),
             is(false)
         );
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), indexMetadata.getIndicesLookup(), emptyCache)
-                .isGranted(),
+            role.authorize(
+                TransportSearchAction.TYPE.name(),
+                Sets.newHashSet("index2"),
+                indexMetadata.projectMetadata.getIndicesLookup(),
+                emptyCache
+            ).isGranted(),
             is(false)
         );
     }

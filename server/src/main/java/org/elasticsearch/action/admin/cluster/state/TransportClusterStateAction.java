@@ -203,7 +203,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
                     // If the requested index is part of a data stream then that data stream should also be included:
-                    IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(filteredIndex);
+                    IndexAbstraction indexAbstraction = currentState.metadata().projectMetadata.getIndicesLookup().get(filteredIndex);
                     if (indexAbstraction.getParentDataStream() != null) {
                         DataStream dataStream = indexAbstraction.getParentDataStream();
                         // Also the IMD of other backing indices need to be included, otherwise the cluster state api

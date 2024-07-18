@@ -1880,7 +1880,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsAliasNameForDynamicPutMappingRequestOnWriteIndex() {
         String index = "logs-00003"; // write index
         PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
-        assert metadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
+        assert metadata.projectMetadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
         String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, metadata);
         String message = "user is authorized to access `logs-alias` and the put mapping request is for a write index"
             + "so this should have returned the alias name";
@@ -1890,7 +1890,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsIndexNameForDynamicPutMappingRequestOnReadIndex() {
         String index = "logs-00002"; // read index
         PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
-        assert metadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
+        assert metadata.projectMetadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
         String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, metadata);
         String message = "user is authorized to access `logs-alias` and the put mapping request is for a read index"
             + "so this should have returned the concrete index as fallback";
@@ -2552,7 +2552,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         return RBACEngine.resolveAuthorizedIndicesFromRole(
             rolesListener.actionGet(),
             getRequestInfo(request, action),
-            metadata.getIndicesLookup(),
+            metadata.projectMetadata.getIndicesLookup(),
             () -> ignore -> {}
         );
     }

@@ -591,7 +591,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
         // number of shards remained the same
         assertThat(rolloverIndexMetadata.getNumberOfShards(), is(expectedNumberOfShards));
 
-        IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(preRolloverDataStream.getName());
+        IndexAbstraction ds = rolloverMetadata.projectMetadata.getIndicesLookup().get(preRolloverDataStream.getName());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices(), hasSize(preRolloverDataStream.getIndices().size() + 1));
         assertThat(ds.getIndices(), hasItem(rolloverMetadata.projectMetadata.index(sourceIndexName).getIndex()));

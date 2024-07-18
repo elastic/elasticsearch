@@ -171,7 +171,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertNull(after.metadata().projectMetadata.indices().get(index));
         assertNull(after.routingTable().index(index));
         assertNull(after.blocks().indices().get(index));
-        assertNull(after.metadata().getIndicesLookup().get(alias));
+        assertNull(after.metadata().projectMetadata.getIndicesLookup().get(alias));
         assertThat(after.metadata().aliasedIndices(alias), empty());
     }
 

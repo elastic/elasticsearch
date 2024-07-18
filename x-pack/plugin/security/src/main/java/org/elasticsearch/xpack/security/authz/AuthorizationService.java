@@ -490,7 +490,7 @@ public class AuthorizationService {
                     authzEngine.loadAuthorizedIndices(
                         requestInfo,
                         authzInfo,
-                        metadata.getIndicesLookup(),
+                        metadata.projectMetadata.getIndicesLookup(),
                         ActionListener.wrap(
                             authorizedIndices -> resolvedIndicesListener.onResponse(
                                 indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)
@@ -511,7 +511,7 @@ public class AuthorizationService {
                 requestInfo,
                 authzInfo,
                 resolvedIndicesAsyncSupplier,
-                metadata.getIndicesLookup(),
+                metadata.projectMetadata.getIndicesLookup(),
                 wrapPreservingContext(
                     new AuthorizationResultListener<>(
                         result -> handleIndexActionAuthorizationResult(
@@ -586,7 +586,7 @@ public class AuthorizationService {
                         ResolvedIndices withAliases = new ResolvedIndices(aliasesAndIndices, Collections.emptyList());
                         l.onResponse(withAliases);
                     })),
-                    metadata.getIndicesLookup(),
+                    metadata.projectMetadata.getIndicesLookup(),
                     wrapPreservingContext(
                         new AuthorizationResultListener<>(
                             authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
@@ -867,7 +867,7 @@ public class AuthorizationService {
                     bulkItemInfo,
                     authzInfo,
                     ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
-                    metadata.getIndicesLookup(),
+                    metadata.projectMetadata.getIndicesLookup(),
                     groupedActionListener.delegateFailureAndWrap(
                         (l, indexAuthorizationResult) -> l.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult))
                     )

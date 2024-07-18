@@ -133,7 +133,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     // visible for testing
     void updateDatabases() throws IOException {
         var clusterState = clusterService.state();
-        var geoipIndex = clusterState.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        var geoipIndex = clusterState.getMetadata().projectMetadata.getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
             logger.trace("The {} index is not null", GeoIpDownloader.DATABASES_INDEX);
             if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {

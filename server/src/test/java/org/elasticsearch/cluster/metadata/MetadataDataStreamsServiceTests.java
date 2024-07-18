@@ -70,7 +70,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             Settings.EMPTY
         );
 
-        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newState.metadata().projectMetadata.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
@@ -114,7 +114,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             Settings.EMPTY
         );
 
-        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newState.metadata().projectMetadata.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices - 1));
@@ -128,7 +128,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         IndexMetadata removedIndex = newState.metadata().projectMetadata.indices().get(indexToRemove.getIndex().getName());
         assertThat(removedIndex, notNullValue());
         assertThat(removedIndex.getSettings().get("index.hidden"), equalTo("false"));
-        assertNull(newState.metadata().getIndicesLookup().get(indexToRemove.getIndex().getName()).getParentDataStream());
+        assertNull(newState.metadata().projectMetadata.getIndicesLookup().get(indexToRemove.getIndex().getName()).getParentDataStream());
     }
 
     public void testRemoveWriteIndexIsProhibited() {
@@ -213,7 +213,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             Settings.EMPTY
         );
 
-        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newState.metadata().projectMetadata.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
@@ -276,7 +276,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             Settings.EMPTY
         );
 
-        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newState.metadata().projectMetadata.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));

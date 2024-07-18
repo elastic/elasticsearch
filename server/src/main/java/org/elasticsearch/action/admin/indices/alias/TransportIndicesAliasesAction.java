@@ -134,7 +134,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                     action.indices()
                 );
                 List<Index> nonBackingIndices = Arrays.stream(unprocessedConcreteIndices).filter(index -> {
-                    var ia = state.metadata().getIndicesLookup().get(index.getName());
+                    var ia = state.metadata().projectMetadata.getIndicesLookup().get(index.getName());
                     return ia.getParentDataStream() == null;
                 }).toList();
                 concreteIndices = nonBackingIndices.toArray(Index[]::new);
@@ -194,7 +194,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             }
 
             for (Index concreteIndex : concreteIndices) {
-                IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(concreteIndex.getName());
+                IndexAbstraction indexAbstraction = state.metadata().projectMetadata.getIndicesLookup().get(concreteIndex.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + concreteIndex.getName() + "] was not found";
                 if (indexAbstraction.getParentDataStream() != null) {
                     throw new IllegalArgumentException(

@@ -97,7 +97,7 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
 
     static Optional<Index> resolveConcreteIndex(String indexAbstractionName, ClusterState state) {
         // Don't use the indexNameExpressionResolver here so we don't trigger a system index deprecation warning
-        IndexAbstraction abstraction = state.metadata().getIndicesLookup().get(indexAbstractionName);
+        IndexAbstraction abstraction = state.metadata().projectMetadata.getIndicesLookup().get(indexAbstractionName);
         if (abstraction == null) {
             return Optional.empty();
         }

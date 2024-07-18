@@ -300,7 +300,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             Settings.EMPTY,
             ActionListener.noop()
         );
-        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newState.metadata().projectMetadata.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(2));
@@ -359,7 +359,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             Settings.EMPTY,
             ActionListener.noop()
         );
-        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newState.metadata().projectMetadata.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(2));

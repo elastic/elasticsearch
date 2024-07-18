@@ -374,7 +374,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             }
         );
         persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, MASTER_TIMEOUT, ActionListener.runAfter(listener, () -> {
-            IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
+            IndexAbstraction databasesAbstraction = clusterService.state().metadata().projectMetadata.getIndicesLookup()
+                .get(DATABASES_INDEX);
             if (databasesAbstraction != null) {
                 // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
                 Index databasesIndex = databasesAbstraction.getWriteIndex();

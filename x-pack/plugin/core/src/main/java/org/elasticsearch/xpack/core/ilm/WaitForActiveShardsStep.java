@@ -77,12 +77,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             return new Result(true, new SingleMessageFieldInfo(message));
         }
 
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
+        IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup().get(index.getName());
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            IndexAbstraction dataStreamAbstraction = metadata.getIndicesLookup().get(dataStream.getName());
+            IndexAbstraction dataStreamAbstraction = metadata.projectMetadata.getIndicesLookup().get(dataStream.getName());
             assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
             // Determine which write index we care about right now:
             final Index rolledIndex;
@@ -109,7 +109,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                 );
             }
 
-            IndexAbstraction aliasAbstraction = metadata.getIndicesLookup().get(rolloverAlias);
+            IndexAbstraction aliasAbstraction = metadata.projectMetadata.getIndicesLookup().get(rolloverAlias);
             assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
 
             Index aliasWriteIndex = aliasAbstraction.getWriteIndex();

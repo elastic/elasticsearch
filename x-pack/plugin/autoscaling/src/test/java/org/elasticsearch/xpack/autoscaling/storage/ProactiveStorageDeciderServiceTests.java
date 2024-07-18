@@ -78,7 +78,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().projectMetadata.getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -211,7 +211,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().projectMetadata.getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -253,7 +253,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().projectMetadata.getIndicesLookup().get("test"),
             lastCreated,
             1
         );

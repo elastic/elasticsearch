@@ -292,7 +292,7 @@ public class IndexRequestTests extends ESTestCase {
             IndexRequest request = new IndexRequest(tsdbDataStream);
             request.source(renderSource(source, start1), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            var result = request.getConcreteWriteIndex(metadata.projectMetadata.getIndicesLookup().get(tsdbDataStream), metadata);
             assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(1)));
         }
         {
@@ -301,7 +301,7 @@ public class IndexRequestTests extends ESTestCase {
             IndexRequest request = new IndexRequest(indexName);
             request.source(renderSource(source, randomFrom(start1, end1, start2, end2)), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(indexName), metadata);
+            var result = request.getConcreteWriteIndex(metadata.projectMetadata.getIndicesLookup().get(indexName), metadata);
             assertThat(result.getName(), equalTo(indexName));
         }
         {
@@ -324,7 +324,7 @@ public class IndexRequestTests extends ESTestCase {
             IndexRequest request = new IndexRequest(regularDataStream);
             request.source(renderSource(source, randomFrom(start1, end1, start2, end2)), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata2.getIndicesLookup().get(regularDataStream), metadata2);
+            var result = request.getConcreteWriteIndex(metadata2.projectMetadata.getIndicesLookup().get(regularDataStream), metadata2);
             assertThat(result.getName(), equalTo(backingIndex2.getIndex().getName()));
         }
         {
@@ -333,7 +333,7 @@ public class IndexRequestTests extends ESTestCase {
             request.opType(DocWriteRequest.OpType.CREATE);
             request.source(renderSource(source, start1), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            var result = request.getConcreteWriteIndex(metadata.projectMetadata.getIndicesLookup().get(tsdbDataStream), metadata);
             assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
         }
         {
@@ -342,7 +342,7 @@ public class IndexRequestTests extends ESTestCase {
             request.opType(DocWriteRequest.OpType.CREATE);
             request.source(source.replace("$time", "" + start1.toEpochMilli()), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            var result = request.getConcreteWriteIndex(metadata.projectMetadata.getIndicesLookup().get(tsdbDataStream), metadata);
             assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
         }
         {
@@ -353,7 +353,7 @@ public class IndexRequestTests extends ESTestCase {
                 XContentType.JSON
             );
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            var result = request.getConcreteWriteIndex(metadata.projectMetadata.getIndicesLookup().get(tsdbDataStream), metadata);
             assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
         }
         {
@@ -362,7 +362,7 @@ public class IndexRequestTests extends ESTestCase {
             request.opType(DocWriteRequest.OpType.CREATE);
             request.source(renderSource(source, start2), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            var result = request.getConcreteWriteIndex(metadata.projectMetadata.getIndicesLookup().get(tsdbDataStream), metadata);
             assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(1)));
         }
         {
@@ -373,7 +373,7 @@ public class IndexRequestTests extends ESTestCase {
 
             var e = expectThrows(
                 IllegalArgumentException.class,
-                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+                () -> request.getConcreteWriteIndex(metadata.projectMetadata.getIndicesLookup().get(tsdbDataStream), metadata)
             );
             assertThat(
                 e.getMessage(),
@@ -395,7 +395,7 @@ public class IndexRequestTests extends ESTestCase {
             request.source(Map.of("foo", randomAlphaOfLength(5)), XContentType.JSON);
             var e = expectThrows(
                 IllegalArgumentException.class,
-                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+                () -> request.getConcreteWriteIndex(metadata.projectMetadata.getIndicesLookup().get(tsdbDataStream), metadata)
             );
             assertThat(
                 e.getMessage(),
@@ -414,7 +414,7 @@ public class IndexRequestTests extends ESTestCase {
             request.setRawTimestamp(10.0d);
             var e = expectThrows(
                 IllegalArgumentException.class,
-                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+                () -> request.getConcreteWriteIndex(metadata.projectMetadata.getIndicesLookup().get(tsdbDataStream), metadata)
             );
             assertThat(
                 e.getMessage(),
@@ -431,13 +431,13 @@ public class IndexRequestTests extends ESTestCase {
             IndexRequest request = new IndexRequest(alias.getName());
             request.opType(DocWriteRequest.OpType.CREATE);
             request.source(renderSource(source, start1), XContentType.JSON);
-            var result = request.getConcreteWriteIndex(metadata3.getIndicesLookup().get(alias.getName()), metadata3);
+            var result = request.getConcreteWriteIndex(metadata3.projectMetadata.getIndicesLookup().get(alias.getName()), metadata3);
             assertThat(result, equalTo(metadata3.dataStreams().get(tsdbDataStream).getIndices().get(0)));
 
             request = new IndexRequest(alias.getName());
             request.opType(DocWriteRequest.OpType.CREATE);
             request.source(renderSource(source, start2), XContentType.JSON);
-            result = request.getConcreteWriteIndex(metadata3.getIndicesLookup().get(alias.getName()), metadata3);
+            result = request.getConcreteWriteIndex(metadata3.projectMetadata.getIndicesLookup().get(alias.getName()), metadata3);
             assertThat(result, equalTo(metadata3.dataStreams().get(tsdbDataStream).getIndices().get(1)));
         }
     }

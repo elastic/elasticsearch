@@ -670,7 +670,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public DataStream addBackingIndex(Metadata clusterMetadata, Index index) {
         // validate that index is not part of another data stream
-        final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
+        final var parentDataStream = clusterMetadata.projectMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
             validateDataStreamAlreadyContainsIndex(index, parentDataStream, false);
             return this;
@@ -697,7 +697,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public DataStream addFailureStoreIndex(Metadata clusterMetadata, Index index) {
         // validate that index is not part of another data stream
-        final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
+        final var parentDataStream = clusterMetadata.projectMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
             validateDataStreamAlreadyContainsIndex(index, parentDataStream, true);
             return this;
@@ -738,7 +738,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     private void ensureNoAliasesOnIndex(Metadata clusterMetadata, Index index) {
-        IndexMetadata im = clusterMetadata.projectMetadata.index(clusterMetadata.getIndicesLookup().get(index.getName()).getWriteIndex());
+        IndexMetadata im = clusterMetadata.projectMetadata.index(
+            clusterMetadata.projectMetadata.getIndicesLookup().get(index.getName()).getWriteIndex()
+        );
         if (im.getAliases().size() > 0) {
             throw new IllegalArgumentException(
                 String.format(

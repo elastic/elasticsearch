@@ -255,7 +255,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             return;
         }
 
-        IndexAbstraction databasesAbstraction = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        IndexAbstraction databasesAbstraction = state.getMetadata().projectMetadata.getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
         if (databasesAbstraction == null) {
             logger.trace("Not checking databases because geoip databases index does not exist");
             return;

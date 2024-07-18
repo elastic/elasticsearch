@@ -137,7 +137,8 @@ public class MetadataMigrateToDataStreamService {
         ActionListener<Void> listener
     ) throws Exception {
         validateRequest(currentState, request);
-        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) currentState.metadata().getIndicesLookup().get(request.aliasName);
+        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) currentState.metadata().projectMetadata.getIndicesLookup()
+            .get(request.aliasName);
 
         validateBackingIndices(currentState, request.aliasName);
         Metadata.Builder mb = Metadata.builder(currentState.metadata());
@@ -174,7 +175,7 @@ public class MetadataMigrateToDataStreamService {
 
     // package-visible for testing
     static void validateRequest(ClusterState currentState, MigrateToDataStreamClusterStateUpdateRequest request) {
-        IndexAbstraction ia = currentState.metadata().getIndicesLookup().get(request.aliasName);
+        IndexAbstraction ia = currentState.metadata().projectMetadata.getIndicesLookup().get(request.aliasName);
         if (ia == null || ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] does not exist");
         }
@@ -254,7 +255,7 @@ public class MetadataMigrateToDataStreamService {
 
     // package-visible for testing
     static void validateBackingIndices(ClusterState currentState, String dataStreamName) {
-        IndexAbstraction ia = currentState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ia = currentState.metadata().projectMetadata.getIndicesLookup().get(dataStreamName);
         if (ia == null || ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("alias [" + dataStreamName + "] does not exist");
         }

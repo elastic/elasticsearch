@@ -1,0 +1,5 @@
+pr: 111068
+summary: Use native scorers for int8_flat indices and use new `VectorScorer` interface
+area: Vector Search
+type: enhancement
+issues: []

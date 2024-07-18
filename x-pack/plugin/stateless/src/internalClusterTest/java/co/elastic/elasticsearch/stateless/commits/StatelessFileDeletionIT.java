@@ -895,7 +895,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             // Verify that there is no more new commit notifications sent
             int currentCount = countNewCommitNotifications.get();
             var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
-            indexShardCommitService.runInactivityMonitor(() -> Long.MAX_VALUE);
+            indexShardCommitService.updateCommitUseTrackingForInactiveShards(() -> Long.MAX_VALUE);
             assertThat(countNewCommitNotifications.get(), equalTo(currentCount));
         }
 

@@ -115,7 +115,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
-    /** How frequently we check for inactive indexing shards to send new commit notifications. */
+    /** How frequently we check for inactive indexing shards, and potentially send requests for in-use commits to the search shards. */
     public static final Setting<TimeValue> SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting(
         "shard.inactivity.monitor.interval",
         TimeValue.timeValueMinutes(30),
@@ -376,8 +376,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     protected void doClose() throws IOException {}
 
     /**
-     * An always rescheduled runnable that monitors shards which have been inactive, i.e., have not received indexing, for a long time, and
-     * sends new commit notification to search shards.
+     * A runnable that polls search shards that have not received indexing for a while.
+     * A request is sent to search shards asking what commits are still in use by readers on the search shard.
      */
     private class ShardInactivityMonitor implements Runnable {
 
@@ -386,21 +386,23 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (lifecycleState() != Lifecycle.State.STARTED) {
                 return;
             }
-            runInactivityMonitor(threadPool::relativeTimeInMillis);
+            updateCommitUseTrackingForInactiveShards(threadPool::relativeTimeInMillis);
         }
     }
 
     /**
-     * Resends the latest commit notification, to the search shards, for any index shard that hasn't written anything in a while.
-     *
+     * Fetches what commits are still in-use by the set of search shards for any shard that hasn't written anything in
+     * {@link #shardInactivityDuration} millis. The results are then used to update the tracking on the index node so that unused old
+     * commits can be flagged for removal.
+     * <p>
      * Package private for testing.
      */
-    void runInactivityMonitor(Supplier<Long> time) {
+    void updateCommitUseTrackingForInactiveShards(Supplier<Long> time) {
         shardsCommitsStates.forEach((shardId, commitState) -> {
             if (commitState.isClosed() == false && commitState.lastNewCommitNotificationSentTimestamp > 0) {
                 long elapsed = time.get() - commitState.lastNewCommitNotificationSentTimestamp;
                 if (elapsed > shardInactivityDuration.getMillis()) {
-                    commitState.maybeResendLatestNewCommitNotification();
+                    commitState.pollSearchShardsForInUseOldCommits();
                 }
             }
         });
@@ -865,6 +867,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitState.latestUploadedBcc;
     }
 
+    /**
+     * Returns the {@link ShardCommitState} for the given {@link ShardId}. Throws an exception if there is no commit state found, meaning
+     * that the shard is closed.
+     *
+     * Visible for testing.
+     */
     private static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
         final ShardCommitState commitState = map.get(shardId);
         if (commitState == null) {
@@ -884,7 +892,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return true;
     }
 
-    // Visible for testing
     class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
         private static final long EMPTY_GENERATION_NOTIFIED_SENTINEL = -1;
 
@@ -1729,11 +1736,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
-         * Resends the latest commit notification if there are any search nodes still using older blob references.
-         * This will collect responses from the relevant search nodes indicating whether they are done with the older commits, allowing
-         * those commits to be eventually deleted when no longer in use by any shard.
+         * Asks all the search shards what commits they are still actively using for reads. Only sends out requests if the index shard is
+         * still maintaining commits older than the latest one, when there is the potential to delete old commits found to be no longer in
+         * use. Any old commits newly discovered to have been released by all search shards can be flagged for deletion.
          */
-        private void maybeResendLatestNewCommitNotification() {
+        private void pollSearchShardsForInUseOldCommits() {
             final BatchedCompoundCommit latestBatchedCompoundCommitUploaded;
             final BlobReference latestBlobReference;
             final CommitReferencesInfo latestCommitReferencesInfo;
@@ -2392,6 +2399,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 );
             }
 
+            /**
+             * Applies the updateFunc to (existing, searchNodes), updating the tracked list of search nodes using this blob.
+             * @return the updated search node set reading from this blob/commit.
+             */
             @Nullable
             private Set<String> updateSearchNodes(Set<String> searchNodes, BinaryOperator<Set<String>> updateFunc) {
                 return searchNodesRef.accumulateAndGet(searchNodes, (existing, update) -> {

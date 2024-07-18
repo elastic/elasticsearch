@@ -85,7 +85,7 @@ Additional settings are:
 <<indices-reload-analyzers,reloading>> search analyzers to pick up
 changes to synonym files. Only to be used for search analyzers.
 * `expand` (defaults to `true`).
-Expand definitions for equivalent synonym rules.
+Expands definitions for equivalent synonym rules.
 See <<synonym-graph-tokenizer-expand-equivalent-synonyms,expand equivalent synonyms>>.
 * `lenient` (defaults to `false`).
 If `true` ignores errors while parsing the synonym configuration.
@@ -179,10 +179,18 @@ Synonyms and <<analysis-stop-tokenfilter,stop token filters>> interact with each
 Stop words will be removed from the synonym rule definition.
 This can can cause errors on the synonym rule.
 
-WARNING: An invalid synonym rule can cause an error when applying your analyzer changes.
-For reloadable analyzers, the analyzer will not be reloaded and the changes will not be applied.
-You must correct the error in the synonym rules and reload the analyzer, as an index that contains an invalid synonym rule will not be reopened.
-This means that the index will be inoperable when a node that contains the index is started, or the index is opened from a closed state.
+[WARNING]
+====
+Invalid synonym rules can cause errors when applying analyzer changes.
+For reloadable analyzers, this prevents reloading and applying changes.
+You must correct errors in the synonym rules and reload the analyzer.
+
+An index with invalid synonym rules cannot be reopened, making it inoperable when:
+
+* A node containing the index starts
+* The index is opened from a closed state
+* A node restart occurs (which reopens the node assigned shards)
+====
 
 For *explicit synonym rules* like `foo, bar => baz` with a stop filter that removes `bar`:
 

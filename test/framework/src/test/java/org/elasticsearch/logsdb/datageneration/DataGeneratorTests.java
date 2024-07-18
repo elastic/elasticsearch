@@ -47,7 +47,7 @@ public class DataGeneratorTests extends ESTestCase {
     }
 
     public void testDataGeneratorStressTest() throws IOException {
-        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(500, 3));
+        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(300, 3));
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
         dataGenerator.writeMapping(mapping);

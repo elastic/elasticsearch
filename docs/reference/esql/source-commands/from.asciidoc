@@ -2,6 +2,9 @@
 [[esql-from]]
 === `FROM`
 
+The `FROM` source command returns a table with data from a data stream, index,
+or alias.
+
 **Syntax**
 
 [source,esql]
@@ -58,23 +61,21 @@ today's index:
 FROM <logs-{now/d}>
 ----
 
-Use comma-separated lists or wildcards to query multiple data streams, indices,
-or aliases:
+Use comma-separated lists or wildcards to <<esql-multi-index, query multiple data streams, indices,
+or aliases>>:
 
 [source,esql]
 ----
 FROM employees-00001,other-employees-*
 ----
 
-Use the format `<remote_cluster_name>:<target>` to query data streams and indices
-on remote clusters:
+Use the format `<remote_cluster_name>:<target>` to <<esql-cross-clusters, query data streams and indices
+on remote clusters>>:
 
 [source,esql]
 ----
 FROM cluster_one:employees-00001,cluster_two:other-employees-*
 ----
-
-See <<esql-cross-clusters, using {esql} across clusters>>.
 
 Use the optional `METADATA` directive to enable <<esql-metadata-fields,metadata fields>>:
 

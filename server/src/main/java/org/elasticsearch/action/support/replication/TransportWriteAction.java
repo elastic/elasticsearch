@@ -76,9 +76,9 @@ public abstract class TransportWriteAction<
         Writeable.Reader<Request> request,
         Writeable.Reader<ReplicaRequest> replicaRequest,
         BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
+        PrimaryActionExecution primaryActionExecution,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        PrimaryActionExecution primaryActionExecution,
         ReplicaActionExecution replicaActionExecution
     ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the

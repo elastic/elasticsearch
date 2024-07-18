@@ -70,7 +70,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             ShardRefreshReplicaRequest::new,
             threadPool.executor(ThreadPool.Names.REFRESH),
             SyncGlobalCheckpointAfterOperation.DoNotSync,
-            PrimaryActionExecution.Normal,
+            PrimaryActionExecution.RejectOnOverload,
             ReplicaActionExecution.Normal
         );
         // registers the unpromotable version of shard refresh action

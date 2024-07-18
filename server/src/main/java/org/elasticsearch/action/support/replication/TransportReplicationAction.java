@@ -96,7 +96,7 @@ public abstract class TransportReplicationAction<
         /**
          * Is subject to usual queue length and indexing pressure checks
          */
-        Normal,
+        RejectOnOverload,
         /**
          * Will be "forced" (bypassing queue length and indexing pressure checks)
          */
@@ -128,7 +128,7 @@ public abstract class TransportReplicationAction<
         /**
          * Will bypass queue length, indexing pressure and circuit breaker checks
          */
-        BypassCircuitBreaker;
+        BypassCircuitBreaker
     }
 
     /**
@@ -205,7 +205,7 @@ public abstract class TransportReplicationAction<
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
         this.forceExecutionOnPrimary = switch (primaryActionExecution) {
             case Force -> true;
-            case Normal -> false;
+            case RejectOnOverload -> false;
         };
 
         transportService.registerRequestHandler(

@@ -2,8 +2,8 @@
 [[esql-inlinestats-by]]
 === `INLINESTATS ... BY`
 
-The `INLINESTATS` command calculates an aggregate result and merges that result
-back into the stream of input data.
+The `INLINESTATS` command calculates an aggregate result and adds new columns
+with the result to the stream of input data.
 
 **Syntax**
 
@@ -31,8 +31,8 @@ NOTE: Individual `null` values are skipped when computing aggregations.
 
 The `INLINESTATS` command calculates an aggregate result and merges that result
 back into the stream of input data. Without the optional `BY` clause this will
-produce a single result which is merged into the input. With a `BY` clause this
-will produce one result per grouping merge the result into the stream based on
+produce a single result which is appended to each row. With a `BY` clause this
+will produce one result per grouping and merge the result into the stream based on
 matching group keys.
 
 All of the <<esql-agg-functions,aggregation functions>> are supported.

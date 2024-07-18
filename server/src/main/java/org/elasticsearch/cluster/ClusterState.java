@@ -511,10 +511,19 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             }
         }
         if (metadata.customs().isEmpty() == false) {
-            sb.append("metadata customs:\n");
-            for (final Map.Entry<String, Metadata.Custom> cursor : metadata.customs().entrySet()) {
+            sb.append("metadata customs (cluster):\n");
+            for (final Map.Entry<String, Metadata.ClusterCustom> cursor : metadata.customs().entrySet()) {
                 final String type = cursor.getKey();
-                final Metadata.Custom custom = cursor.getValue();
+                final Metadata.ClusterCustom custom = cursor.getValue();
+                sb.append(TAB).append(type).append(": ").append(custom);
+            }
+            sb.append("\n");
+        }
+        if (metadata.projectMetadata.customs().isEmpty() == false) {
+            sb.append("metadata customs (project):\n");
+            for (final Map.Entry<String, Metadata.ProjectCustom> cursor : metadata.projectMetadata.customs().entrySet()) {
+                final String type = cursor.getKey();
+                final Metadata.ProjectCustom custom = cursor.getValue();
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
             sb.append("\n");

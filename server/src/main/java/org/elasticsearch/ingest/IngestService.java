@@ -136,7 +136,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      */
     static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = batchExecutionContext -> {
         final var allIndexMetadata = batchExecutionContext.initialState().metadata().getProject().indices().values();
-        final IngestMetadata initialIngestMetadata = batchExecutionContext.initialState().metadata().custom(IngestMetadata.TYPE);
+        final IngestMetadata initialIngestMetadata = batchExecutionContext.initialState().metadata().projectMetadata.custom(
+            IngestMetadata.TYPE
+        );
         var currentIngestMetadata = initialIngestMetadata;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             try {
@@ -398,7 +400,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     // Returning PipelineConfiguration instead of Pipeline, because Pipeline and Processor interface don't
     // know how to serialize themselves.
     public static List<PipelineConfiguration> getPipelines(ClusterState clusterState, String... ids) {
-        IngestMetadata ingestMetadata = clusterState.getMetadata().custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = clusterState.getMetadata().getProject().custom(IngestMetadata.TYPE);
         return innerGetPipelines(ingestMetadata, ids);
     }
 
@@ -466,7 +468,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     public static boolean isNoOpPipelineUpdate(ClusterState state, PutPipelineRequest request) {
-        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        IngestMetadata currentIngestMetadata = state.metadata().projectMetadata.custom(IngestMetadata.TYPE);
         if (request.getVersion() == null
             && currentIngestMetadata != null
             && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
@@ -1166,7 +1168,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // when only the part of the cluster state that a component is interested in, is updated.)
         ingestClusterStateListeners.forEach(consumer -> consumer.accept(state));
 
-        IngestMetadata newIngestMetadata = state.getMetadata().custom(IngestMetadata.TYPE);
+        IngestMetadata newIngestMetadata = state.getMetadata().projectMetadata.custom(IngestMetadata.TYPE);
         if (newIngestMetadata == null) {
             return;
         }

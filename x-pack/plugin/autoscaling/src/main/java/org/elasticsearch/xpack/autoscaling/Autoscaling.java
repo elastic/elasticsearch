@@ -152,7 +152,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.ClusterCustom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, AutoscalingMetadata.NAME, AutoscalingMetadata.AutoscalingMetadataDiff::new),
             new NamedWriteableRegistry.Entry(
                 AutoscalingDeciderResult.Reason.class,
@@ -190,7 +190,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse)
+            new NamedXContentRegistry.Entry(
+                Metadata.ClusterCustom.class,
+                new ParseField(AutoscalingMetadata.NAME),
+                AutoscalingMetadata::parse
+            )
         );
     }
 

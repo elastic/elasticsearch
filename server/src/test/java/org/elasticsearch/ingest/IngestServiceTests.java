@@ -2802,7 +2802,8 @@ public class IngestServiceTests extends ESTestCase {
         var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
         var updatedState = executePut(request, clusterState);
 
-        var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
+        var updatedConfig = ((IngestMetadata) updatedState.metadata().projectMetadata.custom(IngestMetadata.TYPE)).getPipelines()
+            .get(pipelineId);
         assertThat(updatedConfig, notNullValue());
         assertThat(updatedConfig.getVersion(), equalTo(specifiedVersion));
     }
@@ -2820,7 +2821,8 @@ public class IngestServiceTests extends ESTestCase {
         var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
         var updatedState = executePut(request, clusterState);
 
-        var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
+        var updatedConfig = ((IngestMetadata) updatedState.metadata().projectMetadata.custom(IngestMetadata.TYPE)).getPipelines()
+            .get(pipelineId);
         assertThat(updatedConfig, notNullValue());
         assertThat(updatedConfig.getVersion(), equalTo(existingVersion + 1));
     }

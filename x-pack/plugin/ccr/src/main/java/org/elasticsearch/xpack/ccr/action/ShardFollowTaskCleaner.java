@@ -62,10 +62,10 @@ public final class ShardFollowTaskCleaner implements ClusterStateListener {
             return;
         }
         final Metadata metadata = event.state().metadata();
-        final PersistentTasksCustomMetadata persistentTasksMetadata = metadata.custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetadata persistentTasksMetadata = metadata.projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
         final Metadata previousMetadata = event.previousState().metadata();
         if (metadata.projectMetadata.indices() == event.previousState().getMetadata().projectMetadata.indices()
-            && persistentTasksMetadata == previousMetadata.custom(PersistentTasksCustomMetadata.TYPE)
+            && persistentTasksMetadata == previousMetadata.projectMetadata.custom(PersistentTasksCustomMetadata.TYPE)
             && event.previousState().nodes().isLocalNodeElectedMaster()
             && event.blocksChanged() == false) {
             // nothing of relevance changed

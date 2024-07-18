@@ -605,9 +605,9 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         submitUnbatchedTask(clusterService, "clear migration results", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                if (currentState.metadata().custom(FeatureMigrationResults.TYPE) != null) {
+                if (currentState.metadata().projectMetadata.custom(FeatureMigrationResults.TYPE) != null) {
                     return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.metadata()).removeCustom(FeatureMigrationResults.TYPE))
+                        .metadata(Metadata.builder(currentState.metadata()).removeProjectCustom(FeatureMigrationResults.TYPE))
                         .build();
                 }
                 return currentState;

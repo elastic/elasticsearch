@@ -214,11 +214,11 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, EnrichMetadata.TYPE, EnrichMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, EnrichMetadata.TYPE, EnrichMetadata::new),
             new NamedWriteableRegistry.Entry(
                 NamedDiff.class,
                 EnrichMetadata.TYPE,
-                in -> EnrichMetadata.readDiffFrom(Metadata.Custom.class, EnrichMetadata.TYPE, in)
+                in -> EnrichMetadata.readDiffFrom(Metadata.ProjectCustom.class, EnrichMetadata.TYPE, in)
             )
         );
     }
@@ -226,7 +226,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(EnrichMetadata.TYPE), EnrichMetadata::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(EnrichMetadata.TYPE), EnrichMetadata::fromXContent)
         );
     }
 

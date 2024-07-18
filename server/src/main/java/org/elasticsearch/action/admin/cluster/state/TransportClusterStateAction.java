@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -42,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
@@ -224,11 +224,10 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
 
             // filter out metadata that shouldn't be returned by the API
-            for (Map.Entry<String, Custom> custom : currentState.metadata().customs().entrySet()) {
-                if (custom.getValue().context().contains(Metadata.XContentContext.API) == false) {
-                    mdBuilder.removeCustom(custom.getKey());
-                }
-            }
+            final BiPredicate<String, Metadata.MetadataCustom<?>> notApi = (ignore, custom) -> custom.context()
+                .contains(Metadata.XContentContext.API) == false;
+            mdBuilder.removeCustomIf(notApi);
+            mdBuilder.removeProjectCustomIf(notApi);
         }
         builder.metadata(mdBuilder);
 

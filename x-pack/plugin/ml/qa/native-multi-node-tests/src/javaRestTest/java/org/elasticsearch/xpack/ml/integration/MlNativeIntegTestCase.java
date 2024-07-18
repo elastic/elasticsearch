@@ -339,7 +339,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
             entries.add(
                 new NamedWriteableRegistry.Entry(
-                    Metadata.Custom.class,
+                    Metadata.ProjectCustom.class,
                     TrainedModelAssignmentMetadata.NAME,
                     TrainedModelAssignmentMetadata::fromStream
                 )
@@ -351,16 +351,22 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                     TrainedModelAssignmentMetadata::readDiffFrom
                 )
             );
-            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
             entries.add(
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::new)
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    TrainedModelCacheMetadata.NAME,
+                    TrainedModelCacheMetadata::new
+                )
             );
             entries.add(
                 new NamedWriteableRegistry.Entry(NamedDiff.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::readDiffFrom)
             );
-            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));
-            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, "ml", MlMetadata::new));
+            entries.add(
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new)
+            );
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     LifecycleType.class,
@@ -397,7 +403,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 )
             );
             entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new));
-            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(Metadata.ClusterCustom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new));
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     NamedDiff.class,

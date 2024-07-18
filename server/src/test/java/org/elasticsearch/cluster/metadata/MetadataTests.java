@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -40,6 +43,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.FieldPredicate;
@@ -48,9 +52,11 @@ import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -655,6 +661,97 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
+    public void testParseXContentFormatBeforeMultiProject() throws IOException {
+        final String json = org.elasticsearch.core.Strings.format("""
+            {
+              "meta-data": {
+                "version": 54321,
+                "cluster_uuid":"aba1aa1ababbbaabaabaab",
+                "cluster_uuid_committed":false,
+                "cluster_coordination":{
+                  "term":1,
+                  "last_committed_config":[],
+                  "last_accepted_config":[],
+                  "voting_config_exclusions":[]
+                },
+                "templates":{
+                  "template":{
+                    "order":0,
+                    "index_patterns":["index-*"],
+                    "settings":{
+                      "something":true
+                    },
+                    "mappings":{ },
+                    "aliases":{ }
+                  }
+                },
+                "persistent_tasks": {
+                  "last_allocation_id": 1,
+                  "tasks": [
+                    {
+                      "id": "health-node",
+                      "task":{ "health-node": {"params":{}} }
+                    }
+                  ]
+                },
+                "index-graveyard":{
+                  "tombstones":[{
+                    "index":{
+                      "index_name":"old-index",
+                      "index_uuid":"index_index_index_1234"
+                    },
+                    "delete_date_in_millis":1717170000000
+                  }]
+                },
+                "desired_nodes":{
+                  "latest": {
+                    "history_id": "test",
+                    "version": 1,
+                    "nodes": [{
+                      "settings":{ "node":{"name":"node-dn1"} },
+                      "processors": 3.5,
+                      "memory": "32gb",
+                      "storage": "256gb",
+                      "status": 0
+                    }]
+                  }
+                },
+                "component_template":{
+                  "component_template":{
+                    "sample-template":{
+                      "template":{
+                        "mappings":"REZMAKtWKijKL0gtKslMLVayqlaKCndxiwAxSioLUpWslLJTK8vzi1KUamtrAQ=="
+                      },
+                      "_meta":{
+                        "awesome":true
+                      },
+                      "deprecated":false
+                    }
+                  }
+                },
+                "reserved_state":{ }
+              }
+            }
+            """, IndexVersion.current(), IndexVersion.current());
+
+        List<NamedXContentRegistry.Entry> registry = new ArrayList<>();
+        registry.addAll(ClusterModule.getNamedXWriteables());
+        registry.addAll(IndicesModule.getNamedXContents());
+        registry.addAll(HealthNodeTaskExecutor.getNamedXContentParsers());
+
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(registry));
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(config, json)) {
+            final var metatdata = Metadata.fromXContent(parser);
+            assertThat(metatdata, notNullValue());
+            assertThat(metatdata.clusterUUID(), is("aba1aa1ababbbaabaabaab"));
+            assertThat(metatdata.customs().keySet(), containsInAnyOrder("desired_nodes"));
+            assertThat(
+                metatdata.projectMetadata.customs().keySet(),
+                containsInAnyOrder("persistent_tasks", "index-graveyard", "component_template")
+            );
+        }
+    }
+
     public void testGlobalStateEqualsCoordinationMetadata() {
         CoordinationMetadata coordinationMetadata1 = new CoordinationMetadata(
             randomNonNegativeLong(),
@@ -1055,15 +1152,26 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsNullCustom() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        assertThat(expectThrows(NullPointerException.class, () -> builder.putCustom(key, null)).getMessage(), containsString(key));
+        assertThat(
+            expectThrows(NullPointerException.class, () -> builder.putCustom(key, (Metadata.ClusterCustom) null)).getMessage(),
+            containsString(key)
+        );
+        assertThat(expectThrows(NullPointerException.class, () -> builder.putProjectCustom(key, null)).getMessage(), containsString(key));
     }
 
     public void testBuilderRejectsNullInCustoms() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        final Map<String, Metadata.Custom> map = new HashMap<>();
-        map.put(key, null);
-        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+        {
+            final Map<String, Metadata.ClusterCustom> map = new HashMap<>();
+            map.put(key, null);
+            assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+        }
+        {
+            final Map<String, Metadata.ProjectCustom> map = new HashMap<>();
+            map.put(key, null);
+            assertThat(expectThrows(NullPointerException.class, () -> builder.projectCustoms(map)).getMessage(), containsString(key));
+        }
     }
 
     public void testCopyAndUpdate() throws IOException {
@@ -1076,9 +1184,9 @@ public class MetadataTests extends ESTestCase {
         assertThat(copy.clusterUUID(), equalTo(newClusterUuid));
     }
 
-    public void testBuilderRemoveCustomIf() {
-        var custom1 = new TestCustomMetadata();
-        var custom2 = new TestCustomMetadata();
+    public void testBuilderRemoveClusterCustomIf() {
+        var custom1 = new TestClusterCustomMetadata();
+        var custom2 = new TestClusterCustomMetadata();
         var builder = Metadata.builder();
         builder.putCustom("custom1", custom1);
         builder.putCustom("custom2", custom2);
@@ -1088,6 +1196,20 @@ public class MetadataTests extends ESTestCase {
         var metadata = builder.build();
         assertThat(metadata.custom("custom1"), nullValue());
         assertThat(metadata.custom("custom2"), sameInstance(custom2));
+    }
+
+    public void testBuilderRemoveProjectCustomIf() {
+        var custom1 = new TestProjectCustomMetadata();
+        var custom2 = new TestProjectCustomMetadata();
+        var builder = Metadata.builder();
+        builder.putCustom("custom1", custom1);
+        builder.putCustom("custom2", custom2);
+
+        builder.removeProjectCustomIf((key, value) -> Objects.equals(key, "custom1"));
+
+        var metadata = builder.build();
+        assertThat(metadata.projectMetadata.custom("custom1"), nullValue());
+        assertThat(metadata.projectMetadata.custom("custom2"), sameInstance(custom2));
     }
 
     public void testBuilderRejectsDataStreamThatConflictsWithIndex() {
@@ -1342,10 +1464,43 @@ public class MetadataTests extends ESTestCase {
         assertTrue(Metadata.isGlobalStateEquals(orig, fromStreamMeta));
     }
 
+    public void testMetadataSerializationPreMultiProject() throws IOException {
+        final Metadata orig = randomMetadata();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersions.K_FOR_KNN_QUERY_ADDED);
+        orig.writeTo(out);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        final StreamInput input = out.bytes().streamInput();
+        input.setTransportVersion(TransportVersions.K_FOR_KNN_QUERY_ADDED);
+        final Metadata fromStreamMeta = Metadata.readFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
+        assertTrue(Metadata.isGlobalStateEquals(orig, fromStreamMeta));
+    }
+
+    public void testDiffSerializationPreMultiProject() throws IOException {
+        final Metadata meta1 = randomMetadata(1);
+        final Metadata meta2 = randomMetadata(2);
+        final Diff<Metadata> diff = meta2.diff(meta1);
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersions.K_FOR_KNN_QUERY_ADDED);
+        diff.writeTo(out);
+
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        final StreamInput input = out.bytes().streamInput();
+        input.setTransportVersion(TransportVersions.K_FOR_KNN_QUERY_ADDED);
+        final Diff<Metadata> read = Metadata.readDiffFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
+
+        final Metadata applied = read.apply(meta1);
+        assertTrue(Metadata.isGlobalStateEquals(meta2, applied));
+    }
+
     public void testValidateDataStreamsNoConflicts() {
         Metadata metadata = createIndices(5, 10, "foo-datastream").metadata;
         // don't expect any exception when validating a system without indices that would conflict with future backing indices
-        assertDataStreams(metadata.projectMetadata.indices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(
+            metadata.projectMetadata.indices(),
+            (DataStreamMetadata) metadata.projectMetadata.customs().get(DataStreamMetadata.TYPE)
+        );
     }
 
     public void testValidateDataStreamsIgnoresIndicesWithoutCounter() {
@@ -1371,7 +1526,10 @@ public class MetadataTests extends ESTestCase {
             .build();
         // don't expect any exception when validating against non-backing indices that don't conform to the backing indices naming
         // convention
-        assertDataStreams(metadata.projectMetadata.indices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(
+            metadata.projectMetadata.indices(),
+            (DataStreamMetadata) metadata.projectMetadata.customs().get(DataStreamMetadata.TYPE)
+        );
     }
 
     public void testValidateDataStreamsAllowsNamesThatStartsWithPrefix() {
@@ -1385,7 +1543,10 @@ public class MetadataTests extends ESTestCase {
             .build();
         // don't expect any exception when validating against (potentially backing) indices that can't create conflict because of
         // additional text before number
-        assertDataStreams(metadata.projectMetadata.indices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(
+            metadata.projectMetadata.indices(),
+            (DataStreamMetadata) metadata.projectMetadata.customs().get(DataStreamMetadata.TYPE)
+        );
     }
 
     public void testValidateDataStreamsForNullDataStreamMetadata() {
@@ -2272,29 +2433,40 @@ public class MetadataTests extends ESTestCase {
         // 1 chunk for each index + 2 to wrap the indices field
         chunkCount += 2 + metadata.projectMetadata.indices().size();
 
-        for (Metadata.Custom custom : metadata.customs().values()) {
+        for (Metadata.ClusterCustom custom : metadata.customs().values()) {
             chunkCount += 2;
-
+            if (custom instanceof DesiredNodesMetadata) {
+                chunkCount += 1;
+            } else if (custom instanceof NodesShutdownMetadata nodesShutdownMetadata) {
+                chunkCount += 2 + nodesShutdownMetadata.getAll().size();
+            } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
+                chunkCount += repositoriesMetadata.repositories().size();
+            } else {
+                // could be anything, we have to just try it
+                chunkCount += Iterables.size(
+                    (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
+                );
+            }
+        }
+        if (context != Metadata.XContentContext.API) {
+            chunkCount += 2; // start/end "project":{}
+        }
+        for (Metadata.ProjectCustom custom : metadata.projectMetadata.customs().values()) {
+            chunkCount += 2;
             if (custom instanceof ComponentTemplateMetadata componentTemplateMetadata) {
                 chunkCount += 2 + componentTemplateMetadata.componentTemplates().size();
             } else if (custom instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
                 chunkCount += 2 + composableIndexTemplateMetadata.indexTemplates().size();
             } else if (custom instanceof DataStreamMetadata dataStreamMetadata) {
                 chunkCount += 4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size();
-            } else if (custom instanceof DesiredNodesMetadata) {
-                chunkCount += 1;
             } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
                 chunkCount += 2 + featureMigrationResults.getFeatureStatuses().size();
             } else if (custom instanceof IndexGraveyard indexGraveyard) {
                 chunkCount += 2 + indexGraveyard.getTombstones().size();
             } else if (custom instanceof IngestMetadata ingestMetadata) {
                 chunkCount += 2 + ingestMetadata.getPipelines().size();
-            } else if (custom instanceof NodesShutdownMetadata nodesShutdownMetadata) {
-                chunkCount += 2 + nodesShutdownMetadata.getAll().size();
             } else if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
                 chunkCount += 3 + persistentTasksCustomMetadata.tasks().size();
-            } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
-                chunkCount += repositoriesMetadata.repositories().size();
             } else {
                 // could be anything, we have to just try it
                 chunkCount += Iterables.size(
@@ -2471,7 +2643,7 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
-    private static class TestCustomMetadata implements Metadata.Custom {
+    private abstract static class AbstractCustomMetadata<C extends Metadata.MetadataCustom<C>> implements Metadata.MetadataCustom<C> {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
@@ -2479,7 +2651,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         @Override
-        public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+        public Diff<C> diff(C previousState) {
             return null;
         }
 
@@ -2503,4 +2675,12 @@ public class MetadataTests extends ESTestCase {
 
         }
     }
+
+    private static class TestClusterCustomMetadata extends AbstractCustomMetadata<Metadata.ClusterCustom>
+        implements
+            Metadata.ClusterCustom {}
+
+    private static class TestProjectCustomMetadata extends AbstractCustomMetadata<Metadata.ProjectCustom>
+        implements
+            Metadata.ProjectCustom {}
 }

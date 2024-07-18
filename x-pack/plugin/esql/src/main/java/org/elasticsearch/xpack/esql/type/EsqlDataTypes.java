@@ -13,7 +13,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
@@ -82,13 +81,4 @@ public final class EsqlDataTypes {
             && t.isCounter() == false;
     }
 
-    public static boolean areCompatible(DataType left, DataType right) {
-        if (left == right) {
-            return true;
-        } else {
-            return (left == NULL || right == NULL)
-                || (DataType.isString(left) && DataType.isString(right))
-                || (left.isNumeric() && right.isNumeric());
-        }
-    }
 }

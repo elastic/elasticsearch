@@ -233,6 +233,16 @@ public enum DataType {
         return type == DATETIME;
     }
 
+    public static boolean areCompatible(DataType left, DataType right) {
+        if (left == right) {
+            return true;
+        } else {
+            return (left == NULL || right == NULL)
+                || (isString(left) && isString(right))
+                || (left.isNumeric() && right.isNumeric());
+        }
+    }
+
     public String nameUpper() {
         return name;
     }

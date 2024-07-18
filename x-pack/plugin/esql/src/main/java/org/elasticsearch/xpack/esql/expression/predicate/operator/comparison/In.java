@@ -137,7 +137,7 @@ public class In extends EsqlScalarFunction {
         if (EsqlDataTypes.isSpatial(left) && EsqlDataTypes.isSpatial(right)) {
             return left == right;
         }
-        return EsqlDataTypes.areCompatible(left, right);
+        return DataType.areCompatible(left, right);
     }
 
     @Override

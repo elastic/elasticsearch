@@ -30,7 +30,7 @@ public class RestNodesStatsActionIT extends ESIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
     }
 
-    public void testDoesNotSendUnnecessaryElectedMasterNodeStatsRequest() {
+    public void testSendOnlyNecessaryElectedMasterNodeStatsRequest() {
         var node = internalCluster().startDataOnlyNode();
 
         var getAllocationStatsActions = new AtomicInteger(0);

@@ -118,7 +118,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
 
         int mlockall(int flags);
 
-        int fcntl(int fd, int cmd, Pointer fst);
+        int fcntl(int fd, int cmd, Object... args);
 
         int ftruncate(int fd, NativeLong length);
 

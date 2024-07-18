@@ -65,11 +65,11 @@ public final class Utils {
         var clusterService = mock(ClusterService.class);
 
         var registeredSettings = Stream.of(
-            HttpSettings.getSettings(),
-            HttpClientManager.getSettings(),
-            ThrottlerManager.getSettings(),
+            HttpSettings.getSettingsDefinitions(),
+            HttpClientManager.getSettingsDefinitions(),
+            ThrottlerManager.getSettingsDefinitions(),
             RetrySettings.getSettingsDefinitions(),
-            Truncator.getSettings(),
+            Truncator.getSettingsDefinitions(),
             RequestExecutorServiceSettings.getSettingsDefinitions()
         ).flatMap(Collection::stream).collect(Collectors.toSet());
 

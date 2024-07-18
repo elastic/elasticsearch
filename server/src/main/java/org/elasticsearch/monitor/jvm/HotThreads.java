@@ -121,13 +121,10 @@ public class HotThreads {
         }
 
         try (var writer = new StringWriter()) {
-            new HotThreads().busiestThreads(500)
-                .threadElementsSnapshotCount(1)
-                .ignoreIdleThreads(false)
-                .detect(writer, () -> {
-                    logger.log(level, "{}: {}", prefix, writer.toString(), referenceDocs);
-                    writer.getBuffer().setLength(0);
-                });
+            new HotThreads().busiestThreads(500).threadElementsSnapshotCount(1).ignoreIdleThreads(false).detect(writer, () -> {
+                logger.log(level, "{}: {}", prefix, writer.toString(), referenceDocs);
+                writer.getBuffer().setLength(0);
+            });
         } catch (Exception e) {
             logger.error(
                 () -> org.elasticsearch.common.Strings.format("failed to write local current threads with prefix [%s]", prefix),

@@ -8,14 +8,18 @@
 
 package org.elasticsearch.plugins.internal;
 
+/**
+ * Returns the state gathered during parsing
+ */
 public interface NormalisedBytesToReport {
 
     /**
-     * Returns the state gathered during parsing
-     *
-     * @return a number representing a state parsed
+     * The value of to be reported for RA-I metric
      */
     long raiNormalisedBytes();
 
+    /**
+     * The value of to be reported for RA-S metric
+     */
     long rasNormalisedBytes();
 }

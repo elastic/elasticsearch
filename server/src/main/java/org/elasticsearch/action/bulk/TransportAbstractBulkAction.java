@@ -108,7 +108,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         final long indexingBytes = bulkRequest.ramBytesUsed();
         final boolean isOnlySystem = TransportBulkAction.isOnlySystem(
             bulkRequest,
-            clusterService.state().metadata().getIndicesLookup(),
+            clusterService.state().metadata().getProject().getIndicesLookup(),
             systemIndices
         );
         final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);

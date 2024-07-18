@@ -1257,12 +1257,12 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(affectedIndices, is(Set.of(firstGenIndex)));
         assertBusy(() -> {
             ClusterState newState = clusterService.state();
-            IndexAbstraction downsample = newState.metadata().getIndicesLookup().get(downsampleIndexName);
+            IndexAbstraction downsample = newState.metadata().projectMetadata.getIndicesLookup().get(downsampleIndexName);
             // the downsample index must be part of the data stream
             assertThat(downsample.getParentDataStream(), is(notNullValue()));
             assertThat(downsample.getParentDataStream().getName(), is(dataStreamName));
             // the source index was deleted
-            IndexAbstraction sourceIndexAbstraction = newState.metadata().getIndicesLookup().get(firstGenIndexName);
+            IndexAbstraction sourceIndexAbstraction = newState.metadata().projectMetadata.getIndicesLookup().get(firstGenIndexName);
             assertThat(sourceIndexAbstraction, is(nullValue()));
 
             // no further requests should be triggered

@@ -191,7 +191,7 @@ public class IndexNameExpressionResolver {
         );
         final Collection<String> expressions = resolveExpressions(context, indexExpressions);
         return expressions.stream()
-            .map(x -> state.metadata().getIndicesLookup().get(x))
+            .map(x -> state.metadata().projectMetadata.getIndicesLookup().get(x))
             .filter(Objects::nonNull)
             .filter(ia -> ia.getType() == Type.DATA_STREAM)
             .map(IndexAbstraction::getName)
@@ -222,7 +222,7 @@ public class IndexNameExpressionResolver {
         final Collection<String> expressions = resolveExpressions(context, request.index());
 
         if (expressions.size() == 1) {
-            IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.iterator().next());
+            IndexAbstraction ia = state.metadata().projectMetadata.getIndicesLookup().get(expressions.iterator().next());
             if (ia.getType() == Type.ALIAS) {
                 Index writeIndex = ia.getWriteIndex();
                 if (writeIndex == null) {
@@ -340,7 +340,7 @@ public class IndexNameExpressionResolver {
         final Collection<String> expressions = resolveExpressions(context, indexExpressions);
 
         final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
-        final Map<String, IndexAbstraction> indicesLookup = context.getState().metadata().getIndicesLookup();
+        final Map<String, IndexAbstraction> indicesLookup = context.getState().metadata().projectMetadata.getIndicesLookup();
         for (String expression : expressions) {
             final IndexAbstraction indexAbstraction = indicesLookup.get(expression);
             assert indexAbstraction != null;
@@ -489,7 +489,7 @@ public class IndexNameExpressionResolver {
         final List<String> resolvedSystemIndices = new ArrayList<>();
         final List<String> resolvedNetNewSystemIndices = new ArrayList<>();
         final Set<String> resolvedSystemDataStreams = new HashSet<>();
-        final SortedMap<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
+        final SortedMap<String, IndexAbstraction> indicesLookup = metadata.projectMetadata.getIndicesLookup();
         boolean matchedIndex = false;
         for (Index concreteIndex : concreteIndices) {
             IndexMetadata idxMetadata = metadata.projectMetadata.index(concreteIndex);
@@ -568,7 +568,7 @@ public class IndexNameExpressionResolver {
             return false;
         }
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            IndexAbstraction indexAbstraction = context.getState().metadata().getIndicesLookup().get(index.getName());
+            IndexAbstraction indexAbstraction = context.getState().metadata().projectMetadata.getIndicesLookup().get(index.getName());
             if (context.options.allowFailureIndices() == false) {
                 DataStream parentDataStream = indexAbstraction.getParentDataStream();
                 if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
@@ -819,7 +819,7 @@ public class IndexNameExpressionResolver {
             return null;
         }
 
-        IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
+        IndexAbstraction ia = state.metadata().projectMetadata.getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
             if (skipIdentity == false && resolvedExpressions.contains(dataStream.getName())) {
@@ -926,7 +926,7 @@ public class IndexNameExpressionResolver {
         }
 
         for (String expression : resolvedExpressions) {
-            IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(expression);
+            IndexAbstraction indexAbstraction = state.metadata().projectMetadata.getIndicesLookup().get(expression);
             if (indexAbstraction != null && indexAbstraction.getType() == Type.ALIAS) {
                 for (Index index : indexAbstraction.getIndices()) {
                     String concreteIndex = index.getName();
@@ -1259,9 +1259,7 @@ public class IndexNameExpressionResolver {
                 return concreteIndices;
             }
 
-            Stream<IndexAbstraction> ias = context.getState()
-                .metadata()
-                .getIndicesLookup()
+            Stream<IndexAbstraction> ias = context.getState().metadata().projectMetadata.getIndicesLookup()
                 .values()
                 .stream()
                 .filter(ia -> context.getOptions().expandWildcardsHidden() || ia.isHidden() == false)
@@ -1356,7 +1354,7 @@ public class IndexNameExpressionResolver {
          */
         private static Stream<IndexAbstraction> matchResourcesToWildcard(Context context, String wildcardExpression) {
             assert isWildcard(wildcardExpression);
-            final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
+            final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().projectMetadata.getIndicesLookup();
             Stream<IndexAbstraction> matchesStream;
             if (Regex.isSuffixMatchPattern(wildcardExpression)) {
                 // this is an initial pre-filtering in the case where the expression is a common suffix wildcard, eg "test*"
@@ -1454,7 +1452,7 @@ public class IndexNameExpressionResolver {
         private static List<String> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(Context context, String[] allIndices) {
             return Arrays.stream(allIndices).filter(name -> {
                 if (name.startsWith(".")) {
-                    IndexAbstraction abstraction = context.state.metadata().getIndicesLookup().get(name);
+                    IndexAbstraction abstraction = context.state.metadata().projectMetadata.getIndicesLookup().get(name);
                     assert abstraction != null : "null abstraction for " + name + " but was in array of all indices";
                     if (abstraction.isSystem()) {
                         if (context.netNewSystemIndexPredicate.test(name)) {
@@ -1710,7 +1708,7 @@ public class IndexNameExpressionResolver {
         @Nullable
         private static boolean ensureAliasOrIndexExists(Context context, String name) {
             boolean ignoreUnavailable = context.getOptions().ignoreUnavailable();
-            IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(name);
+            IndexAbstraction indexAbstraction = context.getState().getMetadata().projectMetadata.getIndicesLookup().get(name);
             if (indexAbstraction == null) {
                 if (ignoreUnavailable) {
                     return false;

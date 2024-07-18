@@ -17,6 +17,9 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ProjectMetadata implements Iterable<IndexMetadata> {
@@ -73,6 +76,33 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         this.indicesLookup = indicesLookup;
         this.mappingsByHash = mappingsByHash;
         this.oldestIndexVersion = oldestIndexVersion;
+        assert assertConsistent();
+    }
+
+    private boolean assertConsistent() {
+        final var lookup = indicesLookup;
+        final var dsMetadata = custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
+        assert lookup == null || lookup.equals(Metadata.Builder.buildIndicesLookup(dsMetadata, indices));
+        try {
+            Metadata.Builder.ensureNoNameCollisions(aliasedIndices.keySet(), indices, dsMetadata);
+        } catch (Exception e) {
+            assert false : e;
+        }
+        assert Metadata.Builder.assertDataStreams(indices, dsMetadata);
+        assert Set.of(allIndices).equals(indices.keySet());
+        final Function<Predicate<IndexMetadata>, Set<String>> indicesByPredicate = predicate -> indices.entrySet()
+            .stream()
+            .filter(entry -> predicate.test(entry.getValue()))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toUnmodifiableSet());
+        assert Set.of(allOpenIndices).equals(indicesByPredicate.apply(idx -> idx.getState() == IndexMetadata.State.OPEN));
+        assert Set.of(allClosedIndices).equals(indicesByPredicate.apply(idx -> idx.getState() == IndexMetadata.State.CLOSE));
+        assert Set.of(visibleIndices).equals(indicesByPredicate.apply(idx -> idx.isHidden() == false));
+        assert Set.of(visibleOpenIndices)
+            .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.OPEN));
+        assert Set.of(visibleClosedIndices)
+            .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.CLOSE));
+        return true;
     }
 
     /**
@@ -132,12 +162,53 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         throw new IndexNotFoundException(index);
     }
 
+    public SortedMap<String, IndexAbstraction> getIndicesLookup() {
+        SortedMap<String, IndexAbstraction> lookup = indicesLookup;
+        if (lookup == null) {
+            lookup = buildIndicesLookup();
+        }
+        return lookup;
+    }
+
+    private synchronized SortedMap<String, IndexAbstraction> buildIndicesLookup() {
+        SortedMap<String, IndexAbstraction> i = indicesLookup;
+        if (i != null) {
+            return i;
+        }
+        i = Metadata.Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
+        indicesLookup = i;
+        return i;
+    }
+
+    public boolean sameIndicesLookup(ProjectMetadata other) {
+        return indicesLookup == other.indicesLookup;
+    }
+
     public Map<String, IndexMetadata> indices() {
         return indices;
     }
 
     public Map<String, IndexTemplateMetadata> templates() {
         return templates;
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends Metadata.Custom> T custom(String type) {
+        return (T) customs.get(type);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends Metadata.Custom> T custom(String type, T defaultValue) {
+        return (T) customs.getOrDefault(type, defaultValue);
+    }
+
+    /**
+     * Checks whether the provided index is a data stream.
+     */
+    public boolean indexIsADataStream(String indexName) {
+        final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
+        IndexAbstraction abstraction = lookup.get(indexName);
+        return abstraction != null && abstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
     }
 
     /**

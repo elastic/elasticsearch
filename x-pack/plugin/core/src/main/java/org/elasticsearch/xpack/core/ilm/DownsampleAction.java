@@ -260,7 +260,7 @@ public class DownsampleAction implements LifecycleAction {
             swapAliasesKey,
             replaceDataStreamIndexKey,
             (index, clusterState) -> {
-                IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+                IndexAbstraction indexAbstraction = clusterState.metadata().projectMetadata.getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             }

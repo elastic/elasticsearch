@@ -211,7 +211,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 indicesAndAliases
             );
             BooleanSupplier hasDataStreamRef = () -> {
-                IndexAbstraction ret = clusterState.getMetadata().getIndicesLookup().get(index);
+                IndexAbstraction ret = clusterState.getMetadata().projectMetadata.getIndicesLookup().get(index);
                 if (ret == null || ret.getParentDataStream() == null) {
                     return false;
                 }

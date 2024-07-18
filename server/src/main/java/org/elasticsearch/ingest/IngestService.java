@@ -135,7 +135,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Cluster state task executor for ingest pipeline operations
      */
     static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = batchExecutionContext -> {
-        final var allIndexMetadata = batchExecutionContext.initialState().metadata().projectMetadata.indices().values();
+        final var allIndexMetadata = batchExecutionContext.initialState().metadata().getProject().indices().values();
         final IngestMetadata initialIngestMetadata = batchExecutionContext.initialState().metadata().custom(IngestMetadata.TYPE);
         var currentIngestMetadata = initialIngestMetadata;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -1370,16 +1370,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
         // check the alias for the index request (this is how normal index requests are modeled)
         if (indexMetadata == null && indexRequest.index() != null) {
-            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexRequest.index());
+            IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(indexRequest.index());
             if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = metadata.projectMetadata.index(indexAbstraction.getWriteIndex());
+                indexMetadata = metadata.getProject().index(indexAbstraction.getWriteIndex());
             }
         }
         // check the alias for the action request (this is how upserts are modeled)
         if (indexMetadata == null && originalRequest != null && originalRequest.index() != null) {
-            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(originalRequest.index());
+            IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(originalRequest.index());
             if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = metadata.projectMetadata.index(indexAbstraction.getWriteIndex());
+                indexMetadata = metadata.getProject().index(indexAbstraction.getWriteIndex());
             }
         }
 

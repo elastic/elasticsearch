@@ -76,7 +76,7 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
     }
 
     private static String getRolloverTarget(Index index, ClusterState currentState) {
-        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(index.getName());
+        IndexAbstraction indexAbstraction = currentState.metadata().projectMetadata.getIndicesLookup().get(index.getName());
         final String rolloverTarget;
         if (indexAbstraction.getParentDataStream() != null) {
             rolloverTarget = indexAbstraction.getParentDataStream().getName();

@@ -249,34 +249,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         this.settings = settings;
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
         this.reservedStateMetadata = reservedStateMetadata;
-        assert assertConsistent();
-    }
-
-    private boolean assertConsistent() {
-        final var lookup = projectMetadata.indicesLookup;
-        final var dsMetadata = custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
-        assert lookup == null || lookup.equals(Metadata.Builder.buildIndicesLookup(dsMetadata, projectMetadata.indices));
-        try {
-            Metadata.Builder.ensureNoNameCollisions(projectMetadata.aliasedIndices.keySet(), projectMetadata.indices, dsMetadata);
-        } catch (Exception e) {
-            assert false : e;
-        }
-        assert Metadata.Builder.assertDataStreams(projectMetadata.indices, dsMetadata);
-        assert Set.of(projectMetadata.allIndices).equals(projectMetadata.indices.keySet());
-        final Function<Predicate<IndexMetadata>, Set<String>> indicesByPredicate = predicate -> projectMetadata.indices.entrySet()
-            .stream()
-            .filter(entry -> predicate.test(entry.getValue()))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableSet());
-        assert Set.of(projectMetadata.allOpenIndices).equals(indicesByPredicate.apply(idx -> idx.getState() == IndexMetadata.State.OPEN));
-        assert Set.of(projectMetadata.allClosedIndices)
-            .equals(indicesByPredicate.apply(idx -> idx.getState() == IndexMetadata.State.CLOSE));
-        assert Set.of(projectMetadata.visibleIndices).equals(indicesByPredicate.apply(idx -> idx.isHidden() == false));
-        assert Set.of(projectMetadata.visibleOpenIndices)
-            .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.OPEN));
-        assert Set.of(projectMetadata.visibleClosedIndices)
-            .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.CLOSE));
-        return true;
     }
 
     public Metadata withIncrementedVersion() {
@@ -687,28 +659,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return true;
     }
 
-    public SortedMap<String, IndexAbstraction> getIndicesLookup() {
-        SortedMap<String, IndexAbstraction> lookup = projectMetadata.indicesLookup;
-        if (lookup == null) {
-            lookup = buildIndicesLookup();
-        }
-        return lookup;
-    }
-
-    private synchronized SortedMap<String, IndexAbstraction> buildIndicesLookup() {
-        SortedMap<String, IndexAbstraction> i = projectMetadata.indicesLookup;
-        if (i != null) {
-            return i;
-        }
-        i = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), projectMetadata.indices);
-        projectMetadata.indicesLookup = i;
-        return i;
-    }
-
-    public boolean sameIndicesLookup(Metadata other) {
-        return projectMetadata.indicesLookup == other.projectMetadata.indicesLookup;
-    }
-
     /**
      * Finds the specific index aliases that point to the requested concrete indices directly
      * or that match with the indices via wildcards.
@@ -870,7 +820,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public Map<String, DataStream> findDataStreams(String... concreteIndices) {
         assert concreteIndices != null;
         final ImmutableOpenMap.Builder<String, DataStream> builder = ImmutableOpenMap.builder();
-        final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
+        final SortedMap<String, IndexAbstraction> lookup = projectMetadata.getIndicesLookup();
         for (String indexName : concreteIndices) {
             IndexAbstraction index = lookup.get(indexName);
             assert index != null;
@@ -880,15 +830,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
         }
         return builder.build();
-    }
-
-    /**
-     * Checks whether the provided index is a data stream.
-     */
-    public boolean indexIsADataStream(String indexName) {
-        final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
-        IndexAbstraction abstraction = lookup.get(indexName);
-        return abstraction != null && abstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
     }
 
     @SuppressWarnings("unchecked")
@@ -980,7 +921,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return routing;
         }
 
-        IndexAbstraction result = getIndicesLookup().get(aliasOrIndex);
+        IndexAbstraction result = projectMetadata.getIndicesLookup().get(aliasOrIndex);
         if (result == null || result.getType() != IndexAbstraction.Type.ALIAS) {
             return routing;
         }
@@ -1006,7 +947,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return routing;
         }
 
-        IndexAbstraction result = getIndicesLookup().get(aliasOrIndex);
+        IndexAbstraction result = projectMetadata.getIndicesLookup().get(aliasOrIndex);
         if (result == null || result.getType() != IndexAbstraction.Type.ALIAS) {
             return routing;
         }
@@ -1067,7 +1008,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * @return {@code true} if an index abstraction with that name exists, {@code false} otherwise.
      */
     public boolean hasIndexAbstraction(String index) {
-        return getIndicesLookup().containsKey(index);
+        return projectMetadata.getIndicesLookup().containsKey(index);
     }
 
     /**
@@ -1177,7 +1118,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return false;
         }
 
-        IndexAbstraction indexAbstraction = getIndicesLookup().get(indexMetadata.getIndex().getName());
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(indexMetadata.getIndex().getName());
         if (indexAbstraction == null) {
             // index doesn't exist anymore
             return false;
@@ -2241,7 +2182,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             );
         }
 
-        private static void ensureNoNameCollisions(
+        static void ensureNoNameCollisions(
             Set<String> indexAliases,
             ImmutableOpenMap<String, IndexMetadata> indicesMap,
             DataStreamMetadata dataStreamMetadata

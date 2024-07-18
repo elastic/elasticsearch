@@ -161,7 +161,7 @@ public class ElasticsearchMappings {
         ActionListener<Boolean> listener,
         int minVersion
     ) {
-        IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(alias);
+        IndexAbstraction indexAbstraction = state.metadata().projectMetadata.getIndicesLookup().get(alias);
         if (indexAbstraction == null) {
             // The index has never been created yet
             listener.onResponse(true);

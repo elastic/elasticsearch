@@ -776,7 +776,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> verify that filter was updated");
         Metadata metadata = internalCluster().clusterService().state().metadata();
-        IndexAbstraction ia = metadata.getIndicesLookup().get("alias1");
+        IndexAbstraction ia = metadata.projectMetadata.getIndicesLookup().get("alias1");
         AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(metadata, ia);
         assertThat(aliasMetadata.getFilter().toString(), equalTo("""
             {"term":{"name":{"value":"bar"}}}"""));

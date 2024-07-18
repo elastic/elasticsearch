@@ -128,7 +128,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.projectMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.projectMetadata.index(newIndexName);
 
-            IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());
+            IndexAbstraction ds = rolloverMetadata.projectMetadata.getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size() + 1));
             assertThat(ds.getIndices(), hasItem(rolloverMetadata.projectMetadata.index(sourceIndexName).getIndex()));
@@ -387,7 +387,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.projectMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.projectMetadata.index(newIndexName);
 
-            IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());
+            IndexAbstraction ds = rolloverMetadata.projectMetadata.getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size() + 1));
             assertThat(ds.getIndices(), hasItem(rolloverMetadata.projectMetadata.index(sourceIndexName).getIndex()));

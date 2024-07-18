@@ -608,7 +608,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             for (final Index indexToFollow : leaderIndicesToFollow) {
                 // Look up the abstraction for the given index, e.g., an index ".ds-foo" could look
                 // up the Data Stream "foo"
-                IndexAbstraction indexAbstraction = remoteMetadata.getIndicesLookup().get(indexToFollow.getName());
+                IndexAbstraction indexAbstraction = remoteMetadata.projectMetadata.getIndicesLookup().get(indexToFollow.getName());
                 // Ensure that the remote cluster doesn't have other patterns
                 // that would follow the index, there can be only one.
                 List<String> otherMatchingPatterns = patternsForTheSameRemoteCluster.stream()
@@ -812,8 +812,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 if (leaderIndexMetadata.getState() != IndexMetadata.State.OPEN) {
                     continue;
                 }
-                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata()
-                    .getIndicesLookup()
+                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().projectMetadata.getIndicesLookup()
                     .get(leaderIndexMetadata.getIndex().getName());
                 if (autoFollowPattern.isActive() && autoFollowPattern.match(indexAbstraction)) {
                     IndexRoutingTable indexRoutingTable = remoteClusterState.routingTable().index(leaderIndexMetadata.getIndex());

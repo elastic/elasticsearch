@@ -730,7 +730,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             List<SingleForecast> singleForecasts = dataStreamMetadata.dataStreams()
                 .keySet()
                 .stream()
-                .map(state.metadata().getIndicesLookup()::get)
+                .map(state.metadata().projectMetadata.getIndicesLookup()::get)
                 .map(DataStream.class::cast)
                 .map(ds -> forecast(state.metadata(), ds, forecastWindow, now))
                 .filter(Objects::nonNull)

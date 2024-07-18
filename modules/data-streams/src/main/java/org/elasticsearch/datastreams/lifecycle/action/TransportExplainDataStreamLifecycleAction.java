@@ -83,7 +83,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         List<ExplainIndexDataStreamLifecycle> explainIndices = new ArrayList<>(concreteIndices.length);
         Metadata metadata = state.metadata();
         for (String index : concreteIndices) {
-            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
+            IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup().get(index);
             if (indexAbstraction == null) {
                 continue;
             }

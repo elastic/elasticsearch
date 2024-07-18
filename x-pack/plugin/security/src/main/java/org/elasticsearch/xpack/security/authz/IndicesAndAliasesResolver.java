@@ -363,7 +363,7 @@ class IndicesAndAliasesResolver {
         final String concreteIndexName = request.getConcreteIndex().getName();
 
         // validate that the concrete index exists, otherwise there is no remapping that we could do
-        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(concreteIndexName);
+        final IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup().get(concreteIndexName);
         final String resolvedAliasOrIndex;
         if (indexAbstraction == null) {
             resolvedAliasOrIndex = concreteIndexName;
@@ -385,7 +385,7 @@ class IndicesAndAliasesResolver {
             List<AliasMetadata> aliasMetadata = foundAliases.get(concreteIndexName);
             if (aliasMetadata != null) {
                 Optional<String> foundAlias = aliasMetadata.stream().map(AliasMetadata::alias).filter(isAuthorized).filter(aliasName -> {
-                    IndexAbstraction alias = metadata.getIndicesLookup().get(aliasName);
+                    IndexAbstraction alias = metadata.projectMetadata.getIndicesLookup().get(aliasName);
                     List<Index> indices = alias.getIndices();
                     if (indices.size() == 1) {
                         return true;
@@ -406,7 +406,7 @@ class IndicesAndAliasesResolver {
 
     private static List<String> loadAuthorizedAliases(Supplier<Set<String>> authorizedIndices, Metadata metadata) {
         List<String> authorizedAliases = new ArrayList<>();
-        SortedMap<String, IndexAbstraction> existingAliases = metadata.getIndicesLookup();
+        SortedMap<String, IndexAbstraction> existingAliases = metadata.projectMetadata.getIndicesLookup();
         for (String authorizedIndex : authorizedIndices.get()) {
             IndexAbstraction indexAbstraction = existingAliases.get(authorizedIndex);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {

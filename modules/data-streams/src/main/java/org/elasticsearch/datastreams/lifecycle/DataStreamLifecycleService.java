@@ -774,7 +774,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private void clearErrorStoreForUnmanagedIndices(DataStream dataStream) {
         Metadata metadata = clusterService.state().metadata();
         for (String indexName : errorStore.getAllIndices()) {
-            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexName);
+            IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup().get(indexName);
             DataStream parentDataStream = indexAbstraction != null ? indexAbstraction.getParentDataStream() : null;
             if (indexAbstraction == null || parentDataStream == null) {
                 logger.trace(

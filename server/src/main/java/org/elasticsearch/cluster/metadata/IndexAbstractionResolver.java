@@ -101,7 +101,7 @@ public class IndexAbstractionResolver {
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
+        IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
         }

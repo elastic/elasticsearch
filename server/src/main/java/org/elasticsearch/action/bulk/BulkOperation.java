@@ -501,7 +501,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return null;
         }
         // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support
-        IndexAbstraction ia = metadata.getIndicesLookup().get(docWriteRequest.index());
+        IndexAbstraction ia = metadata.projectMetadata.getIndicesLookup().get(docWriteRequest.index());
         if (ia == null) {
             return null;
         }
@@ -510,7 +510,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // will write to, not which _data stream_.
             // We work backward to find the data stream from the concrete write index to cover this case.
             Index concreteIndex = ia.getWriteIndex();
-            IndexAbstraction writeIndexAbstraction = metadata.getIndicesLookup().get(concreteIndex.getName());
+            IndexAbstraction writeIndexAbstraction = metadata.projectMetadata.getIndicesLookup().get(concreteIndex.getName());
             DataStream parentDataStream = writeIndexAbstraction.getParentDataStream();
             if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
                 // Keep the data stream name around to resolve the redirect to failure store if the shard level request fails.
@@ -654,7 +654,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private boolean addFailureIfRequiresDataStreamAndNoParentDataStream(DocWriteRequest<?> request, int idx, final Metadata metadata) {
-        if (request.isRequireDataStream() && (metadata.indexIsADataStream(request.index()) == false)) {
+        if (request.isRequireDataStream() && (metadata.getProject().indexIsADataStream(request.index()) == false)) {
             Exception exception = new ResourceNotFoundException(
                 "[" + DocWriteRequest.REQUIRE_DATA_STREAM + "] request flag is [true] and [" + request.index() + "] is not a data stream",
                 request.index()

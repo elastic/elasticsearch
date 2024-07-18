@@ -81,7 +81,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
+        IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
         final boolean targetFailureStore;

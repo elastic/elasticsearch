@@ -567,7 +567,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.projectMetadata.index(newIndexName);
             assertThat(rolloverIndexMetadata.getNumberOfShards(), equalTo(numberOfShards));
 
-            IndexAbstraction alias = rolloverMetadata.getIndicesLookup().get(aliasName);
+            IndexAbstraction alias = rolloverMetadata.projectMetadata.getIndicesLookup().get(aliasName);
             assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
             assertThat(alias.getIndices(), hasSize(2));
             assertThat(alias.getIndices(), hasItem(rolloverMetadata.projectMetadata.index(sourceIndexName).getIndex()));
@@ -643,7 +643,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.projectMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.projectMetadata.index(newIndexName);
 
-            IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());
+            IndexAbstraction ds = rolloverMetadata.projectMetadata.getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size() + 1));
             assertThat(ds.getIndices(), hasItem(rolloverMetadata.projectMetadata.index(sourceIndexName).getIndex()));
@@ -720,7 +720,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             );
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.projectMetadata.index(newIndexName);
 
-            var ds = (DataStream) rolloverMetadata.getIndicesLookup().get(dataStream.getName());
+            var ds = (DataStream) rolloverMetadata.projectMetadata.getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size()));
             assertThat(ds.getFailureIndices().getIndices(), hasSize(dataStream.getFailureIndices().getIndices().size() + 1));

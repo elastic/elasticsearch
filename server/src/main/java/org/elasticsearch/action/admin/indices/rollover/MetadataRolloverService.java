@@ -148,7 +148,7 @@ public class MetadataRolloverService {
         boolean isFailureStoreRollover
     ) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
-        final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
+        final IndexAbstraction indexAbstraction = currentState.metadata().projectMetadata.getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> rolloverAlias(
                 currentState,
@@ -194,7 +194,7 @@ public class MetadataRolloverService {
         boolean isFailureStoreRollover
     ) {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
-        final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
+        final IndexAbstraction indexAbstraction = currentState.metadata().projectMetadata.getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
             case DATA_STREAM -> resolveDataStreamRolloverNames(
@@ -640,7 +640,7 @@ public class MetadataRolloverService {
         CreateIndexRequest request,
         boolean isFailureStoreRollover
     ) {
-        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(rolloverTarget);
+        final IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup().get(rolloverTarget);
         if (indexAbstraction == null) {
             throw new IllegalArgumentException("rollover target [" + rolloverTarget + "] does not exist");
         }

@@ -573,7 +573,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         }
 
         // Get index abstraction, resolving date math if it exists
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup()
+        IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup()
             .get(IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis));
 
         // We only store failures if the failure is being written to a data stream,
@@ -586,7 +586,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         // This handles alias resolution as well as data stream resolution.
         Index writeIndex = indexAbstraction.getWriteIndex();
         assert writeIndex != null : "Could not resolve write index for resource [" + indexName + "]";
-        IndexAbstraction writeAbstraction = metadata.getIndicesLookup().get(writeIndex.getName());
+        IndexAbstraction writeAbstraction = metadata.projectMetadata.getIndicesLookup().get(writeIndex.getName());
         DataStream targetDataStream = writeAbstraction.getParentDataStream();
 
         // We will store the failure if the write target belongs to a data stream with a failure store.

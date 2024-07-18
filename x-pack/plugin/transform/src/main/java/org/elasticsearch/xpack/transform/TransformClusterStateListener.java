@@ -78,8 +78,7 @@ class TransformClusterStateListener implements ClusterStateListener, Supplier<Op
         }
 
         Metadata metadata = state.metadata();
-        if (state.getMetadata()
-            .getIndicesLookup()
+        if (state.getMetadata().projectMetadata.getIndicesLookup()
             .get(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED)
             .getIndices()
             .stream()

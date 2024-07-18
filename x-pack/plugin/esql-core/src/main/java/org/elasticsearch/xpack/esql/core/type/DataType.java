@@ -221,6 +221,10 @@ public enum DataType {
         return t != OBJECT && t != NESTED && t != UNSUPPORTED;
     }
 
+    public static boolean isObjectOrNested(DataType t) {
+        return t != OBJECT && t != NESTED;
+    }
+
     public static boolean isNull(DataType t) {
         return t == NULL;
     }

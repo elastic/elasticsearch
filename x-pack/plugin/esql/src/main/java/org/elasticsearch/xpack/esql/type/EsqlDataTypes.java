@@ -6,17 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.type;
 
-import org.elasticsearch.xpack.esql.core.type.DataType;
-
-import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
-import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
-
 public final class EsqlDataTypes {
 
     private EsqlDataTypes() {}
-
-    public static boolean isPrimitive(DataType t) {
-        return t != OBJECT && t != NESTED;
-    }
 
 }

@@ -58,8 +58,8 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
         client().admin().indices().prepareRefresh("idx").get();
 
-        EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
-        request.query("FROM idx | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip");
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+        request.query("FROM idx | EVAL ip = to_ip(host), x = to_string(host) | STATS s = COUNT(*) by ip | KEEP ip | EVAL a = 10");
         request.pragmas(randomPragmas());
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -69,6 +69,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
         client(dataNode.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
             try {
+                // test commands
                 final List<Measurement> metrics = Measurement.combine(plugin.getLongCounterMeasurement(Metrics.FEATURE_METRICS));
                 Set<String> featuresFound = metrics.stream()
                     .map(x -> x.attributes().get(Metrics.FEATURE_NAME))
@@ -76,7 +77,24 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     .collect(Collectors.toSet());
                 assertThat(featuresFound, is(Set.of("from", "eval", "stats", "keep")));
                 for (Measurement metric : metrics) {
-                    assertThat(metric.value(), is(1L));
+                    if ("eval".equalsIgnoreCase((String) metric.attributes().get(Metrics.FEATURE_NAME))) {
+                        assertThat(metric.value(), is(2L));
+                    } else {
+                        assertThat(metric.value(), is(1L));
+                    }
+                }
+
+                // test functions
+                final List<Measurement> funcitonMeasurements = Measurement.combine(
+                    plugin.getLongCounterMeasurement(Metrics.FUNCTION_METRICS)
+                );
+                Set<String> functionNames = funcitonMeasurements.stream()
+                    .map(x -> x.attributes().get(Metrics.FEATURE_NAME))
+                    .map(String.class::cast)
+                    .collect(Collectors.toSet());
+                assertThat(functionNames, is(Set.of("to_string", "to_ip", "count")));
+                for (Measurement measurement : funcitonMeasurements) {
+                    assertThat(measurement.value(), is(1L));
                 }
             } finally {
                 latch.countDown();

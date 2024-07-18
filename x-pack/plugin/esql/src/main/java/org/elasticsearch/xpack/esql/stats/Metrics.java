@@ -38,11 +38,16 @@ public class Metrics {
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
-    // AMP counter for esql features
+
+    // AMP counters
     private final LongCounter featuresCounter;
+    private final LongCounter functionsCounter;
+
     public static String QPREFIX = "queries.";
-    public static String FPREFIX = "features.";
-    public static final String FEATURE_METRICS = "es.esql." + FPREFIX + "total";
+    public static String FEATURES_PREFIX = "features.";
+    public static String FUNCTIONS_PREFIX = "functions.";
+    public static final String FEATURE_METRICS = "es.esql." + FEATURES_PREFIX + "total";
+    public static final String FUNCTION_METRICS = "es.esql." + FUNCTIONS_PREFIX + "total";
     public static final String FEATURE_NAME = "feature_name";
 
     public Metrics(MeterRegistry meterRegistry) {
@@ -63,6 +68,7 @@ public class Metrics {
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
         featuresCounter = meterRegistry.registerLongCounter(FEATURE_METRICS, "ESQL features, total usage", "unit");
+        functionsCounter = meterRegistry.registerLongCounter(FUNCTION_METRICS, "ESQL functions, total usage", "unit");
     }
 
     /**
@@ -86,7 +92,14 @@ public class Metrics {
 
     public void inc(FeatureMetric metric) {
         this.featuresMetrics.get(metric).inc();
-        this.featuresCounter.incrementBy(1, Map.of(FEATURE_NAME, metric.name().toLowerCase(Locale.ROOT)));
+    }
+
+    public void incCommand(String name, int count) {
+        this.featuresCounter.incrementBy(count, Map.of(FEATURE_NAME, name));
+    }
+
+    public void incFunction(String name, int count) {
+        this.functionsCounter.incrementBy(count, Map.of(FEATURE_NAME, name));
     }
 
     public Counters stats() {
@@ -107,7 +120,7 @@ public class Metrics {
 
         // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {
-            counters.inc(FPREFIX + entry.getKey().toString(), entry.getValue().count());
+            counters.inc(FEATURES_PREFIX + entry.getKey().toString(), entry.getValue().count());
         }
 
         return counters;

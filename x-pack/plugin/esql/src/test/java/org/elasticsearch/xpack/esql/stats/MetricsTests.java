@@ -10,13 +10,12 @@ package org.elasticsearch.xpack.esql.stats;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.DISSECT;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.DROP;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.ENRICH;
@@ -33,9 +32,9 @@ import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SHOW;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SORT;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.WHERE;
-import static org.elasticsearch.xpack.esql.stats.Metrics.FPREFIX;
+import static org.elasticsearch.xpack.esql.stats.Metrics.FEATURES_PREFIX;
 
-public class VerifierMetricsTests extends ESTestCase {
+public class MetricsTests extends ESTestCase {
 
     private EsqlParser parser = new EsqlParser();
 
@@ -201,16 +200,15 @@ public class VerifierMetricsTests extends ESTestCase {
 
     public void testTwoQueriesExecuted() {
         Metrics metrics = new Metrics(MeterRegistry.NOOP);
-        Verifier verifier = new Verifier(metrics);
-        esqlWithVerifier("""
+        esql("""
                from employees
                | where languages > 2
                | limit 5
                | eval name_len = length(first_name)
                | sort first_name
                | limit 3
-            """, verifier);
-        esqlWithVerifier("""
+            """, metrics);
+        esql("""
               from employees
               | where languages > 2
               | sort first_name desc nulls first
@@ -219,7 +217,7 @@ public class VerifierMetricsTests extends ESTestCase {
               | stats x = max(languages)
               | sort x
               | stats y = min(x) by x
-            """, verifier);
+            """, metrics);
         Counters c = metrics.stats();
         assertEquals(1L, dissect(c));
         assertEquals(1L, eval(c));
@@ -400,87 +398,79 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     private long dissect(Counters c) {
-        return c.get(FPREFIX + DISSECT);
+        return c.get(FEATURES_PREFIX + DISSECT);
     }
 
     private long eval(Counters c) {
-        return c.get(FPREFIX + EVAL);
+        return c.get(FEATURES_PREFIX + EVAL);
     }
 
     private long grok(Counters c) {
-        return c.get(FPREFIX + GROK);
+        return c.get(FEATURES_PREFIX + GROK);
     }
 
     private long limit(Counters c) {
-        return c.get(FPREFIX + LIMIT);
+        return c.get(FEATURES_PREFIX + LIMIT);
     }
 
     private long sort(Counters c) {
-        return c.get(FPREFIX + SORT);
+        return c.get(FEATURES_PREFIX + SORT);
     }
 
     private long stats(Counters c) {
-        return c.get(FPREFIX + STATS);
+        return c.get(FEATURES_PREFIX + STATS);
     }
 
     private long where(Counters c) {
-        return c.get(FPREFIX + WHERE);
+        return c.get(FEATURES_PREFIX + WHERE);
     }
 
     private long enrich(Counters c) {
-        return c.get(FPREFIX + ENRICH);
+        return c.get(FEATURES_PREFIX + ENRICH);
     }
 
     private long mvExpand(Counters c) {
-        return c.get(FPREFIX + MV_EXPAND);
+        return c.get(FEATURES_PREFIX + MV_EXPAND);
     }
 
     private long show(Counters c) {
-        return c.get(FPREFIX + SHOW);
+        return c.get(FEATURES_PREFIX + SHOW);
     }
 
     private long row(Counters c) {
-        return c.get(FPREFIX + ROW);
+        return c.get(FEATURES_PREFIX + ROW);
     }
 
     private long from(Counters c) {
-        return c.get(FPREFIX + FROM);
+        return c.get(FEATURES_PREFIX + FROM);
     }
 
     private long drop(Counters c) {
-        return c.get(FPREFIX + DROP);
+        return c.get(FEATURES_PREFIX + DROP);
     }
 
     private long keep(Counters c) {
-        return c.get(FPREFIX + KEEP);
+        return c.get(FEATURES_PREFIX + KEEP);
     }
 
     private long rename(Counters c) {
-        return c.get(FPREFIX + RENAME);
+        return c.get(FEATURES_PREFIX + RENAME);
     }
 
     private long meta(Counters c) {
-        return c.get(FPREFIX + META);
+        return c.get(FEATURES_PREFIX + META);
     }
 
     private Counters esql(String esql) {
-        return esql(esql, null);
+        return esql(esql, new Metrics(MeterRegistry.NOOP));
     }
 
-    private void esqlWithVerifier(String esql, Verifier verifier) {
-        esql(esql, verifier);
-    }
-
-    private Counters esql(String esql, Verifier v) {
-        Verifier verifier = v;
-        Metrics metrics = null;
-        if (v == null) {
-            metrics = new Metrics(MeterRegistry.NOOP);
-            verifier = new Verifier(metrics);
-        }
-        analyzer(verifier).analyze(parser.createStatement(esql));
-
-        return metrics == null ? null : metrics.stats();
+    private Counters esql(String esql, Metrics metrics) {
+        PlanningMetrics collected = new PlanningMetrics();
+        LogicalPlan plan = parser.createStatement(esql);
+        collected.gatherPreAnalysisMetrics(plan);
+        collected.publish(metrics);
+        return metrics.stats();
     }
 
     @Override

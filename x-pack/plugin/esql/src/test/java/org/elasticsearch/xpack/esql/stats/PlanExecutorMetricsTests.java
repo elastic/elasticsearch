@@ -99,7 +99,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
-        // TODO add a meter registri and test it!
         var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP);
         var enrichResolver = mockEnrichResolver();
 

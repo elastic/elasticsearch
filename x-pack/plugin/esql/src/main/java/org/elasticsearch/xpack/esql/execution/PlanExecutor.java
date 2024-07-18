@@ -44,7 +44,7 @@ public class PlanExecutor {
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper(functionRegistry);
         this.metrics = new Metrics(meterRegistry);
-        this.verifier = new Verifier(metrics);
+        this.verifier = new Verifier();
     }
 
     public void esql(
@@ -64,7 +64,8 @@ public class PlanExecutor {
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg)),
             mapper,
-            verifier
+            verifier,
+            metrics
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

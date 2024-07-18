@@ -308,13 +308,18 @@ public class EsExecutors {
     }
 
     public static String executorName(String threadName) {
+        if (threadName.startsWith("TEST-") || threadName.startsWith("SUITE-") || threadName.startsWith("LuceneTestCase")) {
+            return null;
+        }
+
+        if (threadName.startsWith("elasticsearch[file-watcher[")) {
+            return "file-watcher";
+        }
+
         // subtract 2 to avoid the `]` of the thread number part.
         int executorNameEnd = threadName.lastIndexOf(']', threadName.length() - 2);
         int executorNameStart = threadName.lastIndexOf('[', executorNameEnd);
-        if (executorNameStart == -1
-            || executorNameEnd - executorNameStart <= 1
-            || threadName.startsWith("TEST-")
-            || threadName.startsWith("LuceneTestCase")) {
+        if (executorNameStart == -1 || executorNameEnd - executorNameStart <= 1) {
             return null;
         }
         return threadName.substring(executorNameStart + 1, executorNameEnd);

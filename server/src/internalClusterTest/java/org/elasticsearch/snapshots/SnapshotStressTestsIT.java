@@ -1167,7 +1167,14 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                             threadPool.executor(NODE_RESTARTER).execute(mustSucceed(() -> {
                                 logger.info("--> restarting [{}]", nodeName);
-                                cluster.restartNode(nodeName);
+                                final var threadName = Thread.currentThread().getName();
+                                try {
+                                    // bypass deadlock detection on this thread
+                                    Thread.currentThread().setName("restarting " + nodeName);
+                                    cluster.restartNode(nodeName);
+                                } finally {
+                                    Thread.currentThread().setName(threadName);
+                                }
                                 logger.info("--> finished restarting [{}]", nodeName);
                                 shuffleNodes();
                                 Releasables.close(releaseAll);

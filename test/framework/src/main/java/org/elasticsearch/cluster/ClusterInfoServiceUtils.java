@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 
 import java.util.concurrent.TimeUnit;
@@ -21,7 +22,7 @@ public class ClusterInfoServiceUtils {
 
     public static ClusterInfo refresh(InternalClusterInfoService internalClusterInfoService) {
         logger.trace("refreshing cluster info");
-        final PlainActionFuture<ClusterInfo> future = new PlainActionFuture<>() {
+        final PlainActionFuture<ClusterInfo> future = new TestPlainActionFuture<>() {
             @Override
             protected boolean blockingAllowed() {
                 // In tests we permit blocking the applier thread here so that we know a followup reroute isn't working with stale data.

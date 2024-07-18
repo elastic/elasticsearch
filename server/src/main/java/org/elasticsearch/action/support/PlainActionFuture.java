@@ -22,7 +22,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -387,6 +389,10 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         assert thread1 != thread2 : "only call this for different threads";
         String thread1Name = EsExecutors.executorName(thread1);
         String thread2Name = EsExecutors.executorName(thread2);
-        return thread1Name == null || thread2Name == null || thread1Name.equals(thread2Name) == false;
+        return thread1Name == null
+            || thread2Name == null
+            || ALLOWED_EXECUTORS_GRAPH.getOrDefault(thread1Name, Set.of()).contains(thread2Name);
     }
+
+    private static final Map<String, Set<String>> ALLOWED_EXECUTORS_GRAPH = AllowedExecutors.getProductionAllowedExecutors();
 }

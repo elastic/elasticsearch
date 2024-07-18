@@ -33,8 +33,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
@@ -66,6 +64,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenKnnQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -1896,7 +1895,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 // A parent filter implies that the vectors being matched are children docs, let's join back to the parent
                 if (parentFilter != null) {
-                    exactKnnQuery = new ToParentBlockJoinQuery(exactKnnQuery, parentFilter, ScoreMode.Max);
+                    exactKnnQuery = new DiversifyingChildrenKnnQuery(exactKnnQuery, k == null ? numCands : k, parentFilter);
+                } else {
+                    exactKnnQuery = new KnnQuery(exactKnnQuery, k == null ? numCands : k);
                 }
                 // If a similarity threshold is provided, wrap the exact query in a similarity query
                 if (similarityThreshold != null) {
@@ -1906,8 +1907,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         similarity.score(similarityThreshold, elementType, dims)
                     );
                 }
-                // Then we want the top-k, not ALL the matching results to ensure the API behavior doesn't change
-                return new KnnQuery(exactKnnQuery, k == null ? numCands : k);
+                return exactKnnQuery;
             }
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);

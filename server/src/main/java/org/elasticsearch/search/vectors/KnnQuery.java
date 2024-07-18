@@ -17,6 +17,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 import static org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder.findSegmentStarts;
@@ -43,6 +44,7 @@ public class KnnQuery extends Query {
             return new MatchNoDocsQuery();
         }
         ScoreDoc[] scoreDocs = topDocs.scoreDocs;
+        Arrays.sort(scoreDocs, (a, b) -> Float.compare(b.doc, a.doc));
         int numDocs = scoreDocs.length;
         int[] docs = new int[numDocs];
         float[] scores = new float[numDocs];
@@ -50,7 +52,6 @@ public class KnnQuery extends Query {
             docs[i] = scoreDocs[i].doc;
             scores[i] = scoreDocs[i].score;
         }
-
         IndexReader reader = searcher.getIndexReader();
         int[] segmentStarts = findSegmentStarts(reader, docs);
         return new KnnScoreDocQuery(docs, scores, segmentStarts, reader.getContext().id());

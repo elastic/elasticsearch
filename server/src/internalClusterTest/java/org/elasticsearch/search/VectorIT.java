@@ -6,14 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.nested;
+package org.elasticsearch.search;
 
-import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.InnerHitBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -28,67 +24,18 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
 
-public class VectorNestedIT extends ESIntegTestCase {
+public class VectorIT extends ESIntegTestCase {
 
-    public void testSimpleNested() throws Exception {
-        assertAcked(
-            prepareCreate("test").setMapping(
-                jsonBuilder().startObject()
-                    .startObject("properties")
-                    .startObject("nested")
-                    .field("type", "nested")
-                    .startObject("properties")
-                    .startObject("vector")
-                    .field("type", "dense_vector")
-                    .field("index", true)
-                    .field("dims", 3)
-                    .field("similarity", "cosine")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
-        );
-        ensureGreen();
-
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .startArray("nested")
-                    .startObject()
-                    .field("vector", new float[] { 1, 1, 1 })
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
-
-        waitForRelocation(ClusterHealthStatus.GREEN);
-        GetResponse getResponse = client().prepareGet("test", "1").get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getSourceAsBytesRef(), notNullValue());
-        refresh();
-
-        assertResponse(
-            prepareSearch("test").setKnnSearch(
-                List.of(new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null).innerHit(new InnerHitBuilder()))
-            ).setAllowPartialSearchResults(false),
-            response -> assertThat(response.getHits().getHits().length, greaterThan(0))
-        );
-    }
-
-    public void testSimpleNestedFlat() throws Exception {
+    public void testSimpleFlat() throws Exception {
         assertSameResults("hnsw", "flat");
     }
 
-    public void testSimpleNestedFlatInt8() throws Exception {
+    public void testSimpleFlatInt8() throws Exception {
         assertSameResults("int8_hnsw", "int8_flat");
     }
 
-    public void testSimpleNestedFlatInt4() throws Exception {
+    public void testSimpleFlatInt4() throws Exception {
         assertSameResults("int4_hnsw", "int4_flat");
     }
 
@@ -97,9 +44,6 @@ public class VectorNestedIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate(indexName).setMapping(
                 jsonBuilder().startObject()
-                    .startObject("properties")
-                    .startObject("nested")
-                    .field("type", "nested")
                     .startObject("properties")
                     .startObject("vector_flat")
                     .field("type", "dense_vector")
@@ -121,21 +65,14 @@ public class VectorNestedIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-                    .endObject()
-                    .endObject()
             ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
         );
         ensureGreen();
         for (int i = 1; i <= 50; i++) {
-            int numNestedObjects = randomIntBetween(1, 5);
-            var source = jsonBuilder().startObject().startArray("nested");
-            for (int j = 0; j < numNestedObjects; j++) {
-                source.startObject()
-                    .field("vector_flat", new float[] { i, i * j, i, i })
-                    .field("vector_indexed", new float[] { i, i * j, i, i })
-                    .endObject();
-            }
-            source.endArray().endObject();
+            var source = jsonBuilder().startObject()
+                .field("vector_flat", new float[] { i, i, i, i })
+                .field("vector_indexed", new float[] { i, i, i, i })
+                .endObject();
             prepareIndex("test" + indexedType + "vs" + flatType).setId(Integer.toString(i)).setSource(source).get();
             // Randomly refresh to flush segments
             if (randomBoolean()) {
@@ -148,9 +85,8 @@ public class VectorNestedIT extends ESIntegTestCase {
             float[] query = new float[] { i, i, i, i };
             List<String> topHits = new ArrayList<>();
             assertResponse(
-                prepareSearch(indexName).setKnnSearch(
-                    List.of(new KnnSearchBuilder("nested.vector_indexed", query, 100, 100, null).innerHit(new InnerHitBuilder()))
-                ).setAllowPartialSearchResults(false),
+                prepareSearch(indexName).setKnnSearch(List.of(new KnnSearchBuilder("vector_indexed", query, 100, 100, null)))
+                    .setAllowPartialSearchResults(false),
                 response -> {
                     assertThat(response.getHits().getHits().length, greaterThan(0));
                     for (var hit : response.getHits().getHits()) {
@@ -159,9 +95,8 @@ public class VectorNestedIT extends ESIntegTestCase {
                 }
             );
             assertResponse(
-                prepareSearch(indexName).setKnnSearch(
-                    List.of(new KnnSearchBuilder("nested.vector_flat", query, 100, 100, null).innerHit(new InnerHitBuilder()))
-                ).setAllowPartialSearchResults(false),
+                prepareSearch(indexName).setKnnSearch(List.of(new KnnSearchBuilder("vector_flat", query, 100, 100, null)))
+                    .setAllowPartialSearchResults(false),
                 response -> {
                     assertThat(response.getHits().getHits().length, greaterThan(0));
                     for (int j = 0; j < response.getHits().getHits().length; j++) {
@@ -170,13 +105,8 @@ public class VectorNestedIT extends ESIntegTestCase {
                 }
             );
             assertResponse(
-                prepareSearch(indexName).setQuery(
-                    QueryBuilders.nestedQuery(
-                        "nested",
-                        new KnnVectorQueryBuilder("nested.vector_indexed", VectorData.fromFloats(query), 100, 100, null),
-                        ScoreMode.Max
-                    )
-                ).setAllowPartialSearchResults(false),
+                prepareSearch(indexName).setQuery(new KnnVectorQueryBuilder("vector_indexed", VectorData.fromFloats(query), 100, 100, null))
+                    .setAllowPartialSearchResults(false),
                 response -> {
                     assertThat(response.getHits().getHits().length, greaterThan(0));
                     for (int j = 0; j < response.getHits().getHits().length; j++) {
@@ -185,13 +115,8 @@ public class VectorNestedIT extends ESIntegTestCase {
                 }
             );
             assertResponse(
-                prepareSearch(indexName).setQuery(
-                    QueryBuilders.nestedQuery(
-                        "nested",
-                        new KnnVectorQueryBuilder("nested.vector_flat", VectorData.fromFloats(query), 100, 100, null),
-                        ScoreMode.Max
-                    )
-                ).setAllowPartialSearchResults(false),
+                prepareSearch(indexName).setQuery(new KnnVectorQueryBuilder("vector_flat", VectorData.fromFloats(query), 100, 100, null))
+                    .setAllowPartialSearchResults(false),
                 response -> {
                     assertThat(response.getHits().getHits().length, greaterThan(0));
                     for (int j = 0; j < response.getHits().getHits().length; j++) {

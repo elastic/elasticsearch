@@ -28,9 +28,13 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
@@ -1174,6 +1178,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             throw new IllegalArgumentException(type.name + " only supports even dimensions; provided=" + dim);
         }
+
+        abstract boolean doEquals(IndexOptions other);
+
+        abstract int doHashCode();
+
+        @Override
+        public final boolean equals(Object other) {
+            if (other == this) {
+                return true;
+            }
+            if (other == null || other.getClass() != getClass()) {
+                return false;
+            }
+            IndexOptions otherOptions = (IndexOptions) other;
+            return Objects.equals(type, otherOptions.type) && doEquals(otherOptions);
+        }
+
+        @Override
+        public final int hashCode() {
+            return Objects.hash(type, doHashCode());
+        }
     }
 
     private enum VectorIndexType {
@@ -1860,7 +1885,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             if (indexOptions.type.isFlat()) {
+                // First, we create an exact query utilizing the vector scorer interface
                 Query exactKnnQuery = createExactKnnQuery(queryVector);
+                // If there is a filter, simply wrap the exact query in a boolean query
+                // Note, the filter provide already takes into account the parent filter and applies to the child docs (e.g. vectors)
+                if (filter != null) {
+                    exactKnnQuery = new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.MUST)
+                        .add(filter, BooleanClause.Occur.FILTER)
+                        .build();
+                }
+                // A parent filter implies that the vectors being matched are children docs, let's join back to the parent
+                if (parentFilter != null) {
+                    exactKnnQuery = new ToParentBlockJoinQuery(exactKnnQuery, parentFilter, ScoreMode.Max);
+                }
+                // If a similarity threshold is provided, wrap the exact query in a similarity query
                 if (similarityThreshold != null) {
                     exactKnnQuery = new VectorSimilarityQuery(
                         exactKnnQuery,
@@ -1868,7 +1906,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         similarity.score(similarityThreshold, elementType, dims)
                     );
                 }
-                return new KnnQuery(exactKnnQuery, k == null ? numCands : k)
+                // Then we want the top-k, not ALL the matching results to ensure the API behavior doesn't change
+                return new KnnQuery(exactKnnQuery, k == null ? numCands : k);
             }
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);

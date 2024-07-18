@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -69,7 +70,11 @@ public class DetectionRule implements ToXContentObject, Writeable {
         actions = in.readEnumSet(RuleAction.class);
         scope = new RuleScope(in);
         conditions = in.readCollectionAsList(RuleCondition::new);
-        params = new RuleParams(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_ADD_DETECTION_RULE_PARAMS)) {
+            params = new RuleParams(in);
+        } else {
+            params = new RuleParams();
+        }
     }
 
     @Override
@@ -77,8 +82,9 @@ public class DetectionRule implements ToXContentObject, Writeable {
         out.writeEnumSet(actions);
         scope.writeTo(out);
         out.writeCollection(conditions);
-        // TODO: add BWC check
-        params.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_ADD_DETECTION_RULE_PARAMS)) {
+            params.writeTo(out);
+        }
     }
 
     @Override

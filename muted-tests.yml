@@ -102,6 +102,9 @@ tests:
   method: "testNotMatchSome {p0=StandardSetup[fieldType=keyword, multivaluedField=true, empty=true, count=100]}"
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/110978
+- class: org.elasticsearch.search.sort.FieldSortIT
+  method: testIssue6614
+  issue: https://github.com/elastic/elasticsearch/issues/110999
 
 # Examples:
 #

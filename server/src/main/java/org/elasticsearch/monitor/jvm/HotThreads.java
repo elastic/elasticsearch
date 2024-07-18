@@ -192,10 +192,7 @@ public class HotThreads {
 
     public void detect(Writer writer) throws Exception {
         synchronized (mutex) {
-            innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId(), (interval) -> {
-                Thread.sleep(interval);
-                return null;
-            }, writer);
+            innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId(), writer);
         }
     }
 
@@ -266,13 +263,7 @@ public class HotThreads {
         return (((double) time) / interval.nanos()) * 100;
     }
 
-    void innerDetect(
-        ThreadMXBean threadBean,
-        SunThreadInfo sunThreadInfo,
-        long currentThreadId,
-        SleepFunction<Long, Void> threadSleep,
-        Writer writer
-    ) throws Exception {
+    void innerDetect(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId, Writer writer) throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
@@ -299,7 +290,7 @@ public class HotThreads {
 
         // Capture before and after thread state with timings
         Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
-        threadSleep.apply(interval.millis());
+        Thread.sleep(interval.millis());
         Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
 
         latestThreadInfos.forEach((threadId, accumulator) -> accumulator.subtractPrevious(previousThreadInfos.get(threadId)));

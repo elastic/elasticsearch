@@ -83,7 +83,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             Request::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT),
             SyncGlobalCheckpointAfterOperation.DoNotSync,
-            PrimaryActionExecution.Normal
+            PrimaryActionExecution.RejectOnOverload
         );
     }
 

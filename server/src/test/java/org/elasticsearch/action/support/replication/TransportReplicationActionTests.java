@@ -1512,7 +1512,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 Request::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SyncGlobalCheckpointAfterOperation.DoNotSync,
-                forceExecute ? PrimaryActionExecution.Force : PrimaryActionExecution.Normal
+                forceExecute ? PrimaryActionExecution.Force : PrimaryActionExecution.RejectOnOverload
             );
         }
 

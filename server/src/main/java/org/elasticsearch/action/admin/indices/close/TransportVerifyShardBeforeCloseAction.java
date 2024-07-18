@@ -68,7 +68,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
             ShardRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT),
             SyncGlobalCheckpointAfterOperation.DoNotSync,
-            PrimaryActionExecution.Normal
+            PrimaryActionExecution.RejectOnOverload
         );
     }
 

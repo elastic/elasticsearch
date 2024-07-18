@@ -12,8 +12,10 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -25,8 +27,18 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.geoip.direct.DeleteDatabaseConfigurationAction;
+import org.elasticsearch.ingest.geoip.direct.GetDatabaseConfigurationAction;
+import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction;
+import org.elasticsearch.ingest.geoip.direct.RestDeleteDatabaseConfigurationAction;
+import org.elasticsearch.ingest.geoip.direct.RestGetDatabaseConfigurationAction;
+import org.elasticsearch.ingest.geoip.direct.RestPutDatabaseConfigurationAction;
+import org.elasticsearch.ingest.geoip.direct.TransportDeleteDatabaseConfigurationAction;
+import org.elasticsearch.ingest.geoip.direct.TransportGetDatabaseConfigurationAction;
+import org.elasticsearch.ingest.geoip.direct.TransportPutDatabaseConfigurationAction;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsTransportAction;
@@ -38,6 +50,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -57,13 +70,21 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX_PATTERN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
-public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemIndexPlugin, Closeable, PersistentTaskPlugin, ActionPlugin {
+public class IngestGeoIpPlugin extends Plugin
+    implements
+        IngestPlugin,
+        SystemIndexPlugin,
+        Closeable,
+        PersistentTaskPlugin,
+        ActionPlugin,
+        ReloadablePlugin {
     public static final Setting<Long> CACHE_SIZE = Setting.longSetting("ingest.geoip.cache_size", 1000, 0, Setting.Property.NodeScope);
     private static final int GEOIP_INDEX_MAPPINGS_VERSION = 1;
     /**
@@ -78,6 +99,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     private final SetOnce<IngestService> ingestService = new SetOnce<>();
     private final SetOnce<DatabaseNodeService> databaseRegistry = new SetOnce<>();
     private GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
+    private EnterpriseGeoIpDownloaderTaskExecutor enterpriseGeoIpDownloaderTaskExecutor;
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -86,7 +108,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING,
             GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
             GeoIpDownloader.ENDPOINT_SETTING,
-            GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING
+            GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING,
+            EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_LICENSE_KEY_SETTING
         );
     }
 
@@ -123,7 +146,16 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             services.threadPool()
         );
         geoIpDownloaderTaskExecutor.init();
-        return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
+
+        enterpriseGeoIpDownloaderTaskExecutor = new EnterpriseGeoIpDownloaderTaskExecutor(
+            services.client(),
+            new HttpClient(),
+            services.clusterService(),
+            services.threadPool()
+        );
+        enterpriseGeoIpDownloaderTaskExecutor.init();
+
+        return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor, enterpriseGeoIpDownloaderTaskExecutor);
     }
 
     @Override
@@ -139,12 +171,17 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(geoIpDownloaderTaskExecutor);
+        return List.of(geoIpDownloaderTaskExecutor, enterpriseGeoIpDownloaderTaskExecutor);
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(GeoIpStatsAction.INSTANCE, GeoIpStatsTransportAction.class));
+        return List.of(
+            new ActionHandler<>(GeoIpStatsAction.INSTANCE, GeoIpStatsTransportAction.class),
+            new ActionHandler<>(GetDatabaseConfigurationAction.INSTANCE, TransportGetDatabaseConfigurationAction.class),
+            new ActionHandler<>(DeleteDatabaseConfigurationAction.INSTANCE, TransportDeleteDatabaseConfigurationAction.class),
+            new ActionHandler<>(PutDatabaseConfigurationAction.INSTANCE, TransportPutDatabaseConfigurationAction.class)
+        );
     }
 
     @Override
@@ -159,22 +196,41 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestGeoIpStatsAction());
+        return List.of(
+            new RestGeoIpStatsAction(),
+            new RestGetDatabaseConfigurationAction(),
+            new RestDeleteDatabaseConfigurationAction(),
+            new RestPutDatabaseConfigurationAction()
+        );
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
             new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskParams::fromXContent),
-            new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskState::fromXContent)
+            new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskState::fromXContent),
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(ENTERPRISE_GEOIP_DOWNLOADER),
+                EnterpriseGeoIpTaskParams::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                PersistentTaskState.class,
+                new ParseField(ENTERPRISE_GEOIP_DOWNLOADER),
+                EnterpriseGeoIpTaskState::fromXContent
+            )
         );
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.GeoIpMetadataDiff::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, GEOIP_DOWNLOADER, GeoIpTaskState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, GEOIP_DOWNLOADER, GeoIpTaskParams::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskState.class, ENTERPRISE_GEOIP_DOWNLOADER, EnterpriseGeoIpTaskState::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ENTERPRISE_GEOIP_DOWNLOADER, EnterpriseGeoIpTaskParams::new),
             new NamedWriteableRegistry.Entry(Task.Status.class, GEOIP_DOWNLOADER, GeoIpDownloaderStats::new)
         );
     }
@@ -234,5 +290,10 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build mappings for " + DATABASES_INDEX, e);
         }
+    }
+
+    @Override
+    public void reload(Settings settings) {
+        enterpriseGeoIpDownloaderTaskExecutor.reload(settings);
     }
 }

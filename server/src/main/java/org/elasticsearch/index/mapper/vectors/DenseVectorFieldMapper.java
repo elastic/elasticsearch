@@ -232,7 +232,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             })
                 .acceptsNull()
-                .setMergeValidator((previous, current, c) -> previous == null || current == null || previous.updatableTo(current));
+                .setMergeValidator(
+                    (previous, current, c) -> previous == null
+                        || current == null
+                        || Objects.equals(previous, current)
+                        || previous.updatableTo(current)
+                );
             if (defaultInt8Hnsw) {
                 this.indexOptions.alwaysSerialize();
             }
@@ -1404,23 +1409,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+        boolean doEquals(IndexOptions o) {
             Int8FlatIndexOptions that = (Int8FlatIndexOptions) o;
             return Objects.equals(confidenceInterval, that.confidenceInterval);
         }
 
         @Override
-        public int hashCode() {
+        int doHashCode() {
             return Objects.hash(confidenceInterval);
         }
 
         @Override
         boolean updatableTo(IndexOptions update) {
             return update.type.equals(this.type)
-                || update.type.equals(VectorIndexType.HNSW.name)
-                || update.type.equals(VectorIndexType.INT8_HNSW.name);
+                || update.type.equals(VectorIndexType.HNSW)
+                || update.type.equals(VectorIndexType.INT8_HNSW)
+                || update.type.equals(VectorIndexType.INT4_HNSW)
+                || update.type.equals(VectorIndexType.INT4_FLAT);
         }
     }
 
@@ -1452,13 +1457,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            return o != null && getClass() == o.getClass();
+        public boolean doEquals(IndexOptions o) {
+            return o instanceof FlatIndexOptions;
         }
 
         @Override
-        public int hashCode() {
+        public int doHashCode() {
             return Objects.hash(type);
         }
     }
@@ -1495,15 +1499,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+        public boolean doEquals(IndexOptions o) {
             Int4HnswIndexOptions that = (Int4HnswIndexOptions) o;
             return m == that.m && efConstruction == that.efConstruction && Objects.equals(confidenceInterval, that.confidenceInterval);
         }
 
         @Override
-        public int hashCode() {
+        public int doHashCode() {
             return Objects.hash(m, efConstruction, confidenceInterval);
         }
 
@@ -1522,9 +1524,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean updatableTo(IndexOptions update) {
-            return Objects.equals(this, update);
+            boolean updatable = update.type.equals(this.type);
+            if (updatable) {
+                Int4HnswIndexOptions int4HnswIndexOptions = (Int4HnswIndexOptions) update;
+                // fewer connections would break assumptions on max number of connections (based on largest previous graph) during merge
+                // quantization could not behave as expected with different confidence intervals (and quantiles) to be created
+                updatable = int4HnswIndexOptions.m >= this.m && confidenceInterval == int4HnswIndexOptions.confidenceInterval;
+            }
+            return updatable;
         }
-
     }
 
     static class Int4FlatIndexOptions extends IndexOptions {
@@ -1553,7 +1561,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean equals(Object o) {
+        public boolean doEquals(IndexOptions o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Int4FlatIndexOptions that = (Int4FlatIndexOptions) o;
@@ -1561,7 +1569,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public int hashCode() {
+        public int doHashCode() {
             return Objects.hash(confidenceInterval);
         }
 
@@ -1573,7 +1581,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         boolean updatableTo(IndexOptions update) {
             // TODO: add support for updating from flat, hnsw, and int8_hnsw and updating params
-            return Objects.equals(this, update);
+            return update.type.equals(this.type)
+                || update.type.equals(VectorIndexType.HNSW)
+                || update.type.equals(VectorIndexType.INT8_HNSW)
+                || update.type.equals(VectorIndexType.INT4_HNSW);
         }
     }
 
@@ -1609,7 +1620,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean equals(Object o) {
+        public boolean doEquals(IndexOptions o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Int8HnswIndexOptions that = (Int8HnswIndexOptions) o;
@@ -1617,7 +1628,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public int hashCode() {
+        public int doHashCode() {
             return Objects.hash(m, efConstruction, confidenceInterval);
         }
 
@@ -1636,8 +1647,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean updatableTo(IndexOptions update) {
-            boolean updatable = update.type.equals(this.type);
-            if (updatable) {
+            boolean updatable;
+            if (update.type.equals(this.type)) {
                 Int8HnswIndexOptions int8HnswIndexOptions = (Int8HnswIndexOptions) update;
                 // fewer connections would break assumptions on max number of connections (based on largest previous graph) during merge
                 // quantization could not behave as expected with different confidence intervals (and quantiles) to be created
@@ -1645,6 +1656,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 updatable &= confidenceInterval == null
                     || int8HnswIndexOptions.confidenceInterval != null
                         && confidenceInterval.equals(int8HnswIndexOptions.confidenceInterval);
+            } else {
+                updatable = update.type.equals(VectorIndexType.INT4_HNSW) && ((Int4HnswIndexOptions) update).m >= this.m;
             }
             return updatable;
         }
@@ -1676,7 +1689,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) update;
                 updatable = hnswIndexOptions.m >= this.m;
             }
-            return updatable || (update.type.equals(VectorIndexType.INT8_HNSW.name) && ((Int8HnswIndexOptions) update).m >= m);
+            return updatable
+                || (update.type.equals(VectorIndexType.INT8_HNSW) && ((Int8HnswIndexOptions) update).m >= m)
+                || (update.type.equals(VectorIndexType.INT4_HNSW) && ((Int4HnswIndexOptions) update).m >= m);
         }
 
         @Override
@@ -1690,7 +1705,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean equals(Object o) {
+        public boolean doEquals(IndexOptions o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             HnswIndexOptions that = (HnswIndexOptions) o;
@@ -1698,8 +1713,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public int hashCode() {
-            return Objects.hash(type, m, efConstruction);
+        public int doHashCode() {
+            return Objects.hash(m, efConstruction);
         }
 
         @Override
@@ -1829,17 +1844,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             }
             return new DenseVectorQuery.Floats(queryVector, name());
-        }
-
-        Query createKnnQuery(
-            float[] queryVector,
-            Integer k,
-            int numCands,
-            Query filter,
-            Float similarityThreshold,
-            BitSetProducer parentFilter
-        ) {
-            return createKnnQuery(VectorData.fromFloats(queryVector), k, numCands, filter, similarityThreshold, parentFilter);
         }
 
         public Query createKnnQuery(

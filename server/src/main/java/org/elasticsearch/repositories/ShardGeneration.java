@@ -76,9 +76,9 @@ public final class ShardGeneration implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Convert to a {@link String} for use in naming the {@code index-$SHARD_GEN} blob containing a {@link BlobStoreIndexShardSnapshots}.
+     * For use in naming the {@code index-$SHARD_GEN} blob containing a {@link BlobStoreIndexShardSnapshots}.
      */
-    public String toBlobNamePart() {
+    public String getGenerationUUID() {
         return rawGeneration;
     }
 

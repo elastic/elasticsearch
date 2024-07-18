@@ -4,8 +4,7 @@ tests:
   method: "testGuessIsDayFirstFromLocale"
 - class: "org.elasticsearch.test.rest.ClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108857"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.upgrades.SearchStatesIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108991"
   method: "testCanMatch"
@@ -14,8 +13,7 @@ tests:
   method: "testTrainedModelInference"
 - class: "org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109188"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109189"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
@@ -30,8 +28,7 @@ tests:
   method: "testTimestampFieldTypeExposedByAllIndicesServices"
 - class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109318"
-  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling\
-    \ (too complex pattern)}"
+  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}"
 - class: "org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT"
   issue: "https://github.com/elastic/elasticsearch/issues/101598"
   method: "testFeatureImportanceValues"
@@ -88,11 +85,37 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFileTests
   method: testCacheFileCreatedAsSparseFile
   issue: https://github.com/elastic/elasticsearch/issues/110801
-- class: org.elasticsearch.upgrades.FileSettingsUpgradeIT
-  issue: https://github.com/elastic/elasticsearch/issues/110884
 - class: "org.elasticsearch.xpack.watcher.test.integration.HistoryIntegrationTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110885"
   method: "testPayloadInputWithDotsInFieldNameWorks"
+- class: org.elasticsearch.nativeaccess.PreallocateTests
+  method: testPreallocate
+  issue: https://github.com/elastic/elasticsearch/issues/110948
+- class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
+  method: testSystemPropertyDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/110949
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: "test {stats.Count_or_null SYNC #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/110950
+- class: "org.elasticsearch.xpack.esql.querydsl.query.SingleValueQueryTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/110977"
+  method: "testNotMatchSome {p0=StandardSetup[fieldType=keyword, multivaluedField=true, empty=true, count=100]}"
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/110978
+- class: org.elasticsearch.search.sort.FieldSortIT
+  method: testIssue6614
+  issue: https://github.com/elastic/elasticsearch/issues/110999
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/111002
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {p0=data_stream/190_failure_store_redirection/Ensure failure is redirected to correct failure store after a reroute processor}
+  issue: https://github.com/elastic/elasticsearch/issues/111041
+- class: org.elasticsearch.xpack.esql.querydsl.query.SingleValueQueryTests
+  issue: https://github.com/elastic/elasticsearch/issues/111042
+- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
+  method: testLoadAllStatusAllInOnePage
+  issue: https://github.com/elastic/elasticsearch/issues/111048
 
 # Examples:
 #

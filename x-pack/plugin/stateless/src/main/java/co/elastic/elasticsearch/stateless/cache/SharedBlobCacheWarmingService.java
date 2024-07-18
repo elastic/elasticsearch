@@ -177,7 +177,8 @@ public class SharedBlobCacheWarmingService {
             // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService to
             // fully utilize each region. So we just pass it with a value that cover the current region.
             totalSizeInBytes,
-            (channel, channelPos, relativePos, len, progressUpdater) -> {
+            (channel, channelPos, streamFactory, relativePos, len, progressUpdater) -> {
+                assert streamFactory == null : streamFactory;
                 try (OutputStream output = new OutputStream() {
 
                     private final ByteBuffer byteBuffer = writeBuffer.get();
@@ -530,7 +531,8 @@ public class SharedBlobCacheWarmingService {
                                 // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService
                                 // to fully utilize each region. So we just pass it with a value that cover the current region.
                                 (long) (blobRegion.region + 1) * cacheService.getRegionSize(),
-                                (channel, channelPos, relativePos, length, progressUpdater) -> {
+                                (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
+                                    assert streamFactory == null : streamFactory;
                                     long position = range.start() + relativePos;
                                     try (var in = cacheBlobReader.getRangeInputStream(position, length)) {
                                         assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
@@ -598,7 +600,8 @@ public class SharedBlobCacheWarmingService {
                         // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService to
                         // fully utilize each region. So we just pass it with a value that cover the current region.
                         (long) (target.region + 1) * cacheService.getRegionSize(),
-                        (channel, channelPos, relativePos, length, progressUpdater) -> {
+                        (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
+                            assert streamFactory == null : streamFactory;
                             long position = (long) target.region * cacheService.getRegionSize() + relativePos;
                             var blobContainer = unwrapDirectory(indexShard.store().directory()).getBlobContainer(target.blob.primaryTerm());
                             try (var in = blobContainer.readBlob(OperationPurpose.INDICES, target.blob.blobName(), position, length)) {

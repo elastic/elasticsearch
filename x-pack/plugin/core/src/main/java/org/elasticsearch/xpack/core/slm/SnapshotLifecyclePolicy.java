@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -77,11 +78,11 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), SCHEDULE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), CONFIG);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INTERVAL);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), INTERVAL);
     }
 
     public SnapshotLifecyclePolicy(
@@ -95,9 +96,6 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     ) {
         this.id = Objects.requireNonNull(id, "policy id is required");
         this.name = Objects.requireNonNull(name, "policy snapshot name is required");
-        if (schedule == null && interval == null) {
-            throw new IllegalArgumentException("policy schedule or interval is required");
-        }
         this.schedule = schedule;
         this.interval = interval;
         this.repository = Objects.requireNonNull(repository, "policy snapshot repository is required");
@@ -152,14 +150,14 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         return this.retentionPolicy;
     }
 
-    public long calculateNextExecution(long modifiedDate) {
-        if (this.schedule != null) {
+    public long calculateNextExecution(long modifiedDate, Clock clock) {
+        if (Strings.isEmpty(schedule) == false) {
             final Cron scheduleEvaluator = new Cron(this.schedule);
-            return scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
+            return scheduleEvaluator.getNextValidTimeAfter(clock.millis());
         } else {
             final TimeValue interval = TimeValue.parseTimeValue(this.interval, INTERVAL.getPreferredName());
             final TimeValueSchedule timeValueSchedule = new TimeValueSchedule(interval);
-            return timeValueSchedule.nextScheduledTimeAfter(modifiedDate, System.currentTimeMillis());
+            return timeValueSchedule.nextScheduledTimeAfter(modifiedDate, clock.millis());
         }
     }
 
@@ -168,17 +166,17 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
      * <p>
      * In ordinary cases, this can be treated as the interval between executions of the schedule (for schedules like 'twice an hour' or
      * 'every five minutes').
-     *
+     * @param clock a clock to provide current time
      * @return a {@link TimeValue} representing the difference between the next two valid times after now, or {@link TimeValue#MINUS_ONE}
      *         if either of the next two times after now is unsupported according to @{@link Cron#getNextValidTimeAfter(long)}
      */
-    public TimeValue calculateNextInterval() {
+    public TimeValue calculateNextInterval(Clock clock) {
         if (this.interval != null) {
             return TimeValue.parseTimeValue(interval, INTERVAL.getPreferredName());
         }
 
         final Cron scheduleEvaluator = new Cron(this.schedule);
-        long next1 = scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
+        long next1 = scheduleEvaluator.getNextValidTimeAfter(clock.millis());
         long next2 = scheduleEvaluator.getNextValidTimeAfter(next1);
         if (next1 > 0 && next2 > 0) {
             return TimeValue.timeValueMillis(next2 - next1);
@@ -214,10 +212,11 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             err.addValidationErrors(nameValidationErrors.validationErrors());
         }
 
+
         final boolean hasSchedule = Strings.hasText(schedule);
         final boolean hasInterval = Strings.hasText(interval);
         if (hasSchedule == false && hasInterval == false) {
-            err.addValidationError("invalid schedule/interval: one of schedule or interval must not be empty");
+            err.addValidationError("invalid schedule/interval: either schedule or interval must not be empty");
         } else if (hasSchedule && hasInterval) {
             err.addValidationError("invalid schedule/interval: only one of schedule or interval can be non-empty");
         } else if (hasSchedule) {

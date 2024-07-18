@@ -1038,7 +1038,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 public void onFailure(Exception e) {
                     failGapAndListener(gap, listener, e);
                 }
-            }
+            };
         }
 
         private static void failGapAndListener(SparseFileTracker.Gap gap, ActionListener<?> listener, Exception e) {
@@ -1128,12 +1128,20 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     IntConsumer progressUpdater,
                     ActionListener<Void> completion
                 ) throws IOException {
-                    writer.fillCacheRange(channel, channelPos, streamFactory, relativePos, length, progressUpdater, completion.map(unused -> {
-                        var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
-                        blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
-                        blobCacheMetrics.getCacheMissCounter().increment();
-                        return null;
-                    }));
+                    writer.fillCacheRange(
+                        channel,
+                        channelPos,
+                        streamFactory,
+                        relativePos,
+                        length,
+                        progressUpdater,
+                        completion.map(unused -> {
+                            var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
+                            blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
+                            blobCacheMetrics.getCacheMissCounter().increment();
+                            return null;
+                        })
+                    );
                 }
             };
             if (rangeToRead.isEmpty()) {
@@ -1227,9 +1235,17 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         int relativePos,
                         int len,
                         IntConsumer progressUpdater,
-                        ActionListener<Void> completion,
+                        ActionListener<Void> completion
                     ) throws IOException {
-                        delegate.fillCacheRange(channel, channelPos, streamFactory, relativePos - writeOffset, len, progressUpdater);
+                        delegate.fillCacheRange(
+                            channel,
+                            channelPos,
+                            streamFactory,
+                            relativePos - writeOffset,
+                            len,
+                            progressUpdater,
+                            completion
+                        );
                     }
                 };
             }
@@ -1246,11 +1262,22 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         ActionListener<Void> completion
                     ) throws IOException {
                         assert assertValidRegionAndLength(fileRegion, channelPos, len);
-                        delegate.fillCacheRange(channel, channelPos, streamFactory, relativePos, len, progressUpdater);
-                        assert regionOwners.get(fileRegion.io) == fileRegion
-                            : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                        delegate.fillCacheRange(
+                            channel,
+                            channelPos,
+                            streamFactory,
+                            relativePos,
+                            len,
+                            progressUpdater,
+                            completion.map(unused -> {
+                                assert regionOwners.get(fileRegion.io) == fileRegion
+                                    : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                                return null;
+                            })
+                        );
                     }
                 };
+
             }
             return adjustedWriter;
         }
@@ -1345,7 +1372,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             int relativePos,
             int length,
             IntConsumer progressUpdater,
-            ActionListener<Void> completion,
+            ActionListener<Void> completion
         ) throws IOException;
     }
 
@@ -1381,9 +1408,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             SourceInputStreamFactory streamFactory,
             int relativePos,
             int length,
-            IntConsumer progressUpdater
+            IntConsumer progressUpdater,
+            ActionListener<Void> completion
         ) throws IOException {
-            delegate.fillCacheRange(channel, channelPos, streamFactory, relativePos, length, progressUpdater);
+            delegate.fillCacheRange(channel, channelPos, streamFactory, relativePos, length, progressUpdater, completion);
         }
     }
 

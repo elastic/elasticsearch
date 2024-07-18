@@ -8,88 +8,114 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
-
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.logsdb.datageneration.arbitrary.Arbitrary;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 public class DataGeneratorSnapshotTests extends ESTestCase {
     public void testSnapshot() throws Exception {
-        // This is a workaround to have a test with static random seed.
-        // There is a lot of randomness in the code we are testing here.
-        // We want one static snapshot test so that we can write strong asserts
-        // and see the result that code produces.
-        RandomizedContext.current().runWithPrivateRandomness(-2692230890836950060L, () -> {
-            var dataGenerator = new DataGenerator(new DataGeneratorSpecification(5, 3));
+        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(5, 2, new TestArbitrary()));
 
-            var mapping = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
-            dataGenerator.writeMapping(mapping);
+        var mapping = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
+        dataGenerator.writeMapping(mapping);
 
-            var document = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
-            dataGenerator.generateDocument(document);
+        var document = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
+        dataGenerator.generateDocument(document);
 
-            var expectedMapping = """
-                {
-                  "_doc" : {
+        var expectedMapping = """
+            {
+              "_doc" : {
+                "properties" : {
+                  "f1" : {
                     "properties" : {
-                      "WUUOoFnpLDUIryHzkHuVAqqnTkBopIdzZuloVPpbjL" : {
+                      "f2" : {
                         "type" : "keyword"
                       },
-                      "XHCheCPhJCPhGaqXSrkURPhlfEMDDfftkFnWb" : {
-                        "type" : "keyword"
-                      },
-                      "QHcrBsDwzJzAnBXVbWdn" : {
-                        "type" : "long"
-                      },
-                      "jdBjxWEfbUOwfymlroNoTyFuRDzpUjnBL" : {
+                      "f3" : {
                         "properties" : {
-                          "cVglqwvNgCF" : {
+                          "f4" : {
+                            "type" : "long"
+                          },
+                          "f5" : {
                             "type" : "keyword"
-                          },
-                          "ukXrhVCBqnmxxhodYCyCEcRfgHpJgfz" : {
-                            "type" : "long"
-                          },
-                          "dkUCNNHoIDGtEFBzwgSQruICTjSWBsLEMoNR" : {
-                            "type" : "long"
-                          },
-                          "rdNKpBHzdvwMcWxMNAUgfyirPXzNNyIaKkV" : {
-                            "properties" : {
-                              "cvlZWMzfBefQqdVeXtxJcONamiDIMRciTkctr" : {
-                                "type" : "long"
-                              }
-                            }
                           }
                         }
-                      },
-                      "KLlJwqHjLYSu" : {
-                        "type" : "keyword"
                       }
                     }
-                  }
-                }""";
-
-            var expectedDocument = """
-                {
-                  "WUUOoFnpLDUIryHzkHuVAqqnTkBopIdzZuloVPpbjL" : "kwaGeKdalYbOE",
-                  "XHCheCPhJCPhGaqXSrkURPhlfEMDDfftkFnWb" : "iASNe",
-                  "QHcrBsDwzJzAnBXVbWdn" : -2703143610541897792,
-                  "jdBjxWEfbUOwfymlroNoTyFuRDzpUjnBL" : {
-                    "cVglqwvNgCF" : "LWE",
-                    "ukXrhVCBqnmxxhodYCyCEcRfgHpJgfz" : 7100672347108481398,
-                    "dkUCNNHoIDGtEFBzwgSQruICTjSWBsLEMoNR" : -2819217416523838608,
-                    "rdNKpBHzdvwMcWxMNAUgfyirPXzNNyIaKkV" : {
-                      "cvlZWMzfBefQqdVeXtxJcONamiDIMRciTkctr" : -7590118516953240854
-                    }
                   },
-                  "KLlJwqHjLYSu" : "imc"
-                }""";
+                  "f6" : {
+                    "type" : "long"
+                  }
+                }
+              }
+            }""";
 
-            assertEquals(expectedMapping, Strings.toString(mapping));
-            assertEquals(expectedDocument, Strings.toString(document));
+        var expectedDocument = """
+            {
+              "f1" : {
+                "f2" : "string1",
+                "f3" : {
+                  "f4" : 0,
+                  "f5" : "string2"
+                }
+              },
+              "f6" : 1
+            }""";
 
-            return null;
-        });
+        assertEquals(expectedMapping, Strings.toString(mapping));
+        assertEquals(expectedDocument, Strings.toString(document));
     }
+
+    private class TestArbitrary implements Arbitrary {
+        private boolean generateSubObject = true;
+        private int generatedFields = 0;
+        private FieldType fieldType = FieldType.KEYWORD;
+        private long longValue = 0;
+        private long generatedStringValues = 0;
+
+        @Override
+        public boolean generateSubObject() {
+            if (generateSubObject) {
+                generateSubObject = false;
+                return true;
+            }
+
+            generateSubObject = true;
+            return false;
+        }
+
+        @Override
+        public int childFieldCount(int lowerBound, int upperBound) {
+            assert lowerBound < 2 && upperBound > 2;
+            return 2;
+        }
+
+        @Override
+        public String fieldName(int lengthLowerBound, int lengthUpperBound) {
+            return "f" + (generatedFields++ + 1);
+        }
+
+        @Override
+        public FieldType fieldType() {
+            if (fieldType == FieldType.KEYWORD) {
+                fieldType = FieldType.LONG;
+                return FieldType.KEYWORD;
+            }
+
+            fieldType = FieldType.KEYWORD;
+            return FieldType.LONG;
+        }
+
+        @Override
+        public long longValue() {
+            return longValue++;
+        }
+
+        @Override
+        public String stringValue(int lengthLowerBound, int lengthUpperBound) {
+            return "string" + (generatedStringValues++ + 1);
+        }
+    };
 }

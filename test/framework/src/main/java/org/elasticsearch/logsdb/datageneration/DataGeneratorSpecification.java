@@ -8,13 +8,16 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
+import org.elasticsearch.logsdb.datageneration.arbitrary.Arbitrary;
+import org.elasticsearch.logsdb.datageneration.arbitrary.RandomBasedArbitrary;
+
 /**
  * Allows configuring behavior of {@link  DataGenerator}.
  * @param maxFieldCountPerLevel maximum number of fields that an individual object in mapping has.
  *                              Applies to subobjects.
  */
-public record DataGeneratorSpecification(int maxFieldCountPerLevel, int maxObjectDepth) {
+public record DataGeneratorSpecification(int maxFieldCountPerLevel, int maxObjectDepth, Arbitrary arbitrary) {
     public DataGeneratorSpecification() {
-        this(100, 3);
+        this(100, 3, new RandomBasedArbitrary());
     }
 }

@@ -20,11 +20,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
-import static org.elasticsearch.test.ESTestCase.randomDouble;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-
 public class ObjectFieldDataGenerator implements FieldDataGenerator {
     private final DataGeneratorSpecification specification;
     private final int depth;
@@ -69,16 +64,15 @@ public class ObjectFieldDataGenerator implements FieldDataGenerator {
     private void generateChildFields() {
         var existingFields = new HashSet<String>();
         // no child fields is legal
-        var childFieldsCount = randomIntBetween(0, specification.maxFieldCountPerLevel());
+        var childFieldsCount = specification.arbitrary().childFieldCount(0, specification.maxFieldCountPerLevel());
 
         for (int i = 0; i < childFieldsCount; i++) {
-            var fieldType = randomFrom(FieldType.values());
             var fieldName = generateFieldName(existingFields);
 
-            // Roll separately for subobjects with a 10% chance
-            if (randomDouble() < 0.1 && depth < specification.maxObjectDepth()) {
+            if (specification.arbitrary().generateSubObject() && depth < specification.maxObjectDepth()) {
                 childFields.add(new ChildField(fieldName, new ObjectFieldDataGenerator(specification, depth + 1)));
             } else {
+                var fieldType = specification.arbitrary().fieldType();
                 addLeafField(fieldType, fieldName);
             }
         }
@@ -86,17 +80,17 @@ public class ObjectFieldDataGenerator implements FieldDataGenerator {
 
     private void addLeafField(FieldType type, String fieldName) {
         var generator = switch (type) {
-            case LONG -> new LongFieldDataGenerator();
-            case KEYWORD -> new KeywordFieldDataGenerator();
+            case LONG -> new LongFieldDataGenerator(specification.arbitrary());
+            case KEYWORD -> new KeywordFieldDataGenerator(specification.arbitrary());
         };
 
         childFields.add(new ChildField(fieldName, generator));
     }
 
-    private static String generateFieldName(Set<String> existingFields) {
-        var fieldName = randomAlphaOfLengthBetween(1, 50);
+    private String generateFieldName(Set<String> existingFields) {
+        var fieldName = specification.arbitrary().fieldName(1, 10);
         while (existingFields.contains(fieldName)) {
-            fieldName = randomAlphaOfLengthBetween(1, 50);
+            fieldName = specification.arbitrary().fieldName(1, 10);
         }
         existingFields.add(fieldName);
 

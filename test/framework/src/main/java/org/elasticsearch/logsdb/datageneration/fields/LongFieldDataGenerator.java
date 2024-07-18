@@ -10,14 +10,17 @@ package org.elasticsearch.logsdb.datageneration.fields;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.arbitrary.Arbitrary;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.ESTestCase.randomLong;
-
 public class LongFieldDataGenerator implements FieldDataGenerator {
-    public LongFieldDataGenerator() {}
+    private final Arbitrary arbitrary;
+
+    public LongFieldDataGenerator(Arbitrary arbitrary) {
+        this.arbitrary = arbitrary;
+    }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
@@ -26,6 +29,6 @@ public class LongFieldDataGenerator implements FieldDataGenerator {
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-        return b -> b.value(randomLong());
+        return b -> b.value(arbitrary.longValue());
     }
 }

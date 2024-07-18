@@ -11,6 +11,7 @@ package org.elasticsearch.logsdb.datageneration;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.logsdb.datageneration.arbitrary.RandomBasedArbitrary;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -32,7 +33,7 @@ public class DataGeneratorTests extends ESTestCase {
 
     public void testDataGeneratorProducesValidMappingAndDocument() throws IOException {
         // Let's keep number of fields under 1000 field limit
-        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(10, 3));
+        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(10, 3, new RandomBasedArbitrary()));
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
         dataGenerator.writeMapping(mapping);
@@ -47,7 +48,7 @@ public class DataGeneratorTests extends ESTestCase {
     }
 
     public void testDataGeneratorStressTest() throws IOException {
-        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(300, 3));
+        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(300, 3, new RandomBasedArbitrary()));
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
         dataGenerator.writeMapping(mapping);

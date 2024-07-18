@@ -491,7 +491,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
             renderDescription(description.description(), info.detailedDescription(), info.note());
             boolean hasExamples = renderExamples(info);
-            renderFullLayout(name, hasExamples);
+            boolean hasAppendix = renderAppendix(info.appendix());
+            renderFullLayout(name, hasExamples, hasAppendix);
             renderKibanaInlineDocs(name, info);
             List<EsqlFunctionRegistry.ArgSignature> args = description.args();
             if (name.equals("case")) {
@@ -564,7 +565,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("parameters", rendered, "asciidoc");
     }
 
-    private static void renderDescription(String description, String detailedDescription, String note) throws IOException {
+    private static void renderDescription(String description, String detailedDescription, String note)
+        throws IOException {
         String rendered = DOCS_WARNING + """
             *Description*
 
@@ -620,7 +622,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return true;
     }
 
-    private static void renderFullLayout(String name, boolean hasExamples) throws IOException {
+    private static boolean renderAppendix(String appendix) throws IOException {
+        if (appendix.isEmpty()) {
+            return false;
+        }
+
+        String rendered = DOCS_WARNING + appendix + "\n";
+
+        LogManager.getLogger(getTestClass()).info("Writing appendix for [{}]:\n{}", functionName(), rendered);
+        writeToTempDir("appendix", rendered, "asciidoc");
+        return true;
+    }
+
+    private static void renderFullLayout(String name, boolean hasExamples, boolean hasAppendix) throws IOException {
         String rendered = DOCS_WARNING + """
             [discrete]
             [[esql-$NAME$]]
@@ -637,6 +651,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             """.replace("$NAME$", name).replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT));
         if (hasExamples) {
             rendered += "include::../examples/" + name + ".asciidoc[]\n";
+        }
+        if (hasAppendix) {
+            rendered += "include::../appendix/" + name + ".asciidoc[]\n";
         }
         LogManager.getLogger(getTestClass()).info("Writing layout for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("layout", rendered, "asciidoc");

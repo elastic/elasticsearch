@@ -159,16 +159,16 @@ public class EsqlSession {
         runPhase.accept(physicalPlan, listener.delegateFailureAndWrap((next, result) -> {
             try {
                 profileAccumulator.addAll(result.profiles());
-                LogicalPlan withPrevPhaseResults = Phased.applyResultsFromFirstPhase(mainPlan, physicalPlan.output(), result.pages());
-                LogicalPlan newNextPhase = Phased.extractFirstPhase(withPrevPhaseResults);
-                if (newNextPhase == null) {
-                    PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(withPrevPhaseResults, request);
+                LogicalPlan newMainPlan = Phased.applyResultsFromFirstPhase(mainPlan, physicalPlan.output(), result.pages());
+                LogicalPlan newFirstPhase = Phased.extractFirstPhase(newMainPlan);
+                if (newFirstPhase == null) {
+                    PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request);
                     runPhase.accept(finalPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         profileAccumulator.addAll(finalResult.profiles());
                         finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator));
                     }));
                 } else {
-                    executePhased(profileAccumulator, withPrevPhaseResults, request, newNextPhase, runPhase, next);
+                    executePhased(profileAccumulator, newMainPlan, request, newFirstPhase, runPhase, next);
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));

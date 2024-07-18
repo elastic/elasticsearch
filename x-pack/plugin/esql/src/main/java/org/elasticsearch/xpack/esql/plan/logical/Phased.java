@@ -24,7 +24,7 @@ import java.util.List;
  *     <li>if there isn't a first phase, run the entire logical plan and return the
  *         results. you are done.</li>
  *     <li>if there is first phase, run that</li>
- *     <li>{@link Phased#applyResultsFromFirstPhase appling} the results from the
+ *     <li>{@link Phased#applyResultsFromFirstPhase applying} the results from the
  *         first phase into the logical plan</li>
  *     <li>start over from step 2 using the new logical plan</li>
  * </ol>
@@ -50,6 +50,28 @@ import java.util.List;
  * | WHERE m = bar
  * | LIMIT 1
  * }</pre>
+ * <p>If there are multiple {@linkplain Phased} nodes in the plan we always
+ * operate on the lowest one first, counting from the data source "upwards".
+ * Generally that'll read left to right in the query. So:</p>
+ * <pre>{@code
+ * FROM foo | INLINESTATS | INLINESTATS
+ * }</pre>
+ * becomes
+ * <pre>{@code
+ * FROM foo | STATS
+ * }</pre>
+ * and
+ * <pre>{@code
+ * FROM foo | HASHJOIN | INLINESTATS
+ * }</pre>
+ * which is further broken into
+ * <pre>{@code
+ * FROM foo | HASHJOIN | STATS
+ * }</pre>
+ * and finally:
+ * <pre>{@code
+ * FROM foo | HASHJOIN | HASHJOIN
+ * }</pre>
  */
 public interface Phased {
     /**
@@ -69,7 +91,9 @@ public interface Phased {
      * Or {@code null} if there aren't any {@linkplain Phased} operations.
      */
     static LogicalPlan extractFirstPhase(LogicalPlan plan) {
-        assert plan.analyzed();
+        if (false == plan.analyzed()) {
+            throw new IllegalArgumentException("plan must be analyzed");
+        }
         var firstPhase = new Holder<LogicalPlan>();
         plan.forEachUp(t -> {
             if (firstPhase.get() == null && t instanceof Phased phased) {
@@ -94,7 +118,9 @@ public interface Phased {
      * phase of the plan.
      */
     static LogicalPlan applyResultsFromFirstPhase(LogicalPlan plan, List<Attribute> schema, List<Page> result) {
-        assert plan.analyzed();
+        if (false ==plan.analyzed()) {
+            throw new IllegalArgumentException("plan must be analyzed");
+        }
         Holder<Boolean> seen = new Holder<>(false);
         LogicalPlan applied = plan.transformUp(logicalPlan -> {
             if (seen.get() == false && logicalPlan instanceof Phased phased) {

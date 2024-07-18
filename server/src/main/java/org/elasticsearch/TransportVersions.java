@@ -209,6 +209,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_GOOGLE_VERTEX_AI_RERANKING_ADDED = def(8_700_00_0);
     public static final TransportVersion VERSIONED_MASTER_NODE_REQUESTS = def(8_701_00_0);
     public static final TransportVersion ML_INFERENCE_AMAZON_BEDROCK_ADDED = def(8_702_00_0);
+    public static final TransportVersion ENTERPRISE_GEOIP_DOWNLOADER_BACKPORT_8_15 = def(8_702_00_1);
     public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_703_00_0);
     public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_704_00_0);
     public static final TransportVersion INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN = def(8_705_00_0);

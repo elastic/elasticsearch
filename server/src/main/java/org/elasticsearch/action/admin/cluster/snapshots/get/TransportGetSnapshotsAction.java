@@ -53,14 +53,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
@@ -182,18 +180,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final GetSnapshotInfoExecutor getSnapshotInfoExecutor;
 
         // results
-        private final Queue<List<SnapshotInfo>> allSnapshotInfos = ConcurrentCollections.newQueue();
+        private final List<SnapshotInfo> allSnapshotInfos = Collections.synchronizedList(new ArrayList<>());
 
         /**
          * Accumulates number of snapshots that match the name/fromSortValue/slmPolicy predicates, to be returned in the response.
          */
         private final AtomicInteger totalCount = new AtomicInteger();
-
-        /**
-         * Accumulates the number of snapshots that match the name/fromSortValue/slmPolicy/after predicates, for sizing the final result
-         * list.
-         */
-        private final AtomicInteger resultsCount = new AtomicInteger();
 
         GetSnapshotsOperation(
             CancellableTask cancellableTask,
@@ -255,7 +247,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                             }
 
                             SubscribableListener.<RepositoryData>newForked(l -> maybeGetRepositoryData(repoName, l))
-                                .<Void>andThen((l, repositoryData) -> loadSnapshotInfos(repoName, repositoryData, l))
+                                .<Void>andThen((repositoryListener, repositoryData) -> {
+                                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
+                                    cancellableTask.ensureNotCancelled();
+                                    ensureRequiredNamesPresent(repoName, repositoryData);
+                                    loadSnapshotInfos(
+                                        getAsyncSnapshotInfoIterator(repositoriesService.repository(repoName), repositoryData),
+                                        repositoryListener
+                                    );
+                                })
                                 .addListener(listeners.acquire());
                         }
                     }
@@ -279,14 +279,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             } else {
                 return false;
             }
-        }
-
-        private void loadSnapshotInfos(String repositoryName, @Nullable RepositoryData repositoryData, ActionListener<Void> listener) {
-            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
-            cancellableTask.ensureNotCancelled();
-            final var repository = repositoriesService.repository(repositoryName);
-            ensureRequiredNamesPresent(repositoryName, repositoryData);
-            loadSnapshotInfos(getAsyncSnapshotInfoIterator(repository, repositoryData), listener);
         }
 
         /**
@@ -321,12 +313,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
          * An asynchronous supplier of a {@link SnapshotInfo}.
          */
         private interface AsyncSnapshotInfo {
-
-            /**
-             * @return the {@link SnapshotId} of the {@link SnapshotInfo} to be retrieved.
-             */
-            SnapshotId getSnapshotId();
-
             /**
              * @param listener completed, possibly asynchronously, with the appropriate {@link SnapshotInfo}.
              */
@@ -338,11 +324,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
          */
         private AsyncSnapshotInfo forSnapshotInProgress(SnapshotsInProgress.Entry snapshotInProgress) {
             return new AsyncSnapshotInfo() {
-                @Override
-                public SnapshotId getSnapshotId() {
-                    return snapshotInProgress.snapshot().getSnapshotId();
-                }
-
                 @Override
                 public void getSnapshotInfo(ActionListener<SnapshotInfo> listener) {
                     final var snapshotInfo = SnapshotInfo.inProgress(snapshotInProgress);
@@ -366,11 +347,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             Map<SnapshotId, List<String>> indicesLookup
         ) {
             return new AsyncSnapshotInfo() {
-                @Override
-                public SnapshotId getSnapshotId() {
-                    return snapshotId;
-                }
-
                 @Override
                 public void getSnapshotInfo(ActionListener<SnapshotInfo> listener) {
                     if (verbose) {
@@ -454,59 +430,39 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             if (cancellableTask.notifyIfCancelled(listener)) {
                 return;
             }
-            final var repositoryTotalCount = new AtomicInteger();
-
-            final List<SnapshotInfo> snapshots = new ArrayList<>();
-            final List<SnapshotInfo> syncSnapshots = Collections.synchronizedList(snapshots);
-
-            SubscribableListener
-
-                .<Void>newForked(l -> {
-                    try (var listeners = new RefCountingListener(l)) {
-                        ThrottledIterator.run(
-                            Iterators.failFast(asyncSnapshotInfoIterator, () -> cancellableTask.isCancelled() || listeners.isFailing()),
-                            (ref, asyncSnapshotInfo) -> {
-                                final var refListener = ActionListener.runBefore(listeners.acquire(), ref::close);
-                                asyncSnapshotInfo.getSnapshotInfo(new ActionListener<>() {
-                                    @Override
-                                    public void onResponse(SnapshotInfo snapshotInfo) {
-                                        if (matchesPredicates(snapshotInfo)) {
-                                            repositoryTotalCount.incrementAndGet();
-                                            if (afterPredicate.test(snapshotInfo)) {
-                                                syncSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
-                                            }
-                                        }
-                                        refListener.onResponse(null);
+            try (var listeners = new RefCountingListener(listener)) {
+                ThrottledIterator.run(
+                    Iterators.failFast(asyncSnapshotInfoIterator, () -> cancellableTask.isCancelled() || listeners.isFailing()),
+                    (ref, asyncSnapshotInfo) -> {
+                        final var refListener = ActionListener.runBefore(listeners.acquire(), ref::close);
+                        asyncSnapshotInfo.getSnapshotInfo(new ActionListener<>() {
+                            @Override
+                            public void onResponse(SnapshotInfo snapshotInfo) {
+                                if (matchesPredicates(snapshotInfo)) {
+                                    totalCount.incrementAndGet();
+                                    if (afterPredicate.test(snapshotInfo)) {
+                                        allSnapshotInfos.add(snapshotInfo.maybeWithoutIndices(indices));
                                     }
+                                }
+                                refListener.onResponse(null);
+                            }
 
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        if (ignoreUnavailable) {
-                                            logger.warn(Strings.format("failed to fetch snapshot info for [%s]", asyncSnapshotInfo), e);
-                                            refListener.onResponse(null);
-                                        } else {
-                                            refListener.onFailure(e);
-                                        }
-                                    }
-                                });
-                            },
-                            getSnapshotInfoExecutor.getMaxRunningTasks(),
-                            () -> {},
-                            () -> {}
-                        );
-                    }
-                })
-
-                // no need to synchronize access to snapshots: all writes happen-before this read
-                .andThenAccept(ignored -> addResults(repositoryTotalCount.get(), snapshots))
-
-                .addListener(listener);
-        }
-
-        private void addResults(int repositoryTotalCount, List<SnapshotInfo> snapshots) {
-            totalCount.addAndGet(repositoryTotalCount);
-            resultsCount.addAndGet(snapshots.size());
-            allSnapshotInfos.add(snapshots);
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (ignoreUnavailable) {
+                                    logger.warn(Strings.format("failed to fetch snapshot info for [%s]", asyncSnapshotInfo), e);
+                                    refListener.onResponse(null);
+                                } else {
+                                    refListener.onFailure(e);
+                                }
+                            }
+                        });
+                    },
+                    getSnapshotInfoExecutor.getMaxRunningTasks(),
+                    () -> {},
+                    () -> {}
+                );
+            }
         }
 
         private GetSnapshotsResponse buildResponse() {
@@ -514,12 +470,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             cancellableTask.ensureNotCancelled();
             int remaining = 0;
             final var resultsStream = allSnapshotInfos.stream()
-                .flatMap(Collection::stream)
                 .peek(this::assertSatisfiesAllPredicates)
                 .sorted(sortBy.getSnapshotInfoComparator(order))
                 .skip(offset);
             final List<SnapshotInfo> snapshotInfos;
-            if (size == GetSnapshotsRequest.NO_LIMIT || resultsCount.get() <= size) {
+            if (size == GetSnapshotsRequest.NO_LIMIT || allSnapshotInfos.size() <= size) {
                 snapshotInfos = resultsStream.toList();
             } else {
                 snapshotInfos = new ArrayList<>(size);

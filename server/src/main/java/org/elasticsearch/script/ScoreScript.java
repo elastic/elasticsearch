@@ -203,11 +203,10 @@ public abstract class ScoreScript extends DocBasedScript {
      * Accessed as _termStatistics in the painless script.
      */
     public TermStatsReader get_termStatistics() {
-        if (termStatsReader != null) {
-            return termStatsReader;
+        if (termStatsReader == null) {
+            throw new IllegalArgumentException("_termStatistics is not available");
         }
-
-        throw new IllegalArgumentException("_termStatistics is not available");
+        return termStatsReader;
     }
 
     /** A factory to construct {@link ScoreScript} instances. */

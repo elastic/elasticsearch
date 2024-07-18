@@ -24,8 +24,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.DoubleStream;
 
 public class TermStatsReader {
+    private static final DoubleSummaryStatistics EMPTY_STATS = DoubleStream.of(0).summaryStatistics();
     private final IndexSearcher searcher;
     private final LeafReaderContext leafReaderContext;
     private final Supplier<Integer> docIdSupplier;
@@ -57,6 +59,10 @@ public class TermStatsReader {
     }
 
     public DoubleSummaryStatistics docFreq() {
+        if (terms.isEmpty()) {
+            return EMPTY_STATS;
+        }
+
         DoubleSummaryStatistics docFreqStatistics = new DoubleSummaryStatistics();
         for (Term term : terms) {
             TermStatistics termStats = termStatistics(term);
@@ -66,6 +72,10 @@ public class TermStatsReader {
     }
 
     public DoubleSummaryStatistics totalTermFreq() {
+        if (terms.isEmpty()) {
+            return EMPTY_STATS;
+        }
+
         DoubleSummaryStatistics totalTermFreqStatistics = new DoubleSummaryStatistics();
         for (Term term : terms) {
             TermStatistics termStats = termStatistics(term);
@@ -75,6 +85,10 @@ public class TermStatsReader {
     }
 
     public DoubleSummaryStatistics termFreq() {
+        if (terms.isEmpty()) {
+            return EMPTY_STATS;
+        }
+
         DoubleSummaryStatistics termFreqStatistics = new DoubleSummaryStatistics();
 
         for (Term term : terms) {
@@ -95,6 +109,10 @@ public class TermStatsReader {
     }
 
     public DoubleSummaryStatistics termPositions() {
+        if (terms.isEmpty()) {
+            return EMPTY_STATS;
+        }
+
         DoubleSummaryStatistics termPositionsStatistics = new DoubleSummaryStatistics();
 
         for (Term term : terms) {

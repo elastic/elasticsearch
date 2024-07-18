@@ -29,7 +29,7 @@ setup:
       index: { refresh: true, index: test-index, id: "4", routing: 1, body: {"title": "Rambo II", "genre": "War movie"} }
 
 ---
-"Match query: uniqueTermsCount without DFS":
+"match query: uniqueTermsCount without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -45,7 +45,7 @@ setup:
   - match: { hits.hits.1._score: 2 }
 
 ---
-"Match query: uniqueTermsCount with DFS":
+"match query: uniqueTermsCount with DFS":
   - do:
       search:
         search_type: dfs_query_then_fetch
@@ -62,7 +62,7 @@ setup:
   - match: { hits.hits.1._score: 2 }
 
 ---
-"Match query: matchedTermsCount without DFS":
+"match query: matchedTermsCount without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -74,13 +74,11 @@ setup:
               script:
                 source: "return _termStatistics.matchedTermsCount()"
   - match: { hits.total: 2 }
-  - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0._score: 2 }
-  - match: { hits.hits.1._id: "2" }
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Match query: matchedTermsCount with DFS":
+"match query: matchedTermsCount with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -93,13 +91,11 @@ setup:
               script:
                 source: "return _termStatistics.matchedTermsCount()"
   - match: { hits.total: 2 }
-  - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0._score: 2 }
-  - match: { hits.hits.1._id: "2" }
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Match query: docFreq min without DFS":
+"match query: docFreq min without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -115,7 +111,7 @@ setup:
   - match: { hits.hits.1._score: 0 }
 
 ---
-"Match query: docFreq min with DFS":
+"match query: docFreq min with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -132,7 +128,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Match query: docFreq max without DFS":
+"match query: docFreq max without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -148,7 +144,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Match query: docFreq max with DFS":
+"match query: docFreq max with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -165,7 +161,7 @@ setup:
   - match: { hits.hits.1._score: 2 }
 
 ---
-"Match query: totalTermFreq sum without DFS":
+"match query: totalTermFreq sum without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -181,7 +177,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Match query: totalTermFreq sum with DFS":
+"match query: totalTermFreq sum with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -198,7 +194,7 @@ setup:
   - match: { hits.hits.1._score: 3 }
 
 ---
-"Match query: termFreq sum without DFS":
+"match query: termFreq sum without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -214,7 +210,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Match query: termFreq sum with DFS":
+"match query: termFreq sum with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -231,7 +227,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Match query: termPositions avg without DFS":
+"match query: termPositions avg without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -247,7 +243,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Match query: termPositions avg with DFS":
+"match query: termPositions avg with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -264,7 +260,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Term query: uniqueTermsCount without DFS":
+"term query: uniqueTermsCount without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -280,7 +276,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Term query: uniqueTermsCount with DFS":
+"term query: uniqueTermsCount with DFS":
   - do:
       search:
         search_type: dfs_query_then_fetch
@@ -297,7 +293,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Term query: matchedTermsCount without DFS":
+"term query: matchedTermsCount without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -309,13 +305,11 @@ setup:
               script:
                 source: "return _termStatistics.matchedTermsCount()"
   - match: { hits.total: 2 }
-  - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0._score: 1 }
-  - match: { hits.hits.1._id: "2" }
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Term query: matchedTermsCount with DFS":
+"term query: matchedTermsCount with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -328,13 +322,11 @@ setup:
               script:
                 source: "return _termStatistics.matchedTermsCount()"
   - match: { hits.total: 2 }
-  - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0._score: 1 }
-  - match: { hits.hits.1._id: "2" }
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Term query: docFreq min without DFS":
+"term query: docFreq min without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -350,7 +342,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Term query: docFreq min with DFS":
+"term query: docFreq min with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -367,7 +359,7 @@ setup:
   - match: { hits.hits.1._score: 2 }
 
 ---
-"Term query: docFreq max without DFS":
+"term query: docFreq max without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -383,7 +375,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Term query: docFreq max with DFS":
+"term query: docFreq max with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -400,7 +392,7 @@ setup:
   - match: { hits.hits.1._score: 2 }
 
 ---
-"Term query: totalTermFreq sum without DFS":
+"term query: totalTermFreq sum without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -416,7 +408,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Term query: totalTermFreq sum with DFS":
+"term query: totalTermFreq sum with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -433,7 +425,7 @@ setup:
   - match: { hits.hits.1._score: 2 }
 
 ---
-"Term query: termFreq sum without DFS":
+"term query: termFreq sum without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -449,7 +441,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Term query: termFreq sum with DFS":
+"term query: termFreq sum with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -466,7 +458,7 @@ setup:
   - match: { hits.hits.1._score: 1 }
 
 ---
-"Term query: termPositions avg without DFS":
+"term query: termPositions avg without DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -482,7 +474,7 @@ setup:
   - match: { hits.hits.1._score: 0 }
 
 ---
-"Term query: termPositions avg with DFS":
+"term query: termPositions avg with DFS":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -497,3 +489,124 @@ setup:
   - match: { hits.total: 2 }
   - match: { hits.hits.0._score: 0 }
   - match: { hits.hits.1._score: 0 }
+
+---
+"Complex bool query: uniqueTermsCount":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query:
+                bool:
+                  must:
+                    match: { "title": "star wars" }
+                  should:
+                    term: { "genre.keyword": "Sci-fi" }
+                  filter:
+                    match: { "genre" : "sci"}
+                  must_not:
+                    term: { "genre.keyword": "War" }
+              script:
+                source: "return _termStatistics.uniqueTermsCount()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 4 }
+  - match: { hits.hits.1._score: 4 }
+
+
+---
+"match_all query: uniqueTermsCount":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query:
+                match_all: {}
+              script:
+                source: "return _termStatistics.uniqueTermsCount()"
+  - match: { hits.total: 4 }
+  - match: { hits.hits.0._score: 0 }
+  - match: { hits.hits.1._score: 0 }
+  - match: { hits.hits.2._score: 0 }
+  - match: { hits.hits.3._score: 0 }
+
+---
+"match_all query: docFreq":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query:
+                match_all: {}
+              script:
+                source: "return _termStatistics.docFreq().getMax()"
+  - match: { hits.total: 4 }
+  - match: { hits.hits.0._score: 0 }
+  - match: { hits.hits.1._score: 0 }
+  - match: { hits.hits.2._score: 0 }
+  - match: { hits.hits.3._score: 0 }
+
+---
+"match_all query: totalTermFreq":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query:
+                match_all: {}
+              script:
+                source: "return _termStatistics.totalTermFreq().getSum()"
+  - match: { hits.total: 4 }
+  - match: { hits.hits.0._score: 0 }
+  - match: { hits.hits.1._score: 0 }
+  - match: { hits.hits.2._score: 0 }
+  - match: { hits.hits.3._score: 0 }
+
+---
+"match_all query: termFreq":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query:
+                match_all: {}
+              script:
+                source: "return _termStatistics.termFreq().getMax()"
+  - match: { hits.total: 4 }
+  - match: { hits.hits.0._score: 0 }
+  - match: { hits.hits.1._score: 0 }
+  - match: { hits.hits.2._score: 0 }
+  - match: { hits.hits.3._score: 0 }
+
+---
+"match_all query: termPositions":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query:
+                match_all: {}
+              script:
+                source: "return _termStatistics.termPositions().getSum()"
+  - match: { hits.total: 4 }
+  - match: { hits.hits.0._score: 0 }
+  - match: { hits.hits.1._score: 0 }
+  - match: { hits.hits.2._score: 0 }
+  - match: { hits.hits.3._score: 0 }

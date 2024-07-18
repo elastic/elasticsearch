@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -75,36 +74,36 @@ public class AddTests extends AbstractScalarFunctionTestCase {
         );
 
         // Double overflows
-        suppliers.addAll(List.of(
-            new TestCaseSupplier(
-                List.of(DataType.DOUBLE, DataType.DOUBLE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
-                        new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "rhs")
-                    ),
-                    "AddDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                    DataType.DOUBLE,
-                    equalTo(null)
+        suppliers.addAll(
+            List.of(
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "AddDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "AddDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: -Infinity")
                 )
-                    .withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity")
-            ),
-            new TestCaseSupplier(
-                List.of(DataType.DOUBLE, DataType.DOUBLE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
-                        new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "rhs")
-                    ),
-                    "AddDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                    DataType.DOUBLE,
-                    equalTo(null)
-                )
-                    .withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: -Infinity")
             )
-        ));
+        );
 
         // Unsigned Long cases
         // TODO: These should be integrated into the type cross product above, but are currently broken

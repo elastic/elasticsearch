@@ -265,7 +265,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
             String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
             bulkRequest.add(
                 new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                    .source(String.format("{\"%s\":\"%s\", \"count\": %s}", DEFAULT_TIMESTAMP_FIELD, time, value), XContentType.JSON)
+                    .source(Strings.format("{\"%s\":\"%s\", \"count\": %s}", DEFAULT_TIMESTAMP_FIELD, time, value), XContentType.JSON)
                     .setPipeline(pipeline)
             );
         }

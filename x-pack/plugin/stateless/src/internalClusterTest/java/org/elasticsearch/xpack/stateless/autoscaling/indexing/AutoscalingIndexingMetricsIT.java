@@ -317,7 +317,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
 
     public void testMetricsAreRepublishedAfterMasterFailover() throws Exception {
         for (int i = 0; i < 2; i++) {
-            startMasterNode();
+            startMasterNode(Settings.EMPTY);
         }
 
         startIndexNode(
@@ -342,7 +342,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
         });
 
-        internalCluster().stopCurrentMasterNode();
+        shutdownMasterNodeGracefully();
 
         assertBusy(() -> {
             var loadsAfterIndexing = getNodeIngestLoad();
@@ -354,7 +354,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
 
     public void testMasterFailoverWithOnGoingMetricPublication() throws Exception {
         for (int i = 0; i < 2; i++) {
-            startMasterNode();
+            startMasterNode(Settings.EMPTY);
         }
         startIndexNode(
             Settings.builder()
@@ -390,7 +390,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         }
 
         safeAwait(firstNonZeroPublishIndexLoadLatch);
-        internalCluster().stopCurrentMasterNode();
+        shutdownMasterNodeGracefully();
 
         assertBusy(() -> {
             List<NodeIngestLoadSnapshot> loadsAfterIndexing = getNodeIngestLoad();
@@ -401,7 +401,15 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
     }
 
     public void testMetricsAreRepublishedAfterMasterNodeHasToRecoverStateFromStore() throws Exception {
-        var masterNode = startMasterNode();
+        var masterNode = startMasterNode(
+            Settings.builder()
+                // MAX_MISSED_HEARTBEATS x HEARTBEAT_FREQUENCY is how long it takes for the last master heartbeat to expire. Speed up the
+                // time to master takeover/election after full cluster restart.
+                // The intention of the test is to reload from the remote blob store, so graceful shutdown (via abdication) will not do so.
+                .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
+                .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
         startIndexNode(
             Settings.builder()
                 .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
@@ -485,12 +493,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         });
     }
 
-    private String startMasterNode() {
-        return internalCluster().startMasterOnlyNode(
-            nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
-                .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
-                .build()
-        );
+    private String startMasterNode(Settings extraSettings) {
+        return internalCluster().startMasterOnlyNode(nodeSettings().put(extraSettings).build());
     }
 
     private static List<NodeIngestLoadSnapshot> getNodeIngestLoad() {

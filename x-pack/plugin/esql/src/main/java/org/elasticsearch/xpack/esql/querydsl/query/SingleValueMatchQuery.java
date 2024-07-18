@@ -42,8 +42,8 @@ import java.util.Objects;
 final class SingleValueMatchQuery extends Query {
 
     /**
-     * We choose this value to big big so this approximation always run last. This avoid
-     * reporting warnings when queries are not matching multi-values
+     * Choose a big enough value so this approximation never drives the iteration.
+     * This avoids reporting warnings when queries are not matching multi-values
      */
     private static final int MULTI_VALUE_MATCH_COST = 1000;
     private static final IllegalArgumentException MULTI_VALUE_EXCEPTION = new IllegalArgumentException(

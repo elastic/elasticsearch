@@ -40,8 +40,4 @@ public final class EsqlDataTypes {
         return t == DataType.TIME_DURATION || isNull(t);
     }
 
-    public static boolean isSpatial(DataType t) {
-        return t == DataType.GEO_POINT || t == DataType.CARTESIAN_POINT || t == DataType.GEO_SHAPE || t == DataType.CARTESIAN_SHAPE;
-    }
-
 }

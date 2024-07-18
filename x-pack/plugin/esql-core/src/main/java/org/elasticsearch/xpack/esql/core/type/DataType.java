@@ -270,6 +270,10 @@ public enum DataType {
         return t == GEO_POINT || t == GEO_SHAPE;
     }
 
+    public static boolean isSpatial(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+    }
+
     public String nameUpper() {
         return name;
     }

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.List;
@@ -163,7 +162,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
                 ? isType(expression, dt -> dt == spatialDataType, operationName, paramOrd, compatibleTypeNames(spatialDataType))
                 : isType(
                     expression,
-                    dt -> EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
+                    dt -> DataType.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
                     operationName,
                     paramOrd,
                     compatibleTypeNames(spatialDataType)
@@ -215,7 +214,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
         public static SpatialCrsType fromDataType(DataType dataType) {
             return DataType.isSpatialGeo(dataType) ? SpatialCrsType.GEO
-                : EsqlDataTypes.isSpatial(dataType) ? SpatialCrsType.CARTESIAN
+                : DataType.isSpatial(dataType) ? SpatialCrsType.CARTESIAN
                 : SpatialCrsType.UNSPECIFIED;
         }
     }

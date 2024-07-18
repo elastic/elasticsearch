@@ -29,7 +29,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction.compatibleTypeNames;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialGeo;
 import static org.hamcrest.Matchers.equalTo;
 

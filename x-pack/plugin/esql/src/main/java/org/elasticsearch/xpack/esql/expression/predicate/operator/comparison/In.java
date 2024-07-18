@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.BitSet;
@@ -134,7 +133,7 @@ public class In extends EsqlScalarFunction {
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }
-        if (EsqlDataTypes.isSpatial(left) && EsqlDataTypes.isSpatial(right)) {
+        if (DataType.isSpatial(left) && DataType.isSpatial(right)) {
             return left == right;
         }
         return DataType.areCompatible(left, right);
@@ -210,7 +209,7 @@ public class In extends EsqlScalarFunction {
             || commonType == IP
             || commonType == VERSION
             || commonType == UNSUPPORTED
-            || EsqlDataTypes.isSpatial(commonType)) {
+            || DataType.isSpatial(commonType)) {
             return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value), factories);
         }
         if (commonType == NULL) {
@@ -225,7 +224,7 @@ public class In extends EsqlScalarFunction {
             if (e.dataType() == NULL && value.dataType() != NULL) {
                 continue;
             }
-            if (EsqlDataTypes.isSpatial(commonType)) {
+            if (DataType.isSpatial(commonType)) {
                 if (e.dataType() == commonType) {
                     continue;
                 } else {

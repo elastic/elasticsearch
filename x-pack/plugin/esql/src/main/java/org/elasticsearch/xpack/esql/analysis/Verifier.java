@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -524,7 +523,7 @@ public class Verifier {
         if (p instanceof OrderBy ob) {
             ob.forEachExpression(Attribute.class, attr -> {
                 DataType dataType = attr.dataType();
-                if (EsqlDataTypes.isSpatial(dataType)) {
+                if (DataType.isSpatial(dataType)) {
                     localFailures.add(fail(attr, "cannot sort on " + dataType.typeName()));
                 }
             });

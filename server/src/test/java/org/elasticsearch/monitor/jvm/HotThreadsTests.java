@@ -946,7 +946,7 @@ public class HotThreadsTests extends ESTestCase {
         long currentThreadId
     ) throws Exception {
         try (var writer = new StringWriter()) {
-            hotThreads.innerDetect(mockedMthreadMXBeanBean, sunThreadInfo, currentThreadId, writer);
+            hotThreads.innerDetect(mockedMthreadMXBeanBean, sunThreadInfo, currentThreadId, writer, () -> {});
             return writer.toString();
         }
     }

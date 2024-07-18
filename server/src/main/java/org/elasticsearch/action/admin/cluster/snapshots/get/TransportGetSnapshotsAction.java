@@ -103,8 +103,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
      * that's where masterOperation() runs or because we fork back to MANAGEMENT after getRepositoryData(). We then iterate over the
      * in-memory SnapshotInfo instances first, without any further forking, and only once that's complete do we start to retrieve
      * SnapshotInfo data from the repository which forks the per-blob tasks to SNAPSHOT_META. It's important that we don't do any more
-     * non-forking iteration once we've started this forking phase. Once all the per-repository iteration is complete, we fork back to
-     * MANAGEMENT to build the final results.
+     * non-forking iteration once we've started this forking phase, because if we did then those non-forked items would all be processed in
+     * a single task on the SNAPSHOT_META pool. Once all the per-repository iteration is complete, we fork back to MANAGEMENT to build the
+     * final results.
      */
 
     @Inject

@@ -21,15 +21,11 @@ public final class EsqlDataTypes {
     }
 
     public static boolean isDateTimeOrTemporal(DataType t) {
-        return DataType.isDateTime(t) || isTemporalAmount(t);
-    }
-
-    public static boolean isTemporalAmount(DataType t) {
-        return t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION;
+        return DataType.isDateTime(t) || DataType.isTemporalAmount(t);
     }
 
     public static boolean isNullOrTemporalAmount(DataType t) {
-        return isTemporalAmount(t) || isNull(t);
+        return DataType.isTemporalAmount(t) || isNull(t);
     }
 
 }

@@ -241,6 +241,10 @@ public enum DataType {
         return t == DATE_PERIOD || isNull(t);
     }
 
+    public static boolean isTemporalAmount(DataType t) {
+        return t == DATE_PERIOD || t == TIME_DURATION;
+    }
+
     public static boolean areCompatible(DataType left, DataType right) {
         if (left == right) {
             return true;

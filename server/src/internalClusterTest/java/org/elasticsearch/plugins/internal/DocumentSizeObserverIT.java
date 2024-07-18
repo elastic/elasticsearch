@@ -190,5 +190,6 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         public long rasNormalisedBytes() {
             return counter;
         }
+
     }
 }

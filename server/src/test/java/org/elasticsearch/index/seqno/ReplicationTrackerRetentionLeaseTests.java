@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -687,7 +686,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
      *
      * @throws IOException if an I/O exception occurs loading the retention lease state file
      */
-    public void testPersistRetentionLeasesUnderConcurrency() throws IOException {
+    public void testPersistRetentionLeasesUnderConcurrency() throws IOException, InterruptedException {
         final AllocationId allocationId = AllocationId.newInitializing();
         long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         final ReplicationTracker replicationTracker = new ReplicationTracker(
@@ -719,35 +718,16 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
 
         final Path path = createTempDir();
         final int numberOfThreads = randomIntBetween(1, 2 * Runtime.getRuntime().availableProcessors());
-        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
-        final Thread[] threads = new Thread[numberOfThreads];
-        for (int i = 0; i < numberOfThreads; i++) {
+        startInParallel(numberOfThreads, i -> {
             final String id = Integer.toString(length + i);
-            threads[i] = new Thread(() -> {
-                try {
-                    safeAwait(barrier);
-                    final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-                    replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test-" + id, ActionListener.noop());
-                    replicationTracker.persistRetentionLeases(path);
-                    safeAwait(barrier);
-                } catch (final WriteStateException e) {
-                    throw new AssertionError(e);
-                }
-            });
-            threads[i].start();
-        }
-
-        try {
-            // synchronize the threads invoking ReplicationTracker#persistRetentionLeases(Path path)
-            safeAwait(barrier);
-            // wait for all the threads to finish
-            safeAwait(barrier);
-            for (int i = 0; i < numberOfThreads; i++) {
-                threads[i].join();
+            final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+            replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test-" + id, ActionListener.noop());
+            try {
+                replicationTracker.persistRetentionLeases(path);
+            } catch (WriteStateException e) {
+                throw new AssertionError(e);
             }
-        } catch (final InterruptedException e) {
-            throw new AssertionError(e);
-        }
+        });
         assertThat(replicationTracker.loadRetentionLeases(path), equalTo(replicationTracker.getRetentionLeases()));
     }
 

@@ -190,6 +190,19 @@ s:double
 25976.0
 ;
 
+exp#[skip:-8.15.99,reason:new scalar function added in 8.16]
+// tag::exp[]
+ROW d = 5.0
+| EVAL s = EXP(d)
+// end::exp[]
+;
+
+// tag::exp-result[]
+d: double | s:double
+5.0   | 148.413159102576603
+// end::exp-result[]
+;
+
 powHeightSquared
 from employees | sort height asc | limit 20 | eval s = round(pow(height, 2) - 2, 2) | keep height, s | sort s desc | limit 4;
 

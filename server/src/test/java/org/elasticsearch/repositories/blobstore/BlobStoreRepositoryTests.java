@@ -87,6 +87,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -233,7 +234,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testRepositoryDataConcurrentModificationNotAllowed() throws Exception {
+    public void testRepositoryDataConcurrentModificationNotAllowed() {
         final BlobStoreRepository repository = setupRepo();
 
         // write to index generational file
@@ -244,7 +245,20 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
         final RepositoryData fresherRepositoryData = repositoryData.withGenId(startingGeneration + 1);
-        expectThrows(RepositoryException.class, () -> writeIndexGen(repository, fresherRepositoryData, repositoryData.getGenId()));
+
+        assertThat(
+            safeAwaitFailure(
+                RepositoryData.class,
+                listener -> repository.writeIndexGen(
+                    fresherRepositoryData,
+                    repositoryData.getGenId(),
+                    IndexVersion.current(),
+                    Function.identity(),
+                    listener
+                )
+            ),
+            instanceOf(RepositoryException.class)
+        );
     }
 
     public void testBadChunksize() {
@@ -330,9 +344,15 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         snapshotDetailsAsserter.accept(AbstractSnapshotIntegTestCase.getRepositoryData(repository).getSnapshotDetails(snapshotId));
     }
 
-    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
-        PlainActionFuture.<RepositoryData, Exception>get(
-            f -> repository.writeIndexGen(repositoryData, generation, IndexVersion.current(), Function.identity(), f)
+    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) {
+        safeAwait(
+            (ActionListener<RepositoryData> listener) -> repository.writeIndexGen(
+                repositoryData,
+                generation,
+                IndexVersion.current(),
+                Function.identity(),
+                listener
+            )
         );
     }
 

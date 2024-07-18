@@ -11,6 +11,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -34,6 +35,12 @@ import java.util.function.Function;
  * Base field mapper class for all spatial field types
  */
 public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
+
+    // The GeoShapeFieldMapper class does not exist in server any more.
+    // For backwards compatibility we add the name of the class manually.
+    protected static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(
+        "org.elasticsearch.index.mapper.GeoShapeFieldMapper"
+    );
 
     public static Parameter<Explicit<Boolean>> ignoreMalformedParam(
         Function<FieldMapper, Explicit<Boolean>> initializer,

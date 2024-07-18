@@ -206,7 +206,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             originatesFromUpdateByScript = false;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
             originatesFromUpdateByDoc = in.readBoolean();
         } else {
             originatesFromUpdateByDoc = false;

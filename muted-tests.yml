@@ -108,6 +108,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec}
   issue: https://github.com/elastic/elasticsearch/issues/110981
+- class: org.elasticsearch.search.sort.FieldSortIT
+  method: testIssue6614
+  issue: https://github.com/elastic/elasticsearch/issues/110999
 
 # Examples:
 #

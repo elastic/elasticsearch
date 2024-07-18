@@ -42,11 +42,10 @@ import java.util.Objects;
 final class SingleValueMatchQuery extends Query {
 
     /**
-     * The estimated number of comparisons to check if a {@link DocValues}
-     * has more than one value. There isn't a good way to get that number out of
-     * {@link DocValues} so this is a guess.
+     * We choose this value to big big so this approximation always run last. This avoid
+     * reporting warnings when queries are not matching multi-values
      */
-    private static final int MULTI_VALUE_MATCH_COST = 10;
+    private static final int MULTI_VALUE_MATCH_COST = 1000;
     private static final IllegalArgumentException MULTI_VALUE_EXCEPTION = new IllegalArgumentException(
         "single-value function encountered multi-value"
     );

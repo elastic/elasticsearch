@@ -102,7 +102,7 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         verifyNoMoreInteractions(operatorOnlyRegistry);
     }
 
-    public void testMarkOperatorUser() throws IllegalAccessException {
+    public void testMarkOperatorUser() {
         final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
         final User operatorUser = new User("operator_user");
@@ -217,7 +217,7 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         verify(operatorOnlyRegistry, never()).check(anyString(), any());
     }
 
-    public void testMaybeInterceptRequest() throws IllegalAccessException {
+    public void testMaybeInterceptRequest() {
         final boolean licensed = randomBoolean();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(licensed);
 

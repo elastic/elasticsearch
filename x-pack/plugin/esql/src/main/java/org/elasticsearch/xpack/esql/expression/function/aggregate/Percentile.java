@@ -42,9 +42,9 @@ public class Percentile extends NumericAggregate {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the value at which a certain percentage of observed values occur. " +
-            "For example, the 95th percentile is the value which is greater than 95% of the " +
-            "observed values and the 50th percentile is the `MEDIAN`.",
+        description = "Returns the value at which a certain percentage of observed values occur. "
+            + "For example, the 95th percentile is the value which is greater than 95% of the "
+            + "observed values and the 50th percentile is the `MEDIAN`.",
         appendix = """
             ==== `PERCENTILE` is (usually) approximate
 
@@ -58,13 +58,14 @@ public class Percentile extends NumericAggregate {
             """,
         isAggregation = true,
         examples = {
-            @Example(file="stats_percentile", tag="percentile"),
-            @Example(description="The expression can use inline functions. For example, to calculate a percentile " +
-                "of the maximum values of a multivalued column, first use `MV_MAX` to get the " +
-                "maximum value per row, and use the result with the `PERCENTILE` function",
-                file="stats_percentile", tag="docsStatsPercentileNestedExpression"
-            ),
-        }
+            @Example(file = "stats_percentile", tag = "percentile"),
+            @Example(
+                description = "The expression can use inline functions. For example, to calculate a percentile "
+                    + "of the maximum values of a multivalued column, first use `MV_MAX` to get the "
+                    + "maximum value per row, and use the result with the `PERCENTILE` function",
+                file = "stats_percentile",
+                tag = "docsStatsPercentileNestedExpression"
+            ), }
     )
     public Percentile(
         Source source,

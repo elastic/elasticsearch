@@ -68,7 +68,6 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
-import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -89,7 +88,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-            .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(5))
             .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
             .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
             .put(DISCOVERY_FIND_PEERS_INTERVAL_SETTING.getKey(), "100ms")

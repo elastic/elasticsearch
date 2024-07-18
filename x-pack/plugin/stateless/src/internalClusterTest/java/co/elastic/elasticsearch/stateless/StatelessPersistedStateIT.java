@@ -20,11 +20,13 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 import org.hamcrest.Matcher;
 
@@ -36,6 +38,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
+
+    static final Settings fastFullClusterRestartSettings = Settings.builder()
+        // MAX_MISSED_HEARTBEATS x HEARTBEAT_FREQUENCY is how long it takes for the last master heartbeat to expire.
+        // Speed up the time to master takeover/election after full cluster restart.
+        .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+        .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 2)
+        .build();
 
     public void testNodeLeftIsWrittenInRootBlob() throws Exception {
         startMasterOnlyNode();
@@ -125,21 +134,18 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testTransportVersions() throws Exception {
-        // workaround for ES-6481 and/or https://github.com/elastic/elasticsearch/issues/98055
-        final var fastElectionSetting = Settings.builder().put(HEARTBEAT_FREQUENCY.getKey(), "1s").build();
-
-        final var node0 = startMasterOnlyNode();
+        final var node0 = startMasterOnlyNode(fastFullClusterRestartSettings);
         assertTransportVersionConsistency();
 
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
-                return fastElectionSetting;
+                return fastFullClusterRestartSettings;
             }
         });
         assertTransportVersionConsistency();
 
-        final var node1 = startMasterOnlyNode(fastElectionSetting);
+        final var node1 = startMasterOnlyNode(fastFullClusterRestartSettings);
         assertTransportVersionConsistency();
 
         internalCluster().stopNode(randomFrom(node0, node1));
@@ -147,9 +153,6 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testNodeLeftGeneration() throws Exception {
-        // workaround for ES-6481 and/or https://github.com/elastic/elasticsearch/issues/98055
-        final var fastElectionSetting = Settings.builder().put(HEARTBEAT_FREQUENCY.getKey(), "1s").build();
-
         final var node0 = startMasterOnlyNode();
         final var node1 = startMasterOnlyNode();
         internalCluster().restartNode(node1);
@@ -158,7 +161,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
-                return fastElectionSetting;
+                return fastFullClusterRestartSettings;
             }
         });
 

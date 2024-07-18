@@ -63,7 +63,6 @@ import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -90,7 +89,6 @@ import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
-import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -511,18 +509,15 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testOngoingIndexShardRelocationAndMasterFailOver() throws Exception {
-        // TODO: remove heartbeat setting once ES-6481 is done.
-        var heartBeatNodeSettings = Settings.builder().put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(5)).build();
-
-        startMasterOnlyNode(heartBeatNodeSettings);  // first master eligible node
+        startMasterOnlyNode();  // first master eligible node
         String indexName = "test";
-        startMasterOnlyNode(heartBeatNodeSettings); // second master eligible node
-        final String indexNodeA = startIndexNode(heartBeatNodeSettings);
+        startMasterOnlyNode(); // second master eligible node
+        final String indexNodeA = startIndexNode();
         ensureStableCluster(3);
         createIndex(indexName, indexSettings(1, 0).build());
         int numDocs = scaledRandomIntBetween(1, 10);
         indexDocs(indexName, numDocs);
-        final String indexNodeB = startIndexNode(heartBeatNodeSettings);
+        final String indexNodeB = startIndexNode();
         ensureStableCluster(4);
         final boolean blockSourceNode = randomBoolean(); // else block target node
 
@@ -562,17 +557,14 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
             ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB));
 
             safeAwait(relocationStartReadyBlocked);
-            internalCluster().restartNode(
-                clusterService().state().nodes().getMasterNode().getName(),
-                new InternalTestCluster.RestartCallback()
-            );
+            restartMasterNodeGracefully();
         } finally {
             logger.info("--> Unblocking actions");
             blockedListeners.onResponse(null);
         }
 
         // Assert number of documents
-        startSearchNode(heartBeatNodeSettings);
+        startSearchNode();
         setReplicaCount(1, indexName);
         assertFalse(clusterAdmin().prepareHealth(indexName).setWaitForActiveShards(2).get().isTimedOut());
         ensureGreen(indexName);

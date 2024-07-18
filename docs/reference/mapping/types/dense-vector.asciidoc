@@ -476,8 +476,8 @@ Switching `types` won't re-index vectors that have already been indexed (they wi
 
 For example, it's possible to define a dense vector field that utilizes the `flat` type (raw float32 arrays) for a first batch of data to be indexed.
 
-[source,console-result]
-----
+[source,console]
+--------------------------------------------------
 PUT my-index
 {
     "mappings": {
@@ -492,12 +492,12 @@ PUT my-index
         }
     }
 }
-----
+--------------------------------------------------
 
 Changing the `type` to `int4_hnsw` makes sure vectors indexed after that will use an int4 scalar quantized representation and HNSW (e.g., for KNN queries).
 
-[source,console-result]
-----
+[source,console]
+--------------------------------------------------
 PUT my-index
 {
     "mappings": {
@@ -512,7 +512,7 @@ PUT my-index
         }
     }
 }
-----
+--------------------------------------------------
 
 Vectors indexed before this change will keep using the `flat` type (raw float32 representation and brute force search for KNN queries).
 

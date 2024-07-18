@@ -45,6 +45,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -259,7 +260,13 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             .put(Stateless.STATELESS_ENABLED.getKey(), true)
             .put(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), false)
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.FS)
-            .put(ObjectStoreService.BUCKET_SETTING.getKey(), getFsRepoSanitizedBucketName());
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), getFsRepoSanitizedBucketName())
+            /**
+             * Set a very high MAX_MISSED_HEARTBEATS value to ensure no child-class test has unexpected failovers.
+             * Such tests should either override the MAX_MISSED_HEARTBEATS and HEARTBEAT_FREQUENCY settings, or use graceful failover
+             * (like {@link #shutdownMasterNodeGracefully(String, boolean)}).
+             */
+            .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 50);
         if (useBasePath) {
             builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), "base_path");
         }
@@ -445,7 +452,11 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
      */
     private static String masterNodeAbdicatesForGracefulShutdown() {
         // Ensure that there is at least one other master role node to which the current master can abdicate.
-        assertThat(internalCluster().numMasterNodes(), greaterThan(1));
+        assertThat(
+            "Master node cannot abdicate gracefully on shutdown when there is no other master-eligible node",
+            internalCluster().numMasterNodes(),
+            greaterThan(1)
+        );
 
         final String masterNodeName = internalCluster().getMasterName();
 
@@ -480,6 +491,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                             .setReason("master failover for test")
                             .build()
                     );
+
                     return currentState.copyAndUpdateMetadata(
                         metadata -> metadata.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
                     );

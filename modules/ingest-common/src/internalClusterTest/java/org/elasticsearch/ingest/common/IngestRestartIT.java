@@ -9,13 +9,20 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -26,6 +33,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
@@ -33,11 +41,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // Ideally I like this test to live in the server module, but otherwise a large part of the ScriptProcessor
@@ -325,5 +335,122 @@ public class IngestRestartIT extends ESIntegTestCase {
         // and make sure this failed doc didn't get through
         source = client().prepareGet("index", "fails").get(timeout).getSource();
         assertNull(source);
+    }
+
+    /**
+     * This test is for confirming that forwarded bulk requests do not use system_write thread pool
+     * for non-system indexes. Before this fix, we were using system_write thread pool for all forwarded
+     * bulk requests causing the system_write thread pool to get overloaded.
+     */
+    public void testForwardBulkWithSystemWritePoolDisabled() throws Exception {
+        // Create a node with master only role and a node with ingest role
+        final String masterOnlyNode = internalCluster().startMasterOnlyNode();
+        final String ingestNode = internalCluster().startNode();  // What roles does a default node have ?
+
+        ensureStableCluster(2);
+
+        // Create Bulk Request
+        createIndex("index");
+
+        BytesReference source = new BytesArray("""
+            {
+              "processors" : [
+                  {"set" : {"field": "y", "value": 0}}
+              ]
+            }""");
+
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
+        clusterAdmin().putPipeline(putPipelineRequest).get();
+
+        int numRequests = scaledRandomIntBetween(32, 128);
+        BulkRequest bulkRequest = new BulkRequest();
+        BulkResponse response;
+        for (int i = 0; i < numRequests; i++) {
+            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i)).setPipeline("_id");
+            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "x", 1);
+            bulkRequest.add(indexRequest);
+        }
+
+        /*
+        createIndex("index");
+
+        BytesReference source = BytesReference.bytes(
+            jsonBuilder().startObject()
+                .field("description", "my_pipeline")
+                .startArray("processors")
+                .startObject()
+                .startObject("test")
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
+        clusterAdmin().putPipeline(putPipelineRequest).get();
+
+        int numRequests = scaledRandomIntBetween(32, 128);
+        BulkRequest bulkRequest = new BulkRequest();
+        BulkResponse response;
+        for (int i = 0; i < numRequests; i++) {
+            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i)).setPipeline("_id");
+            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+            bulkRequest.add(indexRequest);
+        }
+        */
+
+        // Block system_write thread pool on the ingest node
+        final ThreadPool ingestNodeThreadPool = internalCluster().getInstance(ThreadPool.class, ingestNode);
+        final var blockingLatch = new CountDownLatch(1);
+        // Can we use ThreadPoolStats instead of blocking the threadpool ?
+        try {
+            blockSystemWriteThreadPool(blockingLatch, ingestNodeThreadPool);
+            // Send bulk request to master only node, so it will forward it to the ingest node.
+            response = client(masterOnlyNode).bulk(bulkRequest).actionGet();
+        } finally {
+            blockingLatch.countDown();
+        }
+
+        // Make sure the requests are processed (even though we blocked system_write thread pool
+        // above.
+        // BulkResponse response = client(masterOnlyNode).bulk(bulkRequest).actionGet();
+        assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
+        assertFalse(response.hasFailures());
+
+        Map<String, Object> document;
+        for (int i = 0; i < bulkRequest.requests().size(); i++) {
+            document = client().prepareGet("index", Integer.toString(i)).get().getSource();
+            assertThat(document.get("y"), equalTo(0));
+        }
+
+        /*
+        for (int i = 0; i < bulkRequest.requests().size(); i++) {
+            BulkItemResponse itemResponse = response.getItems()[i];
+            IndexResponse indexResponse = itemResponse.getResponse();
+            assertThat(
+                "Expected a successful response but found failure [" + itemResponse.getFailure() + "].",
+                itemResponse.isFailed(),
+                is(false)
+            );
+            assertThat(indexResponse, notNullValue());
+            assertThat(indexResponse.getId(), equalTo(Integer.toString(i)));
+            assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+        }
+        */
+
+        // cleanup
+        AcknowledgedResponse deletePipelineResponse = clusterAdmin().prepareDeletePipeline("_id").get();
+        assertTrue(deletePipelineResponse.isAcknowledged());
+    }
+
+    private void blockSystemWriteThreadPool(CountDownLatch blockingLatch, ThreadPool threadPool) {
+        assertThat(blockingLatch.getCount(), greaterThan(0L));
+        final var executor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE);
+        // Add tasks repeatedly until we get an EsRejectedExecutionException which indicates that the threadpool and its queue are full.
+        expectThrows(EsRejectedExecutionException.class, () -> {
+            // noinspection InfiniteLoopStatement
+            while (true) {
+                executor.execute(() -> safeAwait(blockingLatch));
+            }
+        });
     }
 }

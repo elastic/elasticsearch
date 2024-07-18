@@ -1,0 +1,21 @@
+---
+_meta:
+  description: default logs template installed by x-pack
+  managed: true
+index_patterns:
+  - "traces-*.otel-*"
+priority: 120
+data_stream: {}
+composed_of:
+  - traces@mappings
+  - traces@settings
+  - otel@mappings
+  - traces-otel@mappings
+  - semconv-resource-to-ecs@mappings
+  - traces@custom
+  - traces-otel@custom
+  - ecs@mappings
+ignore_missing_component_templates:
+  - traces@custom
+  - traces-otel@custom
+allow_auto_create: true

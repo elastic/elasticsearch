@@ -1,0 +1,55 @@
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Default mappings for the logs index template installed by x-pack
+  managed: true
+template:
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: metrics
+      start_time:
+        type: date_nanos
+      metrics:
+        type: passthrough
+        dynamic: true
+        priority: 1
+      unit:
+        type: keyword
+        time_series_dimension: true
+        ignore_above: 1024
+    dynamic_templates:
+      - histogram:
+          mapping:
+            type: histogram
+            ignore_malformed: true
+      - counter_long:
+          mapping:
+            type: long
+            time_series_metric: counter
+            ignore_malformed: true
+      - gauge_long:
+          mapping:
+            type: long
+            time_series_metric: gauge
+            ignore_malformed: true
+      - counter_double:
+          mapping:
+            type: double
+            time_series_metric: counter
+            ignore_malformed: true
+      - gauge_double:
+          mapping:
+            type: double
+            time_series_metric: gauge
+            ignore_malformed: true
+      - summary_gauge:
+          mapping:
+            type: aggregate_metric_double
+            time_series_metric: gauge
+            ignore_malformed: true
+      - summary_counter:
+          mapping:
+            type: aggregate_metric_double
+            time_series_metric: counter
+            ignore_malformed: true

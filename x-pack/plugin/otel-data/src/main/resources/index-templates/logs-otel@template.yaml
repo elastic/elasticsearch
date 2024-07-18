@@ -1,0 +1,21 @@
+---
+version: ${xpack.oteldata.template.version}
+index_patterns: ["logs-*.otel-*"]
+priority: 120
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: default logs template installed by x-pack
+  managed: true
+composed_of:
+  - logs@mappings
+  - logs@settings
+  - otel@mappings
+  - logs-otel@mappings
+  - semconv-resource-to-ecs@mappings
+  - logs@custom
+  - logs-otel@custom
+  - ecs@mappings
+ignore_missing_component_templates:
+  - logs@custom
+  - logs-otel@custom

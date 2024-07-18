@@ -1,0 +1,12 @@
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Default settings for OpenTelemetry traces
+  managed: true
+template:
+  settings:
+    index:
+      lifecycle:
+        name: traces
+      codec: best_compression
+      mapping:
+        ignore_malformed: true

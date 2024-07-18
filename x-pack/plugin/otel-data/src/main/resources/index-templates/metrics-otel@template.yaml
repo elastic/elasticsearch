@@ -1,0 +1,23 @@
+---
+index_patterns: ["metrics-*.otel-*"]
+priority: 120
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: default logs template installed by x-pack
+  managed: true
+composed_of:
+  - metrics@tsdb-settings
+  - otel@mappings
+  - metrics-otel@mappings
+  - semconv-resource-to-ecs@mappings
+  - metrics@custom
+  - metrics-otel@custom
+  - ecs-tsdb@mappings
+ignore_missing_component_templates:
+  - metrics@custom
+  - metrics-otel@custom
+template:
+  settings:
+    index:
+      mode: time_series

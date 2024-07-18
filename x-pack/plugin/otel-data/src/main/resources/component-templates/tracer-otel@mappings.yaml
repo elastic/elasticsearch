@@ -1,0 +1,71 @@
+---
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Default mappings for all APM data streams
+  managed: true
+template:
+  mappings:
+    date_detection: false
+    dynamic: strict
+    properties:
+      data_stream.namespace:
+        type: constant_keyword
+        value: traces
+      trace_id:
+        type: keyword
+      trace.id:
+        type: alias
+        path: trace_id
+      span_id:
+        type: keyword
+      span.id:
+        type: alias
+        path: span_id
+      trace_state:
+        type: keyword
+      parent_span_id:
+        type: keyword
+      parent.id:
+        type: alias
+        path: parent_span_id
+      trace_flags:
+        type: byte
+      parent_is_remote:
+        type: boolean
+      name:
+        type: keyword
+      span.name:
+        type: alias
+        path: name
+      kind:
+        type: keyword
+      duration:
+        type: long
+        meta:
+          unit: nanos
+      dropped_events_count:
+        type: long
+      links:
+        properties:
+          trace_id:
+            type: keyword
+          span_id:
+            type: keyword
+          trace_state:
+            type: keyword
+          attributes:
+            type: object
+            subobjects: false
+            dynamic: true
+          dropped_attributes_count:
+            type: long
+          trace_flags:
+            type: byte
+      dropped_links_count:
+        type: long
+      status:
+        properties:
+          message:
+            type: keyword
+          status_code:
+            type: keyword

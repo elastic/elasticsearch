@@ -1,0 +1,17 @@
+---
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Default mappings for the traces index template installed by x-pack
+  managed: true
+template:
+  mappings:
+    properties:
+      "@timestamp":
+        type: date
+      data_stream.type:
+        type: constant_keyword
+        value: traces
+      data_stream.dataset:
+        type: constant_keyword
+      data_stream.namespace:
+        type: constant_keyword

@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimil
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -1686,7 +1687,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 128, 0, 0 }, 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 128, 0, 0 }), 3, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -1695,7 +1696,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0f, -129.0f }, 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0.0f, 0f, -129.0f }), 3, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -1704,7 +1705,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0.5f, 0.0f }, 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0.0f, 0.5f, 0.0f }), 3, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -1713,7 +1714,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, 0.0f, -0.25f }, 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0, 0.0f, -0.25f }), 3, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -1722,13 +1723,20 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { Float.NaN, 0f, 0.0f }), 3, 3, null, null, null)
         );
         assertThat(e.getMessage(), containsString("element_type [byte] vectors do not support NaN values but found [NaN] at dim [0];"));
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }),
+                3,
+                3,
+                null,
+                null,
+                null
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1737,7 +1745,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }),
+                3,
+                3,
+                null,
+                null,
+                null
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1763,13 +1778,20 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { Float.NaN, 0f, 0.0f }), 3, 3, null, null, null)
         );
         assertThat(e.getMessage(), containsString("element_type [float] vectors do not support NaN values but found [NaN] at dim [0];"));
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }),
+                3,
+                3,
+                null,
+                null,
+                null
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1778,7 +1800,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }),
+                3,
+                3,
+                null,
+                null,
+                null
+            )
         );
         assertThat(
             e.getMessage(),

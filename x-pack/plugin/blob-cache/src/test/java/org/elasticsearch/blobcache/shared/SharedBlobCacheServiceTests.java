@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1391,8 +1392,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // 1. fillCacheRange is invoked as many times as the number of holes/gaps
             // 2. fillCacheRange is invoked single threaded with the gap order
             // 3. The shared streamFactory is passed to each invocation
+            // 4. The factory is closed at the end
             final int numberGaps = region.tracker.getCompletedRanges().size() + 1;
             final var invocationCounter = new AtomicInteger();
+            final var factoryClosed = new AtomicBoolean(false);
             final var dummyStreamFactory = new SourceInputStreamFactory() {
                 @Override
                 public InputStream create(int relativePos) {
@@ -1400,7 +1403,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() {}
+                public void close() {
+                    factoryClosed.set(true);
+                }
             };
 
             final var rangeMissingHandler = new RangeMissingHandler() {
@@ -1445,6 +1450,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
             safeGet(future);
             assertThat(invocationCounter.get(), equalTo(numberGaps));
+            assertThat(factoryClosed.get(), is(true));
             assertThat(region.tracker.checkAvailable(regionSizeInBytes), is(true));
         } finally {
             threadPool.shutdown();

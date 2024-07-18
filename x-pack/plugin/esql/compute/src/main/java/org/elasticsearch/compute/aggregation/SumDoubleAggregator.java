@@ -57,11 +57,8 @@ class SumDoubleAggregator {
     }
 
     public static Block evaluateFinal(SumState state, DriverContext driverContext) {
-        double value = state.value();
-        if (Double.isFinite(value) == false) {
-            return driverContext.blockFactory().newConstantNullBlock(1);
-        }
-        return driverContext.blockFactory().newConstantDoubleBlockWith(value, 1);
+        double result = state.value();
+        return driverContext.blockFactory().newConstantDoubleBlockWith(result, 1);
     }
 
     public static GroupingSumState initGrouping(BigArrays bigArrays) {
@@ -119,12 +116,7 @@ class SumDoubleAggregator {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (state.hasValue(si) && si < state.values.size()) {
-                    var value = state.values.get(si);
-                    if (Double.isFinite(value) == false) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendDouble(state.values.get(si));
-                    }
+                    builder.appendDouble(state.values.get(si));
                 } else {
                     builder.appendNull();
                 }

@@ -37,7 +37,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
+#test
 import static org.elasticsearch.core.Strings.format;
 
 public class InferenceAction extends ActionType<InferenceAction.Response> {

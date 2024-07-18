@@ -540,7 +540,7 @@ c:i
 1
 ;
 
-shadowingInternal
+shadowingInternal#[skip:-8.13.3,reason:fixed in 8.13]
 FROM employees
 | SORT emp_no ASC
 | KEEP last_name, emp_no, last_name
@@ -552,7 +552,7 @@ emp_no:integer | last_name:keyword
          10002 | Simmel
 ;
 
-shadowingInternalWildcard
+shadowingInternalWildcard#[skip:-8.13.3,reason:fixed in 8.13]
 FROM employees
 | SORT emp_no ASC
 | KEEP last*name, emp_no, last*name, first_name, last*, gender, last*
@@ -564,7 +564,7 @@ emp_no:integer | first_name:keyword | gender:keyword | last_name:keyword
          10002 | Bezalel            | F              | Simmel
 ;
 
-shadowingInternalWildcardAndExplicit
+shadowingInternalWildcardAndExplicit#[skip:-8.13.3,reason:fixed in 8.13]
 FROM employees
 | SORT emp_no ASC
 | KEEP last*name, emp_no, last_name, first_name, last*, languages, last_name, gender, last*name
@@ -576,7 +576,7 @@ emp_no:integer | first_name:keyword | languages:integer | last_name:keyword | ge
          10002 | Bezalel            | 5                 | Simmel            | F
 ;
 
-shadowingSubfields
+shadowingSubfields#[skip:-8.13.3,reason:fixed in 8.13]
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.continent.name, city.country.name, city.name, city.country.continent.planet.name
 | SORT city.name
@@ -588,7 +588,7 @@ North America                       | United States of America  | San Francisco 
 Asia                                | Japan                     | Tokyo             | Earth
 ;
 
-shadowingSubfieldsWildcard
+shadowingSubfieldsWildcard#[skip:-8.13.3,reason:fixed in 8.13]
 FROM addresses
 | KEEP *name, city.country.continent.planet.name
 | SORT city.name

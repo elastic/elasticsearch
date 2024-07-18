@@ -277,6 +277,7 @@
     "compatibilityChangeArea": {
       "type": "string",
       "enum": [
+        "Analysis",
         "Authorization",
         "Cluster and node setting",
         "Command line tool",

@@ -1,0 +1,5 @@
+pr: 110677
+summary: Add validation for synthetic source mode in logs mode indices
+area: Logs
+type: enhancement
+issues: []

@@ -41,8 +41,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -56,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 
@@ -74,6 +73,7 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
@@ -235,8 +235,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
-        return new Row(source(ctx), visitFields(ctx.fields()));
+        return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
     @Override
@@ -271,13 +272,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), IndexMode.STANDARD);
+        return new UnresolvedRelation(
+            source,
+            table,
+            false,
+            List.of(metadataMap.values().toArray(Attribute[]::new)),
+            IndexMode.STANDARD,
+            null
+        );
     }
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
-        return input -> new EsqlAggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, stats.groupings, stats.aggregates);
+        return input -> new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, stats.groupings, stats.aggregates);
     }
 
     private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {
@@ -459,16 +467,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
 
         if (ctx.aggregates == null && ctx.grouping == null) {
-            return new EsqlUnresolvedRelation(source, table, List.of(), IndexMode.STANDARD);
+            return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null);
         }
         final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
-        var relation = new EsqlUnresolvedRelation(
+        var relation = new UnresolvedRelation(
             source,
             table,
+            false,
             List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
-            IndexMode.TIME_SERIES
+            IndexMode.TIME_SERIES,
+            null
         );
-        return new EsqlAggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
+        return new Aggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
     }
 
     @Override

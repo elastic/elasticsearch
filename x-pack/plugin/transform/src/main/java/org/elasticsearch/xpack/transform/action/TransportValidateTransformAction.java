@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,6 +24,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
@@ -30,8 +32,6 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Response;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
@@ -99,8 +99,10 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
 
         TransformNodes.warnIfNoTransformNodes(clusterState);
 
-        final TransformConfig config = request.getConfig();
-        final Function function = FunctionFactory.create(config);
+        var config = request.getConfig();
+        var function = FunctionFactory.create(config);
+        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        var parentClient = new ParentTaskAssigningClient(client, parentTaskId);
 
         if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
             listener.onFailure(
@@ -130,7 +132,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 deduceMappingsListener.onResponse(emptyMap());
             } else {
-                function.deduceMappings(client, config.getHeaders(), config.getId(), config.getSource(), deduceMappingsListener);
+                function.deduceMappings(parentClient, config.getHeaders(), config.getId(), config.getSource(), deduceMappingsListener);
             }
         }, listener::onFailure);
 
@@ -139,7 +141,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 validateQueryListener.onResponse(true);
             } else {
-                function.validateQuery(client, config.getHeaders(), config.getSource(), request.ackTimeout(), validateQueryListener);
+                function.validateQuery(parentClient, config.getHeaders(), config.getSource(), request.ackTimeout(), validateQueryListener);
             }
         }, listener::onFailure);
 

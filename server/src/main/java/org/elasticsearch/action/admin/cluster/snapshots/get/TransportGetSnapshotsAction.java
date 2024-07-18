@@ -53,14 +53,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
@@ -207,18 +205,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final GetSnapshotInfoExecutor getSnapshotInfoExecutor;
 
         // results
-        private final Queue<List<SnapshotInfo>> allSnapshotInfos = ConcurrentCollections.newQueue();
+        private final List<SnapshotInfo> allSnapshotInfos = Collections.synchronizedList(new ArrayList<>());
 
         /**
          * Accumulates number of snapshots that match the name/fromSortValue/slmPolicy predicates, to be returned in the response.
          */
         private final AtomicInteger totalCount = new AtomicInteger();
-
-        /**
-         * Accumulates the number of snapshots that match the name/fromSortValue/slmPolicy/after predicates, for sizing the final result
-         * list.
-         */
-        private final AtomicInteger resultsCount = new AtomicInteger();
 
         GetSnapshotsOperation(
             CancellableTask cancellableTask,
@@ -476,18 +468,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             if (cancellableTask.notifyIfCancelled(listener)) {
                 return;
             }
-            final var repositoryTotalCount = new AtomicInteger();
-
-            final List<SnapshotInfo> snapshots = new ArrayList<>();
-            final List<SnapshotInfo> syncSnapshots = Collections.synchronizedList(snapshots);
-
             try (var listeners = new RefCountingListener(listener)) {
-                final var iterationCompleteListener = listeners.acquire(ignored -> {
-                    totalCount.addAndGet(repositoryTotalCount.get());
-                    // no need to synchronize access to snapshots: all writes happen-before this read
-                    resultsCount.addAndGet(snapshots.size());
-                    allSnapshotInfos.add(snapshots);
-                });
                 ThrottledIterator.run(
                     Iterators.failFast(asyncSnapshotInfoIterator, () -> cancellableTask.isCancelled() || listeners.isFailing()),
                     (ref, asyncSnapshotInfo) -> {
@@ -496,9 +477,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                             @Override
                             public void onResponse(SnapshotInfo snapshotInfo) {
                                 if (matchesPredicates(snapshotInfo)) {
-                                    repositoryTotalCount.incrementAndGet();
+                                    totalCount.incrementAndGet();
                                     if (afterPredicate.test(snapshotInfo)) {
-                                        syncSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
+                                        allSnapshotInfos.add(snapshotInfo.maybeWithoutIndices(indices));
                                     }
                                 }
                                 refListener.onResponse(null);
@@ -517,7 +498,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     },
                     getSnapshotInfoExecutor.getMaxRunningTasks(),
                     () -> {},
-                    () -> iterationCompleteListener.onResponse(null)
+                    () -> {}
                 );
             }
         }
@@ -527,12 +508,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             cancellableTask.ensureNotCancelled();
             int remaining = 0;
             final var resultsStream = allSnapshotInfos.stream()
-                .flatMap(Collection::stream)
                 .peek(this::assertSatisfiesAllPredicates)
                 .sorted(sortBy.getSnapshotInfoComparator(order))
                 .skip(offset);
             final List<SnapshotInfo> snapshotInfos;
-            if (size == GetSnapshotsRequest.NO_LIMIT || resultsCount.get() <= size) {
+            if (size == GetSnapshotsRequest.NO_LIMIT || allSnapshotInfos.size() <= size) {
                 snapshotInfos = resultsStream.toList();
             } else {
                 snapshotInfos = new ArrayList<>(size);

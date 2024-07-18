@@ -118,7 +118,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
             systemIndices,
-            ReplicaActionExecution.Normal
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;

@@ -69,7 +69,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
             threadPool.executor(ThreadPool.Names.MANAGEMENT),
             SyncGlobalCheckpointAfterOperation.DoNotSync,
             PrimaryActionExecution.RejectOnOverload,
-            ReplicaActionExecution.Normal
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 

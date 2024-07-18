@@ -74,7 +74,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             PrimaryActionExecution.Force, /* we should never reject resync because of thread pool capacity on primary */
             indexingPressure,
             systemIndices,
-            ReplicaActionExecution.Normal
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 

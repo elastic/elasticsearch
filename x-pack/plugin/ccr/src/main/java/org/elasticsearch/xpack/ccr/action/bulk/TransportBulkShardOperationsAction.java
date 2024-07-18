@@ -70,7 +70,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
             systemIndices,
-            ReplicaActionExecution.Normal
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 

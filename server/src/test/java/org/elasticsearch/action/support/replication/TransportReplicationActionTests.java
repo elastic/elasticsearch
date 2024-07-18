@@ -1520,7 +1520,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SyncGlobalCheckpointAfterOperation.DoNotSync,
                 primaryActionExecution,
-                ReplicaActionExecution.Normal
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
         }
 

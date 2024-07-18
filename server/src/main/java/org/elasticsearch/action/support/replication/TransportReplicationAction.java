@@ -124,7 +124,7 @@ public abstract class TransportReplicationAction<
         /**
          * Will bypass queue length and indexing pressure checks
          */
-        Normal,
+        SubjectToCircuitBreaker,
         /**
          * Will bypass queue length, indexing pressure and circuit breaker checks
          */
@@ -226,7 +226,7 @@ public abstract class TransportReplicationAction<
 
         boolean canTripCircuitBreakerOnReplica = switch (replicaActionExecution) {
             case BypassCircuitBreaker -> false;
-            case Normal -> true;
+            case SubjectToCircuitBreaker -> true;
         };
         transportService.registerRequestHandler(
             transportReplicaAction,

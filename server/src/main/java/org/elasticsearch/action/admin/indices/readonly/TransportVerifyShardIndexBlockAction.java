@@ -70,7 +70,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             threadPool.executor(ThreadPool.Names.MANAGEMENT),
             SyncGlobalCheckpointAfterOperation.DoNotSync,
             PrimaryActionExecution.RejectOnOverload,
-            ReplicaActionExecution.Normal
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 

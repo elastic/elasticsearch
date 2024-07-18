@@ -459,7 +459,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SyncGlobalCheckpointAfterOperation.DoNotSync,
                 PrimaryActionExecution.RejectOnOverload,
-                ReplicaActionExecution.Normal
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.shardId = Objects.requireNonNull(shardId);
             this.primary = Objects.requireNonNull(primary);

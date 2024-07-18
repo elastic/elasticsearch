@@ -108,7 +108,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
                 threadPool.executor(ThreadPool.Names.GENERIC),
                 SyncGlobalCheckpointAfterOperation.DoNotSync,
                 PrimaryActionExecution.RejectOnOverload,
-                ReplicaActionExecution.Normal
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
         }
 

@@ -157,11 +157,6 @@ public class EsqlCapabilities {
         RANGEQUERY_FOR_DATETIME,
 
         /**
-         * Add tests for #105383, STATS BY constant.
-         */
-        STATS_BY_CONSTANT,
-
-        /**
          * Fix for non-unique attribute names in ROW and logical plans.
          * https://github.com/elastic/elasticsearch/issues/110541
          */

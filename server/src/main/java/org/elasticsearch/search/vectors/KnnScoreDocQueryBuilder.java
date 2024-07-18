@@ -44,16 +44,6 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
      * @param scoreDocs the docs and scores this query should match. The array must be
      *                  sorted in order of ascending doc IDs.
      */
-    public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName, float[] queryVector) {
-        this(scoreDocs, fieldName, VectorData.fromFloats(queryVector));
-    }
-
-    /**
-     * Creates a query builder.
-     *
-     * @param scoreDocs the docs and scores this query should match. The array must be
-     *                  sorted in order of ascending doc IDs.
-     */
     public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName, VectorData queryVector) {
         this.scoreDocs = scoreDocs;
         this.fieldName = fieldName;

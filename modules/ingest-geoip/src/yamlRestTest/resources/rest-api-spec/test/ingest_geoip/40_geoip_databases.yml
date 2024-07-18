@@ -1,0 +1,72 @@
+setup:
+  - requires:
+      cluster_features: ["geoip.downloader.database.configuration"]
+      reason: "geoip downloader database configuration APIs added in 8.15"
+
+---
+"Test adding, getting, and removing geoip databases":
+  - do:
+      ingest.put_geoip_database:
+        id: "my_database_1"
+        body:  >
+          {
+            "name": "GeoIP2-City",
+            "maxmind": {
+              "account_id": "1234"
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_geoip_database:
+        id: "my_database_1"
+        body:  >
+          {
+            "name": "GeoIP2-Country",
+            "maxmind": {
+              "account_id": "4321"
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_geoip_database:
+        id: "my_database_2"
+        body:  >
+          {
+            "name": "GeoIP2-City",
+            "maxmind": {
+              "account_id": "1234"
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_geoip_database:
+        id: "my_database_1"
+  - length: { databases: 1 }
+  - match: { databases.0.id: "my_database_1" }
+  - gte: { databases.0.modified_date_millis: 0 }
+  - match: { databases.0.database.name: "GeoIP2-Country" }
+  - match: { databases.0.database.maxmind.account_id: "4321" }
+
+  - do:
+      ingest.get_geoip_database: {}
+  - length: { databases: 2 }
+
+  - do:
+      ingest.get_geoip_database:
+        id: "my_database_1,my_database_2"
+  - length: { databases: 2 }
+
+  - do:
+      ingest.delete_geoip_database:
+        id: "my_database_1"
+
+  - do:
+      ingest.get_geoip_database: {}
+  - length: { databases: 1 }
+  - match: { databases.0.id: "my_database_2" }
+  - gte: { databases.0.modified_date_millis: 0 }
+  - match: { databases.0.database.name: "GeoIP2-City" }
+  - match: { databases.0.database.maxmind.account_id: "1234" }

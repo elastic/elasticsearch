@@ -629,10 +629,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchInsideEval() throws Exception {
-        assertEquals(
-            "1:36: EVAL does not support MATCH expressions",
-            error("row title = \"brown fox\" | eval x = title match \"fox\" ")
-        );
+        assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
     }
 
     public void testMatchFilter() throws Exception {
@@ -654,6 +651,11 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:51: Invalid condition using MATCH",
             error("from test | eval new_salary = salary + 10 | where first_name match \"Anna\" OR new_salary > 100")
+        );
+
+        assertEquals(
+            "1:45: MATCH requires a mapped index field, found [fn]",
+            error("from test | rename first_name as fn | where fn match \"Anna\"")
         );
     }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
@@ -52,7 +53,6 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -396,9 +396,10 @@ public class Verifier {
                     }
                 });
                 // check no MATCH expressions are used
-                field.forEachDown(MatchQueryPredicate.class, mqp -> {
-                    failures.add(fail(mqp, "EVAL does not support MATCH expressions"));
-                });
+                field.forEachDown(
+                    MatchQueryPredicate.class,
+                    mqp -> { failures.add(fail(mqp, "EVAL does not support MATCH expressions")); }
+                );
             });
         }
     }
@@ -589,22 +590,22 @@ public class Verifier {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
 
-            AtomicBoolean hasMatch = new AtomicBoolean(false);
+            Holder<Boolean> hasMatch = new Holder<>(false);
             condition.forEachDown(MatchQueryPredicate.class, mqp -> {
-               hasMatch.set(true);
-               var field = mqp.field();
-               if (field instanceof FieldAttribute == false) {
-                   failures.add(fail(mqp, "MATCH requires a mapped index field, found [" + field.sourceText() + "]"));
-               }
+                hasMatch.set(true);
+                var field = mqp.field();
+                if (field instanceof FieldAttribute == false) {
+                    failures.add(fail(mqp, "MATCH requires a mapped index field, found [" + field.sourceText() + "]"));
+                }
 
-               if (DataType.isString(field.dataType()) == false) {
-                   var message = LoggerMessageFormat.format(
-                       null,
-                       "MATCH requires a text of keyword field, but [{}] has type [{}]",
-                       field.sourceText(),
-                       field.dataType().esType()
-                   );
-                   failures.add(fail(mqp, message));
+                if (DataType.isString(field.dataType()) == false) {
+                    var message = LoggerMessageFormat.format(
+                        null,
+                        "MATCH requires a text of keyword field, but [{}] has type [{}]",
+                        field.sourceText(),
+                        field.dataType().esType()
+                    );
+                    failures.add(fail(mqp, message));
                 }
             });
 

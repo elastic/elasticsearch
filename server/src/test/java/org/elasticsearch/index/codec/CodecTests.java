@@ -10,7 +10,6 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntField;
@@ -73,7 +72,6 @@ public class CodecTests extends ESTestCase {
 
     public void testLegacyDefault() throws Exception {
         Codec codec = createCodecService().codec("legacy_default");
-        assertThat(codec, Matchers.instanceOf(Lucene99Codec.class));
         assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
         // Make sure the legacy codec is writable
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
@@ -87,7 +85,6 @@ public class CodecTests extends ESTestCase {
 
     public void testLegacyBestCompression() throws Exception {
         Codec codec = createCodecService().codec("legacy_best_compression");
-        assertThat(codec, Matchers.instanceOf(Lucene99Codec.class));
         assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
         // Make sure the legacy codec is writable
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {

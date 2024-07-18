@@ -487,35 +487,42 @@ public class SearchDirectory extends ByteSizeDirectory {
                 FileCacheKey key = new FileCacheKey(shardId, blobLocation.primaryTerm(), blobLocation.blobName());
                 final var blobLength = Long.MIN_VALUE;
                 final var container = blobContainer.get().apply(blobLocation.primaryTerm());
-                cacheService.maybeFetchFullEntry(key, blobLength, (channel, channelPos, relativePos, length, progressUpdater) -> {
-                    final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
-                        cacheService.getRangeSize(),
-                        relativePos,
-                        length,
-                        blobLength
-                    );
-                    final long streamStartPosition = rangeToWrite.start() + relativePos;
-                    try (InputStream in = container.readBlob(OperationPurpose.INDICES, key.fileName(), streamStartPosition, length)) {
-                        // assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-                        logger.trace(
-                            "{}: writing channel {} pos {} length {} (details: {})",
-                            key.fileName(),
-                            channelPos,
+                cacheService.maybeFetchFullEntry(
+                    key,
+                    blobLength,
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
+                        assert streamFactory == null : streamFactory;
+                        final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
+                            cacheService.getRangeSize(),
                             relativePos,
                             length,
-                            key
+                            blobLength
                         );
-                        SharedBytes.copyToCacheFileAligned(
-                            channel,
-                            in,
-                            channelPos,
-                            relativePos,
-                            length,
-                            progressUpdater,
-                            writeBuffer.get().clear()
-                        );
-                    }
-                }, fetchExecutor, refCountingListener.acquire());
+                        final long streamStartPosition = rangeToWrite.start() + relativePos;
+                        try (InputStream in = container.readBlob(OperationPurpose.INDICES, key.fileName(), streamStartPosition, length)) {
+                            // assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                            logger.trace(
+                                "{}: writing channel {} pos {} length {} (details: {})",
+                                key.fileName(),
+                                channelPos,
+                                relativePos,
+                                length,
+                                key
+                            );
+                            SharedBytes.copyToCacheFileAligned(
+                                channel,
+                                in,
+                                channelPos,
+                                relativePos,
+                                length,
+                                progressUpdater,
+                                writeBuffer.get().clear()
+                            );
+                        }
+                    },
+                    fetchExecutor,
+                    refCountingListener.acquire()
+                );
             });
         }
     }

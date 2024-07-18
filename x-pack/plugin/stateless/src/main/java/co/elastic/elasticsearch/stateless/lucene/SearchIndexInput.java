@@ -191,7 +191,8 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                         rangeToRead.start() + len
                     );
                     return SharedBytes.readCacheFile(channel, channelPos, relativePos, len, byteBufferReference);
-                }, (channel, channelPos, relativePos, len, progressUpdater) -> {
+                }, (channel, channelPos, streamFactory, relativePos, len, progressUpdater) -> {
+                    assert streamFactory == null : streamFactory;
                     final long streamStartPosition = rangeToWrite.start() + relativePos;
                     try (
                         // this length is computed from the rangeToWrite and the sum of "streamStartPosition + len" can exceed the real

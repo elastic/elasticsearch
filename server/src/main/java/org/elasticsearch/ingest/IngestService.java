@@ -787,18 +787,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                     updateIndexRequestMetadata(indexRequest, originalDocumentMetadata);
                                     totalMetrics.ingestFailed();
                                     onStoreFailure.apply(slot, originalIndex, e);
-                                } else if (storeFailure.isPresent()) {
-                                    // If this document targeted a data stream that didn't have the failure store enabled, we increment
-                                    // the rejected counter.
-                                    // We also increment the total counter because this request will not reach the code that increments
-                                    // the total counter for non-rejected documents.
-                                    failureStoreMetrics.incrementTotal(originalIndex);
-                                    failureStoreMetrics.incrementRejected(
-                                        originalIndex,
-                                        errorType,
-                                        FailureStoreMetrics.ErrorLocation.PIPELINE,
-                                        false
-                                    );
+                                } else {
+                                    if (storeFailure.isPresent()) {
+                                        // If this document targeted a data stream that didn't have the failure store enabled, we increment
+                                        // the rejected counter.
+                                        // We also increment the total counter because this request will not reach the code that increments
+                                        // the total counter for non-rejected documents.
+                                        failureStoreMetrics.incrementTotal(originalIndex);
+                                        failureStoreMetrics.incrementRejected(
+                                            originalIndex,
+                                            errorType,
+                                            FailureStoreMetrics.ErrorLocation.PIPELINE,
+                                            false
+                                        );
+                                    }
                                     totalMetrics.ingestFailed();
                                     onFailure.accept(slot, e);
                                 }

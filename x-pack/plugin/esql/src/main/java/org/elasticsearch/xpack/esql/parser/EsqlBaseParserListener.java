@@ -883,4 +883,14 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#matchCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMatchCommand(EsqlBaseParser.MatchCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#matchCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMatchCommand(EsqlBaseParser.MatchCommandContext ctx);
 }

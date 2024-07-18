@@ -43,6 +43,7 @@ processingCommand
     | grokCommand
     | enrichCommand
     | mvExpandCommand
+    | matchCommand
     ;
 
 whereCommand
@@ -291,4 +292,8 @@ enrichWithClause
 
 lookupCommand
     : LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    ;
+
+matchCommand
+    : MATCH queryString=QUOTED_STRING
     ;

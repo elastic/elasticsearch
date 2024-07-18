@@ -28,6 +28,28 @@ import java.util.List;
  *         first phase into the logical plan</li>
  *     <li>start over from step 2 using the new logical plan</li>
  * </ol>
+ * <p>For example, {@code INLINESTATS} is written like this:</p>
+ * <pre>{@code
+ * FROM foo
+ * | EVAL bar = a * b
+ * | INLINESTATS m = MAX(bar) BY b
+ * | WHERE m = bar
+ * | LIMIT 1
+ * }</pre>
+ * <p>And it's split into:</p>
+ * <pre>{@code
+ * FROM foo
+ * | EVAL bar = a * b
+ * | STATS m = MAX(bar) BY b
+ * }</pre>
+ * <p>and</p>
+ * <pre>{@code
+ * FROM foo
+ * | EVAL bar = a * b
+ * | LOOKUP (results of m = MAX(bar) BY b) ON b
+ * | WHERE m = bar
+ * | LIMIT 1
+ * }</pre>
  */
 public interface Phased {
     /**

@@ -122,7 +122,9 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     if (p instanceof HashJoinExec join) {
                         attributes.removeAll(join.addedFields());
                         for (Attribute rhs : join.rightFields()) {
-                            attributes.remove(rhs);
+                            if (join.leftFields().stream().anyMatch(x -> x.semanticEquals(rhs)) == false) {
+                                attributes.remove(rhs);
+                            }
                         }
                     }
                     if (p instanceof EnrichExec ee) {

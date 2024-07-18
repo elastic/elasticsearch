@@ -300,7 +300,7 @@ northern:long | southern:long
           520 | 371
 ;
 
-beforeKeep
+beforeKeepSort
 required_capability: inlinestats
 
 FROM employees
@@ -309,6 +309,21 @@ FROM employees
 | SORT emp_no ASC
 | LIMIT 3;
 
+emp_no:integer | languages:integer | max_salary:integer
+         10001 |                 2 | 73578
+         10002 |                 5 | 66817
+         10003 |                 4 | 74572
+;
+
+beforeKeep
+required_capability: inlinestats
+
+FROM employees
+| INLINESTATS max_salary = MAX(salary) by languages
+| KEEP emp_no, languages, max_salary
+| LIMIT 3;
+
+ignoreOrder:true
 emp_no:integer | languages:integer | max_salary:integer
          10001 |                 2 | 73578
          10002 |                 5 | 66817

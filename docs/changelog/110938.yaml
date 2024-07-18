@@ -1,0 +1,5 @@
+pr: 110938
+summary: Inject `host.name` field without relying on (component) templates
+area: Logs
+type: feature
+issues: []

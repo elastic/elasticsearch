@@ -97,6 +97,20 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: "test {stats.Count_or_null SYNC #2}"
   issue: https://github.com/elastic/elasticsearch/issues/110950
+- class: "org.elasticsearch.xpack.esql.querydsl.query.SingleValueQueryTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/110977"
+  method: "testNotMatchSome {p0=StandardSetup[fieldType=keyword, multivaluedField=true, empty=true, count=100]}"
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/110978
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.physical.MvExpandExec}
+  issue: https://github.com/elastic/elasticsearch/issues/110980
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec}
+  issue: https://github.com/elastic/elasticsearch/issues/110981
+- class: org.elasticsearch.search.sort.FieldSortIT
+  method: testIssue6614
+  issue: https://github.com/elastic/elasticsearch/issues/110999
 
 # Examples:
 #

@@ -85,7 +85,9 @@ public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCa
         if (enabled == false) {
             return Set.of();
         } else {
-            return RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
+            final Set<ExpressionRoleMapping> mappings = RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
+            logger.trace("Retrieved [{}] mapping(s) from cluster state", mappings.size());
+            return mappings;
         }
     }
 }

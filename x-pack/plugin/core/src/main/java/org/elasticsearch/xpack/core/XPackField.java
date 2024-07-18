@@ -87,6 +87,7 @@ public final class XPackField {
 
     /** Name constant for the redact processor feature. */
     public static final String REDACT_PROCESSOR = "redact_processor";
+    public static final String ENTERPRISE_GEOIP_DOWNLOADER = "enterprise_geoip_downloader";
     /** Name for Universal Profiling. */
     public static final String UNIVERSAL_PROFILING = "universal_profiling";
 

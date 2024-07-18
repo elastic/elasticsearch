@@ -321,12 +321,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
          * An asynchronous supplier of a {@link SnapshotInfo}.
          */
         private interface AsyncSnapshotInfo {
-
-            /**
-             * @return the {@link SnapshotId} of the {@link SnapshotInfo} to be retrieved.
-             */
-            SnapshotId getSnapshotId();
-
             /**
              * @param listener completed, possibly asynchronously, with the appropriate {@link SnapshotInfo}.
              */
@@ -338,11 +332,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
          */
         private AsyncSnapshotInfo forSnapshotInProgress(SnapshotsInProgress.Entry snapshotInProgress) {
             return new AsyncSnapshotInfo() {
-                @Override
-                public SnapshotId getSnapshotId() {
-                    return snapshotInProgress.snapshot().getSnapshotId();
-                }
-
                 @Override
                 public void getSnapshotInfo(ActionListener<SnapshotInfo> listener) {
                     final var snapshotInfo = SnapshotInfo.inProgress(snapshotInProgress);
@@ -366,11 +355,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             Map<SnapshotId, List<String>> indicesLookup
         ) {
             return new AsyncSnapshotInfo() {
-                @Override
-                public SnapshotId getSnapshotId() {
-                    return snapshotId;
-                }
-
                 @Override
                 public void getSnapshotInfo(ActionListener<SnapshotInfo> listener) {
                     if (verbose) {

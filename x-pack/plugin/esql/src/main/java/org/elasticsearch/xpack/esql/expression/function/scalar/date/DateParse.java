@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -143,7 +142,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
         if (format == null) {
             return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
         }
-        if (EsqlDataTypes.isString(format.dataType()) == false) {
+        if (DataType.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
         }
         if (format.foldable()) {

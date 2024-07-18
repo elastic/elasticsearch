@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.component;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -99,8 +99,8 @@ public class LifecycleTests extends ESTestCase {
 
         void testTransition(BooleanSupplier doTransition) {
             final var transitioned = new AtomicBoolean();
-            PlainActionFuture.<Void, RuntimeException>get(fut -> {
-                try (var listeners = new RefCountingListener(fut)) {
+            safeAwait((ActionListener<Void> listener) -> {
+                try (var listeners = new RefCountingListener(listener)) {
                     for (int i = 0; i < threads; i++) {
                         executor.execute(ActionRunnable.run(listeners.acquire(), () -> {
                             safeAwait(barrier);

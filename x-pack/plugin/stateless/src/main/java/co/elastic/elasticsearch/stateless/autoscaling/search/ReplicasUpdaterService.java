@@ -386,6 +386,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 this.updateInterval,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
+            performReplicaUpdates();
         }
     }
 

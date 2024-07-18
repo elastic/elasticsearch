@@ -532,6 +532,7 @@ public class SharedBlobCacheWarmingService {
                                 // to fully utilize each region. So we just pass it with a value that cover the current region.
                                 (long) (blobRegion.region + 1) * cacheService.getRegionSize(),
                                 (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
+                                    // TODO: ES-8987 We should leverage streamFactory to fill multiple gaps with a single request
                                     assert streamFactory == null : streamFactory;
                                     long position = range.start() + relativePos;
                                     try (var in = cacheBlobReader.getRangeInputStream(position, length)) {

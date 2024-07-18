@@ -126,7 +126,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         GreaterThanOrEqual gte = greaterThanOrEqualOf(fa, THREE);
         GreaterThan gt = greaterThanOf(fa, FOUR);
         LessThanOrEqual lte = lessThanOrEqualOf(fa, L(7));
-        Expression ne = new NotEquals(EMPTY, fa, FIVE);
+        Expression ne = notEqualsOf(fa, FIVE);
 
         CombineBinaryComparisons rule = new CombineBinaryComparisons();
 

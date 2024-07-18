@@ -70,8 +70,28 @@ public class MockPluginsService extends PluginsService {
             }
             pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, pluginClass.getClassLoader(), ModuleLayer.boot()));
         }
-        loadExtensions(pluginsLoaded);
+        loadClasspathExtensions(pluginsLoaded);
         this.classpathPlugins = List.copyOf(pluginsLoaded);
+    }
+
+    private static void loadClasspathExtensions(Collection<LoadedPlugin> plugins) {
+        for (LoadedPlugin pluginTuple : plugins) {
+            if (pluginTuple.instance() instanceof ExtensiblePlugin extensiblePlugin) {
+                ExtensiblePlugin.ExtensionLoader extensionLoader = new ExtensiblePlugin.ExtensionLoader() {
+                    @Override
+                    public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                        SPIClassIterator<T> classIterator = SPIClassIterator.get(extensionPointType, this.getClass().getClassLoader());
+                        List<T> extensions = new ArrayList<>();
+                        while (classIterator.hasNext()) {
+                            Class<? extends T> extensionClass = classIterator.next();
+                            extensions.add(createExtension(extensionClass, extensionPointType, pluginTuple.instance()));
+                        }
+                        return Collections.unmodifiableList(extensions);
+                    }
+                };
+                extensiblePlugin.loadExtensions(extensionLoader);
+            }
+        }
     }
 
     @Override

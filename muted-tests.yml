@@ -97,9 +97,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: "test {stats.Count_or_null SYNC #2}"
   issue: https://github.com/elastic/elasticsearch/issues/110950
-- class: "org.elasticsearch.xpack.esql.querydsl.query.SingleValueQueryTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/110977"
-  method: "testNotMatchSome {p0=StandardSetup[fieldType=keyword, multivaluedField=true, empty=true, count=100]}"
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/110978
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
@@ -108,8 +105,6 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/190_failure_store_redirection/Ensure failure is redirected to correct failure store after a reroute processor}
   issue: https://github.com/elastic/elasticsearch/issues/111041
-- class: org.elasticsearch.xpack.esql.querydsl.query.SingleValueQueryTests
-  issue: https://github.com/elastic/elasticsearch/issues/111042
 - class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
   method: testLoadAllStatusAllInOnePage
   issue: https://github.com/elastic/elasticsearch/issues/111048

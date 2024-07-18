@@ -15,7 +15,7 @@ left:keyword | right:keyword | x:integer
 left         | right         | 1
 ;
 
-shadowingSubfields
+shadowingSubfields#[skip:-8.12.1,reason:fixed in 8.12]
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.name, city.name
 | EVAL city.country.continent.planet.name = to_upper(city.country.continent.planet.name)

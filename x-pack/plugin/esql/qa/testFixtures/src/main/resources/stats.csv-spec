@@ -1158,7 +1158,7 @@ word_count:long
 // end::docsCountWithExpression-result[]
 ;
 
-count_or_null
+count_where#[skip:-8.12.1,reason:implemented in 8.12]
 // tag::count-where[]
 ROW n=1
 | WHERE n < 0
@@ -1173,7 +1173,7 @@ COUNT(n):long
 ;
 
 
-count_or_null
+count_or_null#[skip:-8.12.1,reason:implemented in 8.12]
 // tag::count-or-null[]
 ROW n=1
 | STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)

@@ -1,8 +1,0 @@
-A cluster can contain multiple copies of a shard. Each shard has one distinguished 
-shard copy called the *primary*, and zero or more non-primary copies called 
-*replicas*. The primary shard copy serves as the main entry point for all indexing
-operations. The operations on the primary shard copy are then forwarded to its replicas.
-
-Replicas maintain redundant copies of your data across the  <<modules-node,nodes>>,
-in your cluster, protecting against hardware failure and increasing capacity to 
-serve read requests like searching or retrieving a document.

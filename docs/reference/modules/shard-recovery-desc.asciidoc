@@ -1,13 +1,16 @@
 Shard recovery is the process of initializing a shard copy, such as restoring a
-primary shard from a snapshot or syncing a replica shard from a primary shard.
+primary shard from a snapshot or creating a replica shard from a primary shard.
 When a shard recovery completes, the recovered shard is available for search
 and indexing.
 
 Recovery automatically occurs during the following processes:
 
-* Node startup or failure. This type of recovery is called a local store recovery.
-* Replication of primary shards to replica shards.
-* Relocation of a shard to a different node in the same cluster.
-* A <<snapshots-restore-snapshot,snapshot restore>> operation.
+* When creating an index for the first time (`empty_store`).
+* Node startup or failure. This type of recovery is called a local store recovery (`existing_store`).
+* Creation of new replica shard copies from the primary (`peer`).
+* Relocation of a shard copy to a different node in the same cluster (`peer`).
+* A <<snapshots-restore-snapshot,snapshot restore>> operation (`snapshot`).
 * A <<indices-clone-index,clone>>, <<indices-shrink-index,shrink>>, or
-<<indices-split-index,split>> operation.
+<<indices-split-index,split>> operation (`local_shards`).
+
+You can determine the cause of a shard recovery using the <<cat-recovery,cat recovery API>>.

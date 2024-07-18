@@ -6,7 +6,7 @@ Each document in an index belongs to a single shard.
 
 A cluster can contain multiple copies of a shard. Each shard has one distinguished shard copy called the _primary_, and zero or more non-primary copies called _replicas_. The primary shard copy serves as the main entry point for all indexing operations. The operations on the primary shard copy are then forwarded to its replicas.
 
-Replicas maintain redundant copies of your data across the  <<modules-node,nodes>> in your cluster, protecting against hardware failure and increasing capacity to serve read requests like searching or retrieving a document.
+Replicas maintain redundant copies of your data across the <<modules-node,nodes>> in your cluster, protecting against hardware failure and increasing capacity to serve read requests like searching or retrieving a document. If the primary shard copy fails, then a replica is promoted to primary and takes over the primary's responsibilities.
 
 Over the course of normal operation, Elasticsearch allocates shard copies to nodes, relocates shard copies across nodes to balance the cluster or satisfy new allocation constraints, and recovers shards to initialize new copies. In this topic, you'll learn how these operations work and how you can control them.
 
@@ -29,12 +29,15 @@ You can control how shard copies are allocated using the following settings:
 
 ===== Monitor shard allocation
 
-If a shard copy is unassigned, it means that the shard copy is not allocated to any node in the cluster. This can happen if there are not enough nodes in the cluster to allocate the shard copy, or if the shard copy can't be allocated to any node that satisfies the shard allocation filtering rules.
+If a shard copy is unassigned, it means that the shard copy is not allocated to any node in the cluster. This can happen if there are not enough nodes in the cluster to allocate the shard copy, or if the shard copy can't be allocated to any node that satisfies the shard allocation filtering rules. When a shard copy is unassigned, your cluster is considered unhealthy and returns a yellow or red cluster health status.
 
-You can use the following APIs to monitor shard recovery:
+You can use the following APIs to monitor shard allocation:
 
 - <<cluster-allocation-explain,Cluster allocation explain>>
 - <<cat-allocation,cat allocation>>
+- <<cluster-health,cluster health>>
+
+<<red-yellow-cluster-status,Learn more about troubleshooting unassigned shard copies and recovering your cluster health>>.
 
 [[shard-recovery]]
 ==== Shard recovery
@@ -63,7 +66,7 @@ You can use the following APIs to monitor shard allocation:
 
 Shard relocation is the process of moving shard copies from one node to another. This can happen when a node joins or leaves the cluster, or when the cluster is rebalancing.
 
-When a shard copy is relocated, it is created as a new replica on the target node. When the shard copy is fully allocated and recovered, the old shard copy is deleted. If the shard copy being relocated is a primary, then the new shard copy is marked as primary before the old shard copy is deleted.
+When a shard copy is relocated, it is created as a new shard copy on the target node. When the shard copy is fully allocated and recovered, the old shard copy is deleted. If the shard copy being relocated is a primary, then the new shard copy is marked as primary before the old shard copy is deleted.
 
 ===== Adjust shard relocation settings
 

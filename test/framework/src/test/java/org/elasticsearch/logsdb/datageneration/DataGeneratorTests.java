@@ -11,6 +11,7 @@ package org.elasticsearch.logsdb.datageneration;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.logsdb.datageneration.arbitrary.Arbitrary;
 import org.elasticsearch.logsdb.datageneration.arbitrary.RandomBasedArbitrary;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -48,13 +49,46 @@ public class DataGeneratorTests extends ESTestCase {
     }
 
     public void testDataGeneratorStressTest() throws IOException {
-        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(300, 3, new RandomBasedArbitrary()));
+        // Let's generate 8000000 fields to test an extreme case (2 levels of nested objects + 1 leaf level with 200 fields per object).
+        var arbitrary = new Arbitrary() {
+            private int generatedFields = 0;
+
+            @Override
+            public boolean generateSubObject() {
+                return true;
+            }
+
+            @Override
+            public int childFieldCount(int lowerBound, int upperBound) {
+                return upperBound;
+            }
+
+            @Override
+            public String fieldName(int lengthLowerBound, int lengthUpperBound) {
+                return "f" + generatedFields++;
+            }
+
+            @Override
+            public FieldType fieldType() {
+                return FieldType.LONG;
+            }
+
+            @Override
+            public long longValue() {
+                return 0;
+            }
+
+            @Override
+            public String stringValue(int lengthLowerBound, int lengthUpperBound) {
+                return "";
+            }
+        };
+        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(200, 2, arbitrary));
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
         dataGenerator.writeMapping(mapping);
 
         var document = XContentBuilder.builder(XContentType.JSON.xContent());
         dataGenerator.generateDocument(document);
-
     }
 }
